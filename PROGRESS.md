@@ -323,3 +323,12 @@ and linked; setup on phone, desktop and dark mode; dashboard rail logo; zero con
 proprietary PNW Smart Contract License v1.7 (CLAUDE.md: don't change it until after the build);
 (2) the source icon is ~190 px, so 512 px icons are upscaled; a vector or ≥1024 px source would
 sharpen them (drop it in `brand/source/` and re-run the script).
+
+## 2026-10-13 — Product name in one place
+
+"Plumb" turns out to be taken; it stays as the working name until Joshua picks the final one.
+To make that rename a one-file change: `apps/business/src/brand.ts` now holds the name, tagline,
+backup extension, colours and asset paths; layout metadata, page titles, manifest, logo/hero
+components (renamed `BrandMark`/`BrandLogo`/`BrandHero`), restore screen and backup filename all
+read from it. Package error messages no longer name the product ("…from this app"). Build-plan
+"Product name" decision un-ticked with the rename recipe.

@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { PlumbLogo } from "./Brand";
+import { BRAND } from "@/brand";
+import { BrandLogo } from "./Brand";
 import { SECTIONS } from "./sections";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -68,8 +69,8 @@ function Rail({
 }) {
   return (
     <nav aria-label="Main" className="flex h-full flex-col gap-1 bg-rail px-3 py-4 text-rail-foreground">
-      <Link href="/" onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label="Plumb, dashboard">
-        <PlumbLogo tone="onDark" height={30} />
+      <Link href="/" onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label={`${BRAND.name}, dashboard`}>
+        <BrandLogo tone="onDark" height={30} />
       </Link>
       {NAV.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);

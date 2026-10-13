@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
-import { PlumbHero, PlumbLogo } from "@/shell/Brand";
+import { BrandHero, BrandLogo } from "@/shell/Brand";
 
 /** Full-page frame for setup, unlock and restore: the books aren't open yet. */
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
@@ -9,11 +9,11 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
       {/* Whole hero, never cropped (the tagline is part of the art). On wide screens it's capped
           and fades into the ink band at the sides. */}
       <div className="bg-[var(--plumb-ink)]">
-        <PlumbHero className="mx-auto max-w-[1100px] lg:[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]" />
+        <BrandHero className="mx-auto max-w-[1100px] lg:[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]" />
       </div>
       <div className="relative mx-auto -mt-6 w-full max-w-md px-4 pb-10 sm:-mt-16">
         <div className="rounded-xl border bg-card p-6 shadow-lg">
-          <PlumbLogo height={30} className="mb-5" />
+          <BrandLogo height={30} className="mb-5" />
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
           <div className="mt-6">{children}</div>

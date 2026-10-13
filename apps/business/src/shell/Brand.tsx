@@ -1,11 +1,12 @@
 /* eslint-disable @next/next/no-img-element -- static brand art, served from /public */
 import { cn } from "@pnw/ui/utils";
+import { BRAND } from "@/brand";
 
 /** The pine-cone mark on its green tile. */
-export function PlumbMark({ size = 32, className }: { size?: number; className?: string }) {
+export function BrandMark({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <img
-      src="/brand/plumb-mark-dark.png"
+      src={BRAND.assets.markDark}
       width={size}
       height={size}
       alt=""
@@ -18,34 +19,34 @@ export function PlumbMark({ size = 32, className }: { size?: number; className?:
  * Mark + wordmark. `onDark` always uses the cream lettering (e.g. the nav
  * rail); `auto` follows the colour scheme (green on light, cream on dark).
  */
-export function PlumbLogo({ tone = "auto", height = 28, className }: { tone?: "auto" | "onDark"; height?: number; className?: string }) {
+export function BrandLogo({ tone = "auto", height = 28, className }: { tone?: "auto" | "onDark"; height?: number; className?: string }) {
   const wordHeight = Math.round(height * 0.72);
-  const wordWidth = Math.round((wordHeight * 373) / 115);
+  const wordWidth = Math.round(wordHeight * BRAND.assets.wordmarkAspect);
   return (
-    <span className={cn("inline-flex items-center gap-2", className)} role="img" aria-label="Plumb">
-      <PlumbMark size={height} />
+    <span className={cn("inline-flex items-center gap-2", className)} role="img" aria-label={BRAND.name}>
+      <BrandMark size={height} />
       {tone === "onDark" ? (
-        <img src="/brand/plumb-wordmark-cream.png" width={wordWidth} height={wordHeight} alt="" />
+        <img src={BRAND.assets.wordmarkOnDark} width={wordWidth} height={wordHeight} alt="" />
       ) : (
         <>
-          <img src="/brand/plumb-wordmark-green.png" width={wordWidth} height={wordHeight} alt="" className="dark:hidden" />
-          <img src="/brand/plumb-wordmark-cream.png" width={wordWidth} height={wordHeight} alt="" className="hidden dark:block" />
+          <img src={BRAND.assets.wordmarkOnLight} width={wordWidth} height={wordHeight} alt="" className="dark:hidden" />
+          <img src={BRAND.assets.wordmarkOnDark} width={wordWidth} height={wordHeight} alt="" className="hidden dark:block" />
         </>
       )}
     </span>
   );
 }
 
-/** The front-page hero: the PLUMB tree lettering with its tagline. */
-export function PlumbHero({ className }: { className?: string }) {
+/** The front-page hero art, with its tagline. */
+export function BrandHero({ className }: { className?: string }) {
   return (
     <picture className={cn("block", className)}>
-      <source type="image/webp" srcSet="/brand/plumb-hero-768.webp 768w, /brand/plumb-hero-1536.webp 1536w" sizes="100vw" />
+      <source type="image/webp" srcSet={`${BRAND.assets.heroWebp768} 768w, ${BRAND.assets.heroWebp1536} 1536w`} sizes="100vw" />
       <img
-        src="/brand/plumb-hero-1536.jpg"
+        src={BRAND.assets.heroJpg1536}
         width={1536}
         height={729}
-        alt="Plumb: honest books, grounded and true."
+        alt={`${BRAND.name}: ${BRAND.tagline}`}
         className="h-auto w-full object-cover"
         fetchPriority="high"
       />

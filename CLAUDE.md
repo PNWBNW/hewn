@@ -13,7 +13,9 @@ Three operating modes on one codebase: **fiat** (default, encrypted local vault,
 **anchored** (same, plus period roots anchored on Aleo), **settled** (USDCx on Aleo, the existing payroll
 stack). The double-entry core is identical in all three.
 
-Brand: name **Plumb**, tagline "honest books, grounded and true." Source art and the asset build
+Brand: working name **Plumb** (taken; final name TBD by Joshua), tagline "honest books, grounded and
+true." The name, tagline, colours and asset paths live only in `apps/business/src/brand.ts`; never
+hard-code the product name elsewhere (packages say "this app"). Source art and the asset build
 script live in `brand/`; never hand-edit the generated files in `apps/business/public/brand/`.
 Internal package names stay `@pnw/*` (PNW is the company and protocol namespace).
 
