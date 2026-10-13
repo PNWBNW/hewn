@@ -19,7 +19,8 @@ const CHAIN_PACKAGES = [
 ];
 const CHAIN_SCOPES = ["@provablehq/"];
 
-const CHAIN_WORDS = /\b(blockchain|aleo|on-?chain|crypto(currency)?|wallet|usdcx|fiat|token|nft)\b/i;
+// `crypto.` is the browser's WebCrypto API, not chain vocabulary.
+const CHAIN_WORDS = /\b(blockchain|aleo|on-?chain|crypto(currency)?(?!\.)|wallet|usdcx|fiat|token|nft)\b/i;
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

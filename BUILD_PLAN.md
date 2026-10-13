@@ -242,6 +242,7 @@ No seat cap; the wallet is the user.
 | Priority support, training | Operational | Docs and READMEs |
 | Intuit Intelligence block | Out of scope by decision | Revisit later; a local model over the vault |
 | Open-source licence | After the build | PNW Smart Contract License v1.7 stays |
+| ETH stablecoin + wallet rails | Back burner until the Aleo rails are much further along (2026-10-13) | Aleo/USDCx settled mode only |
 
 ## Decisions
 
@@ -251,6 +252,7 @@ No seat cap; the wallet is the user.
 - [x] Tax engine: TypeScript only; Julia service retired (2026-10-13).
 - [x] Wallet is the only signing path for new code; the CLI adapter / private-key fallback stays in `coordinator` until its tests are rewritten, then is removed (2026-10-13).
 - [x] Fiat is the primary product; chain rails are optional adapters the fiat path never imports (2026-10-13).
+- [x] Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed (2026-10-13).
 - [x] Greenlight for Phase 0 (2026-10-13).
 - [ ] Minimum group size for publishing aggregates (suggested 5). Gates Phase 3 public flag.
 - [ ] Product name for the bookkeeping surface. Gates the README only.

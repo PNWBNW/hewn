@@ -93,8 +93,11 @@ stack). The double-entry core is identical in all three.
 ## Known facts about the existing stack
 
 - Portal: Next.js 16.1.6, React 19.2.3, pnpm, vitest (tests at `src/**/*.test.ts`; path aliases
-  `@/src`, `@/components`, `@/app`). Wallet adaptors `@provablehq/aleo-wallet-adaptor-*` at
-  `0.3.0-alpha.3` — pin exactly, expect breakage. `@provablehq/sdk` ^0.10.1.
+  `@/src`, `@/components`, `@/app`). Monorepo is on Next.js 16.3.8 (security fixes). Wallet adaptors
+  `@provablehq/aleo-wallet-adaptor-*` at `0.3.0-alpha.3` — pin exactly, expect breakage. **Shield is
+  the only wallet**; don't add other adaptors. `@provablehq/sdk` 0.10.1.
+- Security baseline: `docs/THREAT_MODEL.md`. CI blocks on tests, build and `pnpm audit` (moderate+).
+  New dependencies must be at least 7 days old (`minimumReleaseAge`).
 - Leo programs (Leo v4 syntax) live in `pnw_mvp_v2/src/layer1`, `src/layer2`, `src/stubs`.
 - Shield wallet: `privateFee: false` is required on every `executeTransaction` or proof generation
   silently fails. Its browser WASM prover drops multi-program proofs, so payroll runs as four

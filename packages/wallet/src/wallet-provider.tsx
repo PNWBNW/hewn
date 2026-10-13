@@ -10,10 +10,6 @@ import { WalletReadyState } from "@provablehq/aleo-wallet-standard";
 import { Network } from "@provablehq/aleo-types";
 import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
 import { ShieldWalletAdapter } from "@provablehq/aleo-wallet-adaptor-shield";
-import { PuzzleWalletAdapter } from "@provablehq/aleo-wallet-adaptor-puzzle";
-import { LeoWalletAdapter } from "@provablehq/aleo-wallet-adaptor-leo";
-import { FoxWalletAdapter } from "@provablehq/aleo-wallet-adaptor-fox";
-import { SoterWalletAdapter } from "@provablehq/aleo-wallet-adaptor-soter";
 
 // Official wallet adapter CSS (provides the modal, buttons, and icons)
 import "@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css";
@@ -22,8 +18,8 @@ export { useWallet };
 
 /**
  * Mobile wallet connection works via the wallet's in-app browser:
- * the dApp opens inside the wallet app's webview, where window.shield /
- * window.leoWallet etc. get injected and the adapter detects INSTALLED.
+ * the dApp opens inside the wallet app's webview, where window.shield
+ * gets injected and the adapter detects INSTALLED.
  *
  * When a LOADABLE wallet fails to connect from a regular mobile browser,
  * this component redirects to the wallet's in-app browser URL, loading
@@ -81,27 +77,12 @@ function getMobileWalletUrl(
 ): string | undefined {
   const name = walletName.toLowerCase();
 
-  if (name.includes("leo")) {
-    // Leo Wallet's in-app browser: opens our dApp inside the Leo webview
-    // where window.leoWallet gets injected
-    return `https://app.leo.app/browser?url=${encodedDAppUrl}`;
-  }
-
-  if (name.includes("fox")) {
-    // FoxWallet uses the same Leo in-app browser format
-    return `https://app.leo.app/browser?url=${encodedDAppUrl}`;
-  }
-
   if (name.includes("shield")) {
     // Shield: use Android intent to open the app directly.
     // If the Shield app is installed, this deep-links into it.
     // The user can then navigate to the dApp URL in Shield's browser.
     // Fallback: open Shield website to download
     return fallbackUrl || "https://www.shield.app/";
-  }
-
-  if (name.includes("puzzle")) {
-    return fallbackUrl || "https://puzzle.online/wallet";
   }
 
   return fallbackUrl;
@@ -111,36 +92,15 @@ function getMobileWalletUrl(
  * Aleo wallet provider — matches the official pattern from
  * aleo-dev-toolkit-react-app.vercel.app/wallet.
  *
- * Adapters: Shield, Puzzle, Leo, Fox, Soter
+ * Adapter: Shield only (decision 2026-10-13; other Aleo wallets dropped).
  * WalletModalProvider wraps children with the pre-built connect modal UI.
- *
- * On mobile, Leo and Fox adapters are configured with the dApp URL so
- * their in-app browser opens our portal (where window.leoWallet exists).
  */
 export function AleoWalletProviderWrapper({
   children,
 }: {
   children: ReactNode;
 }) {
-  const wallets = useMemo(() => {
-    const isMobile =
-      typeof window !== "undefined" &&
-      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const dAppUrl =
-      typeof window !== "undefined" ? window.location.origin : "";
-
-    return [
-      new ShieldWalletAdapter(),
-      new PuzzleWalletAdapter(),
-      new LeoWalletAdapter(
-        isMobile ? { isMobile: true, mobileWebviewUrl: dAppUrl } : undefined,
-      ),
-      new FoxWalletAdapter(
-        isMobile ? { isMobile: true, mobileWebviewUrl: dAppUrl } : undefined,
-      ),
-      new SoterWalletAdapter(),
-    ];
-  }, []);
+  const wallets = useMemo(() => [new ShieldWalletAdapter()], []);
 
   return (
     <AleoWalletProvider

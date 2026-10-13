@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # Security fixes still open immediately; this only batches routine bumps.
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Pinned exactly on purpose (CLAUDE.md): alpha wallet adaptors break between releases.
+      - dependency-name: "@provablehq/*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
