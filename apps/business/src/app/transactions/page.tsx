@@ -7,6 +7,7 @@ import {
   type AccountType,
   type Books,
   type Entry,
+  type NameRef,
   ACCOUNT_TYPES,
   accountMap,
   addAccount,
@@ -46,6 +47,14 @@ const SOURCE_LABELS: Record<Entry["source"]["kind"], string> = {
   payroll: "Payroll",
   tax_payment: "Tax payment",
   reversal: "Reversal",
+};
+
+/** Entries owned by a sales or purchase form are voided there, so the form and the books stay in step. */
+const FORM_SOURCES: Partial<Record<Entry["source"]["kind"], { href: string; label: string }>> = {
+  invoice: { href: "/sales", label: "Sales" },
+  payment: { href: "/sales", label: "Sales" },
+  bill: { href: "/expenses", label: "Expenses" },
+  bill_payment: { href: "/expenses", label: "Expenses" },
 };
 
 export default function TransactionsPage() {
@@ -89,8 +98,17 @@ export default function TransactionsPage() {
 // ---- Journal ---------------------------------------------------------------
 
 function Journal() {
-  const { books, payroll, update } = useOpenBooks();
-  const people = useMemo(() => new Map(payroll.workers.map((w) => [w.id, w.name])), [payroll]);
+  const { books, payroll, sales, update } = useOpenBooks();
+  // Names live in the vault next to the books; journal lines carry only the id.
+  const names = useMemo(
+    () => ({
+      employee: new Map(payroll.workers.map((w) => [w.id, w.name])),
+      customer: new Map(sales.customers.map((c) => [c.id, c.name])),
+      vendor: new Map(sales.vendors.map((v) => [v.id, v.name])),
+    }),
+    [payroll, sales],
+  );
+  const nameOf = (ref: NameRef) => (ref.kind === "other" ? undefined : names[ref.kind].get(ref.id)) ?? ref.id;
   const [error, setError] = useState<string | null>(null);
   const accounts = useMemo(() => accountMap(books), [books]);
   const entries = useMemo(() => [...books.entries].sort((a, b) => b.date.localeCompare(a.date) || b.seq - a.seq), [books]);
@@ -168,7 +186,7 @@ function Journal() {
                           {acct ? accountLabel(acct) : line.accountId}
                           {(line.name || line.memo) && (
                             <span className="block text-xs text-muted-foreground">
-                              {[line.name?.kind === "employee" ? (people.get(line.name.id) ?? line.name.id) : line.name?.id, line.memo]
+                              {[line.name && nameOf(line.name), line.memo]
                                 .filter(Boolean)
                                 .join(" · ")}
                             </span>
@@ -187,10 +205,20 @@ function Journal() {
               </table>
             </div>
             {!entry.reverses && !reversed && (
-              <footer className="flex justify-end border-t px-4 py-2">
-                <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => voidEntry(entry)}>
-                  Void
-                </Button>
+              <footer className="flex items-center justify-end border-t px-4 py-2">
+                {FORM_SOURCES[entry.source.kind] ? (
+                  // Voiding here would leave the invoice or bill thinking it's still posted.
+                  <Link
+                    href={FORM_SOURCES[entry.source.kind]!.href}
+                    className="flex min-h-11 items-center px-3 text-xs text-muted-foreground hover:text-primary sm:min-h-8"
+                  >
+                    Void it from {FORM_SOURCES[entry.source.kind]!.label}
+                  </Link>
+                ) : (
+                  <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => voidEntry(entry)}>
+                    Void
+                  </Button>
+                )}
               </footer>
             )}
           </article>

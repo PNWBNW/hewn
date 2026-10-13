@@ -13,6 +13,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type Books, type Settings, type TemplateId, applyTemplate, createBooks } from "@pnw/ledger";
 import { type Payroll, emptyPayroll } from "@pnw/payroll";
+import { type Sales, emptySales } from "@pnw/sales";
 import { BRAND } from "@/brand";
 import { type Company, companyFromJson, companyToJson } from "./company";
 import {
@@ -35,12 +36,13 @@ type BooksContextValue = {
   status: BooksStatus;
   books: Books | null;
   payroll: Payroll | null;
+  sales: Sales | null;
   create: (input: SetupInput) => Promise<void>;
   unlock: (passphrase: string) => Promise<void>;
   lock: () => void;
   /** Apply a ledger operation; resolves once the result is safely stored. */
   update: (op: (books: Books) => Books) => Promise<Books>;
-  /** Same, for operations that change the books and payroll together (a pay run). */
+  /** Same, for operations that change the books with payroll or sales (a pay run, an invoice). */
   updateCompany: (op: (company: Company) => Company) => Promise<Company>;
   downloadBackup: () => void;
   /** Restore a backup file onto this device, then open it. */
@@ -56,10 +58,10 @@ export function useBooks(): BooksContextValue {
 }
 
 /** Open books, for screens that only render once the gate has let them through. */
-export function useOpenBooks(): BooksContextValue & { books: Books; payroll: Payroll } {
+export function useOpenBooks(): BooksContextValue & { books: Books; payroll: Payroll; sales: Sales } {
   const ctx = useBooks();
-  if (!ctx.books || !ctx.payroll) throw new Error("Books are not open");
-  return ctx as BooksContextValue & { books: Books; payroll: Payroll };
+  if (!ctx.books || !ctx.payroll || !ctx.sales) throw new Error("Books are not open");
+  return ctx as BooksContextValue & { books: Books; payroll: Payroll; sales: Sales };
 }
 
 export function BooksProvider({ children }: { children: ReactNode }) {
@@ -89,7 +91,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     async ({ template, passphrase, ...settings }: SetupInput) => {
       let fresh = createBooks(settings);
       if (template !== "blank") fresh = applyTemplate(fresh, template);
-      const s = await createVault(passphrase, companyToJson({ books: fresh, payroll: emptyPayroll() }), { id: VAULT_ID });
+      const s = await createVault(passphrase, companyToJson({ books: fresh, payroll: emptyPayroll(), sales: emptySales() }), { id: VAULT_ID });
       await store.save(s.record);
       await open(s);
     },
@@ -186,6 +188,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       status,
       books: company?.books ?? null,
       payroll: company?.payroll ?? null,
+      sales: company?.sales ?? null,
       create,
       unlock,
       lock,

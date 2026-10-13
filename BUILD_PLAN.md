@@ -133,8 +133,8 @@ This is where it starts to feel like QuickBooks.
 
 **Exit criteria**
 
-- [ ] Invoice → partial payment → final payment → paid, with AR balance correct at each step
-- [ ] Bill → payment, with AP balance correct
+- [x] Invoice → partial payment → final payment → paid, with AR balance correct at each step
+- [x] Bill → payment, with AP balance correct
 - [ ] Sales tax liability report ties to invoices for the period
 - [ ] Project profitability report for a job with labor (from Phase 2), materials and an invoice
 - [ ] A public-flagged invoice is readable from a public mapping; a private one is not; a worker-linked entry refuses the flag at the circuit level
