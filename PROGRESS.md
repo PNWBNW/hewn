@@ -129,10 +129,9 @@ monorepo.
 
 **Follow-ups noted, not done**
 - `pnw_mvp_v2/portal/src/commitments` should be marked divergent or deleted there.
-- `wallet/wallet-executor` and `coordinator/settlement_coordinator` call the wallet's execute path
-  directly, not through `pnw-adapter`. That breaks the CLAUDE.md boundary rule. Decide whether
-  wallet execution moves behind `pnw-adapter`, or the rule names the wallet executor as a second
-  allowed path.
+- ~~Wallet executor bypasses `pnw-adapter`~~ — resolved 2026-10-13: Joshua confirmed the wallet
+  is the intended execution path (the wallet shows what is signed). CLAUDE.md and BUILD_PLAN.md
+  rules updated to match; the CLI adapter is the Path B private-key fallback only.
 - Package typecheck excludes test files; `persistence` tests have 2 pre-existing type errors
   (fixture `hours_worked` optional vs required), same as in the portal.
 - `apps/`, `programs/` and `programs/archive/` not created yet; that's the next criterion's work.

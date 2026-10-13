@@ -55,8 +55,10 @@ stack). The double-entry core is identical in all three.
 - localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault.
 
 **Boundaries**
-- Every on-chain call goes through the `pnw-adapter` package. Nothing else calls `snarkos` or the SDK
-  execute path directly.
+- Every on-chain write is signed in the user's wallet through the `wallet` package's executor, so
+  the wallet shows what is being signed. Program and transition names come from `pnw-adapter`
+  (never hard-coded elsewhere). `pnw-adapter`'s CLI adapter is the private-key fallback (Path B,
+  testnet/dev) only. Nothing else calls `snarkos` or the SDK execute path directly.
 - Extension modules may never touch posting logic or the vault key.
 - Mode upgrades (fiat → anchored → settled) are one-way, show exactly what goes on-chain, and require
   a second wallet signature after a review screen. Never flip a mode as a side effect.

@@ -28,7 +28,7 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 **Reused as-is from `pnw_mvp_v2` and `pnw_employment_portal_v1`**
 
 - Privacy architecture: records for identifying data, mappings hold only hashes and block heights, commitment-based authorization (`parties_key` commitments).
-- The adapter boundary: the app never calls `snarkos` directly; every on-chain call goes through `pnw-adapter`. Extensions hang off this seam.
+- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`; the CLI adapter is a private-key fallback only. The app never calls `snarkos` directly. Extensions hang off this seam.
 - `paystub_receipts` + `payroll_audit_log` as the pattern for all ledger postings (dual records + hash anchor).
 - `.pnw` name registry, credential NFTs, employer license gate, wallet-signature session model.
 - TypeScript tax engine (`src/lib/tax-engine.ts`, IRS annualization method).
