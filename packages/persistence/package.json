@@ -1,0 +1,22 @@
+{
+  "name": "@pnw/persistence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./draft_encryptor": "./src/draft_encryptor.ts",
+    "./draft_integrity": "./src/draft_integrity.ts",
+    "./draft_store": "./src/draft_store.ts",
+    "./index": "./src/index.ts",
+    "./key_provider": "./src/key_provider.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/manifest": "workspace:*"
+  }
+}

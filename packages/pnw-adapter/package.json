@@ -1,0 +1,24 @@
+{
+  "name": "@pnw/pnw-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./aleo_cli_adapter": "./src/aleo_cli_adapter.ts",
+    "./aleo_records": "./src/aleo_records.ts",
+    "./freeze_list_resolver": "./src/freeze_list_resolver.ts",
+    "./layer1_adapter": "./src/layer1_adapter.ts",
+    "./layer1_router": "./src/layer1_router.ts",
+    "./layer2_adapter": "./src/layer2_adapter.ts",
+    "./layer2_router": "./src/layer2_router.ts",
+    "./sealance_types": "./src/sealance_types.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/config": "workspace:*"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@pnw/manifest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./chunk_planner": "./src/chunk_planner.ts",
+    "./compiler": "./src/compiler.ts",
+    "./payroll-table/types": "./src/payroll-table/types.ts",
+    "./payroll-table/validation": "./src/payroll-table/validation.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/pnw-adapter": "workspace:*"
+  }
+}

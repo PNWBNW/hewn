@@ -1,0 +1,19 @@
+{
+  "name": "@pnw/w4-crypto",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types/w4": "./src/types/w4.ts",
+    "./w4-crypto": "./src/w4-crypto.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/handshake": "workspace:*",
+    "@pnw/tax-engine": "workspace:*"
+  }
+}

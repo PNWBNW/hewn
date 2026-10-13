@@ -1,0 +1,14 @@
+{
+  "name": "@pnw/tax-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tax-engine": "./src/tax-engine.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@pnw/pdf",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./AuditAuthPDF": "./src/AuditAuthPDF.tsx",
+    "./CredentialCertPDF": "./src/CredentialCertPDF.tsx",
+    "./DownloadPDFButton": "./src/DownloadPDFButton.tsx",
+    "./PayrollRunPDF": "./src/PayrollRunPDF.tsx",
+    "./PaystubPDF": "./src/PaystubPDF.tsx",
+    "./pdf_helpers": "./src/pdf_helpers.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/manifest": "workspace:*",
+    "@pnw/records": "workspace:*",
+    "jspdf": "4.2.0",
+    "qrcode": "1.5.4",
+    "react": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.2.14"
+  }
+}

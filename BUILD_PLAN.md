@@ -65,7 +65,7 @@ The portal is rebuilt as a QuickBooks-shaped shell; its libraries are kept. Noth
 
 **Exit criteria**
 
-- [ ] Every salvaged package builds and its existing vitest suite passes inside the monorepo
+- [x] Every salvaged package builds and its existing vitest suite passes inside the monorepo (2026-10-13)
 - [ ] A full payroll run (agreement check → USDCx transfer → receipts → audit anchor → cycle NFT) completes end-to-end from `apps/business` on testnet, tx hashes recorded
 - [ ] A worker sees that paystub in `apps/worker` with the credential badge rendered
 - [ ] The old portal repo is archived on GitHub with a pointer to the monorepo

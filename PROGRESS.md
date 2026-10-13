@@ -95,3 +95,44 @@ Push access to `pnw_employment_portal_v1` was not granted in this session, so th
 (`git apply` from the portal root, at 909660e). It gets applied when the packages are salvaged into
 the monorepo. The exit criterion itself stays unticked until the suite runs green *inside* the
 monorepo.
+
+## 2026-10-13 — Phase 0: salvage packages into the monorepo (exit criterion 1 ✅)
+
+- Portal test fix also landed upstream as PNWBNW/pnw_employment_portal_v1#199.
+- pnpm workspace at repo root (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`,
+  root `vitest.config.ts` running every package as a project). Salvaged from portal @ 909660e +
+  the #199 test fix, by `salvage/salvage.py` (re-runnable).
+- **13 packages**: the 10 in the plan plus `config` and `wallet` (approved), plus `persistence`
+  (has tests; it's the base of the Phase 1 vault). Layering in `packages/README.md`; the graph is
+  acyclic.
+- Moves needed to break the old `pnw-adapter → records → coordinator → records` cycle (no logic
+  changes):
+  - `credentials_manager`, `roster_credentials_manager`, `roster_tree_builder` (+test):
+    pnw-adapter → coordinator. `anchor/batch_anchor_finalizer` (+test) → coordinator.
+  - `components/payroll-table/{types,validation}` → `manifest/payroll-table/`.
+  - `src/registry/*` → `records/registry/`.
+  - Type-only blocks lifted from app stores: `WorkerRecord`, credential types +
+    `CREDENTIAL_TYPE_LABELS`, `AuditRequest` → `records/types/`; `W4Data` → `w4-crypto/types/`;
+    `PaystubReceipt` → `records/types/` (coordinator re-exports it).
+- Hashing decision (Joshua): `commitments` keeps the portal's live `BLAKE3(domain || payload)`.
+  The mvp_v2 copy (`domain || 0x00 || payload`) has diverged and is not used. Any separator fix
+  goes into a new versioned domain for `gl_core`, not a retrofit.
+- External deps pinned to the exact versions resolved in the portal lockfile.
+
+**Results**
+- `pnpm build` (strict `tsc --noEmit` per package): 13/13 clean.
+- `pnpm test`: **15 files, 156/156 passing**: commitments 12, coordinator 60, manifest 47,
+  persistence 17, records 7, wallet 13. The other 10 portal tests are `audit/audit_actions.test`,
+  which depends on the app-side audit store and moves with `apps/business`.
+- No tests exist upstream for: config, tax-engine, pnw-adapter (beyond the moved roster test),
+  handshake, w4-crypto, nft-art, pdf.
+
+**Follow-ups noted, not done**
+- `pnw_mvp_v2/portal/src/commitments` should be marked divergent or deleted there.
+- `wallet/wallet-executor` and `coordinator/settlement_coordinator` call the wallet's execute path
+  directly, not through `pnw-adapter`. That breaks the CLAUDE.md boundary rule. Decide whether
+  wallet execution moves behind `pnw-adapter`, or the rule names the wallet executor as a second
+  allowed path.
+- Package typecheck excludes test files; `persistence` tests have 2 pre-existing type errors
+  (fixture `hours_worked` optional vs required), same as in the portal.
+- `apps/`, `programs/` and `programs/archive/` not created yet; that's the next criterion's work.

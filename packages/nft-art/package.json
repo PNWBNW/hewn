@@ -1,0 +1,18 @@
+{
+  "name": "@pnw/nft-art",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./hash_params": "./src/hash_params.ts",
+    "./topo_renderer": "./src/topo_renderer.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/records": "workspace:*"
+  }
+}
