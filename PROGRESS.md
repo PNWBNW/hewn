@@ -368,3 +368,52 @@ console/CSP errors.
 other Phase 2 criteria need the testnet run or reports (P&L / balance sheet, Phase 4).
 
 **Results:** 29 files, **256/256** (payroll 18 incl. a 200-run property test). Build green.
+
+## 2026-10-13 — Phase 4 (pulled ahead): financial statements
+
+Profit and loss, balance sheet and trial balance, computed on the device from the vault.
+
+- **`@pnw/ledger` `statements.ts`** (pure, bigint cents):
+  - `profitAndLoss(books, range, compare?)`: Income, Cost of goods sold, Gross profit, Expenses,
+    Net operating income, Other income, Other expenses, Net other income, Net income. Accounts nest
+    under their nearest ancestor in the same section (parent keeps its own amount plus a rolled-up
+    total), ordered by number then name, only accounts with something in a column. Amounts positive
+    on the section's normal side (a refund or contra account shows negative).
+  - `balanceSheet(books, asOf, compareTo?)`: Assets (current: bank / A/R / other current; fixed;
+    other), Liabilities (current: credit cards / A/P / other current; long-term), Equity (equity
+    accounts, Retained Earnings, and a "Net income" line for the fiscal year to date). Built on
+    `trialBalance`, so the retained-earnings rollover is the same rule in both places.
+  - `compareAccounts` (chart order) and `fiscalYearOf`. The app's chart of accounts now uses the
+    same comparator: unnumbered accounts (the built-in ones) sort after numbered ones in each
+    section, which is what the old `"~"` sort key intended but `localeCompare` didn't do.
+- **Tests:** assets = liabilities + equity; BS Net income = P&L for fiscal YTD; Retained Earnings =
+  P&L for prior years = the trial balance's rollover; comparison columns; nesting/order; and a
+  300-run fast-check property over random entries across 2025–2026 with a random fiscal start
+  month. **Phase 2 criterion** (in `packages/payroll`, since the ledger may not depend on payroll):
+  a 3-person `postPayRun` shows Wages = total gross (6,206.38) and Employer Payroll Taxes on the
+  P&L, Payroll Liabilities = withheld + employer taxes on the balance sheet, and a tax payment
+  clears the liability without touching the P&L.
+- **App `/reports`**: report picker (Profit and loss / Balance sheet / Trial balance); P&L presets
+  (this month, last month, this quarter, year to date, last year — fiscal-year aware — or a custom
+  range); balance sheet and trial balance "as of"; "Compare to" previous period / same period last
+  year (balance sheet: end of previous month / same date last year). Statement table with section
+  headings, indented sub-accounts, subtotals, bold totals, tabular right-aligned money; tables
+  scroll inside their own frame. "Download CSV" of exactly the lines on screen (UTF-8 BOM, plain
+  numbers, text cells that look like formulas are defused). Empty state with no entries.
+
+**Browser check** (production build, 390×844 then 1280×900): Services books; journal entries
+25,000 owner investment, 8,000 service income, 1,500 rent on the card, 3,000 income dated
+2025-12-15; payroll for one salaried person ($52,000/yr biweekly). October P&L: income 8,000.00,
+Rent 1,500.00, Payroll Expenses 2,153.00 (Wages 2,000.00 + employer taxes 153.00), net income
+4,347.00. Balance sheet as of 2026-10-13: Checking 34,309.15 = 36,000 − net pay 1,690.85; card
+1,500.00; Payroll Liabilities 462.15 (withheld 309.15 + 153.00); Owner's Investment 25,000.00,
+Retained Earnings 3,000.00 (the 2025 income), Net income 4,347.00; total assets 34,309.15 = total
+liabilities and equity. Trial balance 37,962.15 both sides. Comparisons and CSV download work; no
+horizontal page scroll at 390px; zero console or CSP errors (one browser warning about the
+`bluetooth` Permissions-Policy feature, from the existing security headers).
+
+**Exit criteria:** ticked Phase 2 "P&L for the period shows the wage expense; balance sheet shows
+the tax liability" (fiat mode). Phase 4's reconciliation criterion still needs the cash flow
+statement.
+
+**Results:** 32 files, **276/276** (ledger +10, payroll +2, business +8). Build green, audit clean.
