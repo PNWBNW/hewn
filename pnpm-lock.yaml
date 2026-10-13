@@ -213,6 +213,9 @@ importers:
         specifier: workspace:*
         version: link:../ledger
     devDependencies:
+      '@pnw/payroll':
+        specifier: workspace:*
+        version: link:../payroll
       fast-check:
         specifier: 4.10.2
         version: 4.10.2

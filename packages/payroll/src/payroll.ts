@@ -14,6 +14,9 @@
 //      Cr Payroll Liabilities   withheld (federal + employee SS/Medicare) + employer SS/Medicare
 //      Cr Bank                  net pay
 //
+// A paycheck tagged with a project (or class, location) carries the tag on
+// its wage and employer-tax lines: that's the labour cost of the job.
+//
 // The same entry shape is what payroll_gl_bridge.aleo will post in settled
 // mode (plus the USDCx transfer and platform fee), so fiat and settled books
 // match line for line.
@@ -24,10 +27,12 @@ import {
   type Cents,
   type Entry,
   type IsoDate,
+  type Tags,
   addAccount,
   accountMap,
   assertDate,
   baseOf,
+  cleanTags,
   postEntry,
   systemAccount,
 } from "@pnw/ledger";
@@ -93,6 +98,8 @@ export type Paycheck = {
   employerSocialSecurity: Cents;
   employerMedicare: Cents;
   net: Cents;
+  /** Project, class or location this paycheck's labour is charged to. */
+  tags?: Tags;
 };
 
 export type PayRun = {
@@ -270,8 +277,12 @@ export type PayRunInput = {
   periodStart: IsoDate;
   periodEnd: IsoDate;
   bankAccountId: string;
-  /** Who's paid in this run. Hourly workers need hours; salaried ones don't. */
-  lines: { workerId: string; hours?: number }[];
+  /**
+   * Who's paid in this run. Hourly workers need hours; salaried ones don't.
+   * Optional tags (a project, say) go on that paycheck's wage and employer-tax
+   * lines, so the labour shows up in the project's profit.
+   */
+  lines: { workerId: string; hours?: number; tags?: Tags }[];
 };
 
 /** Computes every paycheck without touching the books, for the review screen. */
@@ -285,7 +296,9 @@ export function previewPayRun(payroll: Payroll, input: PayRunInput): Paycheck[] 
     if (!worker.active) throw new PayrollError(`${worker.name} is inactive`);
     if (seen.has(worker.id)) throw new PayrollError(`${worker.name} is listed twice`);
     seen.add(worker.id);
-    return computePaycheck(worker, grossFor(worker, line.hours), yearToDate(payroll, worker.id, input.payDate), line.hours);
+    const paycheck = computePaycheck(worker, grossFor(worker, line.hours), yearToDate(payroll, worker.id, input.payDate), line.hours);
+    const tags = cleanTags(line.tags);
+    return tags ? { ...paycheck, tags } : paycheck;
   });
 }
 
@@ -309,9 +322,10 @@ export function postPayRun(
   for (const p of paychecks) {
     if (p.gross === 0n) continue; // nothing to post for a zero paycheck
     const employee = { kind: "employee" as const, id: p.workerId };
+    const tags = p.tags ? { tags: p.tags } : {};
     const lines = [
-      { accountId: accounts.wagesId, debit: p.gross, name: employee },
-      ...(employerTaxes(p) > 0n ? [{ accountId: accounts.employerTaxesId, debit: employerTaxes(p), name: employee }] : []),
+      { accountId: accounts.wagesId, debit: p.gross, name: employee, ...tags },
+      ...(employerTaxes(p) > 0n ? [{ accountId: accounts.employerTaxesId, debit: employerTaxes(p), name: employee, ...tags }] : []),
       ...(withheld(p) + employerTaxes(p) > 0n
         ? [{ accountId: accounts.liabilitiesId, credit: withheld(p) + employerTaxes(p), name: employee }]
         : []),

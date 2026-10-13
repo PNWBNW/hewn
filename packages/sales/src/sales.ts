@@ -19,6 +19,10 @@
 //   Bill payment       Dr Accounts Payable (vendor)        amount
 //                         Cr <bank>
 //
+// Invoice and bill lines may carry tags (project, class, location); the
+// income or expense line they post carries the same tags, which is how a
+// project's profit adds itself up. Estimates (estimates.ts) never post.
+//
 // Voiding reverses the entry; nothing is edited or deleted in the journal.
 // Every operation is a pure function of (books, sales): if any ledger rule
 // fails (closed month, inactive account...), it throws and the caller's
@@ -33,9 +37,11 @@ import {
   type Entry,
   type IsoDate,
   type NameRef,
+  type Tags,
   accountMap,
   assertDate,
   baseOf,
+  cleanTags,
   formatCents,
   postEntry,
   reverseEntry,
@@ -70,6 +76,7 @@ export type InvoiceLine = {
   quantity: string;
   unitPrice: Cents;
   taxable?: boolean;
+  tags?: Tags;
 };
 
 /** Stored state. What the user sees (open, paid, overdue...) is derived; see invoiceStatus. */
@@ -91,6 +98,8 @@ export type Invoice = {
   entryId?: string;
   /** The reversal posted when a sent invoice was voided. */
   voidEntryId?: string;
+  /** The estimate this invoice was made from. */
+  estimateId?: string;
 };
 
 export type InvoiceInput = {
@@ -128,7 +137,23 @@ export type BillLine = {
   /** An expense or (non-bank) asset account. */
   accountId: string;
   amount: Cents;
+  tags?: Tags;
 };
+
+/**
+ * A receipt or other file kept with a bill. The bytes are sealed separately
+ * in the vault (never in the company file); the bill holds only this.
+ */
+export type AttachmentRef = {
+  attachmentId: string;
+  /** SHA-256 of the plaintext bytes, hex: checked every time the file is opened. */
+  sha256: string;
+  type: string;
+  size: number;
+  name: string;
+};
+
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 export type Bill = {
   id: string;
@@ -140,6 +165,7 @@ export type Bill = {
   terms: TermsId;
   lines: BillLine[];
   memo?: string;
+  attachments?: AttachmentRef[];
   entryId: string;
   voidEntryId?: string;
 };
@@ -152,6 +178,7 @@ export type BillInput = {
   terms?: TermsId;
   lines: BillLine[];
   memo?: string;
+  attachments?: AttachmentRef[];
 };
 
 export type BillPayment = {
@@ -167,17 +194,36 @@ export type BillPayment = {
 
 export type BillPaymentInput = Omit<BillPayment, "id" | "entryId" | "voidEntryId">;
 
+/** Stored state of an estimate. "Expired" is derived from the expiry date; see estimateStatus. */
+export type EstimateState = "draft" | "sent" | "accepted" | "declined" | "converted";
+
+export type Estimate = {
+  id: string;
+  number: string;
+  customerId: string;
+  date: IsoDate;
+  expiryDate: IsoDate;
+  lines: InvoiceLine[];
+  taxRateBp: number;
+  memo?: string;
+  state: EstimateState;
+  /** The invoice it became. */
+  invoiceId?: string;
+};
+
 export type Sales = {
   version: 1;
   customers: Customer[];
   vendors: Vendor[];
   invoices: Invoice[];
+  estimates: Estimate[];
   bills: Bill[];
   payments: Payment[];
   billPayments: BillPayment[];
   nextCustomer: number;
   nextVendor: number;
   nextInvoice: number;
+  nextEstimate: number;
   nextBill: number;
   nextPayment: number;
   nextBillPayment: number;
@@ -188,12 +234,14 @@ export const emptySales = (): Sales => ({
   customers: [],
   vendors: [],
   invoices: [],
+  estimates: [],
   bills: [],
   payments: [],
   billPayments: [],
   nextCustomer: 1,
   nextVendor: 1,
   nextInvoice: 1,
+  nextEstimate: 1,
   nextBill: 1,
   nextPayment: 1,
   nextBillPayment: 1,
@@ -320,7 +368,7 @@ export function updateVendor(sales: Sales, id: string, changes: Partial<VendorIn
   return { ...sales, vendors: sales.vendors.map((v) => (v.id === id ? next : v)) };
 }
 
-const findCustomer = (sales: Sales, id: string) => sales.customers.find((c) => c.id === id) ?? fail("Customer not found");
+export const findCustomer = (sales: Sales, id: string) => sales.customers.find((c) => c.id === id) ?? fail("Customer not found");
 const findVendor = (sales: Sales, id: string) => sales.vendors.find((v) => v.id === id) ?? fail("Vendor not found");
 
 // ---- Invoices ----------------------------------------------------------------
@@ -342,34 +390,46 @@ function account(books: Books, id: string, where: string): Account {
   return acct;
 }
 
-function cleanInvoice(books: Books, sales: Sales, input: InvoiceInput): Omit<Invoice, "id" | "number" | "state"> {
-  const customer = findCustomer(sales, input.customerId);
-  const date = assertDate(input.date);
-  const terms = input.terms ?? customer.terms;
-  const dueDate = input.dueDate ? assertDate(input.dueDate) : dueDateFor(date, terms);
-  if (dueDate < date) fail("The due date is before the invoice date");
-  const taxRateBp = input.taxRateBp ?? 0;
-  if (!Number.isInteger(taxRateBp) || taxRateBp < 0 || taxRateBp > 10_000) fail("Tax rate must be between 0% and 100%");
-  if (input.lines.length === 0) fail("Add at least one line");
-  const lines = input.lines.map((l, i): InvoiceLine => {
+export function cleanTaxRate(taxRateBp: number | undefined): number {
+  const bp = taxRateBp ?? 0;
+  if (!Number.isInteger(bp) || bp < 0 || bp > 10_000) fail("Tax rate must be between 0% and 100%");
+  return bp;
+}
+
+/** Checks invoice (and estimate) lines against the chart: income accounts, sane amounts, clean tags. */
+export function cleanInvoiceLines(books: Books, input: InvoiceLine[]): InvoiceLine[] {
+  if (input.length === 0) fail("Add at least one line");
+  return input.map((l, i): InvoiceLine => {
     const where = `Line ${i + 1}`;
     if (baseOf(account(books, l.accountId, where)) !== "income") fail(`${where}: choose an income account`);
     if (typeof l.unitPrice !== "bigint" || l.unitPrice < 0n) fail(`${where}: the rate can't be negative`);
     if (parseQuantity(l.quantity) === 0n) fail(`${where}: quantity must be more than zero`);
     const description = l.description.trim();
+    const tags = cleanTags(l.tags);
     return {
       description,
       accountId: l.accountId,
       quantity: l.quantity.trim(),
       unitPrice: l.unitPrice,
       ...(l.taxable ? { taxable: true } : {}),
+      ...(tags ? { tags } : {}),
     };
   });
+}
+
+function cleanInvoice(books: Books, sales: Sales, input: InvoiceInput): Omit<Invoice, "id" | "number" | "state"> {
+  const customer = findCustomer(sales, input.customerId);
+  const date = assertDate(input.date);
+  const terms = input.terms ?? customer.terms;
+  const dueDate = input.dueDate ? assertDate(input.dueDate) : dueDateFor(date, terms);
+  if (dueDate < date) fail("The due date is before the invoice date");
+  const taxRateBp = cleanTaxRate(input.taxRateBp);
+  const lines = cleanInvoiceLines(books, input.lines);
   const memo = input.memo?.trim();
   return { customerId: customer.id, date, dueDate, terms, lines, taxRateBp, ...(memo ? { memo } : {}) };
 }
 
-const findInvoice = (sales: Sales, id: string) => sales.invoices.find((i) => i.id === id) ?? fail("Invoice not found");
+export const findInvoice = (sales: Sales, id: string) => sales.invoices.find((i) => i.id === id) ?? fail("Invoice not found");
 
 /** Saves a draft. Nothing posts until it's sent. */
 export function createInvoice(books: Books, sales: Sales, input: InvoiceInput): { sales: Sales; invoice: Invoice } {
@@ -386,15 +446,29 @@ export function createInvoice(books: Books, sales: Sales, input: InvoiceInput): 
 export function updateDraftInvoice(books: Books, sales: Sales, id: string, input: InvoiceInput): Sales {
   const current = findInvoice(sales, id);
   if (current.state !== "draft") fail(`${current.number} has been sent; void it and issue a new one instead`);
-  const next: Invoice = { ...cleanInvoice(books, sales, input), id, number: current.number, state: "draft" };
+  const next: Invoice = {
+    ...cleanInvoice(books, sales, input),
+    id,
+    number: current.number,
+    state: "draft",
+    ...(current.estimateId ? { estimateId: current.estimateId } : {}),
+  };
   return { ...sales, invoices: sales.invoices.map((i) => (i.id === id ? next : i)) };
 }
 
-/** Drafts were never posted, so they can simply go. */
+/**
+ * Drafts were never posted, so they can simply go. One made from an estimate
+ * hands the estimate back as accepted, so it can be converted again.
+ */
 export function deleteDraftInvoice(sales: Sales, id: string): Sales {
   const current = findInvoice(sales, id);
   if (current.state !== "draft") fail(`${current.number} has been sent; void it instead`);
-  return { ...sales, invoices: sales.invoices.filter((i) => i.id !== id) };
+  const estimates = sales.estimates.map((e): Estimate => {
+    if (e.id !== current.estimateId || e.invoiceId !== id) return e;
+    const { invoiceId: _gone, ...rest } = e;
+    return { ...rest, state: "accepted" };
+  });
+  return { ...sales, invoices: sales.invoices.filter((i) => i.id !== id), estimates };
 }
 
 /** Draft → open: posts the receivable, the income and the sales tax. */
@@ -422,7 +496,15 @@ export function sendInvoice(
         ...invoice.lines.flatMap((l) => {
           const amount = lineAmount(l);
           return amount > 0n
-            ? [{ accountId: l.accountId, credit: amount, name: customer, ...(l.description ? { memo: l.description } : {}) }]
+            ? [
+                {
+                  accountId: l.accountId,
+                  credit: amount,
+                  name: customer,
+                  ...(l.description ? { memo: l.description } : {}),
+                  ...(l.tags ? { tags: l.tags } : {}),
+                },
+              ]
             : [];
         }),
         ...(tax > 0n ? [{ accountId: systemAccount(books, "sales_tax_payable").id, credit: tax, name: customer }] : []),
@@ -667,8 +749,10 @@ export function enterBill(
     const where = `Line ${i + 1}`;
     if (!isBillAccount(account(books, l.accountId, where))) fail(`${where}: choose an expense or asset account`);
     if (typeof l.amount !== "bigint" || l.amount <= 0n) fail(`${where}: enter an amount more than zero`);
-    return { description: l.description.trim(), accountId: l.accountId, amount: l.amount };
+    const tags = cleanTags(l.tags);
+    return { description: l.description.trim(), accountId: l.accountId, amount: l.amount, ...(tags ? { tags } : {}) };
   });
+  const attachments = (input.attachments ?? []).map(cleanAttachment);
 
   const id = `bill-${sales.nextBill}`;
   const name: NameRef = { kind: "vendor", id: vendor.id };
@@ -681,7 +765,13 @@ export function enterBill(
       memo: memo ? `${label}: ${memo}` : label,
       source: { kind: "bill", ref: id },
       lines: [
-        ...lines.map((l) => ({ accountId: l.accountId, debit: l.amount, name, ...(l.description ? { memo: l.description } : {}) })),
+        ...lines.map((l) => ({
+          accountId: l.accountId,
+          debit: l.amount,
+          name,
+          ...(l.description ? { memo: l.description } : {}),
+          ...(l.tags ? { tags: l.tags } : {}),
+        })),
         { accountId: systemAccount(books, "accounts_payable").id, credit: billTotal({ lines }), name },
       ],
     },
@@ -696,10 +786,46 @@ export function enterBill(
     terms,
     lines,
     ...(memo ? { memo } : {}),
+    ...(attachments.length ? { attachments } : {}),
     entryId: r.entry.id,
   };
   return { books: r.books, sales: { ...sales, bills: [...sales.bills, bill], nextBill: sales.nextBill + 1 }, bill, entry: r.entry };
 }
+
+// ---- Bill attachments --------------------------------------------------------------
+
+const ATTACHMENT_TYPES = /^(image\/[a-z0-9.+-]+|application\/pdf)$/;
+
+function cleanAttachment(ref: AttachmentRef): AttachmentRef {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(ref.attachmentId)) fail("That attachment id isn't valid");
+  if (!/^[0-9a-f]{64}$/.test(ref.sha256)) fail("That attachment's fingerprint isn't valid");
+  if (!ATTACHMENT_TYPES.test(ref.type)) fail("Attach a photo or a PDF");
+  if (!Number.isInteger(ref.size) || ref.size <= 0) fail("That file is empty");
+  if (ref.size > MAX_ATTACHMENT_BYTES) fail("Files can be at most 10 MB");
+  const name = ref.name.trim().slice(0, 200) || "receipt";
+  return { attachmentId: ref.attachmentId, sha256: ref.sha256, type: ref.type, size: ref.size, name };
+}
+
+/** Adds a receipt to a bill. Nothing posts: the file isn't part of the entry. */
+export function attachToBill(sales: Sales, billId: string, ref: AttachmentRef): Sales {
+  const bill = findBill(sales, billId);
+  const clean = cleanAttachment(ref);
+  if (bill.attachments?.some((a) => a.attachmentId === clean.attachmentId)) fail("That file is already attached");
+  const next: Bill = { ...bill, attachments: [...(bill.attachments ?? []), clean] };
+  return { ...sales, bills: sales.bills.map((b) => (b.id === billId ? next : b)) };
+}
+
+export function detachFromBill(sales: Sales, billId: string, attachmentId: string): Sales {
+  const bill = findBill(sales, billId);
+  const left = (bill.attachments ?? []).filter((a) => a.attachmentId !== attachmentId);
+  if (left.length === (bill.attachments ?? []).length) fail("That file isn't attached to this bill");
+  const { attachments: _old, ...rest } = bill;
+  const next: Bill = left.length ? { ...rest, attachments: left } : rest;
+  return { ...sales, bills: sales.bills.map((b) => (b.id === billId ? next : b)) };
+}
+
+/** Every attachment any bill refers to (what a backup must carry). */
+export const attachmentIds = (sales: Sales): string[] => sales.bills.flatMap((b) => (b.attachments ?? []).map((a) => a.attachmentId));
 
 export function billPaid(sales: Sales, billId: string, asOf?: IsoDate): Cents {
   return sum(
@@ -808,6 +934,17 @@ export function voidBillPayment(
   const r = reverseEntry(books, payment.entryId, { ...options, memo: "Void bill payment" }, clock);
   const next = { ...payment, voidEntryId: r.entry.id };
   return { books: r.books, sales: { ...sales, billPayments: sales.billPayments.map((p) => (p.id === id ? next : p)) } };
+}
+
+/** Paid to a vendor by bill payments dated in the range (inclusive); voided payments don't count. For 1099s. */
+export function paidToVendor(sales: Sales, vendorId: string, from: IsoDate, to: IsoDate): Cents {
+  assertDate(from);
+  assertDate(to);
+  return sum(
+    liveBillPayments(sales)
+      .filter((p) => p.vendorId === vendorId && p.date >= from && p.date <= to)
+      .map(billPaymentAmount),
+  );
 }
 
 /** What you owe a vendor now. Matches their A/P. */

@@ -65,6 +65,7 @@ export type SourceKind =
   | "expense"
   | "payroll"
   | "tax_payment"
+  | "sales_tax_payment"
   | "reversal";
 
 export type EntryInput = {

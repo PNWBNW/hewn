@@ -135,6 +135,24 @@ describe("pay runs", () => {
     expect(tb.totalDebit).toBe(tb.totalCredit);
   });
 
+  it("a tagged paycheck puts the project on its wage and employer-tax lines only", () => {
+    const s = setup();
+    const input = run(s);
+    const tagged = { ...input, lines: input.lines.map((l, i) => (i === 1 ? { ...l, tags: { project: "proj-1", class: "" } } : l)) };
+    const plain = postPayRun(s.books, s.payroll(), input);
+    const r = postPayRun(s.books, s.payroll(), tagged);
+    // Same amounts either way; only Ben's wage and employer-tax lines gain the tag.
+    expect(r.run.paychecks.map(({ tags: _t, ...p }) => p)).toEqual(plain.run.paychecks);
+    expect(r.run.paychecks[1]!.tags).toEqual({ project: "proj-1" });
+    const wages = r.entries[1]!.lines.filter((l) => l.tags);
+    expect(wages.map((l) => l.debit)).toEqual([r.run.paychecks[1]!.gross, employerTaxes(r.run.paychecks[1]!)]);
+    expect(wages.every((l) => l.tags?.project === "proj-1")).toBe(true);
+    expect(r.entries[1]!.lines.filter((l) => l.credit > 0n).some((l) => l.tags)).toBe(false);
+    expect(r.entries[0]!.lines.some((l) => l.tags)).toBe(false);
+    // Untagged runs hash exactly as before.
+    expect(plain.entries.map((e) => e.lines.some((l) => "tags" in l))).toEqual([false, false, false]);
+  });
+
   it("wages land in expense, withholding + employer taxes in Payroll Liabilities, net out of the bank", () => {
     const s = setup();
     const { books, run: posted } = postPayRun(s.books, s.payroll(), run(s));

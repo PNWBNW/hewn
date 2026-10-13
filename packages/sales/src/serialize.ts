@@ -1,4 +1,5 @@
 // Sales ⇄ JSON text for the vault. Amounts are written as {"$c":"12345"} (cents).
+// Files saved before estimates existed open with an empty list.
 import type { Sales } from "./sales";
 
 const FORMAT = "pnw-sales";
@@ -14,5 +15,6 @@ export function salesFromJson(text: string): Sales {
       : v,
   ) as { format?: string; sales?: Sales };
   if (doc?.format !== FORMAT || doc.sales?.version !== 1) throw new Error("Not sales data from this app, or a newer version");
-  return doc.sales;
+  const { estimates = [], nextEstimate = 1, ...rest } = doc.sales as Partial<Sales> & Sales;
+  return { ...rest, estimates, nextEstimate };
 }
