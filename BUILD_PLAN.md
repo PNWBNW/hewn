@@ -28,7 +28,7 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 **Reused as-is from `pnw_mvp_v2` and `pnw_employment_portal_v1`**
 
 - Privacy architecture: records for identifying data, mappings hold only hashes and block heights, commitment-based authorization (`parties_key` commitments).
-- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`; the CLI adapter is a private-key fallback only. The app never calls `snarkos` directly. Extensions hang off this seam.
+- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. No private-key path (CLI adapter and Path B are removed). The app never calls `snarkos` directly. Extensions hang off this seam.
 - `paystub_receipts` + `payroll_audit_log` as the pattern for all ledger postings (dual records + hash anchor).
 - `.pnw` name registry, credential NFTs, employer license gate, wallet-signature session model.
 - TypeScript tax engine (`src/lib/tax-engine.ts`, IRS annualization method).
@@ -249,6 +249,8 @@ No seat cap; the wallet is the user.
 - [x] Repo layout: monorepo — `apps/business`, `apps/worker`, `packages/`, `programs/` (2026-10-13).
 - [x] Reference wallet for vault key derivation: Shield (2026-10-13).
 - [x] Tax engine: TypeScript only; Julia service retired (2026-10-13).
+- [x] Wallet is the only signing path; drop the CLI adapter / private-key fallback (2026-10-13).
+- [x] Fiat is the primary product; chain rails are optional adapters the fiat path never imports (2026-10-13).
 - [x] Greenlight for Phase 0 (2026-10-13).
 - [ ] Minimum group size for publishing aggregates (suggested 5). Gates Phase 3 public flag.
 - [ ] Product name for the bookkeeping surface. Gates the README only.

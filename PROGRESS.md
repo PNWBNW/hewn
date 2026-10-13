@@ -131,7 +131,12 @@ monorepo.
 - `pnw_mvp_v2/portal/src/commitments` should be marked divergent or deleted there.
 - ~~Wallet executor bypasses `pnw-adapter`~~ — resolved 2026-10-13: Joshua confirmed the wallet
   is the intended execution path (the wallet shows what is signed). CLAUDE.md and BUILD_PLAN.md
-  rules updated to match; the CLI adapter is the Path B private-key fallback only.
+  rules updated to match. Same day: Joshua dropped the private-key fallback entirely (no Path B).
+  Code removal is a separate task: `coordinator`'s `executeSettlement`/`retryChunk` and
+  `mintBatchAnchor` still use the CLI adapter, and most coordinator tests run through it.
+- Decision 2026-10-13: fiat is the primary product; chain rails are optional. CLAUDE.md now says the
+  fiat path never imports `wallet`/`pnw-adapter`/`coordinator`/`records`, and the vault key comes
+  from a passphrase in fiat mode (wallet signature only once a wallet is linked).
 - Package typecheck excludes test files; `persistence` tests have 2 pre-existing type errors
   (fixture `hours_worked` optional vs required), same as in the portal.
 - `apps/`, `programs/` and `programs/archive/` not created yet; that's the next criterion's work.

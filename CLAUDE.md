@@ -50,15 +50,20 @@ stack). The double-entry core is identical in all three.
 
 **Keys and storage**
 - Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs.
-- The vault key is derived from a Shield wallet signature over a domain-separated message. It is
-  never stored in plaintext and never leaves the vault module.
+- The vault key is derived from the user's unlock secret: a passphrase in fiat mode (no wallet
+  needed), or a Shield wallet signature over a domain-separated message once a wallet is linked. It
+  is never stored in plaintext and never leaves the vault module. (Exact scheme decided in Phase 1.)
 - localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault.
 
 **Boundaries**
 - Every on-chain write is signed in the user's wallet through the `wallet` package's executor, so
   the wallet shows what is being signed. Program and transition names come from `pnw-adapter`
-  (never hard-coded elsewhere). `pnw-adapter`'s CLI adapter is the private-key fallback (Path B,
-  testnet/dev) only. Nothing else calls `snarkos` or the SDK execute path directly.
+  (never hard-coded elsewhere). There is no private-key path: the CLI adapter and Path B
+  (pasted private key) are being removed. Nothing calls `snarkos` or the SDK execute path directly.
+- **Fiat first; chain is optional.** The whole product must work with no wallet, no network and no
+  Aleo package loaded. The ledger core, vault, reports and fiat payroll never import `wallet`,
+  `pnw-adapter`, `coordinator` or `records`; those are opt-in adapters for anchored/settled modes,
+  loaded only after the user upgrades a business.
 - Extension modules may never touch posting logic or the vault key.
 - Mode upgrades (fiat → anchored → settled) are one-way, show exactly what goes on-chain, and require
   a second wallet signature after a review screen. Never flip a mode as a side effect.
