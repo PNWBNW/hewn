@@ -1,18 +1,19 @@
 import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
+import { PlumbHero, PlumbLogo } from "@/shell/Brand";
 
 /** Full-page frame for setup, unlock and restore: the books aren't open yet. */
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-start justify-center bg-background px-4 py-10 sm:items-center">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-md bg-[var(--pnw-forest-500)] text-sm font-semibold text-white">
-            P
-          </span>
-          <span className="text-sm font-semibold">PNW Ledger</span>
-        </div>
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
+    <div className="min-h-dvh bg-background">
+      {/* Whole hero, never cropped (the tagline is part of the art). On wide screens it's capped
+          and fades into the ink band at the sides. */}
+      <div className="bg-[var(--plumb-ink)]">
+        <PlumbHero className="mx-auto max-w-[1100px] lg:[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]" />
+      </div>
+      <div className="relative mx-auto -mt-6 w-full max-w-md px-4 pb-10 sm:-mt-16">
+        <div className="rounded-xl border bg-card p-6 shadow-lg">
+          <PlumbLogo height={30} className="mb-5" />
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
           <div className="mt-6">{children}</div>

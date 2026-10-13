@@ -15,7 +15,7 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
   return (
     <AuthCard
       title="Restore from a backup"
-      subtitle="Open a backup file you downloaded from PNW Ledger, on this or another device."
+      subtitle="Open a backup file you downloaded from Plumb, on this or another device."
     >
       <form
         className="flex flex-col gap-5"
@@ -35,7 +35,7 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
         <Field label="Backup file">
           <input
             type="file"
-            accept=".pnwbooks,application/json"
+            accept=".plumb,application/json"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block w-full text-sm file:mr-3 file:h-10 file:rounded-md file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium"
           />

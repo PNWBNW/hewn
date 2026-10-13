@@ -146,7 +146,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     const a = document.createElement("a");
     const name = (books?.settings.businessName ?? "books").replace(/[^\w-]+/g, "-").toLowerCase();
     a.href = url;
-    a.download = `${name}-${new Date().toISOString().slice(0, 10)}.pnwbooks`;
+    a.download = `${name}-${new Date().toISOString().slice(0, 10)}.plumb`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [books]);

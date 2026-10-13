@@ -290,3 +290,36 @@ clean. Lockfile regenerated under the 7-day rule (see below).
 before `minimumReleaseAge` landed; frozen installs don't re-check age). Regenerated cleanly so
 every resolved version is ≥7 days old (e.g. dompurify 3.4.17 → 3.4.16, vite 8.3.4 → 8.3.3). Audit
 still clean. Follow-up: a CI step that checks lockfile ages, since `--frozen-lockfile` doesn't.
+
+## 2026-10-13 — Rename to Plumb, brand assets
+
+Joshua renamed the product **Plumb** ("honest books, grounded and true.") and supplied the logo
+(light + dark) and front-page hero. Build-plan decision "Product name" ticked.
+
+- `brand/source/`: the three originals. `brand/build_assets.py` (Pillow) generates everything the
+  app serves; `brand/README.md` lists outputs.
+  - Favicon (16–64 px .ico), `icon.png` 512, `apple-icon.png` 180 (Next.js file conventions).
+  - Manifest icons 192/512 + maskable 512 (art inside the 80% safe zone); `src/app/manifest.ts`
+    makes Plumb installable to a home screen (theme `#113b31`, background `#f5f0e3`).
+  - Mark tiles with transparent rounded corners; "Plumb" wordmark extracted to transparent PNGs
+    in green (light mode) and cream (dark mode).
+  - Hero: 1.9 MB PNG → WebP 768 (86 KB) / 1536 (263 KB) + JPEG fallback (301 KB).
+- App: rail shows mark + cream wordmark; setup/unlock/restore show the full hero (never cropped,
+  so the tagline stays; capped at 1100 px and edge-faded on wide screens) with mark + wordmark in
+  the card; titles, metadata, `themeColor`, Apple web-app title all "Plumb".
+- Theme: brand tokens `--plumb-green/cream/ink/gold/cyan` sampled from the art; primary is Plumb
+  green, rail is Plumb ink, accent is the cone gold, light canvas warmed slightly toward the cream.
+- Backups are now `.plumb` files. User-facing errors say Plumb. Internal names unchanged: `@pnw/*`
+  packages, IndexedDB `pnw_ledger`, vault format `pnw-vault`, hash domain `PNW::GL::ENTRY::v1`
+  (PNW stays the company/protocol namespace; renaming storage keys would only break stored data).
+- Docs: CLAUDE.md, BUILD_PLAN.md, DESIGN_BRIEF.md, THREAT_MODEL.md titles; README opens with
+  the hero and a short Plumb section.
+
+**Verified in Chromium** (production build, real CSP): favicon/icon/apple-icon/manifest served
+and linked; setup on phone, desktop and dark mode; dashboard rail logo; zero console/CSP errors.
+**Results:** 236/236, build green.
+
+**Flags for Joshua:** (1) the hero says "Free • Open source", but the licence is still the
+proprietary PNW Smart Contract License v1.7 (CLAUDE.md: don't change it until after the build);
+(2) the source icon is ~190 px, so 512 px icons are upscaled; a vector or ≥1024 px source would
+sharpen them (drop it in `brand/source/` and re-run the script).

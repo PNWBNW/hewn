@@ -16,7 +16,7 @@ export function generateStaticParams(): Params[] {
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const section = findSection((await params).section);
-  return { title: section ? `${section.label} · PNW Ledger` : "PNW Ledger" };
+  return { title: section ? `${section.label} · Plumb` : "Plumb" };
 }
 
 export default async function SectionPage({ params }: { params: Promise<Params> }) {
