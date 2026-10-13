@@ -140,3 +140,39 @@ monorepo.
 - Package typecheck excludes test files; `persistence` tests have 2 pre-existing type errors
   (fixture `hours_worked` optional vs required), same as in the portal.
 - `apps/`, `programs/` and `programs/archive/` not created yet; that's the next criterion's work.
+
+## 2026-10-13 — Phase 0: business shell (deliverables 1 and 3, fiat-first)
+
+Greenlit by Joshua. PR #7 and portal #199 merged first (merge commits 4fa4d2a, ef1210a).
+
+- `packages/ui`: the portal's 12 `components/ui` primitives (no Radix; React + cva only) plus
+  `utils.cn`, and `tokens.css`: PNW brand primitives, light/dark semantic tokens, rail and money
+  tokens. Base styles sit in `@layer base` so utilities can override them. Tabs' active state now
+  uses `bg-card` (more visible on the new canvas).
+- `apps/business`: Next.js 16.1.6 / React 19.2.3 / Tailwind 4, statically rendered. Dashboard
+  plus 7 sections (Transactions, Sales, Expenses, Payroll, Projects, Reports, Taxes) driven from
+  one config, `src/shell/sections.ts`: tabs, columns, empty-state copy, primary action, and the
+  phase that makes it real. Actions are shown disabled with "Arrives in phase N". No data, no
+  storage, no network.
+- Desktop: fixed rail. Phone: drawer behind a menu button (closes on navigate/Escape), 44px
+  targets, no page-level sideways scroll (checked at 390px: scrollWidth 390). Light and dark
+  checked by screenshot.
+- `apps/business/src/fiat_boundary.test.ts`: fails the build if the app depends on or imports
+  `@pnw/wallet`, `@pnw/pnw-adapter`, `@pnw/coordinator`, `@pnw/records`, `@provablehq/*` or
+  `aleo-adapters`, or if source contains chain vocabulary (blockchain, Aleo, on-chain, crypto,
+  wallet, USDCx, fiat, token, NFT). Verified it fails on a planted probe file.
+- `docs/DESIGN_BRIEF.md`: clean-room brief for the shell (principles, layout, list/detail and
+  transaction-form patterns, tokens).
+- Fixed a regression from PR #7: root `vitest.config.ts` projects glob matched
+  `packages/README.md`, so `pnpm test` on main failed at startup. Now globs the config files.
+
+**Results**
+- `pnpm test`: 16 files, **159/159** (156 package tests + 3 fiat-boundary).
+- `pnpm build`: 14 packages typecheck clean; `next build` for `apps/business` OK (10 static pages).
+
+**Not done / next**
+- No exit criterion ticked: criteria 2–3 (testnet payroll, worker paystub) are chain work and
+  wait until the fiat flow exists, per Joshua's fiat-first call. Criterion 4 (archive old portal)
+  waits for `apps/worker`.
+- `apps/worker`, `programs/` + `programs/archive/`, and deleting the Julia engine are still open
+  Phase 0 deliverables.
