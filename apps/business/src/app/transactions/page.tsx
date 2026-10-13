@@ -44,6 +44,7 @@ const SOURCE_LABELS: Record<Entry["source"]["kind"], string> = {
   bill_payment: "Bill payment",
   expense: "Expense",
   payroll: "Payroll",
+  tax_payment: "Tax payment",
   reversal: "Reversal",
 };
 
@@ -88,7 +89,8 @@ export default function TransactionsPage() {
 // ---- Journal ---------------------------------------------------------------
 
 function Journal() {
-  const { books, update } = useOpenBooks();
+  const { books, payroll, update } = useOpenBooks();
+  const people = useMemo(() => new Map(payroll.workers.map((w) => [w.id, w.name])), [payroll]);
   const [error, setError] = useState<string | null>(null);
   const accounts = useMemo(() => accountMap(books), [books]);
   const entries = useMemo(() => [...books.entries].sort((a, b) => b.date.localeCompare(a.date) || b.seq - a.seq), [books]);
@@ -166,7 +168,9 @@ function Journal() {
                           {acct ? accountLabel(acct) : line.accountId}
                           {(line.name || line.memo) && (
                             <span className="block text-xs text-muted-foreground">
-                              {[line.name?.id, line.memo].filter(Boolean).join(" · ")}
+                              {[line.name?.kind === "employee" ? (people.get(line.name.id) ?? line.name.id) : line.name?.id, line.memo]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </span>
                           )}
                         </td>

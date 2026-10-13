@@ -22,7 +22,7 @@ function totalOf(books: Books, types: AccountType[]): bigint {
 }
 
 export default function DashboardPage() {
-  const { books } = useOpenBooks();
+  const { books, payroll } = useOpenBooks();
   const today = todayIso();
   const hasEntries = books.entries.length > 0;
   const hasCustomAccounts = books.accounts.some((a) => !a.system);
@@ -42,7 +42,7 @@ export default function DashboardPage() {
     { step: "Name your business and pick a fiscal year", href: "/", done: true },
     { step: "Choose a starter chart of accounts", href: "/transactions", done: hasCustomAccounts },
     { step: "Enter opening balances", href: "/transactions/new", done: hasEntries },
-    { step: "Add your team and run a first payroll", href: "/payroll", done: false, phase: 2 },
+    { step: "Add your team and run a first payroll", href: "/payroll", done: payroll.runs.length > 0 },
     { step: "Send your first invoice", href: "/sales", done: false, phase: 3 },
   ];
 
