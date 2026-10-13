@@ -7,8 +7,11 @@ type Params = { section: string };
 
 export const dynamicParams = false;
 
+// Sections with their own working screens (src/app/<id>/) are routed there instead.
+const OWN_ROUTES = new Set(["transactions"]);
+
 export function generateStaticParams(): Params[] {
-  return SECTIONS.map((s) => ({ section: s.id }));
+  return SECTIONS.filter((s) => !OWN_ROUTES.has(s.id)).map((s) => ({ section: s.id }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
@@ -18,6 +21,6 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function SectionPage({ params }: { params: Promise<Params> }) {
   const section = findSection((await params).section);
-  if (!section) notFound();
+  if (!section || OWN_ROUTES.has(section.id)) notFound();
   return <SectionView section={section} />;
 }

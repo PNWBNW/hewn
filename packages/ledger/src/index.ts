@@ -9,3 +9,4 @@ export * from "./books";
 export * from "./hash";
 export * from "./reports";
 export * from "./templates";
+export * from "./serialize";

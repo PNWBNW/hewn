@@ -52,7 +52,9 @@ stack). The double-entry core is identical in all three.
 - Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs.
 - The vault key is derived from the user's unlock secret: a passphrase in fiat mode (no wallet
   needed), or a Shield wallet signature over a domain-separated message once a wallet is linked. It
-  is never stored in plaintext and never leaves the vault module. (Exact scheme decided in Phase 1.)
+  is never stored in plaintext and never leaves the vault module. Scheme (`@pnw/vault`): a random
+  AES-256-GCM data key encrypts the books; the unlock secret (PBKDF2-SHA256, 600k rounds) only wraps
+  that key, so a wallet unlock or per-member access later just adds another wrapped copy.
 - localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault.
 
 **Boundaries**

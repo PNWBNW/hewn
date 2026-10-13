@@ -244,3 +244,49 @@ append-only, and closed periods are enforced, not password-overridable.
 shell's Transactions screen to it, events (close/reopen/lock) into the hash chain, opening
 balances helper, `gl_core.aleo` (Leo, needs the Fable session switch). No exit criterion
 ticked: they need the vault and `gl_core`.
+
+## 2026-10-13 — Phase 1: encrypted vault + setup, unlock, and working Transactions
+
+Greenlit by Joshua ("build the vault and setup screens").
+
+- **`@pnw/vault`** (new, zero runtime deps, no network): envelope encryption. A random AES-256-GCM
+  data key encrypts the books; a PBKDF2-SHA256 key (600k rounds, random 16-byte salt) from the
+  passphrase only wraps it. Each ciphertext is bound to its vault id and role with AES-GCM
+  associated data. Open data key is non-extractable and held in a private field; `lock()` drops it.
+  `changePassphrase` re-wraps the key without re-encrypting the books (the same mechanism later
+  gives a wallet unlock and Phase 6 per-member keys). Passphrases are NFKC-normalized, minimum 10
+  characters. Backups are the sealed record (`.pnwbooks`); `IndexedDbStore` + `MemoryStore`.
+- **`@pnw/ledger`**: `booksToJson` / `booksFromJson` (bigint-safe; loading re-verifies the hash
+  chain, so a decrypted file edited outside the app is refused).
+- **`apps/business`**:
+  - `BooksProvider`: loads/locks/unlocks; every change runs a pure ledger op, then seals and saves
+    before the screen updates; updates are serialized so quick edits never race. Auto-lock after
+    15 idle minutes. A full page reload locks (by design: the key lives only in memory).
+  - Setup (3 steps: business + fiscal year, starter chart or blank, passphrase with "no recovery"
+    acknowledgement), Unlock, Restore-from-backup (warns before replacing local books).
+  - Rail: Download a backup, Lock books. Top bar shows the business name.
+  - Transactions: journal (newest first, void = reversal, "Voided by #n" badges, offers to date
+    the reversal today if the original month is closed), chart of accounts (grouped by section,
+    balances, add account, deactivate), new journal entry form (Save disabled until debits equal
+    credits; difference shown live; customer/vendor name required on A/R/A/P lines).
+  - Dashboard figures are real: cash, owed to you, you owe, profit this month; setup checklist
+    ticks itself.
+
+**Browser verification** (Chromium, phone viewport, production build, real CSP):
+create+open 0.35–0.9 s with 600k rounds; stored record contains no business name, entries or
+passphrase; an entry off by one cent can't be saved; void works; backup file has no plaintext;
+wrong passphrase refused with a clear message; right one reopens with entries intact; after
+deleting IndexedDB the backup restores all entries; a second, separate browser profile opens the
+same books from the backup + passphrase; zero console or CSP errors.
+
+**Exit criterion "vault survives clear-site-data via export/import, and opens from a second
+browser with the same wallet":** met for the passphrase path (above). Not ticked: the wording says
+"same wallet", and the wallet unlock isn't built yet (fiat-first). Asked Joshua whether to amend it.
+
+**Results:** 26 files, **236/236** (vault 18, ledger 50 incl. serialization). Build green, audit
+clean. Lockfile regenerated under the 7-day rule (see below).
+
+**Supply chain note:** main's lockfile held ~20 packages younger than 7 days (resolved in #9 just
+before `minimumReleaseAge` landed; frozen installs don't re-check age). Regenerated cleanly so
+every resolved version is ≥7 days old (e.g. dompurify 3.4.17 → 3.4.16, vite 8.3.4 → 8.3.3). Audit
+still clean. Follow-up: a CI step that checks lockfile ages, since `--frozen-lockfile` doesn't.
