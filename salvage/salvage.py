@@ -96,7 +96,7 @@ PAYSTUB_RECEIPT = ("records", "types/paystub_receipt")
 
 # External npm deps per package, versions as resolved in the portal lockfile.
 VERSIONS = {
-    "@noble/hashes": "2.0.1", "@provablehq/sdk": "0.10.1", "jspdf": "4.2.0",
+    "@noble/hashes": "2.0.1", "@provablehq/sdk": "0.10.1", "jspdf": "4.2.1",
     "qrcode": "1.5.4", "react": "19.2.3", "zustand": "5.0.11",
     **{f"@provablehq/{n}": "0.3.0-alpha.3" for n in [
         "aleo-types", "aleo-wallet-adaptor-core", "aleo-wallet-adaptor-fox",

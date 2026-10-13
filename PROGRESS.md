@@ -177,6 +177,38 @@ Greenlit by Joshua. PR #7 and portal #199 merged first (merge commits 4fa4d2a, e
 - `apps/worker`, `programs/` + `programs/archive/`, and deleting the Julia engine are still open
   Phase 0 deliverables.
 
+## 2026-10-13 — Security baseline
+
+Greenlit by Joshua along with the ledger core (separate PR). #8 merged first (fd407e9).
+
+- `docs/THREAT_MODEL.md`: assets, trust boundaries, threats T1–T8 with status per mitigation.
+- **Dependencies: 47 advisories (3 critical, 19 high) → 0.** Next.js 16.1.6 → 16.3.8, jspdf 4.2.0 →
+  4.2.1, vitest 4.1.0 → 4.1.11, all patch releases ≥13 days old. The zod advisory came from the
+  Puzzle adaptor; gone with it (below).
+- **Shield only** (Joshua): removed Puzzle, Leo, Fox and Soter adaptors from `@pnw/wallet` and
+  their mobile-redirect branches. ETH stablecoin/wallet rails added to Deferred.
+- **CSP** (`apps/business/src/security/headers.ts`, `src/proxy.ts`): per-request nonce,
+  `'strict-dynamic'`, no unsafe-inline/eval in production, `connect-src 'self'`, no framing,
+  `base-uri 'none'`; plus nosniff, no-referrer, DENY framing, COOP/CORP, HSTS,
+  Permissions-Policy (camera, mic, geolocation, payment, etc. off). Pages now render per request
+  so the nonce is fresh (`connection()` in the root layout); no data is rendered server-side.
+  Verified in Chromium against `next start`: every framework script carries the nonce, the app
+  hydrates and navigates with zero CSP violations, and an injected inline handler, a
+  third-party iframe and a `fetch` to another origin are all refused.
+- **CI** (`.github/workflows/ci.yml`, first CI for this repo): frozen-lockfile install, tests,
+  build, `pnpm audit --audit-level=moderate`; read-only token, no secrets.
+- **Dependabot** weekly for npm (minor/patch grouped; `@provablehq/*` excluded, pinned on purpose)
+  and GitHub Actions.
+- **`minimumReleaseAge: 10080`** in `pnpm-workspace.yaml`: no package version younger than 7 days.
+- Fiat-boundary vocabulary check now ignores `crypto.` (the WebCrypto API).
+- `salvage/salvage.py` is now historical: packages are owned here, don't re-run it.
+
+**Results**
+- `pnpm test`: 17 files, **168/168** (159 + 9 security-header tests).
+- `pnpm build`: all green. `pnpm audit`: no known vulnerabilities.
+
+**Follow-ups:** pin Actions to commit SHAs; lint rule banning `dangerouslySetInnerHTML` (none in
+use today); signed installable builds before the first external user.
 ## 2026-10-13 — Phase 1 (pulled ahead): fiat ledger core, `@pnw/ledger`
 
 Greenlit by Joshua (with the security baseline, PR #9). Phase 1 runs ahead of the rest of
@@ -206,7 +238,7 @@ append-only, and closed periods are enforced, not password-overridable.
   cent is always rejected; reversing everything zeroes every balance; any tampered amount is
   detected). Mutation check: disabling the balance rule fails 3 tests; disabling the locked-period
   reversal rule fails 1.
-- Repo: 22 files, **206/206**. `pnpm build` green.
+- Repo: 22 files, **206/206**. `pnpm build` green. After merging main (#9): 23 files, **215/215**, audit clean.
 
 **Not done / next:** encrypted vault persistence for `Books` (Phase 1 deliverable 3), wiring the
 shell's Transactions screen to it, events (close/reopen/lock) into the hash chain, opening
