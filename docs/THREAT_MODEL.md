@@ -29,10 +29,12 @@ Status: ✅ in place · 🔜 planned (phase) · ⚠️ accepted risk.
 No server, no database. ✅ Structural, from the architecture.
 
 ### T2 — Stolen device, browser profile or backup file
-- AES-256-GCM via WebCrypto; keys non-extractable. ✅ (portal `persistence`, extended in Phase 1)
-- Passphrase stretched with a slow KDF (PBKDF2 ≥600k or Argon2id; picked in Phase 1). 🔜 P1
-- Exports are the same ciphertext; nothing is decrypted to write a backup. 🔜 P1
-- Auto-lock after idle; key dropped from memory on lock. 🔜 P1
+- AES-256-GCM via WebCrypto; the open data key is non-extractable. ✅ `@pnw/vault`
+- Envelope encryption: random data key, wrapped by a PBKDF2-SHA256 (600k rounds, random salt) key
+  from the passphrase; associated data binds each ciphertext to its vault and role. ✅
+- Backups are the sealed record itself; nothing is decrypted to write one. Restore proves the
+  passphrase and re-verifies the hash chain before replacing anything. ✅
+- Auto-lock after 15 idle minutes; reload or Lock drops the key and plaintext from memory. ✅
 
 ### T3 — Malicious code in the page (XSS, compromised dependency, compromised host)
 The highest risk for a browser app.

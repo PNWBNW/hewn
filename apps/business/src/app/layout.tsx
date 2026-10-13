@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { AppShell } from "@/shell/AppShell";
+import { BooksGate } from "@/books/BooksGate";
+import { BooksProvider } from "@/books/BooksProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,7 +21,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en">
       <body className="antialiased">
-        <AppShell>{children}</AppShell>
+        <BooksProvider>
+          <BooksGate>
+            <AppShell>{children}</AppShell>
+          </BooksGate>
+        </BooksProvider>
       </body>
     </html>
   );

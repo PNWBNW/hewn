@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   ArrowLeftRight,
   ChartColumn,
+  Download,
   CreditCard,
   FileText,
   FolderKanban,
@@ -18,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
+import { useOpenBooks } from "@/books/BooksProvider";
 import { SECTIONS } from "./sections";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -39,7 +41,30 @@ function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function Rail({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function RailButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-11 items-center gap-3 rounded-md px-3 text-left text-sm hover:bg-white/5 hover:text-rail-active-foreground"
+    >
+      <Icon aria-hidden className="size-4 shrink-0" />
+      {label}
+    </button>
+  );
+}
+
+function Rail({
+  pathname,
+  onNavigate,
+  onBackup,
+  onLock,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+  onBackup: () => void;
+  onLock: () => void;
+}) {
   return (
     <nav aria-label="Main" className="flex h-full flex-col gap-1 bg-rail px-3 py-4 text-rail-foreground">
       <div className="mb-4 flex items-center gap-2 px-2">
@@ -71,8 +96,12 @@ function Rail({ pathname, onNavigate }: { pathname: string; onNavigate?: () => v
           </Link>
         );
       })}
-      <div className="mt-auto border-t border-rail-border px-2 pt-4 text-xs leading-relaxed text-rail-muted">
-        Your books stay on this device, encrypted. Nothing is sent to a server.
+      <div className="mt-auto flex flex-col gap-1 border-t border-rail-border pt-4">
+        <RailButton icon={Download} label="Download a backup" onClick={onBackup} />
+        <RailButton icon={Lock} label="Lock books" onClick={onLock} />
+        <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
+          Your books stay on this device, encrypted. Nothing is sent to a server.
+        </p>
       </div>
     </nav>
   );
@@ -80,6 +109,7 @@ function Rail({ pathname, onNavigate }: { pathname: string; onNavigate?: () => v
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { books, lock, downloadBackup } = useOpenBooks();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Close the mobile drawer on navigation and on Escape.
@@ -94,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh border-r border-rail-border lg:block">
-        <Rail pathname={pathname} />
+        <Rail pathname={pathname} onBackup={downloadBackup} onLock={lock} />
       </aside>
 
       {drawerOpen && (
@@ -105,7 +135,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">
-            <Rail pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
+            <Rail pathname={pathname} onNavigate={() => setDrawerOpen(false)} onBackup={downloadBackup} onLock={lock} />
           </div>
         </div>
       )}
@@ -120,7 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {drawerOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">My business</div>
+            <div className="truncate text-sm font-semibold">{books.settings.businessName}</div>
           </div>
           <span
             className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2.5 py-1 text-xs text-muted-foreground"
