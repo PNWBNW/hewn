@@ -1,8 +1,9 @@
 # packages/
 
 Libraries salvaged from `pnw_employment_portal_v1` (Phase 0). Behaviour is unchanged: the only
-edits are import specifiers and a few type-only blocks lifted out of app stores. Regenerate with
-`python3 salvage/salvage.py <portal-checkout> .`.
+edits are import specifiers and a few type-only blocks lifted out of app stores. `salvage/salvage.py`
+records how they were generated; **don't re-run it**: these packages are now owned here and have
+changed since (e.g. `wallet` is Shield-only, deps bumped for security).
 
 Source-only TypeScript: no emit. `pnpm build` is a strict typecheck of every package; apps
 consume the `.ts` sources directly. Import modules by subpath, e.g.

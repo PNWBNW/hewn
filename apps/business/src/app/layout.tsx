@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 import { AppShell } from "@/shell/AppShell";
 import "./globals.css";
 
@@ -12,7 +13,9 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+// Render per request so every page gets a fresh CSP nonce (src/proxy.ts).
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await connection();
   return (
     <html lang="en">
       <body className="antialiased">

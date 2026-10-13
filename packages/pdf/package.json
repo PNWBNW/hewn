@@ -18,7 +18,7 @@
   "dependencies": {
     "@pnw/manifest": "workspace:*",
     "@pnw/records": "workspace:*",
-    "jspdf": "4.2.0",
+    "jspdf": "4.2.1",
     "qrcode": "1.5.4",
     "react": "19.2.3"
   },
