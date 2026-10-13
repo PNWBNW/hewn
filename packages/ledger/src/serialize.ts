@@ -31,7 +31,7 @@ export function booksFromJson(text: string): Books {
   }
   const doc = parsed as { format?: string; books?: Books };
   if (doc?.format !== FORMAT || !doc.books || doc.books.version !== 1) {
-    fail("BAD_LINE", "Not a Plumb books file, or a newer version than this app understands");
+    fail("BAD_LINE", "Not a books file from this app, or a newer version than this app understands");
   }
   const check = verifyChain(doc.books);
   if (!check.ok) fail("BAD_LINE", `Saved books failed the integrity check at entry ${check.seq}: ${check.reason}`);

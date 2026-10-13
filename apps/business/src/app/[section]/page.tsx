@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { BRAND } from "@/brand";
 import { SECTIONS, findSection } from "@/shell/sections";
 import { SectionView } from "@/shell/SectionView";
 
@@ -16,7 +17,7 @@ export function generateStaticParams(): Params[] {
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const section = findSection((await params).section);
-  return { title: section ? `${section.label} · Plumb` : "Plumb" };
+  return { title: section ? `${section.label} · ${BRAND.name}` : BRAND.name };
 }
 
 export default async function SectionPage({ params }: { params: Promise<Params> }) {

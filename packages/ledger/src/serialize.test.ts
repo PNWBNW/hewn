@@ -24,6 +24,6 @@ describe("books serialization", () => {
 
   it("refuses things that aren't books", () => {
     expect(() => booksFromJson("not json")).toThrow(/not valid JSON/);
-    expect(() => booksFromJson('{"format":"other"}')).toThrow(/Not a Plumb books file/);
+    expect(() => booksFromJson('{"format":"other"}')).toThrow(/Not a books file from this app/);
   });
 });

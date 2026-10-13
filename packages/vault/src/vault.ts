@@ -257,7 +257,7 @@ export function parseBackup(text: string): VaultRecord {
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new VaultError("NOT_A_VAULT", "That file isn't a Plumb backup");
+    throw new VaultError("NOT_A_VAULT", "That file isn't a books backup from this app");
   }
   assertRecord(parsed);
   return parsed;
@@ -279,6 +279,6 @@ function assertRecord(value: unknown): asserts value is VaultRecord {
     !sealedOk(r.wrappedKey) ||
     !sealedOk(r.payload)
   ) {
-    throw new VaultError("NOT_A_VAULT", "That file isn't a Plumb backup");
+    throw new VaultError("NOT_A_VAULT", "That file isn't a books backup from this app");
   }
 }
