@@ -49,6 +49,7 @@ export function AccountSelect({
   className,
   placeholder = "Choose an account",
   id,
+  ariaLabel,
 }: {
   books: Books;
   value: string;
@@ -57,10 +58,11 @@ export function AccountSelect({
   className?: string;
   placeholder?: string;
   id?: string;
+  ariaLabel?: string;
 }) {
   const rows = orderedAccounts(books, filter);
   return (
-    <select id={id} className={className} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select id={id} aria-label={ariaLabel} className={className} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {BASE_ORDER.map((base) => {
         const group = rows.filter(({ account }) => baseOf(account) === base);

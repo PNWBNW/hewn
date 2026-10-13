@@ -82,7 +82,7 @@ export default function RunPayrollPage() {
             ...(worker.payType === "hourly" ? { hours: Number(row.hours) } : {}),
           })),
         });
-        return { books: r.books, payroll: r.payroll };
+        return { ...c, books: r.books, payroll: r.payroll };
       });
       router.push("/payroll");
     } catch (e) {

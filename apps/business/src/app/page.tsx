@@ -22,7 +22,7 @@ function totalOf(books: Books, types: AccountType[]): bigint {
 }
 
 export default function DashboardPage() {
-  const { books, payroll } = useOpenBooks();
+  const { books, payroll, sales } = useOpenBooks();
   const today = todayIso();
   const hasEntries = books.entries.length > 0;
   const hasCustomAccounts = books.accounts.some((a) => !a.system);
@@ -43,7 +43,7 @@ export default function DashboardPage() {
     { step: "Choose a starter chart of accounts", href: "/transactions", done: hasCustomAccounts },
     { step: "Enter opening balances", href: "/transactions/new", done: hasEntries },
     { step: "Add your team and run a first payroll", href: "/payroll", done: payroll.runs.length > 0 },
-    { step: "Send your first invoice", href: "/sales", done: false, phase: 3 },
+    { step: "Send your first invoice", href: "/sales", done: sales.invoices.some((i) => i.entryId) },
   ];
 
   return (
@@ -84,7 +84,6 @@ export default function DashboardPage() {
                       <Icon aria-hidden className={cn("size-4 shrink-0", s.done ? "text-money-positive" : "text-muted-foreground")} />
                       <span className={cn("flex-1", s.done && "text-muted-foreground line-through")}>{s.step}</span>
                       <span className="sr-only">{s.done ? "Done" : "Not done"}</span>
-                      {s.phase && <span className="hidden text-xs text-muted-foreground sm:inline">Phase {s.phase}</span>}
                       <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                     </Link>
                   </li>

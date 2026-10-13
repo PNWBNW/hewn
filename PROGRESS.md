@@ -417,3 +417,57 @@ the tax liability" (fiat mode). Phase 4's reconciliation criterion still needs t
 statement.
 
 **Results:** 32 files, **276/276** (ledger +10, payroll +2, business +8). Build green, audit clean.
+## 2026-10-13 — Phase 3: customers, vendors, invoices, bills, payments
+
+- **`@pnw/sales`** (new; depends only on `@pnw/ledger`): pure functions over a `Sales` object that
+  lives in the vault next to the books.
+  - Customers and vendors: name, optional email, terms (due on receipt / net 15 / 30 / 45 / 60,
+    default net 30), active flag; vendors carry an optional 1099 flag.
+  - Invoices: auto-numbered INV-0001…, due date from terms, lines (income account, quantity as a
+    ≤2-dp decimal string multiplied in hundredths, unit price in cents, taxable flag), sales tax
+    rate per invoice in basis points, tax rounded half-up once per invoice. Drafts post nothing and
+    can be edited or deleted. **Sending** posts Dr A/R (customer) / Cr each income line / Cr Sales
+    Tax Payable. Status is derived: draft, open, partially paid, paid, overdue, void. Void reverses
+    the entry and is refused while any payment is applied.
+  - Payments received: one payment across many invoices, partial allowed, applied ≤ each balance
+    and ≤ amount received (any remainder is an unapplied customer credit). Dr bank (or Payments to
+    Deposit), Cr A/R. Voidable; voiding reopens the invoices.
+  - Bills post on save (Dr expense/asset lines, Cr A/P, all lines naming the vendor); bill
+    payments (Dr A/P, Cr bank) across one or more bills; both voidable under the same rules.
+  - `invoiceBalance`, `billBalance`, `customerBalance`, `vendorBalance`, `arAging` / `apAging`
+    (Current, 1–30, 31–60, 61–90, 90+; as of a date), `salesTaxCollected(from, to)`,
+    `suggestApplications` (oldest due first). `salesToJson` / `salesFromJson` (same `$c` scheme).
+  - Every posting goes through `postEntry` / `reverseEntry`, so a closed month or inactive
+    account rejects the whole operation with books and sales unchanged.
+- **App**: the company file is now `{books, payroll, sales}`; files saved without sales open with
+  an empty `Sales` (test added). Sales section: Invoices (A/R aging card, list with status badges;
+  Send, Edit / Delete draft, Receive payment, Void), Customers, Payments received (form fills
+  invoices oldest-first as you type the amount; Void). New invoice page: line grid, income-account
+  select, taxable checkbox, tax rate %, live subtotal / tax / total, Save as draft / Save and send.
+  Expenses section: Bills (A/P aging card, Pay, Void), Vendors (1099 flag), Bill payments; New bill
+  page. Journal shows customer and vendor names; entries owned by an invoice, bill or payment
+  point to Sales / Expenses for voiding instead of a bare Void (which would leave the form out of
+  step with the books). Dashboard "Send your first invoice" ticks once an invoice is sent; its
+  phase label is gone.
+- **Fix found in the browser check:** table frames with `sr-only` header cells caused page-level
+  horizontal scroll on phones (the absolutely positioned span escaped the scroll frame); those
+  frames are now `relative`.
+
+**Browser check** (production build, 390×844, light and dark): customer Acme Co; INV-0001 with
+10 × 125.00 taxable + 40.00 mileage at 8.25% → subtotal 1,290.00, tax 103.13, total 1,393.13.
+Sent → A/R 1,393.13, Sales Tax Payable 103.13 (dashboard and chart of accounts agree). Payment
+500.00 → A/R 893.13, Partially paid, Checking 500.00. Payment 893.13 (prefilled) → A/R 0.00, Paid,
+Checking 1,393.13. Vendor Paper Supply (1099); bill PS-1001, 123.45 supplies + 1,500.00 rent →
+A/P 1,623.45; paid in full → A/P 0.00, Paid, Checking −230.32. Journal: 5 entries showing
+customer/vendor names, no raw ids. No page-level horizontal scroll; zero console/CSP errors (one
+existing Chromium warning about `bluetooth` in the Permissions-Policy header).
+
+**Exit criteria:** ticked "Invoice → partial payment → final payment → paid, with AR balance correct
+at each step" and "Bill → payment, with AP balance correct". Not yet: sales tax liability report
+(`salesTaxCollected` is the data; no report screen), project profitability, public flag. Left for
+later: estimates, batch entry, receipt images, dimensions, applying a customer credit to a later
+invoice, editing a sent invoice (void and re-issue works today). "Send" records the invoice; it
+doesn't email anything.
+
+**Results:** 31 files, **292/292** (sales 35 incl. a 200-run property test; company file 3). Build
+green, audit clean.
