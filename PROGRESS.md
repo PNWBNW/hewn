@@ -279,9 +279,9 @@ wrong passphrase refused with a clear message; right one reopens with entries in
 deleting IndexedDB the backup restores all entries; a second, separate browser profile opens the
 same books from the backup + passphrase; zero console or CSP errors.
 
-**Exit criterion "vault survives clear-site-data via export/import, and opens from a second
-browser with the same wallet":** met for the passphrase path (above). Not ticked: the wording says
-"same wallet", and the wallet unlock isn't built yet (fiat-first). Asked Joshua whether to amend it.
+**Exit criterion reworded and ticked (Joshua, 2026-10-13):** "…opens in a second browser with the
+same passphrase, no wallet required" — met (above). The wallet half is now its own unchecked
+criterion: once Shield is linked, either unlocks, and the passphrase always keeps working.
 
 **Results:** 26 files, **236/236** (vault 18, ledger 50 incl. serialization). Build green, audit
 clean. Lockfile regenerated under the 7-day rule (see below).

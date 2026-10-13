@@ -95,7 +95,8 @@ The frozen core. Everything else imports it; nothing else may alter it. Fiat-fir
 - [ ] `leo build` and `leo test` green for `gl_core.aleo`, including negative tests (unbalanced entry, closed period, unknown account) that fail as expected
 - [ ] Deployed to testnet; program ID in `testnet.manifest.json`
 - [ ] A 20-entry sample ledger posted, period closed, root anchored, with tx hashes recorded in PROGRESS.md
-- [ ] Vault survives browser clear-site-data via export/import round trip, and opens from a second browser with the same wallet
+- [x] Vault survives browser clear-site-data via export/import round trip, and opens in a second browser with the same passphrase, no wallet required (2026-10-13)
+- [ ] Once a Shield wallet is linked, the vault opens with either the passphrase or the wallet; the passphrase keeps working so a lost wallet never locks the books
 - [ ] Trial balance from the vault matches the trial balance recomputed from on-chain records in settled mode
 - [ ] `LEDGER_INTERFACE.md` reviewed and frozen
 
