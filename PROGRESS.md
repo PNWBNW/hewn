@@ -471,3 +471,94 @@ doesn't email anything.
 
 **Results:** 31 files, **292/292** (sales 35 incl. a 200-run property test; company file 3). Build
 green, audit clean.
+
+## 2026-10-13 — Phase 3 finished (fiat)
+
+Estimates, dimensions (projects, classes, locations), project profitability, the sales tax
+liability report and payments, 1099 amounts, and encrypted receipt files on bills.
+
+- **`@pnw/ledger`**: new `dimensions.ts`. `Dimensions` (projects with optional customer and
+  active/closed status; classes and locations with an active flag; all unlimited, unique names)
+  lives in the vault as its own part of the company file. Journal lines carry only tag ids in the
+  existing `Line.tags`, which were already in the entry hash, so the plaintext names never touch
+  the books (this is the "dimension_hash + vault mapping" of deliverable 5). `cleanTags` drops
+  blanks so untagged lines hash exactly as before. Reports: `linesTagged`,
+  `profitAndLossForTag` (a normal P&L of only the tagged lines), `profitByTag` (income, COGS,
+  expenses incl. payroll, profit, margin in basis points, plus a total). New `SourceKind`
+  `"sales_tax_payment"`.
+- **`@pnw/sales`**:
+  - Estimates (`estimates.ts`): EST-0001…, expiry (default +30 days), invoice-style lines incl.
+    taxable flag, tax rate and tags; draft / sent / accepted / declined / converted, "expired"
+    derived from the date. Never post. `convertEstimateToInvoice` makes a draft invoice with the
+    same lines, tags, tax and memo, linked both ways; converts once; declined can't convert;
+    deleting that draft invoice hands the estimate back as accepted.
+  - Invoice and bill lines take optional `tags`, carried onto the posted income / expense lines.
+  - Bills keep `attachments: {attachmentId, sha256, type, size, name}[]` only (image/* or PDF,
+    ≤ 10 MB); `attachToBill` / `detachFromBill` don't post.
+  - `salesTaxReport(books, sales, from, to)` (`salestax.ts`): opening Sales Tax Payable, tax per
+    invoice posted in the range, voided invoices, payments to the agency (voided payments count
+    negative), other adjustments, owed at the end = Sales Tax Payable on the end date by
+    construction. `recordSalesTaxPayment` posts Dr Sales Tax Payable / Cr bank.
+    `paidToVendor` sums live bill payments in a range (1099s).
+  - `salesFromJson` fills `estimates: []` for files saved before estimates.
+- **`@pnw/payroll`**: `PayRunInput.lines[].tags` (optional); the paycheck keeps them and the wage
+  and employer-tax lines carry them. Net pay and liability lines stay untagged. No change when
+  absent (existing tests untouched and green).
+- **`@pnw/vault`**: `VaultSession.sealAttachment` / `openAttachment` seal file bytes with the same
+  non-extractable data key, AAD `pnw-vault:v1:attachment:<id>:<vault id>` (ids are
+  `[A-Za-z0-9_-]`, so role and vault id can't shift into each other). `sha256Hex`. IndexedDB
+  goes to version 2 with an `attachments` store (keyed `<vault>/<id>`, indexed by vault) created
+  in an `oldVersion`-stepped upgrade; `replace(record, attachments)` swaps both in one
+  transaction. Backup files are version 2 (`{format: "pnw-vault-backup", version: 2, record,
+  attachments}`), still all ciphertext; version-1 files (the bare record) still restore.
+- **App**:
+  - Company file gains `dimensions`; older files open with empty lists (test).
+  - Sales: Estimates tab (Edit, Mark sent, Accepted, Declined, Convert to invoice, Delete) and
+    New estimate. Invoice and estimate share one editor component (`sales/DocumentForm.tsx`).
+  - Project / class / location pickers (shown only for kinds that have entries) on invoice,
+    estimate, bill and journal-entry lines, and one project per paycheck in Run payroll. The
+    journal and pay-run breakdown show tag names.
+  - Projects page: Projects tab (add / edit / close / reopen, customer, date range incl. All
+    dates, income / costs / profit / margin per project and in total, each project's own P&L);
+    Classes & locations tab (add, rename, deactivate, entry counts).
+  - Reports: Project profitability (all projects, or one project's P&L with comparison) and
+    Sales tax liability, both with CSV.
+  - Taxes page: Sales tax (owed now, record a payment with agency and reference, the liability
+    report with a tie-out line against Sales Tax Payable), Payroll tax (owed now, 941 quarters,
+    link to Payroll → Withholding owed via `?tab=owed`), 1099s (flagged vendors, paid per year).
+  - Receipts: attach a photo or PDF on a new bill or any existing bill (`capture="environment"`);
+    sealed and stored the moment it's picked, dropped again if the bill isn't saved. Viewing
+    decrypts to an object URL and checks the SHA-256 the bill holds; images inline
+    (`img-src blob:`), PDFs via a download link, no frames. Backups include every sealed file;
+    restore verifies each one opens before replacing anything.
+
+**Browser check** (production build, 390×844, light; Projects also in dark): Contractor books.
+Project "Kitchen remodel" for Acme Co. EST-0001: 1 × 6,000.00 taxable tagged to the project +
+150.00 haul-away untagged at 8.25% → total 6,645.00; marked sent, accepted, converted → INV-0001
+draft (estimate shows Converted · INV-0001), sent → A/R 6,645.00. Bill LY-2201 from Lumber Yard
+(1099): 2,450.00 Job Materials tagged to the project, 48×32 PNG receipt attached and viewed
+(blob URL, decoded 48×32), then paid. Payroll: Ana Ruiz, $30/hr weekly, 40 h tagged to the
+project: gross 1,200.00, employer taxes 91.80. Project: income 6,000.00, costs 3,741.80
+(2,450.00 materials + 1,200.00 wages + 91.80 employer taxes), profit 2,258.20, margin 37.6%,
+same on Reports → Project profitability; checked by hand. Sales tax this quarter: collected
+495.00, ties to Sales Tax Payable; payment of 495.00 to "State DOR" → owed 0.00, report still
+ties. 1099s: Lumber Yard 2,450.00. Payroll tax owed 285.68. Backup downloaded (version 2, 1
+attachment, no plaintext names in the file); database deleted from a fresh page, setup screen
+shown, backup restored, the receipt opens (48×32) and the project figures are unchanged. No
+page-level horizontal scroll; zero console or CSP errors (the existing Chromium warning about
+`bluetooth` in Permissions-Policy). Fix found in the check: the receipt panel opened inside the
+horizontally scrolled bills table and landed off-screen on a phone; it now sits below the table.
+
+**Exit criteria:** ticked "Sales tax liability report ties to invoices for the period" and
+"Project profitability report for a job with labor, materials and an invoice" (tests:
+`packages/sales/src/salestax.test.ts`, `packages/sales/src/project_profit.test.ts`; payroll is a
+test-only dev dependency of `@pnw/sales`, pinned by its boundary test). **Not ticked:** the
+public/private flag criterion: it needs `gl_core.aleo` (an on-chain public mapping and a
+circuit-level refusal for worker-linked entries), so it's deferred to the anchored/settled work.
+**Deferred:** batch create (invoices) and batch entry (bills); the receipt hash isn't inside the
+journal entry hash (files can be attached after posting; the bill record holds the SHA-256 and
+it's checked on every open); applying a customer credit to a later invoice; emailing documents.
+
+**Results:** 39 files, **352/352** (was 312: ledger +8, sales +17, payroll +1, vault +10,
+business +4). Build green, `pnpm audit` clean. Lockfile changes only for the `@pnw/payroll`
+dev-dependency link in `@pnw/sales`.
