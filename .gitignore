@@ -29,3 +29,7 @@ yarn-error.log*
 
 # Accidental installs at the master level
 node_modules/
+
+# Build output
+.next/
+*.tsbuildinfo

@@ -1,0 +1,166 @@
+/*
+ * PNW Ledger theme tokens.
+ *
+ * Bookkeeping is a work surface: people read dense tables for hours. So the
+ * default is a calm, light, high-contrast canvas, with the PNW brand palette
+ * used for the navigation rail and for accents only. Dark mode follows the OS
+ * unless [data-theme] pins it.
+ *
+ * Import once from an app's global stylesheet, after `@import "tailwindcss"`.
+ */
+
+:root {
+  /* PNW brand primitives (same values as the portal) */
+  --pnw-gold-100: #fef9e7;
+  --pnw-gold-300: #f6d365;
+  --pnw-gold-500: #d4a012;
+  --pnw-gold-700: #92710a;
+  --pnw-forest-100: #e8f5e9;
+  --pnw-forest-300: #81c784;
+  --pnw-forest-500: #2e7d32;
+  --pnw-forest-700: #1b4332;
+  --pnw-forest-900: #0d2818;
+  --pnw-cyan-400: #00e5ff;
+  --pnw-cyan-600: #0097a7;
+  --pnw-navy-800: #0a1628;
+  --pnw-navy-900: #060e1a;
+  --pnw-navy-950: #030810;
+
+  /* Semantic tokens — light */
+  --background: #f7f8f6;
+  --foreground: #101814;
+  --card: #ffffff;
+  --card-foreground: #101814;
+  --muted: #eef1ed;
+  --muted-foreground: #5b6660;
+  --border: #dde3dd;
+  --input: #cfd7d0;
+  --primary: var(--pnw-forest-700);
+  --primary-foreground: #f4faf5;
+  --secondary: #e9eee9;
+  --secondary-foreground: #101814;
+  --accent: #e4ece5;
+  --accent-foreground: #0d2818;
+  --destructive: #b42318;
+  --destructive-foreground: #fff5f4;
+  --ring: var(--pnw-forest-500);
+  --success: #1f7a3a;
+  --warning: #a86b00;
+  --radius: 0.5rem;
+
+  /* Navigation rail (always dark, the brand surface) */
+  --rail: var(--pnw-navy-900);
+  --rail-foreground: #c9d4ce;
+  --rail-muted: #7f8d86;
+  --rail-active: rgba(129, 199, 132, 0.14);
+  --rail-active-foreground: #ffffff;
+  --rail-border: rgba(255, 255, 255, 0.07);
+  --rail-accent: var(--pnw-gold-300);
+
+  /* Ledger figures */
+  --money-positive: #1f7a3a;
+  --money-negative: #b42318;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0b1210;
+    --foreground: #e6ece8;
+    --card: #111a17;
+    --card-foreground: #e6ece8;
+    --muted: #17221e;
+    --muted-foreground: #93a39a;
+    --border: #22302a;
+    --input: #2c3b34;
+    --primary: var(--pnw-forest-300);
+    --primary-foreground: #0d2818;
+    --secondary: #1a2622;
+    --secondary-foreground: #e6ece8;
+    --accent: #1c2a25;
+    --accent-foreground: #e6ece8;
+    --destructive: #f04438;
+    --destructive-foreground: #1a0503;
+    --ring: var(--pnw-forest-300);
+    --success: #6fcf8a;
+    --warning: #f2b544;
+    --rail: var(--pnw-navy-950);
+    --money-positive: #6fcf8a;
+    --money-negative: #ff8a80;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #0b1210;
+  --foreground: #e6ece8;
+  --card: #111a17;
+  --card-foreground: #e6ece8;
+  --muted: #17221e;
+  --muted-foreground: #93a39a;
+  --border: #22302a;
+  --input: #2c3b34;
+  --primary: var(--pnw-forest-300);
+  --primary-foreground: #0d2818;
+  --secondary: #1a2622;
+  --secondary-foreground: #e6ece8;
+  --accent: #1c2a25;
+  --accent-foreground: #e6ece8;
+  --destructive: #f04438;
+  --destructive-foreground: #1a0503;
+  --ring: var(--pnw-forest-300);
+  --success: #6fcf8a;
+  --warning: #f2b544;
+  --rail: var(--pnw-navy-950);
+  --money-positive: #6fcf8a;
+  --money-negative: #ff8a80;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-rail: var(--rail);
+  --color-rail-foreground: var(--rail-foreground);
+  --color-rail-muted: var(--rail-muted);
+  --color-rail-active: var(--rail-active);
+  --color-rail-active-foreground: var(--rail-active-foreground);
+  --color-rail-border: var(--rail-border);
+  --color-rail-accent: var(--rail-accent);
+  --color-money-positive: var(--money-positive);
+  --color-money-negative: var(--money-negative);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* In the base layer so Tailwind utilities (e.g. border-rail-border) can override. */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum" 1; /* tabular figures: columns of money line up */
+  }
+
+  * {
+    border-color: var(--border);
+  }
+}
