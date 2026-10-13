@@ -76,3 +76,22 @@ prefixed store). These need to move into the vault during Phase 1.
 2. The 5 stale tests: OK to update them to current code as part of Phase 0 salvage?
 
 **Status:** stopped per First-session step 6. No scaffolding started.
+
+## 2026-10-13 — Fix 5 stale portal tests (Phase 0, exit criterion 1 prep)
+
+Approved by Joshua. Tests updated to match current code; no source changes.
+
+- `src/anchor/batch_anchor_finalizer.test.ts`: dropped `buildCycleNftParams` (removed in 1795ff2).
+  `serializeAnchorInputs` tests now check the 10-input deployed `mint_cycle_nft` signature
+  (`[u8; 32]` arrays, `u32` periods, `u16` versions). Added cases for a supplied `doc_hash` and an
+  empty manifest. `mintBatchAnchor` now expects `payroll_nfts_v2.aleo` and 10 inputs.
+- `src/coordinator/settlement_coordinator.test.ts`: expects `payroll_core_v2.aleo`.
+
+Result: **16/16 files, 166/166 tests passing** (was 160/165; net +1 test). No new lint errors
+(4 pre-existing unused-var warnings).
+
+Push access to `pnw_employment_portal_v1` was not granted in this session, so the change is kept as
+`salvage/patches/pnw_employment_portal_v1/0001-fix-stale-anchor-and-coordinator-tests.patch`
+(`git apply` from the portal root, at 909660e). It gets applied when the packages are salvaged into
+the monorepo. The exit criterion itself stays unticked until the suite runs green *inside* the
+monorepo.
