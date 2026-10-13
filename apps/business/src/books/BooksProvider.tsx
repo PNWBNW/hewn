@@ -8,20 +8,26 @@
 // operation, then seals the result and saves it to IndexedDB before the
 // screen moves on. Plaintext exists only in this tab's memory; locking (or
 // 15 idle minutes) drops it along with the vault key.
+//
+// Receipt files are sealed one by one with the same vault key and kept in
+// their own IndexedDB store; a bill holds only a reference and the file's
+// SHA-256, which is checked whenever the file is opened. Backups carry the
+// record and every sealed file.
 // ---------------------------------------------------------------------------
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { type Books, type Settings, type TemplateId, applyTemplate, createBooks } from "@pnw/ledger";
-import { type Payroll, emptyPayroll } from "@pnw/payroll";
-import { type Sales, emptySales } from "@pnw/sales";
+import { type Books, type Dimensions, type Settings, type TemplateId, applyTemplate, createBooks } from "@pnw/ledger";
+import type { Payroll } from "@pnw/payroll";
+import { type AttachmentRef, MAX_ATTACHMENT_BYTES, type Sales } from "@pnw/sales";
 import { BRAND } from "@/brand";
-import { type Company, companyFromJson, companyToJson } from "./company";
+import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
 import {
   type VaultSession,
   IndexedDbStore,
   createVault,
   exportBackup,
   parseBackup,
+  sha256Hex,
   unlockVault,
 } from "@pnw/vault";
 
@@ -37,6 +43,7 @@ type BooksContextValue = {
   books: Books | null;
   payroll: Payroll | null;
   sales: Sales | null;
+  dimensions: Dimensions | null;
   create: (input: SetupInput) => Promise<void>;
   unlock: (passphrase: string) => Promise<void>;
   lock: () => void;
@@ -44,9 +51,15 @@ type BooksContextValue = {
   update: (op: (books: Books) => Books) => Promise<Books>;
   /** Same, for operations that change the books with payroll or sales (a pay run, an invoice). */
   updateCompany: (op: (company: Company) => Company) => Promise<Company>;
-  downloadBackup: () => void;
+  downloadBackup: () => Promise<void>;
   /** Restore a backup file onto this device, then open it. */
   restore: (fileText: string, passphrase: string) => Promise<void>;
+  /** Seals a photo or PDF into the vault and returns the reference a bill keeps. */
+  addAttachment: (file: File) => Promise<AttachmentRef>;
+  /** Opens a sealed file, checking it against the fingerprint the bill holds. */
+  readAttachment: (ref: AttachmentRef) => Promise<Blob>;
+  /** Drops a sealed file nothing refers to (a bill that failed to save). */
+  discardAttachment: (attachmentId: string) => Promise<void>;
 };
 
 const BooksContext = createContext<BooksContextValue | null>(null);
@@ -58,10 +71,19 @@ export function useBooks(): BooksContextValue {
 }
 
 /** Open books, for screens that only render once the gate has let them through. */
-export function useOpenBooks(): BooksContextValue & { books: Books; payroll: Payroll; sales: Sales } {
+type OpenBooks = BooksContextValue & { books: Books; payroll: Payroll; sales: Sales; dimensions: Dimensions };
+
+export function useOpenBooks(): OpenBooks {
   const ctx = useBooks();
-  if (!ctx.books || !ctx.payroll || !ctx.sales) throw new Error("Books are not open");
-  return ctx as BooksContextValue & { books: Books; payroll: Payroll; sales: Sales };
+  if (!ctx.books || !ctx.payroll || !ctx.sales || !ctx.dimensions) throw new Error("Books are not open");
+  return ctx as OpenBooks;
+}
+
+const ATTACHMENT_TYPES = /^(image\/[a-z0-9.+-]+|application\/pdf)$/;
+
+function newAttachmentId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return `att-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
 export function BooksProvider({ children }: { children: ReactNode }) {
@@ -91,7 +113,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     async ({ template, passphrase, ...settings }: SetupInput) => {
       let fresh = createBooks(settings);
       if (template !== "blank") fresh = applyTemplate(fresh, template);
-      const s = await createVault(passphrase, companyToJson({ books: fresh, payroll: emptyPayroll(), sales: emptySales() }), { id: VAULT_ID });
+      const s = await createVault(passphrase, companyToJson(emptyCompany(fresh)), { id: VAULT_ID });
       await store.save(s.record);
       await open(s);
     },
@@ -143,10 +165,12 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [updateCompany],
   );
 
-  const downloadBackup = useCallback(() => {
+  const downloadBackup = useCallback(async () => {
     const s = session.current;
     if (!s) return;
-    const blob = new Blob([exportBackup(s.record)], { type: "application/json" });
+    // Every sealed file goes in too, still encrypted: a restore brings the receipts back.
+    const attachments = await store.listAttachments(VAULT_ID);
+    const blob = new Blob([exportBackup(s.record, attachments)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const name = (company?.books.settings.businessName ?? "books").replace(/[^\w-]+/g, "-").toLowerCase();
@@ -154,18 +178,51 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     a.download = `${name}-${new Date().toISOString().slice(0, 10)}.${BRAND.backupExtension}`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [company]);
+  }, [company, store]);
 
   const restore = useCallback(
     async (fileText: string, passphrase: string) => {
-      const record = { ...parseBackup(fileText), id: VAULT_ID };
+      const backup = parseBackup(fileText);
+      const record = { ...backup.record, id: VAULT_ID };
       const s = await unlockVault(record, passphrase); // proves the passphrase before anything is replaced
       companyFromJson(await s.read()); // and that the books inside are intact
-      await store.save(s.record);
+      for (const a of backup.attachments) await s.openAttachment(a); // and every file
+      await store.replace(s.record, backup.attachments);
       await open(s);
     },
     [store, open],
   );
+
+  const addAttachment = useCallback(
+    async (file: File): Promise<AttachmentRef> => {
+      const s = session.current;
+      if (!s) throw new Error("Books are locked");
+      if (!ATTACHMENT_TYPES.test(file.type)) throw new Error("Attach a photo or a PDF");
+      if (file.size === 0) throw new Error("That file is empty");
+      if (file.size > MAX_ATTACHMENT_BYTES) throw new Error("Files can be at most 10 MB");
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const attachmentId = newAttachmentId();
+      const sha256 = await sha256Hex(bytes);
+      await store.saveAttachment(VAULT_ID, await s.sealAttachment(attachmentId, bytes));
+      return { attachmentId, sha256, type: file.type, size: bytes.length, name: file.name || "receipt" };
+    },
+    [store],
+  );
+
+  const readAttachment = useCallback(
+    async (ref: AttachmentRef): Promise<Blob> => {
+      const s = session.current;
+      if (!s) throw new Error("Books are locked");
+      const sealed = await store.loadAttachment(VAULT_ID, ref.attachmentId);
+      if (!sealed) throw new Error("That file isn't on this device. Restore a backup that includes it.");
+      const bytes = await s.openAttachment(sealed);
+      if ((await sha256Hex(bytes)) !== ref.sha256) throw new Error("That file doesn't match the one attached to this bill");
+      return new Blob([bytes], { type: ref.type });
+    },
+    [store],
+  );
+
+  const discardAttachment = useCallback((attachmentId: string) => store.removeAttachment(VAULT_ID, attachmentId), [store]);
 
   // Auto-lock after inactivity.
   useEffect(() => {
@@ -189,6 +246,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       books: company?.books ?? null,
       payroll: company?.payroll ?? null,
       sales: company?.sales ?? null,
+      dimensions: company?.dimensions ?? null,
       create,
       unlock,
       lock,
@@ -196,8 +254,11 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       updateCompany,
       downloadBackup,
       restore,
+      addAttachment,
+      readAttachment,
+      discardAttachment,
     }),
-    [status, company, create, unlock, lock, update, updateCompany, downloadBackup, restore],
+    [status, company, create, unlock, lock, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
   );
   return <BooksContext.Provider value={value}>{children}</BooksContext.Provider>;
 }

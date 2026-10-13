@@ -9,7 +9,7 @@ type Params = { section: string };
 export const dynamicParams = false;
 
 // Sections with their own working screens (src/app/<id>/) are routed there instead.
-const OWN_ROUTES = new Set(["transactions", "payroll", "sales", "expenses", "reports"]);
+const OWN_ROUTES = new Set(["transactions", "payroll", "sales", "expenses", "projects", "reports", "taxes"]);
 
 export function generateStaticParams(): Params[] {
   return SECTIONS.filter((s) => !OWN_ROUTES.has(s.id)).map((s) => ({ section: s.id }));

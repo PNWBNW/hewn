@@ -18,6 +18,7 @@ import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
+import { TagFields } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 
 function daysBefore(iso: string, days: number): string {
@@ -25,10 +26,11 @@ function daysBefore(iso: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d - days)).toISOString().slice(0, 10);
 }
 
-type Row = { include: boolean; hours: string };
+/** One optional project per paycheck: its wages and employer taxes count as that job's labour. */
+type Row = { include: boolean; hours: string; project?: string };
 
 export default function RunPayrollPage() {
-  const { books, payroll, updateCompany } = useOpenBooks();
+  const { books, payroll, dimensions, updateCompany } = useOpenBooks();
   const router = useRouter();
   const team = payroll.workers.filter((w) => w.active);
   const today = todayIso();
@@ -80,6 +82,7 @@ export default function RunPayrollPage() {
           lines: included.map(({ worker, row }) => ({
             workerId: worker.id,
             ...(worker.payType === "hourly" ? { hours: Number(row.hours) } : {}),
+            ...(row.project ? { tags: { project: row.project } } : {}),
           })),
         });
         return { ...c, books: r.books, payroll: r.payroll };
@@ -163,6 +166,16 @@ export default function RunPayrollPage() {
                   />
                 )}
               </div>
+              {row.include && (
+                <TagFields
+                  dims={dimensions}
+                  kinds={["project"]}
+                  value={row.project ? { project: row.project } : {}}
+                  onChange={(t) => setRows((r) => ({ ...r, [worker.id]: { ...row, project: t.project } }))}
+                  labelPrefix={worker.name}
+                  className="mt-3 sm:grid-cols-2"
+                />
+              )}
               {row.include && problem && <p className="mt-2 text-xs text-destructive">{problem}</p>}
               {paycheck && (
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-3 text-sm sm:grid-cols-5">

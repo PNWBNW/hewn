@@ -4,7 +4,14 @@
 // inputs and the "month is closed" fallback for voids.
 
 import { type Cents, formatCents, parseCents } from "@pnw/ledger";
-import { AGING_BUCKETS, type Aging, type InvoiceStatus, STATUS_LABELS } from "@pnw/sales";
+import {
+  AGING_BUCKETS,
+  type Aging,
+  ESTIMATE_STATUS_LABELS,
+  type EstimateStatus,
+  type InvoiceStatus,
+  STATUS_LABELS,
+} from "@pnw/sales";
 import { cn } from "@pnw/ui/utils";
 import { Money, todayIso } from "@/books/display";
 
@@ -21,6 +28,23 @@ export function StatusBadge({ status }: { status: InvoiceStatus }) {
   return (
     <span className={cn("inline-block rounded-full border px-2 py-0.5 text-xs whitespace-nowrap", STATUS_TONES[status])}>
       {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+const ESTIMATE_TONES: Record<EstimateStatus, string> = {
+  draft: "border-dashed text-muted-foreground",
+  sent: "border-primary/30 bg-accent text-accent-foreground",
+  accepted: "border-success/40 bg-success/10 text-success",
+  declined: "text-muted-foreground",
+  converted: "border-success/40 bg-success/10 text-success",
+  expired: "border-warning/40 bg-warning/10 text-warning",
+};
+
+export function EstimateBadge({ status }: { status: EstimateStatus }) {
+  return (
+    <span className={cn("inline-block rounded-full border px-2 py-0.5 text-xs whitespace-nowrap", ESTIMATE_TONES[status])}>
+      {ESTIMATE_STATUS_LABELS[status]}
     </span>
   );
 }

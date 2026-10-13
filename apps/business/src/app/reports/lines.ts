@@ -9,9 +9,11 @@ import {
   type ProfitAndLoss,
   type StatementRow,
   type StatementSection,
+  type TagProfit,
   type TrialBalance,
   formatCents,
 } from "@pnw/ledger";
+import type { SalesTaxReport } from "@pnw/sales";
 
 export type LineKind = "heading" | "account" | "subtotal" | "total" | "grand";
 
@@ -31,6 +33,8 @@ export type Report = {
   subtitle: string;
   columns: string[];
   lines: ReportLine[];
+  /** A sentence under the figures (a margin, a tie-out), also written into the CSV. */
+  note?: string;
 };
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -104,6 +108,56 @@ export function trialBalanceLines(chartOrder: Account[], tb: TrialBalance): Repo
   return lines;
 }
 
+/** "37.6%" from basis points; "n/a" without income. */
+export function formatMargin(bp: number | null): string {
+  if (bp === null) return "n/a";
+  const sign = bp < 0 ? "-" : "";
+  const abs = Math.abs(bp);
+  // Tenths of a percent, half up, in integers.
+  const tenths = Math.floor((abs + 5) / 10);
+  return `${sign}${Math.floor(tenths / 10)}.${tenths % 10}%`;
+}
+
+/** One line per project: income, costs (job costs plus expenses, labour included), profit; then the total. */
+export function projectSummaryLines(summary: { rows: TagProfit[]; total: TagProfit }, names: Map<string, string>): ReportLine[] {
+  const amounts = (r: TagProfit) => [r.income, r.costOfGoodsSold + r.expenses, r.profit];
+  return [
+    ...summary.rows.map((r): ReportLine => ({
+      kind: "account",
+      label: `${names.get(r.tagId) ?? r.tagId} · ${formatMargin(r.marginBp)} margin`,
+      depth: 0,
+      amounts: amounts(r),
+    })),
+    { kind: "grand", label: `All projects · ${formatMargin(summary.total.marginBp)} margin`, depth: 0, amounts: amounts(summary.total) },
+  ];
+}
+
+/**
+ * The sales tax liability as a statement: owed at the start, tax on each
+ * invoice, voids, payments, adjustments, and owed at the end. The lines add
+ * up top to bottom, so the last line is Sales Tax Payable on the end date.
+ */
+export function salesTaxLines(r: SalesTaxReport, customers: Map<string, string>): ReportLine[] {
+  const lines: ReportLine[] = [
+    { kind: "account", label: "Owed at the start", depth: 0, amounts: [r.opening] },
+    { kind: "heading", label: "Tax on invoices", depth: 0, amounts: null },
+    ...r.invoices.map((i): ReportLine => ({
+      kind: "account",
+      label: `${i.number} · ${customers.get(i.customerId) ?? i.customerId} · ${i.date}${i.void ? " (void)" : ""}`,
+      depth: 1,
+      amounts: [i.tax],
+    })),
+    { kind: "subtotal", label: "Tax collected", depth: 0, amounts: [r.collected] },
+  ];
+  if (r.voided !== 0n) lines.push({ kind: "account", label: "Less voided invoices", depth: 0, amounts: [-r.voided] });
+  lines.push({ kind: "heading", label: "Payments to the agency", depth: 0, amounts: null });
+  for (const p of r.payments) lines.push({ kind: "account", label: `${p.date} · ${p.memo ?? "Payment"}`, depth: 1, amounts: [-p.amount] });
+  lines.push({ kind: "subtotal", label: "Total paid", depth: 0, amounts: [-r.paid] });
+  if (r.adjustments !== 0n) lines.push({ kind: "account", label: "Other adjustments (journal entries)", depth: 0, amounts: [r.adjustments] });
+  lines.push({ kind: "grand", label: "Owed at the end", depth: 0, amounts: [r.owed] });
+  return lines;
+}
+
 /** True when the report has nothing but zero totals to show. */
 export function isEmptyReport(report: Report): boolean {
   return report.lines.every((l) => l.kind === "heading" || !l.amounts || !anyNonZero(l.amounts));
@@ -135,5 +189,6 @@ export function reportCsv(report: Report, businessName: string): string {
       : report.columns.map(() => "");
     rows.push([label, ...amounts].join(","));
   }
+  if (report.note) rows.push("", textCell(report.note));
   return `${rows.join("\r\n")}\r\n`;
 }

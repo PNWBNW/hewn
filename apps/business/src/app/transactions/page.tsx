@@ -33,6 +33,7 @@ import {
   todayIso,
   typeLabel,
 } from "@/books/display";
+import { tagNameMap, tagSummary } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 
 const SOURCE_LABELS: Record<Entry["source"]["kind"], string> = {
@@ -46,6 +47,7 @@ const SOURCE_LABELS: Record<Entry["source"]["kind"], string> = {
   expense: "Expense",
   payroll: "Payroll",
   tax_payment: "Tax payment",
+  sales_tax_payment: "Sales tax payment",
   reversal: "Reversal",
 };
 
@@ -98,7 +100,8 @@ export default function TransactionsPage() {
 // ---- Journal ---------------------------------------------------------------
 
 function Journal() {
-  const { books, payroll, sales, update } = useOpenBooks();
+  const { books, payroll, sales, dimensions, update } = useOpenBooks();
+  const tagNames = useMemo(() => tagNameMap(dimensions), [dimensions]);
   // Names live in the vault next to the books; journal lines carry only the id.
   const names = useMemo(
     () => ({
@@ -184,9 +187,9 @@ function Journal() {
                       <tr key={i} className="align-top">
                         <td className={cn("py-1 pr-2 break-words", line.credit > 0n && "pl-4")}>
                           {acct ? accountLabel(acct) : line.accountId}
-                          {(line.name || line.memo) && (
+                          {(line.name || line.memo || line.tags) && (
                             <span className="block text-xs text-muted-foreground">
-                              {[line.name && nameOf(line.name), line.memo]
+                              {[line.name && nameOf(line.name), line.memo, tagSummary(line.tags, tagNames)]
                                 .filter(Boolean)
                                 .join(" · ")}
                             </span>

@@ -3,32 +3,50 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Download } from "lucide-react";
-import { type DateRange, assertDate, balanceSheet, profitAndLoss, trialBalance } from "@pnw/ledger";
+import {
+  type DateRange,
+  assertDate,
+  balanceSheet,
+  formatCents,
+  marginBp,
+  profitAndLoss,
+  profitAndLossForTag,
+  profitByTag,
+  trialBalance,
+} from "@pnw/ledger";
+import { salesTaxReport } from "@pnw/sales";
 import { Button, buttonVariants } from "@pnw/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@pnw/ui/tabs";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { Money, orderedAccounts, todayIso } from "@/books/display";
+import { orderedAccounts, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
 import { type Comparison, type Preset, PRESETS, compareDate, compareRange, formatDate, presetRange, rangeLabel } from "./dates";
 import {
-  type ReportLine,
   type Report,
   balanceSheetLines,
-  isEmptyReport,
+  formatMargin,
   profitAndLossLines,
+  projectSummaryLines,
   reportCsv,
+  salesTaxLines,
   trialBalanceLines,
 } from "./lines";
+import { Statement } from "./Statement";
 
-type ReportId = "profit_and_loss" | "balance_sheet" | "trial_balance";
+type ReportId = "profit_and_loss" | "balance_sheet" | "trial_balance" | "project_profitability" | "sales_tax";
 
 const REPORTS: { id: ReportId; label: string; file: string }[] = [
   { id: "profit_and_loss", label: "Profit and loss", file: "profit-and-loss" },
   { id: "balance_sheet", label: "Balance sheet", file: "balance-sheet" },
   { id: "trial_balance", label: "Trial balance", file: "trial-balance" },
+  { id: "project_profitability", label: "Project profitability", file: "project-profitability" },
+  { id: "sales_tax", label: "Sales tax liability", file: "sales-tax-liability" },
 ];
+
+/** Reports over a date range (the rest are "as of" a date). */
+const RANGED: ReportId[] = ["profit_and_loss", "project_profitability", "sales_tax"];
 
 const isDate = (d: string) => {
   try {
@@ -40,7 +58,7 @@ const isDate = (d: string) => {
 };
 
 export default function ReportsPage() {
-  const { books } = useOpenBooks();
+  const { books, sales, dimensions } = useOpenBooks();
   const today = todayIso();
   const fiscalStart = books.settings.fiscalYearStartMonth;
   const [reportId, setReportId] = useState<ReportId>("profit_and_loss");
@@ -48,6 +66,8 @@ export default function ReportsPage() {
   const [custom, setCustom] = useState<DateRange>(() => presetRange("this_month", today, fiscalStart));
   const [asOf, setAsOf] = useState(today);
   const [comparison, setComparison] = useState<Comparison>("none");
+  /** "" = every project, side by side. */
+  const [projectId, setProjectId] = useState("");
 
   const range = useMemo(
     () => (preset === "custom" ? custom : presetRange(preset, today, fiscalStart)),
@@ -56,14 +76,49 @@ export default function ReportsPage() {
 
   // The shown report, or why it can't be shown yet.
   const built = useMemo((): Report | string => {
-    if (reportId === "profit_and_loss") {
+    if (RANGED.includes(reportId)) {
       if (!isDate(range.from) || !isDate(range.to)) return "Choose a start and end date.";
       if (range.from > range.to) return "The end date is before the start date.";
+    }
+    const subtitle = `${formatDate(range.from)} – ${formatDate(range.to)}`;
+    if (reportId === "project_profitability") {
+      const names = new Map(dimensions.projects.map((p) => [p.id, p.name]));
+      if (!projectId) {
+        const summary = profitByTag(books, "project", range, dimensions.projects.map((p) => p.id));
+        return {
+          title: "Project profitability",
+          subtitle,
+          columns: ["Income", "Costs", "Profit"],
+          lines: projectSummaryLines(summary, names),
+          note: "Costs are job costs plus expenses tagged to the project, including wages and employer payroll taxes.",
+        };
+      }
+      const pl = profitAndLossForTag(books, "project", projectId, range, compareRange(range, comparison));
+      const income = pl.income.total[0]! + pl.otherIncome.total[0]!;
+      return {
+        title: `Profit and loss: ${names.get(projectId) ?? projectId}`,
+        subtitle,
+        columns: pl.columns.map(rangeLabel),
+        lines: profitAndLossLines(pl),
+        note: `Margin ${formatMargin(marginBp(pl.netIncome[0]!, income))}. Only lines tagged with this project are counted.`,
+      };
+    }
+    if (reportId === "sales_tax") {
+      const r = salesTaxReport(books, sales, range.from, range.to);
+      return {
+        title: "Sales tax liability",
+        subtitle,
+        columns: ["Amount"],
+        lines: salesTaxLines(r, new Map(sales.customers.map((c) => [c.id, c.name]))),
+        note: `Taxable sales ${formatCents(r.taxableSales)} of ${formatCents(r.totalSales)} invoiced. Owed at the end is Sales Tax Payable on ${formatDate(range.to)}.`,
+      };
+    }
+    if (reportId === "profit_and_loss") {
       const other = compareRange(range, comparison);
       const pl = profitAndLoss(books, range, other);
       return {
         title: "Profit and loss",
-        subtitle: `${formatDate(range.from)} – ${formatDate(range.to)}`,
+        subtitle,
         columns: pl.columns.map(rangeLabel),
         lines: profitAndLossLines(pl),
       };
@@ -87,7 +142,7 @@ export default function ReportsPage() {
         trialBalance(books, asOf),
       ),
     };
-  }, [books, reportId, range, asOf, comparison]);
+  }, [books, sales, dimensions, reportId, range, asOf, comparison, projectId]);
 
   function download() {
     if (typeof built === "string") return;
@@ -96,7 +151,7 @@ export default function ReportsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     const name = books.settings.businessName.replace(/[^\w-]+/g, "-").toLowerCase();
-    const date = reportId === "profit_and_loss" ? `${range.from}-to-${range.to}` : asOf;
+    const date = RANGED.includes(reportId) ? `${range.from}-to-${range.to}` : asOf;
     a.href = url;
     a.download = `${name}-${REPORTS.find((r) => r.id === reportId)!.file}-${date}.csv`;
     a.click();
@@ -145,7 +200,7 @@ export default function ReportsPage() {
       </Tabs>
 
       <div className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-3">
-        {reportId === "profit_and_loss" ? (
+        {RANGED.includes(reportId) ? (
           <>
             <Field label="Dates">
               <select
@@ -184,7 +239,20 @@ export default function ReportsPage() {
             <input type="date" className={inputClass} value={asOf} onChange={(e) => setAsOf(e.target.value)} />
           </Field>
         )}
-        {reportId !== "trial_balance" && (
+        {reportId === "project_profitability" && (
+          <Field label="Project">
+            <select className={inputClass} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">All projects</option>
+              {dimensions.projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.status === "closed" ? " (closed)" : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {(reportId === "profit_and_loss" || reportId === "balance_sheet" || (reportId === "project_profitability" && projectId)) && (
           <Field label="Compare to">
             <select className={inputClass} value={comparison} onChange={(e) => setComparison(e.target.value as Comparison)}>
               <option value="none">No comparison</option>
@@ -197,70 +265,5 @@ export default function ReportsPage() {
 
       {typeof built === "string" ? <FormError message={built} /> : <Statement report={built} businessName={books.settings.businessName} />}
     </div>
-  );
-}
-
-// ---- Statement ---------------------------------------------------------------
-
-// Literal class names so Tailwind sees them: one step per level of nesting.
-const INDENT = ["pl-4", "pl-7", "pl-10", "pl-13", "pl-16", "pl-19", "pl-22", "pl-25", "pl-28"];
-
-const ROW_STYLE: Record<ReportLine["kind"], string> = {
-  heading: "font-medium",
-  account: "",
-  subtotal: "border-t font-medium",
-  total: "border-t font-semibold",
-  grand: "border-t-2 border-foreground/20 bg-muted/60 font-semibold",
-};
-
-function Statement({ report, businessName }: { report: Report; businessName: string }) {
-  return (
-    <section className="overflow-hidden rounded-lg border bg-card" aria-label={report.title}>
-      <header className="border-b px-4 py-3 text-center">
-        <h2 className="text-base font-semibold">{report.title}</h2>
-        <p className="text-sm text-muted-foreground">{businessName}</p>
-        <p className="text-xs text-muted-foreground">{report.subtitle}</p>
-      </header>
-      {isEmptyReport(report) && (
-        <p className="border-b px-4 py-3 text-center text-sm text-muted-foreground">Nothing posted for these dates.</p>
-      )}
-      {/* Wide comparisons scroll inside this frame, never the page. */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-xs text-muted-foreground">
-              <th scope="col" className="py-2 pr-2 pl-4 text-left font-medium">
-                Account
-              </th>
-              {report.columns.map((c, j) => (
-                <th key={j} scope="col" className="py-2 pr-4 pl-2 text-right font-medium">
-                  {c}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {report.lines.map((line, i) => (
-              <tr
-                key={i}
-                className={cn(
-                  ROW_STYLE[line.kind],
-                  line.kind === "heading" && line.depth === 0 && "bg-muted text-xs tracking-wide text-muted-foreground uppercase",
-                )}
-              >
-                <td className={cn("py-1.5 pr-2 break-words", INDENT[Math.min(line.depth, INDENT.length - 1)])}>{line.label}</td>
-                {line.amounts
-                  ? line.amounts.map((c, j) => (
-                      <td key={j} className="py-1.5 pr-4 pl-2 text-right whitespace-nowrap">
-                        <Money cents={c} blankZero={line.blankZero} />
-                      </td>
-                    ))
-                  : report.columns.map((_, j) => <td key={j} />)}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
