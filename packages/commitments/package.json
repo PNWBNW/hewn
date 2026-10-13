@@ -1,0 +1,21 @@
+{
+  "name": "@pnw/commitments",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./aleo_types": "./src/aleo_types.ts",
+    "./canonical_encoder": "./src/canonical_encoder.ts",
+    "./canonical_types": "./src/canonical_types.ts",
+    "./hash": "./src/hash.ts",
+    "./merkle": "./src/merkle.ts",
+    "./token_id": "./src/token_id.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.0.1"
+  }
+}

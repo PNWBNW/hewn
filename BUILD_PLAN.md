@@ -28,7 +28,7 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 **Reused as-is from `pnw_mvp_v2` and `pnw_employment_portal_v1`**
 
 - Privacy architecture: records for identifying data, mappings hold only hashes and block heights, commitment-based authorization (`parties_key` commitments).
-- The adapter boundary: the app never calls `snarkos` directly; every on-chain call goes through `pnw-adapter`. Extensions hang off this seam.
+- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. The CLI adapter / private-key path is legacy: kept in `coordinator` for its tests, unused by new code, removed later. The app never calls `snarkos` directly. Extensions hang off this seam.
 - `paystub_receipts` + `payroll_audit_log` as the pattern for all ledger postings (dual records + hash anchor).
 - `.pnw` name registry, credential NFTs, employer license gate, wallet-signature session model.
 - TypeScript tax engine (`src/lib/tax-engine.ts`, IRS annualization method).
@@ -65,7 +65,7 @@ The portal is rebuilt as a QuickBooks-shaped shell; its libraries are kept. Noth
 
 **Exit criteria**
 
-- [ ] Every salvaged package builds and its existing vitest suite passes inside the monorepo
+- [x] Every salvaged package builds and its existing vitest suite passes inside the monorepo (2026-10-13)
 - [ ] A full payroll run (agreement check → USDCx transfer → receipts → audit anchor → cycle NFT) completes end-to-end from `apps/business` on testnet, tx hashes recorded
 - [ ] A worker sees that paystub in `apps/worker` with the credential badge rendered
 - [ ] The old portal repo is archived on GitHub with a pointer to the monorepo
@@ -249,6 +249,8 @@ No seat cap; the wallet is the user.
 - [x] Repo layout: monorepo — `apps/business`, `apps/worker`, `packages/`, `programs/` (2026-10-13).
 - [x] Reference wallet for vault key derivation: Shield (2026-10-13).
 - [x] Tax engine: TypeScript only; Julia service retired (2026-10-13).
+- [x] Wallet is the only signing path for new code; the CLI adapter / private-key fallback stays in `coordinator` until its tests are rewritten, then is removed (2026-10-13).
+- [x] Fiat is the primary product; chain rails are optional adapters the fiat path never imports (2026-10-13).
 - [x] Greenlight for Phase 0 (2026-10-13).
 - [ ] Minimum group size for publishing aggregates (suggested 5). Gates Phase 3 public flag.
 - [ ] Product name for the bookkeeping surface. Gates the README only.

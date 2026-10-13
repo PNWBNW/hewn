@@ -1,0 +1,469 @@
+/**
+ * PNW Name Registry — portal-side types and on-chain query utilities.
+ *
+ * Mirrors pnw_name_registry.aleo:
+ * - Worker names: 1 per wallet, soulbound, 1 USDCx + fee
+ * - Employer names: up to 3, license-gated, suffix-coded, tiered pricing
+ *
+ * All names are stored on-chain as BLAKE3 hashes (field), never plaintext.
+ */
+
+import { ENV } from "@pnw/config/env";
+import { PROGRAMS } from "@pnw/config/programs";
+import { domainHash, toHex, DOMAIN_TAGS } from "@pnw/commitments/hash";
+import { tlvEncode } from "@pnw/commitments/canonical_encoder";
+import type { Address, Field, U8 } from "@pnw/commitments/aleo_types";
+
+// ----------------------------------------------------------------
+// Constants (match pnw_name_registry.aleo)
+// ----------------------------------------------------------------
+
+export const NAME_KIND_WORKER: U8 = 1;
+export const NAME_KIND_EMPLOYER: U8 = 2;
+
+/** USDCx scale factor (1 USDCx = 1_000_000 micro-units) */
+export const USDCX_SCALE = 1_000_000n;
+
+/** Worker name base price — 0 on testnet (no DAO treasury yet) */
+export const WORKER_PRICE_BASE = 0n;
+
+/** Default naming fee — 0 on testnet (DAO governance not yet active) */
+export const DEFAULT_NAMING_FEE = 0n;
+
+/** Employer name tiered pricing — 0 on testnet (no DAO treasury yet) */
+export const EMPLOYER_PRICES = [
+  0n,  // 1st name (mainnet: 10 USDCx)
+  0n,  // 2nd name (mainnet: 100 USDCx)
+  0n,  // 3rd name (mainnet: 300 USDCx)
+] as const;
+
+/** Employer sellback refund: 75% of base price (fees never refunded) */
+export const SELLBACK_REFUND_PERCENT = 75;
+
+// ----------------------------------------------------------------
+// Industry suffix codes (match pnw_name_registry.aleo)
+// ----------------------------------------------------------------
+
+export const INDUSTRY_SUFFIXES: Record<number, { code: string; label: string }> = {
+  1:  { code: "AGRIC", label: "Agriculture" },
+  2:  { code: "FOODS", label: "Food & Beverage" },
+  3:  { code: "SERVC", label: "Services" },
+  4:  { code: "BUSNS", label: "Business" },
+  5:  { code: "WORKS", label: "Works" },
+  6:  { code: "COOPS", label: "Cooperatives" },
+  7:  { code: "ORGNS", label: "Organizations" },
+  8:  { code: "INCOR", label: "Incorporated" },
+  9:  { code: "BUILD", label: "Building & Construction" },
+  10: { code: "LANDS", label: "Landscaping" },
+  11: { code: "MANUF", label: "Manufacturing" },
+  12: { code: "TRANS", label: "Transportation" },
+  13: { code: "UTILT", label: "Utilities" },
+  14: { code: "MECHN", label: "Mechanical" },
+  15: { code: "ELECT", label: "Electrical" },
+  16: { code: "METAL", label: "Metalwork" },
+  17: { code: "TIMBR", label: "Timber & Forestry" },
+  18: { code: "TECHN", label: "Technology" },
+  19: { code: "DATAS", label: "Data Services" },
+  20: { code: "CYBER", label: "Cybersecurity" },
+  21: { code: "MEDIA", label: "Media & Communications" },
+  22: { code: "LABRD", label: "Labor & Development" },
+  23: { code: "HEALT", label: "Healthcare" },
+  24: { code: "CARED", label: "Caregiving" },
+  25: { code: "PHARM", label: "Pharmaceutical" },
+  26: { code: "THERA", label: "Therapy & Rehabilitation" },
+  27: { code: "EDUCA", label: "Education" },
+  28: { code: "TRAIN", label: "Training" },
+  29: { code: "SKILL", label: "Skilled Trades" },
+  30: { code: "RETAL", label: "Retail" },
+  31: { code: "HOSTL", label: "Hospitality" },
+  32: { code: "TOURS", label: "Tourism" },
+  33: { code: "EVENT", label: "Events" },
+  34: { code: "FINAN", label: "Finance" },
+  35: { code: "LEGAL", label: "Legal" },
+  36: { code: "ACCTS", label: "Accounting" },
+  37: { code: "ADMIN", label: "Administration" },
+  38: { code: "CIVIC", label: "Civic" },
+  39: { code: "MUNIC", label: "Municipal" },
+  40: { code: "STATE", label: "State Government" },
+};
+
+// ----------------------------------------------------------------
+// Hash helpers
+// ----------------------------------------------------------------
+
+/** TLV object tag for name hashing */
+const OBJ_NAME = 0x5001;
+
+/**
+ * Compute the name hash that would be stored on-chain.
+ * This matches the portal-side computation used when calling register_worker_name
+ * or register_employer_name — the actual hash input to the program.
+ */
+/**
+ * BLS12-377 scalar field modulus — the maximum value for an Aleo `field` element.
+ * Any value must be reduced mod this before use as a field input.
+ */
+const FIELD_MODULUS = 8444461749428370424248824938781546531375899335154063827935233455917409239041n;
+
+/**
+ * Convert a 32-byte hash to a decimal field element string.
+ * Aleo field inputs must be decimal integers, reduced mod the BLS12-377 scalar field.
+ */
+function bytesToFieldDecimal(bytes: Uint8Array): string {
+  let value = 0n;
+  for (const byte of bytes) {
+    value = (value << 8n) | BigInt(byte);
+  }
+  // Reduce mod field modulus to ensure valid field element
+  value = value % FIELD_MODULUS;
+  return value.toString(10);
+}
+
+/**
+ * Decode a u128 value back to a plaintext name string (big-endian).
+ */
+export function decodeNameFromU128(value: string): string {
+  const clean = value.replace(/u128(\.private|\.public)?$/, "").trim();
+  if (!clean || clean === "0") return "";
+  try {
+    let val = BigInt(clean);
+    const bytes: number[] = [];
+    while (val > 0n) {
+      bytes.unshift(Number(val & 0xffn));
+      val >>= 8n;
+    }
+    return new TextDecoder().decode(new Uint8Array(bytes)).trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Query the plaintext .pnw name for a given name hash.
+ * Uses the registrar's name_plaintext mapping (v5+).
+ */
+export async function queryNamePlaintext(nameHash: Field): Promise<string | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+
+  try {
+    const url = `${endpoint}/program/${PROGRAMS.layer1.pnw_name_registrar}/mapping/name_plaintext/${nameHash}field`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      return decodeNameFromU128(data);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function computeNameHash(name: string): Field {
+  const data = tlvEncode(OBJ_NAME, [
+    { tag: 0x01, value: new TextEncoder().encode(name) },
+  ]);
+  const hashBytes = domainHash(DOMAIN_TAGS.NAME, data);
+  return bytesToFieldDecimal(hashBytes);
+}
+
+// ----------------------------------------------------------------
+// On-chain queries
+// ----------------------------------------------------------------
+
+const ZERO_ADDRESS = "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
+
+/**
+ * Check if a wallet address has a registered worker .pnw name.
+ * Queries the worker_primary_name_of mapping.
+ *
+ * @returns The worker's name_hash (field) if registered, null if not.
+ */
+export async function queryWorkerName(address: Address): Promise<Field | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/worker_primary_name_of/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/\.(private|public)$/, "").trim();
+      // 0field means no name registered
+      if (cleaned === "0field" || cleaned === "0") return null;
+      return cleaned;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check who owns a specific name hash.
+ * Queries the name_owner mapping.
+ *
+ * @returns The owner address if the name is registered, null if available.
+ */
+export async function queryNameOwner(nameHash: Field): Promise<Address | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/name_owner/${nameHash}field`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/\.(private|public)$/, "").trim();
+      if (cleaned === ZERO_ADDRESS) return null;
+      return cleaned;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check the kind of a name (worker or employer).
+ *
+ * @returns 1 for worker, 2 for employer, null if not found.
+ */
+export async function queryNameKind(nameHash: Field): Promise<U8 | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/name_kind/${nameHash}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/u8(\.private|\.public)?$/, "").trim();
+      const code = parseInt(cleaned, 10);
+      if (code === 1 || code === 2) return code;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ----------------------------------------------------------------
+// Employer name queries
+// ----------------------------------------------------------------
+
+/**
+ * Query the employer's primary .pnw name hash.
+ * Uses the employer_primary_name_of mapping (added in registry_v2 upgrade).
+ *
+ * @returns The primary name_hash (field) if set, null if not.
+ */
+export async function queryEmployerName(address: Address): Promise<Field | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/employer_primary_name_of/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/\.(private|public)$/, "").trim();
+      if (cleaned === "0field" || cleaned === "0") return null;
+      return cleaned;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Legacy: query employer_primary_name_of (v1 registry only).
+ * Kept for backward compatibility with v1 names.
+ */
+export async function queryEmployerNameV1(address: Address): Promise<Field | null> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = "pnw_name_registry.aleo"; // v1 only
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/employer_primary_name_of/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/\.(private|public)$/, "").trim();
+      if (cleaned === "0field" || cleaned === "0") return null;
+      return cleaned;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Query the number of employer names registered for a wallet.
+ * Queries the employer_name_count mapping.
+ *
+ * @returns The count (0-3), or 0 if not found.
+ */
+export async function queryEmployerNameCount(address: Address): Promise<number> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.pnw_name_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/employer_name_count/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return 0;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      const cleaned = data.replace(/u8(\.private|\.public)?$/, "").trim();
+      const count = parseInt(cleaned, 10);
+      if (!isNaN(count) && count >= 0) return count;
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Query employer license verification status.
+ * Queries employer_license_registry.aleo/is_verified mapping.
+ */
+export async function queryEmployerVerified(address: Address): Promise<boolean> {
+  const endpoint = ENV.ALEO_ENDPOINT;
+  const programId = PROGRAMS.layer1.employer_license_registry;
+
+  try {
+    const url = `${endpoint}/program/${programId}/mapping/is_verified/${address}`;
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return false;
+
+    const data: unknown = await response.json();
+    if (typeof data === "string") {
+      return data.trim() === "true";
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// ----------------------------------------------------------------
+// Command builders (preview mode)
+// ----------------------------------------------------------------
+//
+// Registration calls the register transition on-chain.
+//
+// On mainnet, registration will require a USDCx transfer to the
+// presiding DAO treasury (base_price + fee_amount) before calling
+// the register transition. On testnet, fees are zeroed out because
+// no DAO treasury is active yet.
+//
+// Aleo execution fees are paid separately by the caller.
+// ----------------------------------------------------------------
+
+/**
+ * Build the snarkos command preview for the USDCx transfer to DAO treasury.
+ * This must be executed before the registration call.
+ */
+export function buildUsdcxTransferCommand(
+  daoTreasury: Address,
+  totalAmount: bigint,
+): string {
+  return (
+    `snarkos developer execute test_usdcx_stablecoin.aleo transfer_public ` +
+    `${daoTreasury} ${totalAmount}u128`
+  );
+}
+
+/**
+ * Build the snarkos command preview for registering a worker name.
+ *
+ * Precondition: caller must have transferred (WORKER_PRICE_BASE + fee_amount)
+ * USDCx to the DAO treasury.
+ */
+export function buildRegisterWorkerNameCommand(
+  nameHash: Field,
+  feeAmount: bigint,
+): string {
+  return (
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registrar} register_worker_name ` +
+    `${nameHash}field ${feeAmount}u128`
+  );
+}
+
+/**
+ * Build the snarkos command preview for registering an employer name.
+ *
+ * The registrar handles USDCx payment via transfer_public_as_signer
+ * and license verification, then stores the name in registry_v2.
+ */
+export function buildRegisterEmployerNameCommand(
+  nameHash: Field,
+  suffixCode: U8,
+  count: U8,
+  feeAmount: bigint,
+): string {
+  return (
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registrar} register_employer_name ` +
+    `${nameHash}field ${suffixCode}u8 ${count}u8 ${feeAmount}u128`
+  );
+}
+
+/**
+ * Build the snarkos command preview for selling an employer name back to the DAO.
+ * Refund = 75% of base price. Naming fees are never refunded.
+ */
+export function buildSellbackEmployerNameCommand(
+  nameHash: Field,
+): string {
+  return (
+    `snarkos developer execute ${PROGRAMS.layer1.pnw_name_registry} sellback_employer_name ` +
+    `${nameHash}field`
+  );
+}

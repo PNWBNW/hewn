@@ -1,0 +1,20 @@
+{
+  "name": "pnw",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.37",
+    "typescript": "5.9.3",
+    "vitest": "4.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "core-js"
+    ]
+  }
+}

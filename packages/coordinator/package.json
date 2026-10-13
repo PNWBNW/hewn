@@ -1,0 +1,28 @@
+{
+  "name": "@pnw/coordinator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./batch_anchor_finalizer": "./src/batch_anchor_finalizer.ts",
+    "./credentials_manager": "./src/credentials_manager.ts",
+    "./double_pay_guard": "./src/double_pay_guard.ts",
+    "./receipt_reconciler": "./src/receipt_reconciler.ts",
+    "./roster_credentials_manager": "./src/roster_credentials_manager.ts",
+    "./roster_tree_builder": "./src/roster_tree_builder.ts",
+    "./settlement_coordinator": "./src/settlement_coordinator.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/config": "workspace:*",
+    "@pnw/manifest": "workspace:*",
+    "@pnw/pnw-adapter": "workspace:*",
+    "@pnw/records": "workspace:*",
+    "@pnw/wallet": "workspace:*",
+    "@provablehq/sdk": "0.10.1"
+  }
+}

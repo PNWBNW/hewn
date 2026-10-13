@@ -1,0 +1,29 @@
+{
+  "name": "@pnw/records",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./agreement_reader": "./src/agreement_reader.ts",
+    "./credential_scanner": "./src/credential_scanner.ts",
+    "./payroll_history_scanner": "./src/payroll_history_scanner.ts",
+    "./receipt_scanner": "./src/receipt_scanner.ts",
+    "./registry/name_registry": "./src/registry/name_registry.ts",
+    "./registry/profile_types": "./src/registry/profile_types.ts",
+    "./types/audit": "./src/types/audit.ts",
+    "./types/credential": "./src/types/credential.ts",
+    "./types/paystub_receipt": "./src/types/paystub_receipt.ts",
+    "./types/worker": "./src/types/worker.ts",
+    "./usdcx_scanner": "./src/usdcx_scanner.ts",
+    "./worker_paystub_scanner": "./src/worker_paystub_scanner.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/config": "workspace:*",
+    "@pnw/manifest": "workspace:*"
+  }
+}
