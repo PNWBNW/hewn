@@ -209,3 +209,38 @@ Greenlit by Joshua along with the ledger core (separate PR). #8 merged first (fd
 
 **Follow-ups:** pin Actions to commit SHAs; lint rule banning `dangerouslySetInnerHTML` (none in
 use today); signed installable builds before the first external user.
+## 2026-10-13 — Phase 1 (pulled ahead): fiat ledger core, `@pnw/ledger`
+
+Greenlit by Joshua (with the security baseline, PR #9). Phase 1 runs ahead of the rest of
+Phase 0 by his fiat-first call; nothing in Phase 0 is skipped. Design follows how QuickBooks
+*behaves* (account types, system accounts, inactive-not-deleted, automatic retained earnings,
+Opening Balance Equity, names on A/R and A/P) with two deliberate differences: the journal is
+append-only, and closed periods are enforced, not password-overridable.
+
+- `accounts.ts`: 15 account types mapped to the 5 base types and normal sides; 7 system
+  accounts created with the books; sub-accounts up to 5 levels, same base type, no cycles;
+  unique names (per parent) and numbers.
+- `books.ts`: pure functions over a plain `Books` object. `postEntry`, `reverseEntry`,
+  `editEntry` (reverse + linked replacement), `deactivateAccount` (only when empty),
+  `closeThrough` / `reopenFrom` (logged) / `lockThrough` (permanent).
+- `hash.ts`: each entry hash-chains to the previous; BLAKE3 over a fixed-position canonical
+  encoding, domain `PNW::GL::ENTRY::v1` with the 0x00 separator (new versioned domain, per the
+  earlier hashing decision). `verifyChain` catches changed, deleted, reordered or re-hashed entries.
+- `reports.ts`: trial balance with automatic Retained Earnings rollover (any fiscal-year start),
+  net income, normal-side display balances.
+- `templates.ts`: service, contractor, retail starter charts.
+- `money.ts`: `bigint` cents; strict parser; floats rejected at posting.
+- Boundary test: the ledger may depend on `@noble/hashes` only.
+
+**Results**
+- `@pnw/ledger`: 47 tests, including negative tests for every rule and 4 fast-check property
+  tests (~950 random runs: random balanced entries always post and the TB balances; off by one
+  cent is always rejected; reversing everything zeroes every balance; any tampered amount is
+  detected). Mutation check: disabling the balance rule fails 3 tests; disabling the locked-period
+  reversal rule fails 1.
+- Repo: 22 files, **206/206**. `pnpm build` green. After merging main (#9): 23 files, **215/215**, audit clean.
+
+**Not done / next:** encrypted vault persistence for `Books` (Phase 1 deliverable 3), wiring the
+shell's Transactions screen to it, events (close/reopen/lock) into the hash chain, opening
+balances helper, `gl_core.aleo` (Leo, needs the Fable session switch). No exit criterion
+ticked: they need the vault and `gl_core`.

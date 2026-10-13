@@ -1,0 +1,19 @@
+{
+  "name": "@pnw/ledger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.0.1"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.2"
+  }
+}
