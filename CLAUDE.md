@@ -58,8 +58,9 @@ stack). The double-entry core is identical in all three.
 **Boundaries**
 - Every on-chain write is signed in the user's wallet through the `wallet` package's executor, so
   the wallet shows what is being signed. Program and transition names come from `pnw-adapter`
-  (never hard-coded elsewhere). There is no private-key path: the CLI adapter and Path B
-  (pasted private key) are being removed. Nothing calls `snarkos` or the SDK execute path directly.
+  (never hard-coded elsewhere). The CLI adapter / Path B (pasted private key) is legacy:
+  it stays in `coordinator` for now so its tests keep running, but no new code or screen may use it,
+  and it is removed when the coordinator tests are rewritten around the wallet path. Nothing calls `snarkos` or the SDK execute path directly.
 - **Fiat first; chain is optional.** The whole product must work with no wallet, no network and no
   Aleo package loaded. The ledger core, vault, reports and fiat payroll never import `wallet`,
   `pnw-adapter`, `coordinator` or `records`; those are opt-in adapters for anchored/settled modes,

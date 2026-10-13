@@ -132,8 +132,8 @@ monorepo.
 - ~~Wallet executor bypasses `pnw-adapter`~~ — resolved 2026-10-13: Joshua confirmed the wallet
   is the intended execution path (the wallet shows what is signed). CLAUDE.md and BUILD_PLAN.md
   rules updated to match. Same day: Joshua dropped the private-key fallback entirely (no Path B).
-  Code removal is a separate task: `coordinator`'s `executeSettlement`/`retryChunk` and
-  `mintBatchAnchor` still use the CLI adapter, and most coordinator tests run through it.
+  Removal would mean rewriting most coordinator tests, so per Joshua the fallback code stays for
+  now (unused by new code); removal waits for the wallet-path test rewrite.
 - Decision 2026-10-13: fiat is the primary product; chain rails are optional. CLAUDE.md now says the
   fiat path never imports `wallet`/`pnw-adapter`/`coordinator`/`records`, and the vault key comes
   from a passphrase in fiat mode (wallet signature only once a wallet is linked).
