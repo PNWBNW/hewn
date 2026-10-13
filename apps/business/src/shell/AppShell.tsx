@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { PlumbLogo } from "./Brand";
 import { SECTIONS } from "./sections";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -67,15 +68,9 @@ function Rail({
 }) {
   return (
     <nav aria-label="Main" className="flex h-full flex-col gap-1 bg-rail px-3 py-4 text-rail-foreground">
-      <div className="mb-4 flex items-center gap-2 px-2">
-        <span className="grid size-8 place-items-center rounded-md bg-[var(--pnw-forest-500)] text-sm font-semibold text-white">
-          P
-        </span>
-        <div className="leading-tight">
-          <div className="text-sm font-semibold text-rail-active-foreground">PNW Ledger</div>
-          <div className="text-xs text-rail-muted">Books</div>
-        </div>
-      </div>
+      <Link href="/" onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label="Plumb, dashboard">
+        <PlumbLogo tone="onDark" height={30} />
+      </Link>
       {NAV.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (

@@ -1,4 +1,4 @@
-# PNW Ledger — Threat Model
+# Plumb — Threat Model
 
 Living document. Every phase's PR checks its changes against this list; new features add rows.
 Status: ✅ in place · 🔜 planned (phase) · ⚠️ accepted risk.

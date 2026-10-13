@@ -1,5 +1,5 @@
 /*
- * PNW Ledger theme tokens.
+ * Plumb theme tokens.
  *
  * Bookkeeping is a work surface: people read dense tables for hours. So the
  * default is a calm, light, high-contrast canvas, with the PNW brand palette
@@ -10,7 +10,14 @@
  */
 
 :root {
-  /* PNW brand primitives (same values as the portal) */
+  /* Plumb brand (sampled from the logo artwork in brand/source/) */
+  --plumb-green: #113b31;
+  --plumb-cream: #f5f0e3;
+  --plumb-ink: #091623;
+  --plumb-gold: #f8d084;
+  --plumb-cyan: #18dccb;
+
+  /* PNW primitives (same values as the portal) */
   --pnw-gold-100: #fef9e7;
   --pnw-gold-300: #f6d365;
   --pnw-gold-500: #d4a012;
@@ -27,7 +34,7 @@
   --pnw-navy-950: #030810;
 
   /* Semantic tokens — light */
-  --background: #f7f8f6;
+  --background: #f7f5ef;
   --foreground: #101814;
   --card: #ffffff;
   --card-foreground: #101814;
@@ -35,8 +42,8 @@
   --muted-foreground: #5b6660;
   --border: #dde3dd;
   --input: #cfd7d0;
-  --primary: var(--pnw-forest-700);
-  --primary-foreground: #f4faf5;
+  --primary: var(--plumb-green);
+  --primary-foreground: #f5f0e3;
   --secondary: #e9eee9;
   --secondary-foreground: #101814;
   --accent: #e4ece5;
@@ -49,13 +56,13 @@
   --radius: 0.5rem;
 
   /* Navigation rail (always dark, the brand surface) */
-  --rail: var(--pnw-navy-900);
+  --rail: var(--plumb-ink);
   --rail-foreground: #c9d4ce;
   --rail-muted: #7f8d86;
   --rail-active: rgba(129, 199, 132, 0.14);
   --rail-active-foreground: #ffffff;
   --rail-border: rgba(255, 255, 255, 0.07);
-  --rail-accent: var(--pnw-gold-300);
+  --rail-accent: var(--plumb-gold);
 
   /* Ledger figures */
   --money-positive: #1f7a3a;

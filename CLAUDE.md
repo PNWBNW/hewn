@@ -1,10 +1,10 @@
-# CLAUDE.md — PNW Ledger
+# CLAUDE.md — Plumb
 
 Read this whole file at the start of every session, then follow **Session start** below.
 
 ## What this is
 
-A clean-room, open-source rebuild of QuickBooks Advanced (minus AI and support features) on top of
+**Plumb** (formerly "PNW Ledger"): a clean-room, open-source rebuild of QuickBooks Advanced (minus AI and support features) on top of
 Joshua Day's existing Aleo ZK payroll stack (PNW — Proven National Workers). Same mental model
 bookkeepers already know, our own screens and code. Never copy QuickBooks screens, icons, text or
 layouts; match what it *does*, not how it *looks*.
@@ -12,6 +12,10 @@ layouts; match what it *does*, not how it *looks*.
 Three operating modes on one codebase: **fiat** (default, encrypted local vault, bank does the money),
 **anchored** (same, plus period roots anchored on Aleo), **settled** (USDCx on Aleo, the existing payroll
 stack). The double-entry core is identical in all three.
+
+Brand: name **Plumb**, tagline "honest books, grounded and true." Source art and the asset build
+script live in `brand/`; never hand-edit the generated files in `apps/business/public/brand/`.
+Internal package names stay `@pnw/*` (PNW is the company and protocol namespace).
 
 `BUILD_PLAN.md` (repo root) is the spec: phases, deliverables, exit criteria. `PROGRESS.md` is the log.
 
