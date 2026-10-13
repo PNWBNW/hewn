@@ -120,7 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh border-r border-rail-border lg:block">
-        <Rail pathname={pathname} onBackup={downloadBackup} onLock={lock} />
+        <Rail pathname={pathname} onBackup={() => void downloadBackup()} onLock={lock} />
       </aside>
 
       {drawerOpen && (
@@ -131,7 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">
-            <Rail pathname={pathname} onNavigate={() => setDrawerOpen(false)} onBackup={downloadBackup} onLock={lock} />
+            <Rail pathname={pathname} onNavigate={() => setDrawerOpen(false)} onBackup={() => void downloadBackup()} onLock={lock} />
           </div>
         </div>
       )}

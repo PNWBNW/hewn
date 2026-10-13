@@ -9,5 +9,6 @@ export * from "./books";
 export * from "./hash";
 export * from "./reports";
 export * from "./statements";
+export * from "./dimensions";
 export * from "./templates";
 export * from "./serialize";

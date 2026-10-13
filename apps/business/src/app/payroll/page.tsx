@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown, Plus } from "lucide-react";
 import { formatCents, parseCents, systemAccount, balanceOf } from "@pnw/ledger";
 import {
@@ -21,13 +22,25 @@ import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
+import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { WorkerForm } from "./WorkerForm";
 
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, 0n);
 
+const TABS = ["runs", "team", "owed"];
+
 export default function PayrollPage() {
+  return (
+    <Suspense>
+      <PayrollScreen />
+    </Suspense>
+  );
+}
+
+function PayrollScreen() {
   const { payroll } = useOpenBooks();
+  const asked = useSearchParams().get("tab");
   const activeTeam = payroll.workers.filter((w) => w.active);
   return (
     <div className="flex flex-col gap-6">
@@ -45,7 +58,7 @@ export default function PayrollPage() {
           )
         }
       />
-      <Tabs defaultValue={payroll.runs.length ? "runs" : "team"} className="flex flex-col gap-4">
+      <Tabs defaultValue={asked && TABS.includes(asked) ? asked : payroll.runs.length ? "runs" : "team"} className="flex flex-col gap-4">
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <TabsList>
             <TabsTrigger value="runs" className="min-h-9">Pay runs</TabsTrigger>
@@ -89,9 +102,10 @@ function PayRuns() {
 }
 
 function RunCard({ run }: { run: PayRun }) {
-  const { payroll } = useOpenBooks();
+  const { payroll, dimensions } = useOpenBooks();
   const [open, setOpen] = useState(false);
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
+  const projects = tagNameMap(dimensions);
   const gross = sum(run.paychecks.map((p) => p.gross));
   const net = sum(run.paychecks.map((p) => p.net));
   return (
@@ -137,6 +151,7 @@ function RunCard({ run }: { run: PayRun }) {
                   <td className="py-1">
                     {names.get(p.workerId) ?? p.workerId}
                     {p.hours !== undefined && <span className="ml-1 text-xs text-muted-foreground">{p.hours} h</span>}
+                    {p.tags?.project && <span className="block text-xs text-muted-foreground">{projects.get(p.tags.project) ?? p.tags.project}</span>}
                   </td>
                   <td className="py-1 text-right"><Money cents={p.gross} /></td>
                   <td className="py-1 text-right"><Money cents={p.federalIncomeTax} /></td>

@@ -1,26 +1,29 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { TERMS, type TermsId, dueDateFor, enterBill, isBillAccount } from "@pnw/sales";
+import type { Tags } from "@pnw/ledger";
+import { type AttachmentRef, TERMS, type TermsId, dueDateFor, enterBill, isBillAccount } from "@pnw/sales";
 import { Button, buttonVariants } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
+import { TagFields, pickedTags } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { parseMoney, tryMoney } from "../../../sales/parts";
+import { AttachButton, ReceiptList } from "../../Receipts";
 
-type Row = { key: number; description: string; accountId: string; amount: string };
+type Row = { key: number; description: string; accountId: string; amount: string; tags: Tags };
 
 export default function NewBillPage() {
-  const { books, sales, updateCompany } = useOpenBooks();
+  const { books, sales, dimensions, updateCompany, discardAttachment } = useOpenBooks();
   const router = useRouter();
   const vendors = sales.vendors.filter((v) => v.active);
   const nextKey = useRef(0);
-  const blank = (): Row => ({ key: nextKey.current++, description: "", accountId: "", amount: "" });
+  const blank = (): Row => ({ key: nextKey.current++, description: "", accountId: "", amount: "", tags: {} });
 
   const [vendorId, setVendorId] = useState(vendors.length === 1 ? vendors[0]!.id : "");
   const [number, setNumber] = useState("");
@@ -29,8 +32,20 @@ export default function NewBillPage() {
   const [dueDate, setDueDate] = useState("");
   const [memo, setMemo] = useState("");
   const [rows, setRows] = useState<Row[]>(() => [blank()]);
+  const [files, setFiles] = useState<AttachmentRef[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Files are sealed as soon as they're picked; if the bill is never saved, drop them again.
+  const pending = useRef<AttachmentRef[]>([]);
+  pending.current = files;
+  const saved = useRef(false);
+  useEffect(
+    () => () => {
+      if (!saved.current) for (const f of pending.current) void discardAttachment(f.attachmentId);
+    },
+    [discardAttachment],
+  );
 
   const autoDue = (() => {
     try {
@@ -47,7 +62,10 @@ export default function NewBillPage() {
     setError(null);
     setBusy(true);
     try {
-      const lines = rows.map((r, i) => ({ description: r.description, accountId: r.accountId, amount: parseMoney(r.amount, `Line ${i + 1}`) }));
+      const lines = rows.map((r, i) => {
+        const tags = pickedTags(r.tags);
+        return { description: r.description, accountId: r.accountId, amount: parseMoney(r.amount, `Line ${i + 1}`), ...(tags ? { tags } : {}) };
+      });
       await updateCompany((c) => {
         const r = enterBill(c.books, c.sales, {
           vendorId,
@@ -57,9 +75,11 @@ export default function NewBillPage() {
           lines,
           ...(number.trim() ? { number } : {}),
           ...(memo.trim() ? { memo } : {}),
+          ...(files.length ? { attachments: files } : {}),
         });
         return { ...c, books: r.books, sales: r.sales };
       });
+      saved.current = true;
       router.push("/expenses");
     } catch (e) {
       setError(errorMessage(e));
@@ -143,42 +163,45 @@ export default function NewBillPage() {
             <span />
           </div>
           {rows.map((r, i) => (
-            <div key={r.key} className="grid grid-cols-[1fr_auto] gap-3 rounded-lg border bg-card p-4 sm:grid-cols-[1fr_14rem_8rem_2.75rem] sm:items-center sm:py-2">
-              <input
-                className={cn(inputClass, "col-span-2 sm:col-span-1")}
-                placeholder="Description"
-                aria-label={`Line ${i + 1} description`}
-                value={r.description}
-                onChange={(e) => setRow(r.key, { description: e.target.value })}
-              />
-              <AccountSelect
-                books={books}
-                value={r.accountId}
-                onChange={(id) => setRow(r.key, { accountId: id })}
-                filter={(a) => a.active && isBillAccount(a)}
-                className={cn(inputClass, "col-span-2 sm:col-span-1")}
-                placeholder="Expense account"
-                ariaLabel={`Line ${i + 1} account`}
-              />
-              <input
-                className={cn(inputClass, "text-right")}
-                inputMode="decimal"
-                placeholder="Amount"
-                aria-label={`Line ${i + 1} amount`}
-                value={r.amount}
-                onChange={(e) => setRow(r.key, { amount: e.target.value })}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="min-h-11 text-muted-foreground sm:min-h-9"
-                aria-label={`Remove line ${i + 1}`}
-                disabled={rows.length === 1}
-                onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
-              >
-                <Trash2 aria-hidden />
-              </Button>
+            <div key={r.key} className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:py-2">
+              <div className="grid grid-cols-[1fr_auto] gap-3 sm:grid-cols-[1fr_14rem_8rem_2.75rem] sm:items-center">
+                <input
+                  className={cn(inputClass, "col-span-2 sm:col-span-1")}
+                  placeholder="Description"
+                  aria-label={`Line ${i + 1} description`}
+                  value={r.description}
+                  onChange={(e) => setRow(r.key, { description: e.target.value })}
+                />
+                <AccountSelect
+                  books={books}
+                  value={r.accountId}
+                  onChange={(id) => setRow(r.key, { accountId: id })}
+                  filter={(a) => a.active && isBillAccount(a)}
+                  className={cn(inputClass, "col-span-2 sm:col-span-1")}
+                  placeholder="Expense account"
+                  ariaLabel={`Line ${i + 1} account`}
+                />
+                <input
+                  className={cn(inputClass, "text-right")}
+                  inputMode="decimal"
+                  placeholder="Amount"
+                  aria-label={`Line ${i + 1} amount`}
+                  value={r.amount}
+                  onChange={(e) => setRow(r.key, { amount: e.target.value })}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="min-h-11 text-muted-foreground sm:min-h-9"
+                  aria-label={`Remove line ${i + 1}`}
+                  disabled={rows.length === 1}
+                  onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
+                >
+                  <Trash2 aria-hidden />
+                </Button>
+              </div>
+              <TagFields dims={dimensions} value={r.tags} onChange={(tags) => setRow(r.key, { tags })} labelPrefix={`Line ${i + 1}`} />
             </div>
           ))}
           <Button type="button" variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={() => setRows((rs) => [...rs, blank()])}>
@@ -187,10 +210,22 @@ export default function NewBillPage() {
           </Button>
         </section>
 
-        <div className="rounded-lg border bg-card p-4">
+        <div className="flex flex-col gap-4 rounded-lg border bg-card p-4">
           <Field label="Memo" hint="Optional.">
             <input className={inputClass} value={memo} onChange={(e) => setMemo(e.target.value)} />
           </Field>
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Receipt</span>
+            <ReceiptList
+              refs={files}
+              onRemove={(f) => {
+                setFiles((fs) => fs.filter((x) => x.attachmentId !== f.attachmentId));
+                void discardAttachment(f.attachmentId);
+              }}
+            />
+            <AttachButton onAttached={(ref) => setFiles((fs) => [...fs, ref])} label={files.length ? "Attach another" : "Attach receipt"} />
+            <span className="text-xs text-muted-foreground">A photo or PDF, up to 10 MB. Encrypted on this device with your books.</span>
+          </div>
         </div>
 
         <div className="sticky bottom-0 -mx-4 flex flex-col gap-3 border-t bg-card/95 px-4 py-4 backdrop-blur sm:static sm:mx-0 sm:rounded-lg sm:border">

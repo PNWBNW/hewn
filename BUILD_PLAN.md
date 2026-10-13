@@ -135,8 +135,8 @@ This is where it starts to feel like QuickBooks.
 
 - [x] Invoice → partial payment → final payment → paid, with AR balance correct at each step
 - [x] Bill → payment, with AP balance correct
-- [ ] Sales tax liability report ties to invoices for the period
-- [ ] Project profitability report for a job with labor (from Phase 2), materials and an invoice
+- [x] Sales tax liability report ties to invoices for the period (fiat mode, 2026-10-13)
+- [x] Project profitability report for a job with labor (from Phase 2), materials and an invoice (fiat mode, 2026-10-13)
 - [ ] A public-flagged invoice is readable from a public mapping; a private one is not; a worker-linked entry refuses the flag at the circuit level
 
 ## Phase 4 — Reports and budgets

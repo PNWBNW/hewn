@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { addAccount, applyTemplate, balanceSheet, createBooks, postEntry, profitAndLoss, trialBalance } from "@pnw/ledger";
 import { addMonths, compareDate, compareRange, presetRange, rangeLabel } from "./dates";
-import { balanceSheetLines, isEmptyReport, profitAndLossLines, reportCsv, trialBalanceLines } from "./lines";
+import {
+  balanceSheetLines,
+  formatMargin,
+  isEmptyReport,
+  profitAndLossLines,
+  projectSummaryLines,
+  reportCsv,
+  salesTaxLines,
+  trialBalanceLines,
+} from "./lines";
 
 describe("report dates", () => {
   it("builds the presets around today and the fiscal year", () => {
@@ -110,5 +119,51 @@ describe("statement lines", () => {
     const lines = profitAndLossLines(profitAndLoss(empty, { from: "2026-10-01", to: "2026-10-31" }));
     expect(isEmptyReport({ title: "", subtitle: "", columns: [""], lines })).toBe(true);
     expect(isEmptyReport({ title: "", subtitle: "", columns: [""], lines: balanceSheetLines(balanceSheet(books, "2026-10-31")) })).toBe(false);
+  });
+});
+
+describe("project and sales tax lines", () => {
+  it("formats margins to a tenth of a percent", () => {
+    expect(formatMargin(3764)).toBe("37.6%");
+    expect(formatMargin(3765)).toBe("37.7%");
+    expect(formatMargin(-1250)).toBe("-12.5%");
+    expect(formatMargin(0)).toBe("0.0%");
+    expect(formatMargin(null)).toBe("n/a");
+  });
+
+  it("summarises projects with costs = job costs + expenses", () => {
+    const row = { tagId: "proj-1", income: 600_000n, costOfGoodsSold: 245_000n, expenses: 129_180n, profit: 225_820n, marginBp: 3764 };
+    const lines = projectSummaryLines({ rows: [row], total: { ...row, tagId: "" } }, new Map([["proj-1", "Kitchen"]]));
+    expect(lines.map((l) => [l.label, l.amounts])).toEqual([
+      ["Kitchen · 37.6% margin", [600_000n, 374_180n, 225_820n]],
+      ["All projects · 37.6% margin", [600_000n, 374_180n, 225_820n]],
+    ]);
+  });
+
+  it("lays out the sales tax liability so it adds down to what's owed", () => {
+    const lines = salesTaxLines(
+      {
+        from: "2026-10-01",
+        to: "2026-10-31",
+        opening: 8_250n,
+        invoices: [
+          { invoiceId: "inv-2", number: "INV-0002", customerId: "cust-1", date: "2026-10-02", totalSales: 0n, taxableSales: 0n, tax: 10_313n, void: false },
+          { invoiceId: "inv-3", number: "INV-0003", customerId: "cust-1", date: "2026-10-20", totalSales: 0n, taxableSales: 0n, tax: 2_000n, void: true },
+        ],
+        collected: 12_313n,
+        totalSales: 0n,
+        taxableSales: 0n,
+        voided: 2_000n,
+        payments: [{ entryId: "je-9", date: "2026-10-12", amount: 8_250n, memo: "Sales tax payment" }],
+        paid: 8_250n,
+        adjustments: 0n,
+        owed: 10_313n,
+      },
+      new Map([["cust-1", "Acme Co"]]),
+    );
+    const leaves = lines.filter((l) => l.kind === "account");
+    expect(leaves.reduce((t, l) => t + l.amounts![0]!, 0n)).toBe(10_313n);
+    expect(lines.at(-1)).toMatchObject({ kind: "grand", label: "Owed at the end", amounts: [10_313n] });
+    expect(lines.map((l) => l.label)).toContain("INV-0003 · Acme Co · 2026-10-20 (void)");
   });
 });

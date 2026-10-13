@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Paperclip, Plus } from "lucide-react";
 import {
   type Bill,
   TERMS,
   addVendor,
   apAging,
+  attachToBill,
   billBalance,
   billPaid,
   billPaymentAmount,
   billStatus,
   billTotal,
+  detachFromBill,
   updateVendor,
   vendorBalance,
   voidBill,
@@ -28,6 +30,7 @@ import { PageHeader } from "@/shell/SectionView";
 import { PartyForm } from "../sales/PartyForm";
 import { AgingCard, StatusBadge, voidWithFallback } from "../sales/parts";
 import { PayBillsForm } from "./PayBillsForm";
+import { AttachButton, ReceiptList } from "./Receipts";
 
 type Paying = { vendorId?: string; billId?: string } | null;
 
@@ -78,12 +81,14 @@ export default function ExpensesPage() {
 // ---- Bills -----------------------------------------------------------------
 
 function Bills({ onPay }: { onPay: (p: Paying) => void }) {
-  const { sales, updateCompany } = useOpenBooks();
+  const { sales, updateCompany, discardAttachment } = useOpenBooks();
   const [error, setError] = useState<string | null>(null);
+  const [filesOf, setFilesOf] = useState<string | null>(null);
   const today = todayIso();
   const names = new Map(sales.vendors.map((v) => [v.id, v.name]));
   const bills = [...sales.bills].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   const anyOpen = bills.some((b) => billBalance(sales, b) > 0n);
+  const open = filesOf ? sales.bills.find((b) => b.id === filesOf) : undefined;
 
   const cancel = async (bill: Bill) => {
     setError(null);
@@ -136,6 +141,7 @@ function Bills({ onPay }: { onPay: (p: Paying) => void }) {
             {bills.map((bill) => {
               const status = billStatus(sales, bill, today);
               const balance = billBalance(sales, bill);
+              const files = bill.attachments ?? [];
               return (
                 <tr key={bill.id} className={cn(status === "void" && "text-muted-foreground")}>
                   <td className="px-4 py-2 font-medium">{names.get(bill.vendorId) ?? bill.vendorId}</td>
@@ -146,6 +152,17 @@ function Bills({ onPay }: { onPay: (p: Paying) => void }) {
                   <td className="px-4 py-2 text-right font-medium"><Money cents={balance} /></td>
                   <td className="px-4 py-2"><StatusBadge status={status} /></td>
                   <td className="px-2 py-1 text-right whitespace-nowrap">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-11 sm:min-h-8"
+                      aria-expanded={filesOf === bill.id}
+                      aria-label={files.length ? `Receipts (${files.length})` : "Attach a receipt"}
+                      onClick={() => setFilesOf((f) => (f === bill.id ? null : bill.id))}
+                    >
+                      <Paperclip aria-hidden />
+                      {files.length > 0 && <span className="tabular-nums">{files.length}</span>}
+                    </Button>
                     {balance > 0n && (
                       <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => onPay({ vendorId: bill.vendorId, billId: bill.id })}>
                         Pay
@@ -163,6 +180,40 @@ function Bills({ onPay }: { onPay: (p: Paying) => void }) {
           </tbody>
         </table>
       </div>
+      {open && (
+        // Outside the scrolling table, so it fits the screen on a phone.
+        <section aria-label="Receipts" className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">
+              Receipts: {names.get(open.vendorId) ?? open.vendorId}
+              {open.number ? ` · ${open.number}` : ""}
+            </h2>
+            <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setFilesOf(null)}>
+              Close
+            </Button>
+          </div>
+          {(open.attachments ?? []).length === 0 && <p className="text-sm text-muted-foreground">No receipt yet.</p>}
+          <ReceiptList
+            refs={open.attachments ?? []}
+            onRemove={async (f) => {
+              setError(null);
+              if (!window.confirm(`Remove ${f.name} from this bill? The file is deleted from this device.`)) return;
+              try {
+                await updateCompany((c) => ({ ...c, sales: detachFromBill(c.sales, open.id, f.attachmentId) }));
+                await discardAttachment(f.attachmentId);
+              } catch (e) {
+                setError(errorMessage(e));
+              }
+            }}
+          />
+          <AttachButton
+            label={(open.attachments ?? []).length ? "Attach another" : "Attach receipt"}
+            onAttached={async (ref) => {
+              await updateCompany((c) => ({ ...c, sales: attachToBill(c.sales, open.id, ref) }));
+            }}
+          />
+        </section>
+      )}
     </div>
   );
 }

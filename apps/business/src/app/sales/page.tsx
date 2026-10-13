@@ -1,19 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
+  type Estimate,
   type Invoice,
   TERMS,
   addCustomer,
   arAging,
+  convertEstimateToInvoice,
   customerBalance,
   deleteDraftInvoice,
+  deleteEstimate,
+  estimateStatus,
+  estimateTotals,
   invoiceBalance,
   invoicePaid,
   invoiceStatus,
   invoiceTotals,
+  markEstimate,
   sendInvoice,
   unappliedAmount,
   updateCustomer,
@@ -29,13 +36,24 @@ import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
 import { PartyForm } from "./PartyForm";
 import { ReceivePaymentForm } from "./ReceivePaymentForm";
-import { AgingCard, StatusBadge, voidWithFallback } from "./parts";
+import { AgingCard, EstimateBadge, StatusBadge, voidWithFallback } from "./parts";
 
 type Receiving = { customerId?: string; invoiceId?: string } | null;
 
+const TABS = ["invoices", "estimates", "customers", "payments"];
+
 export default function SalesPage() {
+  return (
+    <Suspense>
+      <Sales />
+    </Suspense>
+  );
+}
+
+function Sales() {
   const { sales } = useOpenBooks();
-  const [tab, setTab] = useState(sales.customers.length === 0 ? "customers" : "invoices");
+  const asked = useSearchParams().get("tab");
+  const [tab, setTab] = useState(asked && TABS.includes(asked) ? asked : sales.customers.length === 0 ? "customers" : "invoices");
   const [receiving, setReceiving] = useState<Receiving>(null);
 
   return (
@@ -45,10 +63,16 @@ export default function SalesPage() {
         summary="What customers owe you, and what they've paid."
         action={
           sales.customers.some((c) => c.active) ? (
-            <Link href="/sales/invoices/new" className={cn(buttonVariants(), "min-h-11 sm:min-h-9")}>
-              <Plus aria-hidden />
-              New invoice
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/sales/estimates/new" className={cn(buttonVariants({ variant: "outline" }), "min-h-11 sm:min-h-9")}>
+                <Plus aria-hidden />
+                New estimate
+              </Link>
+              <Link href="/sales/invoices/new" className={cn(buttonVariants(), "min-h-11 sm:min-h-9")}>
+                <Plus aria-hidden />
+                New invoice
+              </Link>
+            </div>
           ) : (
             <span className="text-xs text-muted-foreground">Add a customer to send an invoice.</span>
           )
@@ -65,12 +89,16 @@ export default function SalesPage() {
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <TabsList className="h-auto sm:h-9">
             <TabsTrigger value="invoices" className="min-h-11 sm:min-h-7">Invoices</TabsTrigger>
+            <TabsTrigger value="estimates" className="min-h-11 sm:min-h-7">Estimates</TabsTrigger>
             <TabsTrigger value="customers" className="min-h-11 sm:min-h-7">Customers</TabsTrigger>
             <TabsTrigger value="payments" className="min-h-11 whitespace-nowrap sm:min-h-7">Payments received</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="invoices">
           <Invoices onReceive={setReceiving} />
+        </TabsContent>
+        <TabsContent value="estimates">
+          <Estimates onConverted={() => setTab("invoices")} />
         </TabsContent>
         <TabsContent value="customers">
           <Customers />
@@ -207,6 +235,116 @@ function Invoices({ onReceive }: { onReceive: (r: Receiving) => void }) {
       </div>
       <p className="text-xs text-muted-foreground">
         Sales tax on sent invoices is held in Sales Tax Payable until you pay it to your state.
+      </p>
+    </div>
+  );
+}
+
+// ---- Estimates -------------------------------------------------------------
+
+function Estimates({ onConverted }: { onConverted: () => void }) {
+  const { sales, updateCompany } = useOpenBooks();
+  const [error, setError] = useState<string | null>(null);
+  const today = todayIso();
+  const names = new Map(sales.customers.map((c) => [c.id, c.name]));
+  const invoiceNumbers = new Map(sales.invoices.map((i) => [i.id, i.number]));
+  const estimates = [...sales.estimates].sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
+
+  async function act(run: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await run();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
+
+  const mark = (est: Estimate, state: "sent" | "accepted" | "declined") =>
+    act(() => updateCompany((c) => ({ ...c, sales: markEstimate(c.sales, est.id, state) })));
+
+  const convert = (est: Estimate) =>
+    act(async () => {
+      await updateCompany((c) => ({ ...c, sales: convertEstimateToInvoice(c.books, c.sales, est.id, { date: todayIso() }).sales }));
+      onConverted();
+    });
+
+  const remove = (est: Estimate) =>
+    act(async () => {
+      if (!window.confirm(`Delete ${est.number}? Estimates never post, so nothing changes in your books.`)) return;
+      await updateCompany((c) => ({ ...c, sales: deleteEstimate(c.sales, est.id) }));
+    });
+
+  const action = (label: string, onClick: () => void, muted = false) => (
+    <Button key={label} variant="ghost" size="sm" className={cn("min-h-11 sm:min-h-8", muted && "text-muted-foreground")} onClick={onClick}>
+      {label}
+    </Button>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <FormError message={error} />
+      <div className="relative overflow-x-auto rounded-lg border bg-card">
+        <table className="w-full min-w-[46rem] text-sm">
+          <thead className="border-b bg-muted text-xs text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium">No.</th>
+              <th className="px-4 py-2 text-left font-medium">Customer</th>
+              <th className="px-4 py-2 text-left font-medium">Date</th>
+              <th className="px-4 py-2 text-left font-medium">Expires</th>
+              <th className="px-4 py-2 text-right font-medium">Total</th>
+              <th className="px-4 py-2 text-left font-medium">Status</th>
+              <th className="px-4 py-2 text-right font-medium">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {estimates.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+                  No estimates yet. Quote the work first; an accepted estimate becomes an invoice in one step. Estimates never touch your books.
+                </td>
+              </tr>
+            )}
+            {estimates.map((est) => {
+              const status = estimateStatus(est, today);
+              const pending = est.state === "draft" || est.state === "sent";
+              return (
+                <tr key={est.id} className={cn(est.state === "declined" && "text-muted-foreground")}>
+                  <td className="px-4 py-2 font-medium whitespace-nowrap">{est.number}</td>
+                  <td className="px-4 py-2">{names.get(est.customerId) ?? est.customerId}</td>
+                  <td className="px-4 py-2 tabular-nums whitespace-nowrap">{est.date}</td>
+                  <td className="px-4 py-2 tabular-nums whitespace-nowrap">{est.expiryDate}</td>
+                  <td className="px-4 py-2 text-right"><Money cents={estimateTotals(est).total} /></td>
+                  <td className="px-4 py-2">
+                    <EstimateBadge status={status} />
+                    {est.invoiceId && (
+                      <span className="block text-xs text-muted-foreground">{invoiceNumbers.get(est.invoiceId) ?? "Invoice deleted"}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 text-right whitespace-nowrap">
+                    {pending && (
+                      <Link
+                        href={`/sales/estimates/new?edit=${est.id}`}
+                        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "min-h-11 sm:min-h-8")}
+                      >
+                        Edit
+                      </Link>
+                    )}
+                    {est.state === "draft" && action("Mark sent", () => mark(est, "sent"))}
+                    {(pending || est.state === "declined") && action("Accepted", () => mark(est, "accepted"))}
+                    {(est.state === "sent" || est.state === "accepted") && action("Declined", () => mark(est, "declined"), true)}
+                    {(pending || est.state === "accepted") && action("Convert to invoice", () => convert(est))}
+                    {est.state !== "converted" && action("Delete", () => remove(est), true)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Converting makes a draft invoice with the same lines, projects and tax rate, dated today. Send it from Invoices when you&apos;re ready.
       </p>
     </div>
   );

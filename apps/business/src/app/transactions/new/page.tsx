@@ -4,18 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { type LineInput, accountMap, formatCents, parseCents, postEntry } from "@pnw/ledger";
+import { type LineInput, type Tags, accountMap, formatCents, parseCents, postEntry } from "@pnw/ledger";
 import { Button, buttonVariants } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, todayIso } from "@/books/display";
+import { TagFields, pickedTags } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 
-type Row = { key: number; accountId: string; debit: string; credit: string; memo: string; name: string };
+type Row = { key: number; accountId: string; debit: string; credit: string; memo: string; name: string; tags: Tags };
 
 let nextKey = 1;
-const blankRow = (): Row => ({ key: nextKey++, accountId: "", debit: "", credit: "", memo: "", name: "" });
+const blankRow = (): Row => ({ key: nextKey++, accountId: "", debit: "", credit: "", memo: "", name: "", tags: {} });
 
 /** Typed amount → cents, or null while it's empty or not a valid amount yet. */
 function cents(text: string): bigint | null {
@@ -29,7 +30,7 @@ function cents(text: string): bigint | null {
 }
 
 export default function NewJournalEntryPage() {
-  const { books, update } = useOpenBooks();
+  const { books, dimensions, update } = useOpenBooks();
   const router = useRouter();
   const accounts = accountMap(books);
   const [date, setDate] = useState(todayIso());
@@ -54,11 +55,13 @@ export default function NewJournalEntryPage() {
     const lines: LineInput[] = filled.map((r) => {
       const acct = accounts.get(r.accountId);
       const kind = acct?.type === "accounts_receivable" ? "customer" : acct?.type === "accounts_payable" ? "vendor" : undefined;
+      const tags = pickedTags(r.tags);
       return {
         accountId: r.accountId,
         ...(cents(r.debit) ? { debit: cents(r.debit)! } : { credit: cents(r.credit)! }),
         ...(r.memo.trim() ? { memo: r.memo.trim() } : {}),
         ...(kind && r.name.trim() ? { name: { kind, id: r.name.trim() } } : {}),
+        ...(tags ? { tags } : {}),
       };
     });
     try {
@@ -158,6 +161,13 @@ export default function NewJournalEntryPage() {
                     />
                   )}
                 </div>
+                <TagFields
+                  dims={dimensions}
+                  value={row.tags}
+                  onChange={(tags) => set(row.key, { tags })}
+                  labelPrefix={`Line ${i + 1}`}
+                  className="mt-3"
+                />
                 {rows.length > 2 && (
                   <button
                     type="button"
