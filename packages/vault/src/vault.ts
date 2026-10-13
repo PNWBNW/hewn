@@ -13,6 +13,12 @@
 // the vault id and its role with AES-GCM associated data, so pieces can't be
 // swapped between vaults or between the key and payload slots.
 //
+// Attachments (receipt photos, PDFs) are sealed one by one with the same
+// data key, each bound to the vault id and its own `attachment:<id>` role,
+// so the company file never carries file bytes and re-saving the books
+// never re-encrypts them. A backup file (version 2) is the record plus
+// those sealed attachments, still encrypted.
+//
 // All crypto is the browser's own WebCrypto; nothing here implements a cipher.
 // ---------------------------------------------------------------------------
 
@@ -21,6 +27,14 @@ export const KDF_ITERATIONS = 600_000;
 export const MIN_PASSPHRASE = 10;
 
 type Sealed = { iv: string; data: string };
+
+/** One sealed attachment, as stored and as written into backups. */
+export type SealedAttachment = { id: string; iv: string; data: string };
+
+export const BACKUP_FORMAT = "pnw-vault-backup";
+
+/** What a backup file holds: the sealed record and every sealed attachment. */
+export type Backup = { record: VaultRecord; attachments: SealedAttachment[] };
 
 export type VaultRecord = {
   format: typeof VAULT_FORMAT;
@@ -50,8 +64,9 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 function b64(bytes: Uint8Array): string {
+  // In chunks: a 10 MB photo one character at a time is slow, and all at once overflows the stack.
   let s = "";
-  for (const b of bytes) s += String.fromCharCode(b);
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
 }
 
@@ -63,7 +78,21 @@ function unb64(text: string): Uint8Array<ArrayBuffer> {
 }
 
 const random = (n: number) => globalThis.crypto.getRandomValues(new Uint8Array(n));
-const aad = (id: string, role: "key" | "data") => enc.encode(`${VAULT_FORMAT}:v1:${role}:${id}`);
+const ATTACHMENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+type Role = "key" | "data" | `attachment:${string}`;
+const aad = (id: string, role: Role) => enc.encode(`${VAULT_FORMAT}:v1:${role}:${id}`);
+
+function attachmentRole(attachmentId: string): Role {
+  // No colons, so the role and the vault id can't be shifted into each other.
+  if (!ATTACHMENT_ID.test(attachmentId)) throw new VaultError("CORRUPT", "That attachment id isn't valid");
+  return `attachment:${attachmentId}`;
+}
+
+/** SHA-256 of some bytes, as lowercase hex. */
+export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+  const digest = new Uint8Array(await subtle().digest("SHA-256", bytes));
+  return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 function checkPassphrase(passphrase: string): string {
   const normalized = passphrase.normalize("NFKC");
@@ -90,13 +119,22 @@ async function seal(key: CryptoKey, plaintext: string, ad: Uint8Array<ArrayBuffe
   return { iv: b64(iv), data: b64(new Uint8Array(data)) };
 }
 
-async function open(key: CryptoKey, sealed: Sealed, ad: Uint8Array<ArrayBuffer>): Promise<string> {
+async function sealBytes(key: CryptoKey, bytes: Uint8Array<ArrayBuffer>, ad: Uint8Array<ArrayBuffer>): Promise<Sealed> {
+  const iv = random(12);
+  const data = await subtle().encrypt({ name: "AES-GCM", iv, additionalData: ad }, key, bytes);
+  return { iv: b64(iv), data: b64(new Uint8Array(data)) };
+}
+
+async function openBytes(key: CryptoKey, sealed: Sealed, ad: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
   try {
-    const plain = await subtle().decrypt({ name: "AES-GCM", iv: unb64(sealed.iv), additionalData: ad }, key, unb64(sealed.data));
-    return dec.decode(plain);
+    return new Uint8Array(await subtle().decrypt({ name: "AES-GCM", iv: unb64(sealed.iv), additionalData: ad }, key, unb64(sealed.data)));
   } catch {
     throw new VaultError("CORRUPT", "The vault data is damaged or was changed outside the app");
   }
+}
+
+async function open(key: CryptoKey, sealed: Sealed, ad: Uint8Array<ArrayBuffer>): Promise<string> {
+  return dec.decode(await openBytes(key, sealed, ad));
 }
 
 async function unwrapDataKey(kek: CryptoKey, record: VaultRecord): Promise<CryptoKey> {
@@ -160,6 +198,17 @@ export class VaultSession {
 
   get record(): VaultRecord {
     return this.#record;
+  }
+
+  /** Seals a file with the data key, bound to this vault and to `attachmentId`. */
+  async sealAttachment(attachmentId: string, bytes: Uint8Array<ArrayBuffer>): Promise<SealedAttachment> {
+    const sealed = await sealBytes(this.#requireKey(), bytes, aad(this.#record.id, attachmentRole(attachmentId)));
+    return { id: attachmentId, ...sealed };
+  }
+
+  /** Opens a sealed attachment. Fails if it belongs to another vault or id, or was changed. */
+  async openAttachment(sealed: SealedAttachment): Promise<Uint8Array<ArrayBuffer>> {
+    return openBytes(this.#requireKey(), sealed, aad(this.#record.id, attachmentRole(sealed.id)));
   }
 
   lock(): void {
@@ -247,20 +296,39 @@ export async function changePassphrase(
 
 // ---- backup files ----------------------------------------------------------
 
-/** A backup is the sealed record itself: still encrypted, opened with the same passphrase. */
-export function exportBackup(record: VaultRecord): string {
-  return JSON.stringify(record, null, 2);
+/**
+ * A backup is the sealed record plus every sealed attachment: still
+ * encrypted, opened with the same passphrase. Version 2; a version-1 file
+ * (the bare record, from before attachments) still restores.
+ */
+export function exportBackup(record: VaultRecord, attachments: SealedAttachment[] = []): string {
+  return JSON.stringify({ format: BACKUP_FORMAT, version: 2, record, attachments }, null, 2);
 }
 
-export function parseBackup(text: string): VaultRecord {
+export function parseBackup(text: string): Backup {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
     throw new VaultError("NOT_A_VAULT", "That file isn't a books backup from this app");
   }
-  assertRecord(parsed);
-  return parsed;
+  const doc = parsed as { format?: unknown; version?: unknown; record?: unknown; attachments?: unknown } | null;
+  if (doc?.format !== BACKUP_FORMAT) {
+    assertRecord(parsed); // version 1: the record on its own
+    return { record: parsed, attachments: [] };
+  }
+  if (doc.version !== 2 || !Array.isArray(doc.attachments)) {
+    throw new VaultError("NOT_A_VAULT", "That backup is from a newer version of this app");
+  }
+  assertRecord(doc.record);
+  const attachments = doc.attachments.map((a: unknown): SealedAttachment => {
+    const x = a as Partial<SealedAttachment> | null;
+    if (!x || typeof x.id !== "string" || !ATTACHMENT_ID.test(x.id) || typeof x.iv !== "string" || typeof x.data !== "string") {
+      throw new VaultError("NOT_A_VAULT", "That file isn't a books backup from this app");
+    }
+    return { id: x.id, iv: x.iv, data: x.data };
+  });
+  return { record: doc.record, attachments };
 }
 
 function assertRecord(value: unknown): asserts value is VaultRecord {
