@@ -1,0 +1,114 @@
+import { describe, expect, it } from "vitest";
+import { addAccount, applyTemplate, balanceSheet, createBooks, postEntry, profitAndLoss, trialBalance } from "@pnw/ledger";
+import { addMonths, compareDate, compareRange, presetRange, rangeLabel } from "./dates";
+import { balanceSheetLines, isEmptyReport, profitAndLossLines, reportCsv, trialBalanceLines } from "./lines";
+
+describe("report dates", () => {
+  it("builds the presets around today and the fiscal year", () => {
+    expect(presetRange("this_month", "2026-10-13", 1)).toEqual({ from: "2026-10-01", to: "2026-10-31" });
+    expect(presetRange("last_month", "2026-03-13", 1)).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    expect(presetRange("last_month", "2026-01-05", 1)).toEqual({ from: "2025-12-01", to: "2025-12-31" });
+    expect(presetRange("this_quarter", "2026-10-13", 1)).toEqual({ from: "2026-10-01", to: "2026-12-31" });
+    expect(presetRange("year_to_date", "2026-10-13", 1)).toEqual({ from: "2026-01-01", to: "2026-10-13" });
+    expect(presetRange("last_year", "2026-10-13", 1)).toEqual({ from: "2025-01-01", to: "2025-12-31" });
+    // Fiscal year from July: Q2 is Oct–Dec, and the year runs Jul–Jun.
+    expect(presetRange("this_quarter", "2026-11-02", 7)).toEqual({ from: "2026-10-01", to: "2026-12-31" });
+    expect(presetRange("this_quarter", "2026-02-02", 2)).toEqual({ from: "2026-02-01", to: "2026-04-30" });
+    expect(presetRange("year_to_date", "2026-03-01", 7)).toEqual({ from: "2025-07-01", to: "2026-03-01" });
+    expect(presetRange("last_year", "2026-03-01", 7)).toEqual({ from: "2024-07-01", to: "2025-06-30" });
+  });
+
+  it("finds the comparison period", () => {
+    expect(compareRange({ from: "2026-10-01", to: "2026-10-31" }, "previous_period")).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(compareRange({ from: "2026-01-01", to: "2026-03-31" }, "previous_period")).toEqual({ from: "2025-10-01", to: "2025-12-31" });
+    expect(compareRange({ from: "2026-10-05", to: "2026-10-14" }, "previous_period")).toEqual({ from: "2026-09-25", to: "2026-10-04" });
+    expect(compareRange({ from: "2026-01-01", to: "2026-10-13" }, "previous_year")).toEqual({ from: "2025-01-01", to: "2025-10-13" });
+    expect(compareRange({ from: "2028-02-01", to: "2028-02-29" }, "previous_year")).toEqual({ from: "2027-02-01", to: "2027-02-28" });
+    expect(compareRange({ from: "2026-10-01", to: "2026-10-31" }, "none")).toBeUndefined();
+    expect(compareDate("2026-10-13", "previous_period")).toBe("2026-09-30");
+    expect(compareDate("2026-03-31", "previous_year")).toBe("2025-03-31");
+    expect(addMonths("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addMonths("2026-01-30", 1)).toBe("2026-02-28");
+    expect(addMonths("2026-01-15", -1)).toBe("2025-12-15");
+  });
+
+  it("labels columns briefly", () => {
+    expect(rangeLabel({ from: "2026-10-01", to: "2026-10-31" })).toBe("Oct 2026");
+    expect(rangeLabel({ from: "2026-01-01", to: "2026-03-31" })).toBe("Jan – Mar 2026");
+    expect(rangeLabel({ from: "2025-07-01", to: "2026-06-30" })).toBe("Jul 2025 – Jun 2026");
+    expect(rangeLabel({ from: "2026-01-01", to: "2026-10-13" })).toBe("Jan 1, 2026 – Oct 13, 2026");
+  });
+});
+
+function sample() {
+  let books = applyTemplate(createBooks({ businessName: "T", fiscalYearStartMonth: 1 }), "service");
+  books = addAccount(books, { name: "=HYPERLINK(\"x\")", type: "expense" }).books;
+  const id = (name: string) => books.accounts.find((a) => a.name === name)!.id;
+  const post = (date: string, dr: string, cr: string, cents: bigint) => {
+    books = postEntry(books, { date, lines: [{ accountId: id(dr), debit: cents }, { accountId: id(cr), credit: cents }] }).books;
+  };
+  post("2026-10-01", "Checking", "Owner's Investment", 1_000_000n);
+  post("2026-10-02", "Checking", "Service Income", 250_000n);
+  post("2026-10-03", "Wages", "Checking", 120_000n);
+  post("2026-10-04", "=HYPERLINK(\"x\")", "Business Credit Card", 1_050n);
+  return books;
+}
+
+describe("statement lines", () => {
+  const books = sample();
+
+  it("lays out the P&L with sub-account totals and net income", () => {
+    const lines = profitAndLossLines(profitAndLoss(books, { from: "2026-10-01", to: "2026-10-31" }));
+    const pick = (label: string) => lines.find((l) => l.label === label);
+    expect(pick("Income")).toMatchObject({ kind: "heading", amounts: null });
+    expect(pick("4000 Service Income")).toMatchObject({ kind: "account", depth: 1, amounts: [250_000n] });
+    expect(pick("6500 Payroll Expenses")).toMatchObject({ amounts: [0n], blankZero: true });
+    expect(pick("6510 Wages")).toMatchObject({ depth: 2, amounts: [120_000n] });
+    expect(pick("Total 6500 Payroll Expenses")).toMatchObject({ kind: "subtotal", depth: 1, amounts: [120_000n] });
+    expect(pick("Total expenses")).toMatchObject({ kind: "total", amounts: [121_050n] });
+    expect(lines.at(-1)).toMatchObject({ kind: "grand", label: "Net income", amounts: [128_950n] });
+    // No cost of goods sold or other items in this sample, so those sections stay out.
+    expect(pick("Gross profit")).toBeUndefined();
+    expect(pick("Net other income")).toBeUndefined();
+  });
+
+  it("lays out the balance sheet down to account groups, ending in the balancing total", () => {
+    const bs = balanceSheet(books, "2026-10-31");
+    const lines = balanceSheetLines(bs);
+    expect(lines.map((l) => l.label).slice(0, 4)).toEqual(["Assets", "Current assets", "Bank accounts", "1000 Checking"]);
+    expect(lines.find((l) => l.label === "Total assets")).toMatchObject({ kind: "grand", amounts: [1_130_000n] });
+    expect(lines.at(-1)).toMatchObject({ label: "Total liabilities and equity", amounts: [1_130_000n] });
+  });
+
+  it("writes a CSV a spreadsheet opens safely", () => {
+    const report = {
+      title: "Profit and loss",
+      subtitle: "Oct 2026",
+      columns: ["Oct 2026"],
+      lines: profitAndLossLines(profitAndLoss(books, { from: "2026-10-01", to: "2026-10-31" })),
+    };
+    const csv = reportCsv(report, "Day, Inc.");
+    const rows = csv.split("\r\n");
+    expect(rows.slice(0, 5)).toEqual(["Profit and loss", '"Day, Inc."', "Oct 2026", "", "Account,Oct 2026"]);
+    expect(rows).toContain('"  4000 Service Income",2500.00');
+    expect(rows).toContain('"  6500 Payroll Expenses",'); // zero own amount left blank
+    expect(rows).toContain("Net income,1289.50");
+    // A formula-looking account name is quoted and defused.
+    expect(rows).toContain(`"'  =HYPERLINK(""x"")",10.50`);
+  });
+
+  it("lists the trial balance in the order given, with blank zero columns", () => {
+    const chart = [...books.accounts].reverse();
+    const lines = trialBalanceLines(chart, trialBalance(books, "2026-10-31"));
+    expect(lines.at(-1)).toMatchObject({ label: "Total", amounts: [1_251_050n, 1_251_050n] });
+    expect(lines[0]!.label).toBe("=HYPERLINK(\"x\")");
+    expect(lines.find((l) => l.label === "1000 Checking")).toMatchObject({ amounts: [1_130_000n, 0n], blankZero: true });
+  });
+
+  it("knows when a report has nothing to show", () => {
+    const empty = createBooks({ businessName: "T", fiscalYearStartMonth: 1 });
+    const lines = profitAndLossLines(profitAndLoss(empty, { from: "2026-10-01", to: "2026-10-31" }));
+    expect(isEmptyReport({ title: "", subtitle: "", columns: [""], lines })).toBe(true);
+    expect(isEmptyReport({ title: "", subtitle: "", columns: [""], lines: balanceSheetLines(balanceSheet(books, "2026-10-31")) })).toBe(false);
+  });
+});
