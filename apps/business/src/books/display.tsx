@@ -1,4 +1,4 @@
-import { type Account, type BaseType, type Books, ACCOUNT_TYPES, baseOf, formatCents } from "@pnw/ledger";
+import { type Account, type BaseType, type Books, ACCOUNT_TYPES, baseOf, compareAccounts, formatCents } from "@pnw/ledger";
 import { cn } from "@pnw/ui/utils";
 
 export const BASE_LABELS: Record<BaseType, string> = {
@@ -25,10 +25,9 @@ export function orderedAccounts(books: Books, filter: (a: Account) => boolean = 
     list.push(a);
     byParent.set(a.parentId, list);
   }
-  const sortKey = (a: Account) => `${a.number ?? "~"} ${a.name.toLowerCase()}`;
   const out: { account: Account; depth: number }[] = [];
   const walk = (parent: string | undefined, depth: number) => {
-    for (const a of (byParent.get(parent) ?? []).sort((x, y) => sortKey(x).localeCompare(sortKey(y)))) {
+    for (const a of (byParent.get(parent) ?? []).sort(compareAccounts)) {
       if (filter(a)) out.push({ account: a, depth });
       walk(a.id, depth + 1);
     }

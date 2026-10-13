@@ -115,7 +115,7 @@ Payroll stops being the product and becomes the first module posting into the le
 
 - [ ] A 3-worker testnet payroll run produces three balanced journal entries, each linked to its receipt anchor
 - [ ] Running the same payroll in fiat mode produces identical entries in the vault, minus the chain transfer
-- [ ] P&L for the period shows the wage expense; balance sheet shows the tax liability
+- [x] P&L for the period shows the wage expense; balance sheet shows the tax liability (fiat mode, 2026-10-13)
 - [x] Existing payroll tests (`vitest`) still green; no change to worker-facing paystub flow (2026-10-13)
 
 ## Phase 3 — AR/AP and dimensions
