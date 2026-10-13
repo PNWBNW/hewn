@@ -11,16 +11,10 @@
 // ---------------------------------------------------------------------------
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  type Books,
-  type Settings,
-  type TemplateId,
-  applyTemplate,
-  booksFromJson,
-  booksToJson,
-  createBooks,
-} from "@pnw/ledger";
+import { type Books, type Settings, type TemplateId, applyTemplate, createBooks } from "@pnw/ledger";
+import { type Payroll, emptyPayroll } from "@pnw/payroll";
 import { BRAND } from "@/brand";
+import { type Company, companyFromJson, companyToJson } from "./company";
 import {
   type VaultSession,
   IndexedDbStore,
@@ -40,11 +34,14 @@ export type SetupInput = Settings & { template: TemplateId | "blank"; passphrase
 type BooksContextValue = {
   status: BooksStatus;
   books: Books | null;
+  payroll: Payroll | null;
   create: (input: SetupInput) => Promise<void>;
   unlock: (passphrase: string) => Promise<void>;
   lock: () => void;
   /** Apply a ledger operation; resolves once the result is safely stored. */
   update: (op: (books: Books) => Books) => Promise<Books>;
+  /** Same, for operations that change the books and payroll together (a pay run). */
+  updateCompany: (op: (company: Company) => Company) => Promise<Company>;
   downloadBackup: () => void;
   /** Restore a backup file onto this device, then open it. */
   restore: (fileText: string, passphrase: string) => Promise<void>;
@@ -59,19 +56,19 @@ export function useBooks(): BooksContextValue {
 }
 
 /** Open books, for screens that only render once the gate has let them through. */
-export function useOpenBooks(): BooksContextValue & { books: Books } {
+export function useOpenBooks(): BooksContextValue & { books: Books; payroll: Payroll } {
   const ctx = useBooks();
-  if (!ctx.books) throw new Error("Books are not open");
-  return ctx as BooksContextValue & { books: Books };
+  if (!ctx.books || !ctx.payroll) throw new Error("Books are not open");
+  return ctx as BooksContextValue & { books: Books; payroll: Payroll };
 }
 
 export function BooksProvider({ children }: { children: ReactNode }) {
   const store = useMemo(() => new IndexedDbStore(), []);
   const session = useRef<VaultSession | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const booksRef = useRef<Books | null>(null);
+  const companyRef = useRef<Company | null>(null);
   const [status, setStatus] = useState<BooksStatus>("loading");
-  const [books, setBooks] = useState<Books | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
 
   useEffect(() => {
     store.load(VAULT_ID).then(
@@ -81,10 +78,10 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, [store]);
 
   const open = useCallback(async (s: VaultSession) => {
-    const loaded = booksFromJson(await s.read());
+    const loaded = companyFromJson(await s.read());
     session.current = s;
-    booksRef.current = loaded;
-    setBooks(loaded);
+    companyRef.current = loaded;
+    setCompany(loaded);
     setStatus("open");
   }, []);
 
@@ -92,7 +89,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     async ({ template, passphrase, ...settings }: SetupInput) => {
       let fresh = createBooks(settings);
       if (template !== "blank") fresh = applyTemplate(fresh, template);
-      const s = await createVault(passphrase, booksToJson(fresh), { id: VAULT_ID });
+      const s = await createVault(passphrase, companyToJson({ books: fresh, payroll: emptyPayroll() }), { id: VAULT_ID });
       await store.save(s.record);
       await open(s);
     },
@@ -114,23 +111,23 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const lock = useCallback(() => {
     session.current?.lock();
     session.current = null;
-    booksRef.current = null;
-    setBooks(null);
+    companyRef.current = null;
+    setCompany(null);
     setStatus((s) => (s === "open" ? "locked" : s));
   }, []);
 
   // Updates run one at a time, each on the result of the last, so two quick
   // edits can never both start from the same stale copy of the books.
-  const update = useCallback(
-    (op: (b: Books) => Books) => {
+  const updateCompany = useCallback(
+    (op: (c: Company) => Company) => {
       const run = queue.current.then(async () => {
         const s = session.current;
-        const current = booksRef.current;
+        const current = companyRef.current;
         if (!s || !current) throw new Error("Books are locked");
-        const next = op(current); // throws LedgerError on any broken rule; nothing is saved
-        await store.save(await s.write(booksToJson(next)));
-        booksRef.current = next;
-        setBooks(next);
+        const next = op(current); // throws on any broken rule; nothing is saved
+        await store.save(await s.write(companyToJson(next)));
+        companyRef.current = next;
+        setCompany(next);
         return next;
       });
       queue.current = run.catch(() => {});
@@ -139,24 +136,29 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store],
   );
 
+  const update = useCallback(
+    async (op: (b: Books) => Books) => (await updateCompany((c) => ({ ...c, books: op(c.books) }))).books,
+    [updateCompany],
+  );
+
   const downloadBackup = useCallback(() => {
     const s = session.current;
     if (!s) return;
     const blob = new Blob([exportBackup(s.record)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const name = (books?.settings.businessName ?? "books").replace(/[^\w-]+/g, "-").toLowerCase();
+    const name = (company?.books.settings.businessName ?? "books").replace(/[^\w-]+/g, "-").toLowerCase();
     a.href = url;
     a.download = `${name}-${new Date().toISOString().slice(0, 10)}.${BRAND.backupExtension}`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [books]);
+  }, [company]);
 
   const restore = useCallback(
     async (fileText: string, passphrase: string) => {
       const record = { ...parseBackup(fileText), id: VAULT_ID };
       const s = await unlockVault(record, passphrase); // proves the passphrase before anything is replaced
-      booksFromJson(await s.read()); // and that the books inside are intact
+      companyFromJson(await s.read()); // and that the books inside are intact
       await store.save(s.record);
       await open(s);
     },
@@ -180,8 +182,19 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, [status, lock]);
 
   const value = useMemo(
-    () => ({ status, books, create, unlock, lock, update, downloadBackup, restore }),
-    [status, books, create, unlock, lock, update, downloadBackup, restore],
+    () => ({
+      status,
+      books: company?.books ?? null,
+      payroll: company?.payroll ?? null,
+      create,
+      unlock,
+      lock,
+      update,
+      updateCompany,
+      downloadBackup,
+      restore,
+    }),
+    [status, company, create, unlock, lock, update, updateCompany, downloadBackup, restore],
   );
   return <BooksContext.Provider value={value}>{children}</BooksContext.Provider>;
 }

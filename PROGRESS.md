@@ -332,3 +332,39 @@ backup extension, colours and asset paths; layout metadata, page titles, manifes
 components (renamed `BrandMark`/`BrandLogo`/`BrandHero`), restore screen and backup filename all
 read from it. Package error messages no longer name the product ("…from this app"). Build-plan
 "Product name" decision un-ticked with the rename recipe.
+
+## 2026-10-13 — Phase 2 (fiat): payroll posts into the books
+
+Joshua: "keep building" on the recommended next task (fiat payroll).
+
+- **`@pnw/payroll`** (new; depends only on `@pnw/ledger` + `@pnw/tax-engine`):
+  - Team: name, hourly rate or annual salary, pay frequency (weekly / every two weeks / twice a
+    month / monthly), W-4 elections (filing status, Steps 3, 4a, 4b, 4c). Private to the vault.
+  - Paychecks in bigint cents around the existing TS tax engine (IRS annualization): federal
+    income tax, employee SS and Medicare, Additional Medicare above $200k, plus the employer's SS
+    and Medicare match (employer doesn't match Additional Medicare). Year-to-date per worker.
+  - **Bug found by the tests and fixed:** per-paycheck rounding let a year's Social Security
+    reach $11,439.01, one cent over the legal maximum (6.2% × $184,500). Both sides are now capped
+    at the annual maximum.
+  - `postPayRun`: one balanced entry per paycheck (Dr Wages, Dr Employer Payroll Taxes, Cr Payroll
+    Liabilities, Cr Bank), each line tagged with the employee, source `payroll` + run id. Pure: a
+    closed month or any ledger rule rejects the whole run with nothing posted. Creates "Wages" /
+    "Employer Payroll Taxes" accounts if a blank chart lacks them.
+  - `liabilitiesByQuarter` (Form 941 buckets) and `recordTaxPayment` (new ledger source
+    `tax_payment`: Dr Payroll Liabilities, Cr Bank).
+- **App**: the vault now holds a company file (books + payroll); books saved by the previous
+  version still open. Payroll section is live: Team (add/edit/deactivate, W-4 fields), Run payroll
+  (pick people, hours, live per-paycheck preview, totals incl. total cost to you, post), Pay runs
+  (expandable per-person breakdown), Withholding owed (owed now, by quarter, record a payment).
+  Journal shows employee names from the vault. Dashboard checklist ticks on first payroll.
+
+**Browser check** (phone viewport, production build): 3-person run (salary $52k biweekly; $25.50/hr
+× 80.25 h; $30/hr × 72 h MFJ with $4,000 dependents credit): gross 6,206.38, withheld 792.66, net
+5,413.72, employer taxes 474.79; 3 payroll entries in the journal; cash 25,000 → 19,586.28; owed
+to IRS 1,267.45 → 0.00 after recording the payment; team intact after lock/unlock; zero
+console/CSP errors.
+
+**Exit criteria:** ticked "existing payroll tests still green" (coordinator 60/60 untouched). The
+other Phase 2 criteria need the testnet run or reports (P&L / balance sheet, Phase 4).
+
+**Results:** 29 files, **256/256** (payroll 18 incl. a 200-run property test). Build green.

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@pnw/ledger": "workspace:*",
+    "@pnw/payroll": "workspace:*",
     "@pnw/ui": "workspace:*",
     "@pnw/vault": "workspace:*",
     "lucide-react": "0.577.0",
