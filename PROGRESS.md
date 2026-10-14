@@ -583,3 +583,20 @@ that moves through the app moves on the rail; the books still work with no walle
 
 **Results:** 39 files, **352/352** (the one "failed to load" an auditor saw was a stale local
 `node_modules` missing the `@pnw/payroll` link; a frozen reinstall fixed it). No build change.
+
+## 2026-10-14 — Aleo constraints check
+
+Joshua asked for a deep dive confirming the settlement design against today's Aleo, since his
+batched-payroll attempts in April hit boundaries. `docs/ALEO_CONSTRAINTS.md` records what was
+confirmed from snarkVM source and release notes versus what the first testnet run must verify.
+Headlines: Shield proves through Provable's delegated proving service, which only accepts
+single-call functions, which is why the one-shot `execute_payroll` never reached the network and
+the 4-step split did; every user-signed transition is now designed single-call, fired in parallel
+after pre-splitting USDCx with the stablecoin's own `split`/`join` (plain transitions the local stub
+never had). Hard limits (31 transitions, 16 in/out, 512 finalize ops, 4-credit finalize cap) were
+not the problem. Toolchain drift: Leo 4.0.0→4.4.5, snarkOS 4.6→4.12, consensus V14→V22, SDK
+0.10.1→0.12.1 (V2 proofs no longer verify after V21). `@admin` programs are upgradable in place,
+so `paid_epoch` moves into an upgraded `paystub_receipts`. Every private USDCx transfer emits a
+`ComplianceRecord` to the stablecoin's investigator; noted for the threat model. Audit doc updated
+with the decisions from the same conversation (rail-only money movement, mailbox kept as the one
+server piece, `.hewn` display suffix, one pay queue for workers, subs and vendors).

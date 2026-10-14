@@ -27,9 +27,18 @@ localStorage manifest and Zustand callbacks), the five regex record parsers, the
 server routes (W-4, terms, timesheet), the worker-side offer store, and the portal's three
 different ways of hashing the employer name. Details in §4.
 
-**One decision needed before the payroll bridge:** which settlement path actually works in
-Shield today. The code says monolithic (`USE_MONOLITHIC_PAYROLL = true`), the docs say 4-step
-sequential. See §5, question 1.
+**Settlement path (resolved 2026-10-14, see `ALEO_CONSTRAINTS.md`):** Shield proves through
+Provable's delegated proving service, which only accepts single-call functions. That is why the
+one-shot `execute_payroll` (four cross-program calls) never reached the network and the 4-step
+split did. Every user-signed transition is therefore designed as a single-call function, fired
+in parallel across payees after pre-splitting the employer's USDCx with the stablecoin's own
+`split`. The monolithic path and `execute_payroll_batch_2` are retired.
+
+**Decisions taken in the same conversation:** no bank feeds or card processors; money that moves
+through the app moves on the rail, the books still work with no wallet. The encrypted
+party-to-party mailbox (the portal's Pinata channel) stays, as the one server piece (§4.4). The
+display suffix becomes `.hewn` (§2.1). Payments to vendors and subs use the same queue as payroll
+(§2.3).
 
 ## 1. What ties straight in
 
@@ -67,8 +76,11 @@ Copied over unchanged and still correct:
 | `Customer` / `Vendor` | nothing today | Optional wallet address on the party record, for USDCx invoices and bills |
 
 The `.pnw` name is the only identity shown to the other party today. It is public on-chain
-(`pnw_name_registrar_v5.aleo` `name_plaintext`), so showing it is fine; the suffix is a display
-choice.
+(`pnw_name_registrar_v5.aleo` `name_plaintext`), so showing it is fine. The suffix is a display
+choice: the registry stores the bare name and the portal appended `.pnw` in one line
+(`portal:src/records/agreement_reader.ts:149`). **Decision: the display suffix is `.hewn`**, held
+in `brand.ts`. The registry program names and the `PNW::NAME` hash domain (baked into every name
+hash) change only at the mainnet redeploy, when every program gets its final name once.
 
 ### 2.2 Payroll (the main seam)
 
@@ -108,12 +120,24 @@ and `"aleo1unknown"` workers. In the new model the vault is the history and rece
 Chain only moves **net**. Withheld tax stays with the employer as a liability, which is exactly
 what the books record. Consistent.
 
-### 2.3 Invoices and bills
+### 2.3 Invoices, bills, vendors and subs
 
-Same pattern: `sendInvoice` posts A/R; a USDCx payment arrives as a `Token` record from the
-customer; `receivePayment` posts it with the tx id as `reference`. For bills, `payBills` triggers a
-`transfer_private` and records the tx id. No new program; the receipt side (a paystub-style record
-for invoices) is a later nicety.
+Same pattern, less baggage. One **Pay** queue covers everything owed:
+
+| Payee | Transaction | Extra on-chain | Books |
+| --- | --- | --- | --- |
+| Worker (W-2) | `transfer_private` + `mint_paystub_receipts` | receipts, `paid_epoch` (after the receipts upgrade) | wages, withholding, employer taxes |
+| Sub / contractor (1099) | `transfer_private` | none | bill payment, counted for the 1099 |
+| Vendor / business | `transfer_private` | none | bill payment |
+
+Vendors and subs get an optional wallet address or `.hewn` name on their record; businesses
+register names too, so "Pay Lumber Yard" resolves through the public registry.
+
+**Incoming payments:** a USDCx `Token` record carries owner and amount only (`transfer_private`
+has no memo). Matching an incoming payment to an invoice has three layers: a mailbox note from the
+payer's app (invoice number, amount, tx id; §4.4), amount-and-date matching with a one-tap confirm
+for plain wallets, and later a `payment_receipts` program, the invoice twin of `paystub_receipts`.
+When both businesses are on Hewn, one transfer updates both sets of books.
 
 ### 2.4 The worker's paystub
 
@@ -147,12 +171,18 @@ Ledger entries: `BLAKE3("PNW::GL::ENTRY::v1" ‖ 0x00 ‖ canonical)`. Chain com
   `audit_event_hash` has zeroed batch/row placeholders (`portal:src/manifest/compiler.ts:258-264`)
   and the history scanner recomputes the same value. Keep that formula or every historical anchor
   breaks.
-- **Monolithic vs sequential.** `payroll_core_v2::execute_payroll` is one 5-program proof and
-  writes `paid_epoch` (on-chain double-pay guard). The 4-step split never writes it. The portal
-  currently runs monolithic (`portal:src/coordinator/settlement_coordinator.ts:617`, same in
-  `packages/coordinator`), with a comment that the "Shield drops it" belief may have been wrong and
-  timing constants "based on observed monolithic runs". CLAUDE.md and BUILD_PLAN still say
-  sequential. See §5.
+- **Monolithic vs sequential: resolved.** `payroll_core_v2::execute_payroll` is one 5-program
+  proof and the only writer of `paid_epoch`. The portal's flag is set to monolithic
+  (`portal:src/coordinator/settlement_coordinator.ts:617`, same in `packages/coordinator`) from
+  Joshua's batching experiments; the docs describe the split. Shield's prover cannot delegate a
+  multi-call function (`ALEO_CONSTRAINTS.md` §3), so the split is the path and `paid_epoch` moves
+  into an upgraded `paystub_receipts` (it is `@admin`, so upgradable in place with an edition bump).
+- **Program upgrades exist.** `employer_agreement_v4` was upgraded in place on 2026-04-12; the
+  four `@noupgrade` programs cannot be. CLAUDE.md's "deployed programs are immutable" needs the
+  `@admin`/`@noupgrade` distinction.
+- **Compliance records.** Every private USDCx transfer emits a `ComplianceRecord` (amount, sender,
+  recipient) to the stablecoin's investigator address. Wages on the rail are private from the
+  public and from us, not from the stablecoin's compliance party. Goes in `THREAT_MODEL.md`.
 - **Mapping privacy** (no cumulative counters anywhere; CI guard checks five names):
   `paid_epoch` is keyed by `{agreement_id, epoch_id}`, so it reveals *that* an agreement was paid on
   a date (cadence, tenure), no amount. `name_plaintext` is public by design. `credential_issuer`
@@ -197,20 +227,30 @@ Ledger entries: `BLAKE3("PNW::GL::ENTRY::v1" ‖ 0x00 ‖ canonical)`. Chain com
 - `name_registry.ts` command builders (`snarkos developer execute …`) and the v1
   `pnw_name_registry.aleo` query: delete.
 
-### 4.4 Server-dependent pieces (violate "no server")
+### 4.4 The mailbox (the one server piece, kept on purpose)
 
-The portal has four Next.js API routes with a Pinata JWT: terms upload/lookup, timekeeping
-upload/list. `packages/w4-crypto` and `packages/handshake/codec` still call them. Decisions:
+The portal's Pinata/IPFS channel is what lets an offer, a W-4 or a paystub pass between the two
+parties with no email, no PDF and no third party reading it: the worker opens the app and it is
+there. **Decision (Joshua, 2026-10-14): keep it**, as the single exception to the no-server rule,
+rebuilt as one primitive with three changes:
 
-- **W-4**: the real-world flow is the worker hands the form to the employer; the new app already
-  stores the W-4 on the employer's `Worker` record in the vault. Keep that. The worker role keeps
-  its own copy for §2.4. No channel needed; `uploadEncryptedW4`/`fetchAndDecryptW4` go.
-- **Agreement terms**: `terms_doc_hash` is on the agreement record; the plaintext terms belong in
-  both parties' vaults, delivered in the offer link (the QR/URL path already carries the full
-  `OfferIntent`). Drop IPFS.
-- **Timesheet**: punches went to Pinata encrypted and never reached payroll anyway (the employer
-  typed hours by hand). Out of scope until the worker role exists; then punches live in the
-  worker's vault and the weekly total travels with the pay-run request.
+- **Mailbox, not archive.** Each side's vault keeps its copy the moment it opens a document;
+  once the worker's acceptance (or the read) is on-chain, the pin is dropped. Pinata only ever
+  holds documents in flight, so the pin count stays in the hundreds at thousands of users and the
+  cost stays on the free or smallest plan. The app needs only upload / fetch / unpin, so any
+  pinning service or a self-hosted node swaps in.
+- **One stateless function** holds the Pinata key, stores nothing, and only ever sees
+  ciphertext. No database.
+- **One encryption scheme, keyed from the on-chain `parties_key`**, replacing the two schemes the
+  portal had (HKDF for terms; PBKDF2 for W-4 and punches). The only thing on a pin is a lookup
+  hash; the portal put the worker's address, week and punch type in plaintext metadata
+  (`portal:app/api/timekeeping/upload/route.ts:47-56`), which goes.
+
+The same mailbox then carries: the agreement terms (hash on the record), the W-4
+(worker → employer), the full paystub breakdown (employer → worker, which also solves §2.4 without
+a new program), payment notes for invoices (§2.3) and, later, timesheets. The two broken
+client↔route contracts in the portal (`uploadEncryptedW4` posting JSON to a multipart route;
+lookups by `cid` to a route that requires `agreementId`) are rewritten rather than fixed.
 
 ### 4.5 Employer name hash (three derivations)
 
@@ -248,27 +288,31 @@ the address-derived hash are throwaway.
 
 ## 5. Questions for Joshua
 
-1. **Which payroll path works in Shield today?** Monolithic `execute_payroll` (one signature per
-   worker, writes `paid_epoch`) or the 4-step split (four signatures, no `paid_epoch`)? The code
-   and the docs disagree. If monolithic works, it is strictly better and the sequential code can go.
-2. **W-4 entered by the employer** (as the new app does, and as paper works) rather than uploaded
-   by the worker: fine?
-3. **Fee**: is there a platform fee in settled mode, and who receives it? `fee_amount` exists on
+Answered 2026-10-14: the settlement path (single-call steps, parallel; `ALEO_CONSTRAINTS.md`),
+the W-4 channel (mailbox, §4.4) and the display name (`.hewn`, §2.1).
+
+Still open:
+
+1. **Fee**: is there a platform fee in settled mode, and who receives it? `fee_amount` exists on
    every receipt; the books have no account for it yet.
-4. **Display name**: show `name.pnw` to users as today, or just `name`?
+2. **Approvals per run.** With today's programs a 10-worker run is about 22 wallet taps up front
+   (then nothing). If that is too many, the Leo session can add an 8-worker receipts transition
+   (→ 14 taps) or go to a worker-pull or session-key design for one tap (`ALEO_CONSTRAINTS.md` §5);
+   both of those bend a rule and want a decision after feeling the testnet run.
 
 ## 6. Proposed order (one task, one exit criterion, one PR each)
 
 | # | Task | Exit criterion it serves |
 | --- | --- | --- |
-| 1 | Record the answers to §5 in CLAUDE.md / BUILD_PLAN; rewrite the Phase 2 bridge text to "books first, chain second, anchor written back" | housekeeping, no code |
+| 1 | Record the decisions in CLAUDE.md / BUILD_PLAN: rail-only money movement, mailbox exception, `.hewn`, single-call settlement, `@admin` vs `@noupgrade` | housekeeping, no code |
 | 2 | **Link a Shield wallet** from Settings: `packages/wallet` as an opt-in adaptor, vault key wrapped by a wallet signature over a domain-separated message | Phase 1: vault opens with passphrase *or* linked wallet |
-| 3 | **Identity map**: import `FinalAgreement` records into the Team list; store address, name hash, agreement id per worker; registered employer name hash in settings | Phase 0 (part): the app knows who is on-chain |
+| 3 | **Identity map**: import `FinalAgreement` records into the Team list; store address, name hash, agreement id per worker; registered employer name hash in settings; `.hewn` display | Phase 0 (part): the app knows who is on-chain |
 | 4 | **Pay run settlement fields**: `PayRun` and entry `source.ref` carry mode, receipt anchor, tx id, height; fiat runs carry `settled_externally`; manifest compiled from paychecks; fee pair | Phase 2: fiat run produces identical entries minus the transfer |
-| 5 | **Coordinator rewrite** per §4.1–4.3, wallet-only, with tests replacing the CLI-path ones | prerequisite for 6 |
-| 6 | **Settled payroll run from `apps/business` on testnet**, 3 workers, three entries each linked to its receipt anchor | Phase 2 criterion 1 and Phase 0 criterion 1 |
-| 7 | **Worker role** inside the same app: wallet sign-in, paystubs from records with breakdown per §2.4, credential badge | Phase 0 criterion 2 (replaces `apps/worker`) |
-| 8 | **Leo session**: `gl_core.aleo` (Phase 1) and, if wanted, `paystub_receipts_v2` with breakdown fields | Phase 1 chain criteria |
-| 9 | Cleanup: delete `persistence`, `pnw_payroll_engine`, dead portal code; archive the portal repo with a pointer | Phase 0 criterion 4 |
+| 5 | **Pay queue** replacing the coordinator (§4.1–4.3 and `ALEO_CONSTRAINTS.md` §5): single-call steps, pre-split, parallel, resumable from the vault, wallet-only, tests replacing the CLI-path ones | prerequisite for 6 |
+| 6 | **Settled payroll run from `apps/business` on testnet**, 3 workers, three entries each linked to its receipt anchor; record taps and wall-clock per step | Phase 2 criterion 1 and Phase 0 criterion 1 |
+| 7 | **Mailbox**: the stateless function, one encryption scheme from `parties_key`, unpin after delivery; first payloads: agreement terms and the paystub breakdown | Phase 0 criterion 2 (part) |
+| 8 | **Worker role** inside the same app: wallet sign-in, offers, paystubs (breakdown from the mailbox), credential badge | Phase 0 criterion 2 (replaces `apps/worker`) |
+| 9 | **Leo session** (Fable, high effort): bump pins; upgrade `paystub_receipts` with `paid_epoch` and negative tests; optional 8-worker receipts transition; `gl_core.aleo` | Phase 1 chain criteria |
+| 10 | Cleanup: delete `persistence`, `pnw_payroll_engine`, dead portal code; archive the portal repo with a pointer | Phase 0 criterion 4 |
 
 Tasks 2, 3 and 4 touch no chain transaction and can be verified entirely offline.
