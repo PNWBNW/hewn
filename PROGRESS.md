@@ -562,3 +562,50 @@ it's checked on every open); applying a customer credit to a later invoice; emai
 **Results:** 39 files, **352/352** (was 312: ledger +8, sales +17, payroll +1, vault +10,
 business +4). Build green, `pnpm audit` clean. Lockfile changes only for the `@pnw/payroll`
 dev-dependency link in `@pnw/sales`.
+
+## 2026-10-14 — Integration audit (read-only)
+
+Joshua's call after Phase 3 and the first Vercel deploy: before tying the new app to the chain
+stack, comb through both and decide what ties in, what has to be redone, and in what order.
+Four parallel read-only passes (portal employer side, portal worker side, `pnw_mvp_v2` programs
+and manifest, this monorepo) feed `docs/INTEGRATION_AUDIT.md`. No code changed.
+
+**Headlines.** The seam is narrow: the books already hold more than the chain can store (the
+per-tax breakdown), and the chain already produces the proof the books need (receipt anchor,
+tx id, height), so a pay run is posted first, settled second, and the anchor is written back onto
+the entry. What has to be redone: the coordinator's run model (localStorage manifest, Zustand
+callbacks, required CLI path), five regex record parsers, the Pinata/IPFS server routes (W-4,
+terms, timesheet), and three different employer-name hashes. One decision blocks the payroll
+bridge: the portal code runs the monolithic `execute_payroll` (`USE_MONOLITHIC_PAYROLL = true`)
+while CLAUDE.md and BUILD_PLAN say the 4-step split; Joshua to confirm which works in Shield.
+Product direction recorded from the same conversation: no bank feeds or card processors; money
+that moves through the app moves on the rail; the books still work with no wallet.
+
+**Results:** 39 files, **352/352** (the one "failed to load" an auditor saw was a stale local
+`node_modules` missing the `@pnw/payroll` link; a frozen reinstall fixed it). No build change.
+
+## 2026-10-14 — Aleo constraints check
+
+Joshua asked for a deep dive confirming the settlement design against today's Aleo, since his
+batched-payroll attempts in April hit boundaries. `docs/ALEO_CONSTRAINTS.md` records what was
+confirmed from snarkVM source and release notes versus what the first testnet run must verify.
+Headlines: Shield proves through Provable's delegated proving service, which only accepts
+single-call functions, which is why the one-shot `execute_payroll` never reached the network and
+the 4-step split did; every user-signed transition is now designed single-call, fired in parallel
+after pre-splitting USDCx with the stablecoin's own `split`/`join` (plain transitions the local stub
+never had). Hard limits (31 transitions, 16 in/out, 512 finalize ops, 4-credit finalize cap) were
+not the problem. Toolchain drift: Leo 4.0.0→4.4.5, snarkOS 4.6→4.12, consensus V14→V22, SDK
+0.10.1→0.12.1 (V2 proofs no longer verify after V21). `@admin` programs are upgradable in place,
+so `paid_epoch` moves into an upgraded `paystub_receipts`. Every private USDCx transfer emits a
+`ComplianceRecord` to the stablecoin's investigator; noted for the threat model. Audit doc updated
+with the decisions from the same conversation (rail-only money movement, mailbox kept as the one
+server piece, `.hewn` display suffix, one pay queue for workers, subs and vendors).
+
+**Design decisions, same day (Joshua):** rail + books + mailbox. One `transfer_private` per
+payee is the only on-chain act per payment; the full paystub goes through the mailbox; the
+paystub hash sits in the journal entry's `source.ref` and the period root is anchored by
+`gl_core.aleo`, so proof covers paystubs, vendor payments and invoices alike. `paystub_receipts`
+and `payroll_core_v2` leave the payment path. Fees: the employer pays network fees on every
+payment at actual cost (read back from the confirmed transaction), nothing deducted from the
+payee, no platform fee ever. A 10-worker run is 10 wallet taps, then nothing to babysit. Both
+docs updated; the Leo session shrinks to the toolchain bump and `gl_core.aleo`.
