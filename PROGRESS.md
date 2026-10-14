@@ -723,3 +723,48 @@ Same-day second runs for one worker still compute year-to-date before the day (p
 
 **Results:** 42 files, **369/369** (was 352: ledger +6, payroll +11). Build green, `pnpm audit`
 clean, typecheck clean. Lockfile: `@noble/hashes` linked into `@pnw/payroll` only.
+
+## 2026-10-14 — The mailbox: envelope, client and the stateless function
+
+Audit §4.4 decision built as a package and a function; wiring into offers, W-4 and paystubs is a
+later task. Branch `mailbox/package`.
+
+- **`@pnw/mailbox`** (new; `@noble/hashes` 2.0.1 only, WebCrypto, no React, no workspace deps;
+  boundary test: network only in `client.ts`).
+  - `envelope.ts`: `deriveMailboxKey(partiesKey, kind)` = HKDF-SHA256(ikm = `parties_key`,
+    salt `PNW::MAILBOX::v1`, info = kind) → AES-256-GCM, non-extractable. `lookupId(partiesKey,
+    kind, seq)` = hex BLAKE3(`PNW::MAILBOX::LOOKUP::v1` ‖ 0x00 ‖ key ‖ kind ‖ u32be(seq)); both
+    parties compute it alone, the receiver scans seq until a miss. `seal` → `{lookup, envelope}`
+    with envelope = 0x01 ‖ 12-byte IV ‖ AES-GCM(payload, AAD = lookup); `open` throws
+    `MailboxError` `BAD_ENVELOPE` / `BAD_VERSION` / `TAMPERED` on anything but the exact key, kind,
+    seq and bytes. `MAX_PAYLOAD_BYTES` 256 KiB on seal and open. `KINDS`: terms, w4, paystub,
+    payment_note. `partiesKeyFromHex` takes the handshake's `0x…` hex. Tests pin five lookup
+    vectors and one sealed envelope, so neither derivation can change silently.
+  - `client.ts`: `MailboxClient` (`put` POST octet-stream, `get` 404 → null, `drop` DELETE,
+    404 → done) over `/api/mailbox` by default; lookup checked against `^[0-9a-f]{64}$` before
+    any request; injected fetch; 503 → `NOT_CONFIGURED`, 409 → `CONFLICT`.
+- **The function** `apps/business/src/app/api/mailbox/[lookup]/route.ts` (POST, GET, DELETE),
+  logic in `../handlers.ts` over a four-call `PinStore` interface, Pinata behind it in
+  `../pinata.ts` (legacy pinning API: pinFileToIPFS / pinList by name / unpin; gateway reads).
+  `PINATA_JWT` read from `process.env` at request time; unset → 503 `{error:"mailbox not
+  configured"}` on every method. Lookup not 64 hex → 400; body not octet-stream → 415; over
+  `MAX_ENVELOPE_BYTES` (256 KiB + 64) by declared or actual length → 413 (body read through a
+  capped stream, never buffered past the cap); first byte not 0x01 or shorter than one envelope →
+  400; slot already pinned → 409; pinning service failure → 502 with no detail. `name = lookup`
+  is the only pin metadata. `Cache-Control: no-store` on every response, no CORS headers, no
+  logging. Optional `PINATA_GATEWAY` for a dedicated gateway host.
+- **Docs:** `THREAT_MODEL.md` "The mailbox" (what the function sees and cannot, ciphertext in
+  flight only, delivery is not proof); `apps/business/.env.example` (new, the two variables);
+  `packages/README.md` row. `@pnw/mailbox` added to the app's deps and `transpilePackages`.
+
+**Verified:** root `pnpm test` **428/428** in 50 files (was 378/44: mailbox +29, business +21,
+fiat boundary still green with the route outside `src/chain`); `@pnw/business` build and typecheck
+green; `pnpm audit` clean; lockfile changed only by the two workspace links. `next start` + curl:
+GET/POST/DELETE → 503 JSON with `PINATA_JWT` unset; with a placeholder key, `/api/mailbox/nope` →
+400, JSON body → 415, wrong first byte → 400, 270,001 bytes → 413, PUT → 405. Not exercised
+against a live Pinata account (no key in this session).
+
+**Decided:** the 503 check runs before the lookup check, so an unconfigured host answers 503 to
+everything (the brief's literal rule); `open` caps the envelope at payload + 29 bytes while the
+function allows + 64. **Deferred:** wiring into offers, W-4, paystubs and payment notes; the
+seq-scan bookkeeping in the vault; dropping the pin after the receiver's vault has the copy.

@@ -16,6 +16,7 @@ consume the `.ts` sources directly. Import modules by subpath, e.g.
 | 0 | `commitments` | BLAKE3 domain hashing, Merkle, canonical TLV encoder, token ids, Aleo scalar types |
 | 0 | `config` | Env and deployed program ids |
 | 0 | `tax-engine` | IRS annualization withholding (the only tax engine) |
+| 0 | `mailbox` | Sealed party-to-party documents keyed from `parties_key`: envelope, lookup ids, client for the one server function (new, not salvaged; `@noble/hashes` only) |
 | 1 | `pnw-adapter` | Layer 1/2 transition maps and routers, CLI adapter, freeze-list resolver, Sealance types |
 | 1 | `wallet` | Wallet provider, wallet executor, credential signer |
 | 1 | `handshake` | Offer/acceptance engine and codec |
