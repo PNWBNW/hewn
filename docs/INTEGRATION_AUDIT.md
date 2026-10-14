@@ -79,7 +79,7 @@ The `.pnw` name is the only identity shown to the other party today. It is publi
 (`pnw_name_registrar_v5.aleo` `name_plaintext`), so showing it is fine. The suffix is a display
 choice: the registry stores the bare name and the portal appended `.pnw` in one line
 (`portal:src/records/agreement_reader.ts:149`). **Decision: the display suffix is `.hewn`**, held
-in `brand.ts`. The registry program names and the `PNW::NAME` hash domain (baked into every name
+in `packages/brand` (`BRAND.nameSuffix`). The registry program names and the `PNW::NAME` hash domain (baked into every name
 hash) change only at the mainnet redeploy, when every program gets its final name once.
 
 ### 2.2 Payroll (the main seam)
@@ -286,8 +286,8 @@ the address-derived hash are throwaway.
   superseded by `@pnw/vault`. Delete after its tests are archived.
 - `pnw_payroll_engine/` (Julia): retired, still in the tree. Delete.
 - Monorepo: `SetupScreen.tsx:170` says "including PNW"; `tokens.css` duplicates brand colours and
-  `--plumb-*` vars; three pages use `--plumb-green` directly. Collapse into `brand.ts` when the
-  Hewn art lands.
+  `--plumb-*` vars; three pages use `--plumb-green` directly. Collapse into `packages/brand` when
+  the Hewn art lands.
 
 ### 4.7 Documentation drift to fix when the code moves
 

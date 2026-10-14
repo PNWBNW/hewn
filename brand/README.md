@@ -1,15 +1,19 @@
 # Plumb brand assets
 
 `source/` holds the original artwork (logo on light, logo on dark, front-page hero).
-Everything the app serves is generated from it:
+Everything the app (`apps/business`) and the marketing site (`apps/site`) serve is generated from it:
 
 ```sh
 python3 brand/build_assets.py   # needs Pillow
 ```
 
+The files are generated once into `apps/business/` and copied byte-for-byte into `apps/site/`
+(the `APPS` list in the script). Never hand-edit either copy. The name, tagline, colours and asset
+paths the code uses live in `packages/brand`.
+
 | Output | Use |
 |---|---|
-| `apps/business/src/app/icon.png`, `apple-icon.png`, `favicon.ico` | Browser tab, iOS home screen (Next.js picks these up by filename) |
+| `apps/*/src/app/icon.png`, `apple-icon.png`, `favicon.ico` | Browser tab, iOS home screen (Next.js picks these up by filename) |
 | `public/brand/plumb-icon-{192,512}.png`, `plumb-icon-maskable-512.png` | Installable app icons (`src/app/manifest.ts`) |
 | `public/brand/plumb-mark-{dark,light}.png` | The pine-cone tile inside the app |
 | `public/brand/plumb-wordmark-{green,cream}.png` | "Plumb" lettering, transparent; green on light, cream on dark |

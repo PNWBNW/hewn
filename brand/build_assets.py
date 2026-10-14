@@ -2,15 +2,19 @@
 """
 Builds every Plumb web asset from the three source images in brand/source/.
 Re-run after replacing a source:  python3 brand/build_assets.py
-Outputs go to apps/business/public/brand/ and apps/business/src/app/ (Next.js icon files).
+Outputs go to <app>/public/brand/ and <app>/src/app/ (Next.js icon files) for every app in
+APPS. The files are generated once and copied, so every app serves byte-identical assets.
 """
 import os
+import shutil
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "brand", "source")
-PUB = os.path.join(ROOT, "apps", "business", "public", "brand")
-APP = os.path.join(ROOT, "apps", "business", "src", "app")
+APPS = ["business", "site"]  # the first one is generated into, the rest receive copies
+PUB = os.path.join(ROOT, "apps", APPS[0], "public", "brand")
+APP = os.path.join(ROOT, "apps", APPS[0], "src", "app")
+ICON_FILES = ("icon.png", "apple-icon.png", "favicon.ico")
 os.makedirs(PUB, exist_ok=True)
 
 GREEN = (17, 59, 49)      # #113b31, the icon tile
@@ -104,7 +108,19 @@ def main():
     hero.save(os.path.join(PUB, "plumb-hero-1536.jpg"), quality=82, optimize=True, progressive=True)
     for f in sorted(os.listdir(PUB)):
         print(f"{os.path.getsize(os.path.join(PUB, f)) // 1024:5d} KB  public/brand/{f}")
-    for f in ("icon.png", "apple-icon.png", "favicon.ico"):
+    for f in ICON_FILES:
         print(f"{os.path.getsize(os.path.join(APP, f)) // 1024:5d} KB  src/app/{f}")
+
+    # The other apps serve the same files: copy, never regenerate, so they stay byte-identical.
+    for app in APPS[1:]:
+        pub = os.path.join(ROOT, "apps", app, "public", "brand")
+        app_dir = os.path.join(ROOT, "apps", app, "src", "app")
+        os.makedirs(pub, exist_ok=True)
+        os.makedirs(app_dir, exist_ok=True)
+        for f in sorted(os.listdir(PUB)):
+            shutil.copyfile(os.path.join(PUB, f), os.path.join(pub, f))
+        for f in ICON_FILES:
+            shutil.copyfile(os.path.join(APP, f), os.path.join(app_dir, f))
+        print(f"copied to apps/{app}/")
 
 main()

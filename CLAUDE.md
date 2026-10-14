@@ -14,10 +14,12 @@ Three operating modes on one codebase: **fiat** (default, encrypted local vault,
 stack). The double-entry core is identical in all three.
 
 Brand: working name **Plumb** (taken; final name TBD by Joshua), tagline "honest books, grounded and
-true." The name, tagline, colours and asset paths live only in `apps/business/src/brand.ts`; never
-hard-code the product name elsewhere (packages say "this app"). Source art and the asset build
-script live in `brand/`; never hand-edit the generated files in `apps/business/public/brand/`.
-Internal package names stay `@pnw/*` (PNW is the company and protocol namespace).
+true." The name, tagline, colours, asset paths and the app/site URLs live only in `packages/brand`
+(`@pnw/brand`; `apps/business/src/brand.ts` is a re-export of it); never hard-code the product name
+elsewhere (packages say "this app"). Source art and the asset build script live in `brand/`; never
+hand-edit the generated files in `apps/*/public/brand/` (the app and the marketing site
+`apps/site` serve byte-identical copies). Internal package names stay `@pnw/*` (PNW is the
+company and protocol namespace).
 
 `BUILD_PLAN.md` (repo root) is the spec: phases, deliverables, exit criteria. `PROGRESS.md` is the log.
 

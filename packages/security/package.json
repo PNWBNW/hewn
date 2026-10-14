@@ -1,0 +1,14 @@
+{
+  "name": "@pnw/security",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./headers": "./src/headers.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {}
+}
