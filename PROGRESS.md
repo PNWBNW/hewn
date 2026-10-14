@@ -968,3 +968,17 @@ brand (title "Plumb", hero, CSP with the explorer origin and `'wasm-unsafe-eval'
 proprietary PNW Smart Contract License v1.7 (same flag as 2026-10-13); the site copy says
 "free" and never says "open source". Once the Hewn art arrives: drop it in `brand/source/`, edit
 `packages/brand/src/index.ts`, re-run `brand/build_assets.py`, and both apps follow.
+
+## 2026-10-14 — CSP: rail allowances scoped to two pages
+
+Joshua asked why WebAssembly was allowed and chose to scope it. `apps/business/src/security/headers.ts`
+now widens the shared policy only when the request path is `/settings` or `/payroll` (and their
+subpaths): the explorer origin in `connect-src` and `'wasm-unsafe-eval'` in `script-src`, both of
+which exist for the opt-in rail panels loaded there. Every other page keeps the strict policy the
+marketing site uses (own origin only, no WebAssembly). `proxy.ts` passes the path; `hostsRail`
+matches by path segment (`/payrolls` and `/settingsx` are not rail pages). Threat model T3 updated.
+
+**Results:** business app 55/55 (headers tests rewritten for both policies), typecheck and build
+green. Verified on the production build with curl: `/` and `/transactions` carry
+`script-src 'self' 'nonce-…' 'strict-dynamic'` and `connect-src 'self'`; `/settings` and
+`/payroll/run` add `'wasm-unsafe-eval'` and the explorer origin.
