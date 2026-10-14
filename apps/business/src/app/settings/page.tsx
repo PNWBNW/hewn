@@ -138,7 +138,8 @@ function LinkedAccount() {
   if (!rail) return null;
   const worker = role === "worker";
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
-  const linked = rail.links.filter((l) => names.has(l.workerId)).length;
+  const linked = rail.links.filter((l) => names.has(l.workerId) && l.status === "linked").length;
+  const offered = rail.links.filter((l) => names.has(l.workerId) && l.status === "offered").length;
   const linkedOn = new Date(rail.linkedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
   const registered = worker ? work?.profile?.name : rail.businessName;
 
@@ -173,6 +174,7 @@ function LinkedAccount() {
           <dt className="text-muted-foreground">Team</dt>
           <dd className="font-medium">
             {linked} {linked === 1 ? "team member" : "team members"} linked
+            {offered > 0 && ` · ${offered} ${offered === 1 ? "offer" : "offers"} sent`}
           </dd>
         </>
       )}

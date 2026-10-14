@@ -4,23 +4,49 @@ import { useState } from "react";
 import { DEFAULT_TERMS, TERMS, type TermsId, type Vendor, type VendorInput } from "@pnw/sales";
 import { Button } from "@pnw/ui/button";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
+import { LinkBadge } from "@/books/LinkBadge";
+import type { Company } from "@/books/company";
+import { type LinkStatus, type PartyKind, partyLinkFor, setPartyAddress } from "@/books/rail";
 
-/** Add or edit a customer or vendor. Everything here stays in the encrypted vault. */
+/** Where a customer or vendor stands with the rail, for the form. The address field needs an account linked in Settings. */
+export type PartyLinkView = { status: LinkStatus; address?: string; railLinked: boolean };
+
+export const partyLinkView = (rail: Company["rail"] | null, kind: PartyKind, id: string | undefined): PartyLinkView => {
+  const link = rail && id ? partyLinkFor(rail, kind, id) : undefined;
+  return { status: link?.status ?? "typed", ...(link?.address ? { address: link.address } : {}), railLinked: !!rail };
+};
+
+/** The company with the party's rail address set (or cleared); untouched when no account is linked. */
+export function withPartyAddress(c: Company, kind: PartyKind, id: string, address: string | undefined): Company {
+  const rail = setPartyAddress(c.rail, kind, id, address);
+  return rail ? { ...c, rail } : c;
+}
+
+export const PARTY_RAIL_NOTE = "Documents and payments on the rail need an agreement approved by both sides; coming for vendors and customers soon.";
+
+/**
+ * Add or edit a customer or vendor. Everything here stays in the encrypted
+ * vault. With an account linked in Settings, the party can carry its own
+ * account on the rail (`link`), which the books keep beside the record.
+ */
 export function PartyForm({
   kind,
   initial,
+  link,
   onSave,
   onCancel,
 }: {
-  kind: "customer" | "vendor";
+  kind: PartyKind;
   initial?: Partial<Vendor>;
-  onSave: (input: VendorInput) => Promise<void>;
+  link?: PartyLinkView;
+  onSave: (input: VendorInput, railAddress: string | undefined) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
   const [terms, setTerms] = useState<TermsId>(initial?.terms ?? DEFAULT_TERMS);
   const [tracks1099, setTracks1099] = useState(initial?.tracks1099 ?? false);
+  const [railAddress, setRailAddress] = useState(link?.address ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -32,13 +58,19 @@ export function PartyForm({
         setError(null);
         setBusy(true);
         try {
-          await onSave({ name, email, terms, ...(kind === "vendor" ? { tracks1099 } : {}) });
+          await onSave({ name, email, terms, ...(kind === "vendor" ? { tracks1099 } : {}) }, link?.railLinked ? railAddress.trim() || undefined : undefined);
         } catch (err) {
           setError(errorMessage(err));
           setBusy(false);
         }
       }}
     >
+      {link && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-3">
+          <LinkBadge status={link.status} />
+          {link.status === "typed" ? "A name you entered; the books work, nothing else." : PARTY_RAIL_NOTE}
+        </div>
+      )}
       <Field label={kind === "customer" ? "Customer name" : "Vendor name"}>
         <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
       </Field>
@@ -54,6 +86,21 @@ export function PartyForm({
           ))}
         </select>
       </Field>
+      {link?.railLinked && (
+        <div className="sm:col-span-3">
+          <Field label="Rail address" hint={`Optional. Their account on the rail, starting aleo1. ${PARTY_RAIL_NOTE}`}>
+            <input
+              className={`${inputClass} font-mono text-xs sm:text-sm`}
+              value={railAddress}
+              onChange={(e) => setRailAddress(e.target.value)}
+              placeholder="aleo1…"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={link.status !== "typed"}
+            />
+          </Field>
+        </div>
+      )}
       {kind === "vendor" && (
         <label className="flex min-h-11 items-center gap-3 text-sm sm:col-span-3">
           <input

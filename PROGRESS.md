@@ -1062,6 +1062,114 @@ has none, not sent as null; re-importing the same agreement keeps the mailbox co
 **Deferred:** the worker side (scan, keep, drop the pin); offers, W-4 and payment notes through
 the same mailbox; a "sent" mark on the pay runs list itself (it is on the panel and the paystub).
 
+## 2026-10-14 — Typed and linked parties, and sending an offer
+
+Joshua's rule (2026-10-14): two kinds of party everywhere a party can be picked. **Typed**: a name
+you entered; the books work, nothing else. **Linked**: a profile and an agreement approved by both
+sides; only a linked party can be paid on the rail, receive documents or send hours. Workers are
+linkable today through the employment agreement; vendors, subs and customers wait for a
+party-agreement program (a later Leo session), so for them this is the badge, the gate and a stored
+address. Branch `rail/typed-linked`. `docs/INTEGRATION_AUDIT.md` §2.1 has a "Typed and linked
+parties" subsection recording the rule.
+
+- **`src/books/rail.ts`:** `RailLink.status: "offered" | "linked"` (required; a link saved before
+  this existed loads as `linked` and saves that way), `offeredAt?`, `linkedAt?`; an offered link
+  must carry its parties key even on load. New `PartyLink` (`kind: customer | vendor`, `id`,
+  optional `address`/`nameHash`/`agreementId`/`partiesKey`, `status: typed | offered | linked`;
+  offered/linked need all three agreement fields) in `Rail.partyLinks`, left out of the file when
+  empty, so older files load and save unchanged. `linkStatus(rail, "worker" | "customer" |
+  "vendor", id)` → `typed | offered | linked` (typed with no rail at all); `markLinked`,
+  `setPartyLink`, `removePartyLink`, `partyLinkFor`, `setPartyAddress` (trim, validate `aleo1…`,
+  clear = drop a typed party; an offered/linked party keeps its account). `addLink` keeps
+  `offeredAt` when the same agreement is imported as a full link. Tests 12 → 21.
+- **`src/books/LinkBadge.tsx`:** Typed (muted) / Offer sent / Linked (green), on every Team,
+  Customer and Vendor row and in their forms (`WorkerForm` gets `status`, `PartyForm` gets
+  `link`), with a one-line meaning on the form. Team's footnote explains the two kinds once an
+  account is linked.
+- **The gate.** Run payroll on the rail already required a link (unchanged). The pay-bills form
+  has no rail path yet, so nothing was added there. The customer and vendor forms get an optional
+  **Rail address** field (shown once an account is linked in Settings, since the address lives on
+  the rail part of the file; validated `aleo1…`, stored in `partyLinks`) with the note "Documents
+  and payments on the rail need an agreement approved by both sides; coming for vendors and
+  customers soon." Nothing else for them.
+- **Send offer** (`src/chain/OfferPanel.tsx`, lazy, from a typed team member's row once Shield is
+  linked and the business has a registered name): their registered name (with or without
+  `.hewn`) → `computeNameHash` → `name_owner` → address, or address → `worker_primary_name_of` →
+  name (`resolveWorker`; "They need to register a name first" otherwise); start date (today),
+  review (+90 days), end (optional, open-ended), industry (`INDUSTRY_SUFFIXES`), free-text
+  terms; pay type, rate and frequency from the Worker record.
+- **`src/chain/terms.ts`:** the `Terms` document, a contract shared with the worker's app:
+  `{ version: 1, kind: "terms", agreementId, termsText, payType, rate (cents, string), frequency,
+  startDate, businessName, offeredAt }` in exactly that order; `canonicalTerms` =
+  `JSON.stringify` of the validated object; `parseTerms`/`validateTerms`. **`agreementId` holds
+  the offer time hash** (64 hex, no `0x`), because the agreement id is derived from the terms hash
+  and cannot be inside the terms; the worker's app matches by the record's `agreement_id` and
+  checks `computeTermsDocHash(canonicalTerms(received)) === record.terms_doc_hash`. Pinned:
+  the fixture document hashes to `0x9f83731c…33c948ac`. 5 tests.
+- **`src/chain/offer.ts`** (pure; mailbox client, wallet and clock injected): `dateToHeight` and
+  `offerEpochs` exactly as the portal (1 block / 3 s from the current height, never before it;
+  review never before start; end 0 = open-ended), `fetchLatestHeight` (`/block/height/latest`),
+  `createJobOfferInputs` (the portal's 16 inputs: u8 arrays for agreement id / parties key /
+  terms doc hash / terms root / offer time hash, `<decimal>field` name hashes, address,
+  `u8` industry and frequency, `u32` epochs, `1u16`, `schema_v 2u16`, `policy_v 1u16`),
+  `FREQUENCY_CODES`, `finalAgreementIds(records)`, `awaitAccepted` (wallet polling, same
+  accepted/rejected sets as the pay queue), and `sendOffer`: build terms → `computeAgreementValues`
+  → `seal(parties_key, "terms", 0, utf8(canonical))` → `client.put` (**409 continues; 503
+  throws "Offers need the mailbox; it's off on this server" before any transaction**) →
+  `executeTransaction(employer_agreement_v4::create_job_offer, privateFee: false)` → poll to
+  acceptance → the link to record (`offered`, agreement id, parties key, address, name hash,
+  `offeredAt`). 15 tests: inputs equal to a reference built from the portal's own
+  `bytesToAleoU8Array`/input list, epochs, name resolution with a fake registry, the envelope
+  opens with the key/kind/slot and holds the canonical terms (nothing in the clear), mailbox-first
+  ordering with a fake client and wallet (503 → no wallet call; 409 → sent; 502/network → no
+  wallet call), refusals before any request, rejected/never-answering wallet, and offer → `addLink`
+  → `finalAgreementIds` → `markLinked`.
+- **Import team (`RailPanel.tsx`):** reads the agreement records once more raw (parties keys and
+  which agreements are final), and every offered link whose agreement id is now a
+  `FinalAgreement` turns `linked` on its own; a pending one shows "Offer sent · <name>". Settings
+  counts "n linked · m offers sent".
+- `@pnw/handshake` added to the app's dependencies, `transpilePackages` and the fiat boundary's
+  chain-package list (it is reachable only from `src/chain`).
+
+**Verified:** root `pnpm test` **473/473** in 57 files (was 444/55; business 101); `@pnw/business`
+build and typecheck green; `pnpm audit --audit-level=moderate` clean; fiat boundary green;
+lockfile diff is the one workspace link. **Chromium 390×844** on the production build
+(`scratch/typed-linked.mjs`: mocked `window.shield`, the explorer answered for height and the
+registry mappings, `/api/mailbox/*` answered by the script): a typed team member shows **Typed**
+and no Send offer before Shield is linked; after linking (registered name `dayco.hewn` resolved),
+Send offer → Find "ana" hit `name_owner` → "ana.hewn" → terms → the one POST went to a bare
+64-hex lookup, `application/octet-stream`, 369 bytes starting **0x01**, no terms, name, business
+or rate in the clear; one mocked `employer_agreement_v4.aleo::create_job_offer` with `privateFee:
+false` and 16 inputs (`777field` employer hash, the worker's decimal name hash, the address,
+`1u8`, `3u8`, start `4210000u32` = the current height, end `0u32`, review ahead, `1u16 2u16
+1u16`, three 32-byte arrays); the row read **Offer sent**, still after a reload; Import team with
+nothing accepted left it so ("1 offer sent" in Settings); with the mock handing back a
+`FinalAgreement` carrying the offer's agreement id, Import team showed "Linked ✓ · Ana Ruiz" and
+the row flipped to **Linked** (the edit form says so too). Customers and Vendors show **Typed**,
+refuse `aleo1short` ("Enter an account like aleo1…, 63 characters") and keep a good rail address
+across edit. No horizontal overflow on Payroll, Sales, Expenses or Settings; zero console errors
+or CSP violations.
+
+**Decided (not in the brief).** (1) `status` is a required field on `RailLink`, defaulted on
+load, so the two test literals that build links (`company.test.ts`, `deliver.test.ts`) gained
+`status: "linked"`. (2) Twice-a-month pay has no agreement code; it is sent as every two weeks
+(`3u8`, the nearest cadence) and the terms document carries the exact frequency; the panel says
+so. (3) Ids in the link are stored without `0x` (as the import stores them); the terms'
+`agreementId` likewise. (4) The terms always go to slot 0 of the `terms` kind. (5) The rail
+address field appears only once an account is linked (there is nowhere to keep it before); the
+badge shows everywhere regardless. (6) The offer is recorded after the wallet reports acceptance,
+without waiting for the explorer to index it. (7) Industry defaults to the first entry, as the
+portal's fallback did; it is not stored in the books. (8) Settings' team count distinguishes
+linked from offered (a two-line edit outside the files listed).
+
+**Flag.** Re-offering the same person (same two addresses, so the same parties key and the same
+slot 0) would find the slot taken (409) and go on with the *old* terms in the mailbox, which
+the worker's hash check would then refuse. Not reachable today (Send offer only shows for a
+typed team member), but the day a terminated agreement can be re-offered the terms need their own
+slot counter (`mailboxSeq.terms`) and the worker's scan to try each slot.
+
+**Deferred.** Linking vendors, subs and customers (the party-agreement program); paying a bill on
+the rail; cancelling or re-sending an offer; a worker's name shown on the Team row once linked.
 ## 2026-10-14 — The worker side, inside the same app
 
 `INTEGRATION_AUDIT.md` §6 task 8, Phase 0 criterion 2 (the worker sees their paystub). Branch

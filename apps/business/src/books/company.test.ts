@@ -29,7 +29,7 @@ describe("company file", () => {
       address: "aleo1" + "q".repeat(58),
       linkedAt: "2026-10-14T18:00:00.000Z",
       businessName: "brothers",
-      links: [{ workerId: "wkr-1", address: "aleo1" + "z".repeat(58), nameHash: "7", agreementId: "01".repeat(32) }],
+      links: [{ workerId: "wkr-1", address: "aleo1" + "z".repeat(58), nameHash: "7", agreementId: "01".repeat(32), status: "linked" }],
     };
     const dimensions = emptyDimensions();
     const linked = companyToJson({ books, payroll, sales, dimensions, rail });

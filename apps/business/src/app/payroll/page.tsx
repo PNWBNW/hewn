@@ -22,7 +22,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pnw/ui/tabs";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { LinkBadge } from "@/books/LinkBadge";
 import { AccountSelect, Money, todayIso } from "@/books/display";
+import { linkStatus } from "@/books/rail";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Paystub } from "./Paystub";
@@ -30,6 +32,12 @@ import { WorkerForm } from "./WorkerForm";
 
 // Fetched only when a run is paid on the rail: nobody else downloads the rail code.
 const PayPanel = dynamic(() => import("@/chain/PayPanel"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
+// Likewise, only when an offer is sent to a typed team member.
+const OfferPanel = dynamic(() => import("@/chain/OfferPanel"), {
   ssr: false,
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
@@ -260,9 +268,12 @@ function payLabel(w: Worker): string {
 }
 
 function Team() {
-  const { payroll, updateCompany } = useOpenBooks();
+  const { payroll, rail, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(payroll.workers.length === 0 ? "new" : null);
+  const [offering, setOffering] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // An offer needs the business's registered name on the rail: it goes on the agreement.
+  const canOffer = rail !== null && !!rail.businessNameHash;
 
   return (
     <div className="flex flex-col gap-4">
@@ -284,11 +295,13 @@ function Team() {
       <FormError message={error} />
       {payroll.workers.length > 0 && (
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
-          {payroll.workers.map((w) =>
-            editing === w.id ? (
+          {payroll.workers.map((w) => {
+            const status = linkStatus(rail, "worker", w.id);
+            return editing === w.id ? (
               <li key={w.id} className="p-2">
                 <WorkerForm
                   initial={w}
+                  status={status}
                   onCancel={() => setEditing(null)}
                   onSave={async (input) => {
                     await updateCompany((c) => ({ ...c, payroll: updateWorker(c.payroll, w.id, input) }));
@@ -297,39 +310,63 @@ function Team() {
                 />
               </li>
             ) : (
-              <li key={w.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className={cn("text-sm font-medium", !w.active && "text-muted-foreground line-through")}>{w.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {payLabel(w)} · {FILING_STATUSES.find((f) => f.id === w.w4.filingStatus)?.label}
-                    {!w.active && " · Inactive"}
+              <li key={w.id} className="flex flex-col">
+                <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("truncate text-sm font-medium", !w.active && "text-muted-foreground line-through")}>{w.name}</span>
+                      <LinkBadge status={status} />
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {payLabel(w)} · {FILING_STATUSES.find((f) => f.id === w.w4.filingStatus)?.label}
+                      {!w.active && " · Inactive"}
+                    </div>
                   </div>
+                  {status === "typed" && canOffer && w.active && offering !== w.id && (
+                    <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setOffering(w.id)}>
+                      Send offer
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEditing(w.id)}>
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="min-h-11 text-muted-foreground sm:min-h-8"
+                    onClick={async () => {
+                      setError(null);
+                      try {
+                        await updateCompany((c) => ({ ...c, payroll: updateWorker(c.payroll, w.id, { active: !w.active }) }));
+                      } catch (e) {
+                        setError(errorMessage(e));
+                      }
+                    }}
+                  >
+                    {w.active ? "Deactivate" : "Reactivate"}
+                  </Button>
                 </div>
-                <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEditing(w.id)}>
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="min-h-11 text-muted-foreground sm:min-h-8"
-                  onClick={async () => {
-                    setError(null);
-                    try {
-                      await updateCompany((c) => ({ ...c, payroll: updateWorker(c.payroll, w.id, { active: !w.active }) }));
-                    } catch (e) {
-                      setError(errorMessage(e));
-                    }
-                  }}
-                >
-                  {w.active ? "Deactivate" : "Reactivate"}
-                </Button>
+                {offering === w.id && (
+                  <div className="border-t p-3">
+                    <OfferPanel workerId={w.id} onClose={() => setOffering(null)} />
+                  </div>
+                )}
               </li>
-            ),
-          )}
+            );
+          })}
         </ul>
       )}
       <p className="text-xs text-muted-foreground">
         Names, pay rates and W-4 details are stored only in your encrypted books on this device.
+        {rail && (
+          <>
+            {" "}
+            <span className="font-medium">Typed</span>: a name you entered; the books work, nothing else.{" "}
+            <span className="font-medium">Linked</span>: an agreement approved by both sides, so they can be paid on the rail and receive
+            paystubs.
+            {!canOffer && " Register a business name on the rail to send offers."}
+          </>
+        )}
       </p>
     </div>
   );

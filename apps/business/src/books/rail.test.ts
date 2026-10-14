@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  type PartyLink,
   type Rail,
   type RailLink,
   addLink,
   bumpSeq,
   isRailAddress,
   linkFor,
+  linkStatus,
+  markLinked,
   nextSeq,
+  partyLinkFor,
   railFromJson,
   railToJson,
+  removePartyLink,
+  setPartyAddress,
+  setPartyLink,
   shortAddress,
   validateLink,
+  validatePartyLink,
   validateRail,
 } from "./rail";
 
@@ -19,7 +27,7 @@ const ADDR_B = "aleo1" + "z".repeat(58);
 const KEY = "ab".repeat(32);
 const KEY_B = "cd".repeat(32);
 
-const link: RailLink = { workerId: "wkr-1", address: ADDR_B, nameHash: "456", agreementId: "01".repeat(32), partiesKey: KEY };
+const link: RailLink = { workerId: "wkr-1", address: ADDR_B, nameHash: "456", agreementId: "01".repeat(32), partiesKey: KEY, status: "linked" };
 
 const rail: Rail = {
   version: 1,
@@ -142,5 +150,113 @@ describe("mailbox sequence numbers", () => {
     const relinked = addLink(sent, { ...link, partiesKey: KEY_B });
     expect(linkFor(relinked, "wkr-1")!.partiesKey).toBe(KEY_B);
     expect(linkFor(relinked, "wkr-1")!.mailboxSeq).toBeUndefined();
+  });
+});
+
+describe("typed, offered and linked team members", () => {
+  const { status: _status, ...unstated } = link;
+  const offered: RailLink = { ...link, status: "offered", offeredAt: "2026-10-14T19:00:00.000Z" };
+
+  it("reads a link saved before offers existed as linked, and saves it that way from then on", () => {
+    expect(validateLink(unstated).status).toBe("linked");
+    const loaded = railFromJson(JSON.stringify({ ...rail, links: [unstated] }));
+    expect(loaded.links[0]).toEqual(link);
+    expect(railFromJson(railToJson(loaded))).toEqual(loaded);
+    expect(JSON.parse(railToJson(loaded))).not.toHaveProperty("partyLinks");
+  });
+
+  it("checks the status and its dates", () => {
+    expect(validateLink(offered)).toEqual(offered);
+    expect(validateLink({ ...link, linkedAt: "2026-10-16T09:00:00.000Z" }).linkedAt).toBe("2026-10-16T09:00:00.000Z");
+    expect(() => validateLink({ ...link, status: "typed" })).toThrow(/offered or linked/);
+    expect(() => validateLink({ ...link, status: "sent" })).toThrow(/offered or linked/);
+    expect(() => validateLink({ ...offered, offeredAt: "soon" })).toThrow(/offer date/);
+    expect(() => validateLink({ ...link, linkedAt: 5 })).toThrow(/link date/);
+    // An offered link is always new, so it always carries the parties key.
+    const { partiesKey: _k, ...keyless } = offered;
+    expect(() => validateLink(keyless, { allowLegacyLinks: true })).toThrow(/parties key/);
+    expect(railFromJson(railToJson({ ...rail, links: [offered] })).links).toEqual([offered]);
+  });
+
+  it("tells typed from offered from linked, for anyone, even with nothing linked", () => {
+    expect(linkStatus(null, "worker", "wkr-1")).toBe("typed");
+    expect(linkStatus({ ...rail, links: [] }, "worker", "wkr-1")).toBe("typed");
+    expect(linkStatus({ ...rail, links: [offered] }, "worker", "wkr-1")).toBe("offered");
+    expect(linkStatus(rail, "worker", "wkr-1")).toBe("linked");
+    expect(linkStatus(rail, "worker", "wkr-9")).toBe("typed");
+  });
+
+  it("becomes linked when the other side approves, keeping everything else", () => {
+    const sent = addLink({ ...rail, links: [] }, offered);
+    const done = markLinked(sent, "wkr-1", "2026-10-16T09:00:00.000Z");
+    expect(linkFor(done, "wkr-1")).toEqual({ ...offered, status: "linked", linkedAt: "2026-10-16T09:00:00.000Z" });
+    expect(markLinked(done, "wkr-1", "2026-10-17T09:00:00.000Z")).toBe(done); // already linked: untouched
+    expect(() => markLinked(rail, "wkr-9", "2026-10-16T09:00:00.000Z")).toThrow(/no agreement/);
+    expect(linkFor(sent, "wkr-1")!.status).toBe("offered"); // pure
+  });
+
+  it("keeps the offer time when the same agreement is imported again, and drops it for another", () => {
+    const sent = addLink({ ...rail, links: [] }, offered);
+    const same = addLink(sent, { ...link, linkedAt: "2026-10-16T09:00:00.000Z" });
+    expect(linkFor(same, "wkr-1")).toEqual({ ...link, offeredAt: offered.offeredAt, linkedAt: "2026-10-16T09:00:00.000Z" });
+    const other = addLink(sent, { ...link, agreementId: "02".repeat(32), partiesKey: KEY_B });
+    expect(linkFor(other, "wkr-1")).not.toHaveProperty("offeredAt");
+  });
+});
+
+describe("customers and vendors on the rail", () => {
+  const typed: PartyLink = { kind: "vendor", id: "vend-1", address: ADDR_B, status: "typed" };
+  const linkedParty: PartyLink = { kind: "customer", id: "cust-1", address: ADDR_B, nameHash: "9", agreementId: "03".repeat(32), partiesKey: KEY, status: "linked" };
+
+  it("round-trip, and are left out of the file when there are none", () => {
+    const withParties: Rail = { ...rail, partyLinks: [typed, linkedParty] };
+    expect(railFromJson(railToJson(withParties))).toEqual(withParties);
+    expect(JSON.parse(railToJson(rail))).not.toHaveProperty("partyLinks");
+    expect(validateRail({ ...rail, partyLinks: [] })).not.toHaveProperty("partyLinks");
+    expect(validateRail({ ...rail, partyLinks: [typed, { ...typed, address: ADDR }] }).partyLinks).toEqual([{ ...typed, address: ADDR }]);
+  });
+
+  it("are checked", () => {
+    expect(validatePartyLink(typed)).toEqual(typed);
+    expect(validatePartyLink(linkedParty)).toEqual(linkedParty);
+    expect(() => validatePartyLink({ ...typed, kind: "worker" })).toThrow(/customer or a vendor/);
+    expect(() => validatePartyLink({ ...typed, id: "" })).toThrow(/needs a customer or vendor/);
+    expect(() => validatePartyLink({ ...typed, status: "sent" })).toThrow(/typed, offered or linked/);
+    expect(() => validatePartyLink({ ...typed, address: "aleo1short" })).toThrow(/aleo1/);
+    expect(() => validatePartyLink({ ...linkedParty, partiesKey: "0x" + KEY })).toThrow(/64 hex/);
+    expect(() => validatePartyLink({ ...typed, status: "offered" })).toThrow(/needs an account, an agreement id and a parties key/);
+    expect(() => validatePartyLink({ ...linkedParty, agreementId: undefined })).toThrow(/needs an account/);
+    expect(() => validateRail({ ...rail, partyLinks: {} })).toThrow(/list/);
+  });
+
+  it("tell typed from linked, and are set, replaced and removed in place", () => {
+    expect(linkStatus(rail, "vendor", "vend-1")).toBe("typed");
+    const one = setPartyLink(rail, typed);
+    expect(partyLinkFor(one, "vendor", "vend-1")).toEqual(typed);
+    expect(linkStatus(one, "vendor", "vend-1")).toBe("typed");
+    const two = setPartyLink(one, linkedParty);
+    expect(linkStatus(two, "customer", "cust-1")).toBe("linked");
+    expect(linkStatus(two, "vendor", "cust-1")).toBe("typed"); // a vendor with the same id is someone else
+    const replaced = setPartyLink(two, { ...typed, address: ADDR });
+    expect(replaced.partyLinks).toEqual([linkedParty, { ...typed, address: ADDR }]);
+    expect(removePartyLink(replaced, "vendor", "vend-1").partyLinks).toEqual([linkedParty]);
+    expect(removePartyLink(removePartyLink(replaced, "vendor", "vend-1"), "customer", "cust-1")).not.toHaveProperty("partyLinks");
+    expect(rail.partyLinks).toBeUndefined(); // pure
+  });
+
+  it("take an account from the form, trimmed, and drop the party when it is cleared", () => {
+    expect(setPartyAddress(null, "vendor", "vend-1", ADDR_B)).toBeUndefined();
+    expect(setPartyAddress(undefined, "vendor", "vend-1", ADDR_B)).toBeUndefined();
+    expect(setPartyAddress(rail, "vendor", "vend-1", "")).toBe(rail);
+    expect(setPartyAddress(rail, "vendor", "vend-1", undefined)).toBe(rail);
+    const set = setPartyAddress(rail, "vendor", "vend-1", `  ${ADDR_B} `)!;
+    expect(partyLinkFor(set, "vendor", "vend-1")).toEqual(typed);
+    expect(setPartyAddress(set, "vendor", "vend-1", "")).not.toHaveProperty("partyLinks");
+    expect(() => setPartyAddress(rail, "vendor", "vend-1", "aleo1short")).toThrow(/aleo1/);
+    expect(() => setPartyAddress(rail, "vendor", "vend-1", ADDR_B.toUpperCase())).toThrow(/aleo1/);
+    // A linked party keeps its agreement; only its account moves, and it can't be cleared.
+    const withLinked = setPartyLink(rail, linkedParty);
+    expect(partyLinkFor(setPartyAddress(withLinked, "customer", "cust-1", ADDR)!, "customer", "cust-1")).toEqual({ ...linkedParty, address: ADDR });
+    expect(() => setPartyAddress(withLinked, "customer", "cust-1", "")).toThrow(/keeps its account/);
   });
 });
