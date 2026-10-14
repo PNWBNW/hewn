@@ -1457,3 +1457,9 @@ account for it). Email verification (needs a server; not planned). Migrating `"d
 email account. Cross-device sync is intentionally not planned. Binding the Shield link message to
 the open vault's id instead of `default` (needs a one-line change in `src/chain/RailPanel.tsx`).
 Changing the passphrase or email from Settings.
+
+## 2026-10-14 — Link message names the open account
+
+The message Shield signs when linking an account now carries the open account's vault id instead of
+`default` (`BooksProvider` exposes `vaultId`, set on open, cleared on lock; `RailPanel` throws "Log in
+first" without one). The exported `VAULT_ID` is gone. Typecheck clean; `pnpm test` 561/561.
