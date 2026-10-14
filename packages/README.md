@@ -13,6 +13,8 @@ consume the `.ts` sources directly. Import modules by subpath, e.g.
 
 | Layer | Package | What it holds |
 |---|---|---|
+| 0 | `brand` | The product's name, tagline, colours, asset paths and app/site URLs: the only place the name is written (new, 2026-10-14) |
+| 0 | `security` | Browser security policy shared by the app and the marketing site: CSP builder, static headers, nonce (new, 2026-10-14) |
 | 0 | `commitments` | BLAKE3 domain hashing, Merkle, canonical TLV encoder, token ids, Aleo scalar types |
 | 0 | `config` | Env and deployed program ids |
 | 0 | `tax-engine` | IRS annualization withholding (the only tax engine) |

@@ -881,3 +881,90 @@ package now: business 32, commitments 12, ledger 74, manifest 47, payroll 40, pe
 rail 38, records 11, sales 52, vault 28, wallet 13). Build green, typecheck clean, `pnpm audit`
 clean. Lockfile: `@pnw/rail` linked into the app, `@provablehq/sdk` 0.10.1 moved from the
 coordinator to `rail`, the coordinator's links dropped.
+
+## 2026-10-14 — The marketing site (`apps/site`) and a shared brand package
+
+Joshua: the product is getting the brand **Hewn** (hewnaccounting.com); the current art and name
+("Plumb") stay as placeholders until the new logo and hero arrive. The site deploys as a second
+Vercel project (root directory `apps/site`) at `hewnaccounting.com` + `www`; the app lives at
+`app.hewnaccounting.com`.
+
+- **`@pnw/brand`** (`packages/brand`, new). `BRAND` moved out of `apps/business/src/brand.ts`
+  unchanged (name, tagline, backupExtension, nameSuffix, railLinkDomain, colors, assets), plus
+  `appUrl` (`NEXT_PUBLIC_APP_URL` ?? `https://app.hewnaccounting.com`) and `siteUrl`
+  (`NEXT_PUBLIC_SITE_URL` ?? `https://hewnaccounting.com`). `apps/business/src/brand.ts` is now a
+  one-line re-export, so no import site in the app changed. Added to the app's deps and
+  `transpilePackages`. CLAUDE.md's brand paragraph, BUILD_PLAN's rename recipe,
+  `docs/INTEGRATION_AUDIT.md` and `brand/README.md` now point at `packages/brand`.
+- **`@pnw/security`** (`packages/security`, new). `headers.ts` was a mechanical move, so it is
+  shared: `buildCsp({ nonce, dev, connect?, wasm? })` defaults to `connect-src 'self'` and no
+  WebAssembly; `SECURITY_HEADERS` and `newNonce` unchanged. The app's
+  `src/security/headers.ts` re-exports those and wraps `buildCsp` with its two opt-ins
+  (`EXPLORER_ORIGIN`, `wasm: true`), so the app's policy is byte-identical and its tests stay
+  where they were, unchanged and green. `proxy.ts` stays per app (it imports `next/server` and
+  carries the matcher; 25 lines). THREAT_MODEL T3 updated.
+- **Brand assets for both apps.** `brand/build_assets.py` generates into `apps/business/` as
+  before and then copies every file byte-for-byte into `apps/site/` (`APPS` list; icons
+  `icon.png`/`apple-icon.png`/`favicon.ico` included). Re-ran it: `git status` shows no change
+  under `apps/business/public/brand` or `src/app` icons; `cmp` of all 13 pairs identical.
+- **`apps/site`** (`@pnw/site`): Next 16.3.8 / React 19.2.3 / Tailwind 4.2.1, same pins as the
+  app, `tokens.css` from `@pnw/ui`, `lucide-react` for four section icons. Deps: `@pnw/brand`,
+  `@pnw/security`, `@pnw/ui` and nothing else from the workspace.
+  - `/`: the whole hero on an ink band (capped at 1100 px, edge-faded on wide screens, never
+    cropped; the tagline is in the art), then mark + wordmark as the `h1` with the tagline, one
+    plain paragraph, **Open the app** → `BRAND.appUrl`, "Free. No sign-up. Works offline.", and
+    four cards: *Your books stay on your device*, *Everything a small business needs* (books,
+    invoices and estimates, bills, projects, payroll with federal withholding, P&L / balance
+    sheet / trial balance as CSV: only what the app has today), *Pay your team directly, if you
+    want to* (optional "private payments", books work without it), *Free* (no subscription, no
+    per-employee fee; the network fee on private payments is the only cost and the employer pays
+    it). Header and footer carry the name, Privacy and Open the app.
+  - `/privacy`: plain-language page from `docs/THREAT_MODEL.md`: what never leaves the device,
+    no account/server/database, no analytics/cookies/third parties (and the app's one read-only
+    explorer exception), the mailbox sees only ciphertext + lookup codes + timing/size/IP,
+    private payments put only fingerprints on the public record, forgotten passphrase =
+    unrecoverable, malware on your own device. No legal boilerplate; "Last reviewed 14 October
+    2026".
+  - Same CSP approach as the app (`src/proxy.ts`, fresh nonce per request, `connect-src 'self'`
+    only, no `wasm-unsafe-eval`), same static headers. `lang="en"`, title template
+    `%s · <name>`, description, Open Graph image (the hero) and `metadataBase` from `BRAND`.
+    No inline `style=`, no fonts from a CDN, no third-party script. `README.md` lists the Vercel
+    settings (root `apps/site`, `ENABLE_EXPERIMENTAL_COREPACK=1`, optional `NEXT_PUBLIC_APP_URL`
+    / `NEXT_PUBLIC_SITE_URL`).
+  - `src/site_boundary.test.ts` (7 tests): workspace deps are exactly brand/security/ui; runtime
+    deps exactly lucide-react/next/react/react-dom; no chain package or `@provablehq/*`; no
+    static import outside those; no `src=`/`href="https://` literal in any `.tsx`; the site's
+    CSP names no host, `script-src` is `'self' 'nonce' 'strict-dynamic'` only, `style-src` and
+    `font-src` are `'self'` + nonce, frames refused.
+
+**Decided (not in the brief).** (1) "Static where possible" loses to the nonce CSP: Next.js can
+only stamp a nonce on a per-request render, so both pages render per request like the app
+(`await connection()` in the layout; `icon.png`/`apple-icon.png` stay static). (2) The brand
+components (`BrandMark`/`BrandLogo`/`BrandHero`) are a 50-line copy in `apps/site/src/components/`
+rather than a shared package, since moving them would change the app's shell imports; the site's
+`BrandLogo` has no `onDark` mode (no nav rail). (3) The privacy page names the threat-model file
+but doesn't link the repository (unsure it's public). (4) The feature list says only what the app
+has (no reconciliation, no PDF export).
+
+**Verified.** Root `pnpm test`: 52 files, **421/421** (site 7 new). `pnpm build` (all packages
++ both apps) green; `@pnw/site` and `@pnw/business` typecheck clean; `pnpm audit
+--audit-level=moderate` clean; lockfile diff is workspace links only (`apps/site`,
+`packages/brand`, `packages/security`, and the two new links in `apps/business`).
+**Chromium** (`next start`, 390×844 and 1280×800, light and dark, both pages): zero console
+errors, zero CSP violations, no horizontal overflow (`scrollWidth` = viewport on every page), hero
+rendered at its natural aspect (390×185 phone, 1100×522 desktop) with the tagline visible,
+`lang="en"`, title "Plumb" / "Privacy · Plumb", three "Open the app" links → the app URL,
+favicon/icon/apple-icon linked, the only `[style]` element is Next's own route announcer (set via
+CSSOM, not blocked). One pre-existing console *warning* on every page, shared with the app:
+Chromium doesn't recognise `bluetooth` in `Permissions-Policy` (harmless; left as is).
+Screenshots (scratch): phone light — header with mark + wordmark and Open the app, the full hero
+with "honest books, grounded and true." and the FREE · OPEN SOURCE line, logo + tagline + paragraph
++ green button, four stacked cards, footer; desktop light — hero capped at 1100 px fading into the
+ink band, two-column cards; phone dark privacy — dark canvas, cream headings, six short sections.
+Business app started once from its production build: setup screen renders with the re-exported
+brand (title "Plumb", hero, CSP with the explorer origin and `'wasm-unsafe-eval'`), no errors.
+
+**Flag for Joshua.** The hero art still says "FREE • OPEN SOURCE" while the licence is the
+proprietary PNW Smart Contract License v1.7 (same flag as 2026-10-13); the site copy says
+"free" and never says "open source". Once the Hewn art arrives: drop it in `brand/source/`, edit
+`packages/brand/src/index.ts`, re-run `brand/build_assets.py`, and both apps follow.

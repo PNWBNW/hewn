@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@pnw/brand": "workspace:*",
     "@pnw/commitments": "workspace:*",
     "@pnw/config": "workspace:*",
     "@pnw/ledger": "workspace:*",
@@ -19,6 +20,7 @@
     "@pnw/rail": "workspace:*",
     "@pnw/records": "workspace:*",
     "@pnw/sales": "workspace:*",
+    "@pnw/security": "workspace:*",
     "@pnw/ui": "workspace:*",
     "@pnw/vault": "workspace:*",
     "@pnw/wallet": "workspace:*",
