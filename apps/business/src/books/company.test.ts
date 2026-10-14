@@ -3,6 +3,7 @@ import { addProject, addTag, booksToJson, createBooks, emptyDimensions } from "@
 import { addWorker, emptyPayroll, payrollToJson } from "@pnw/payroll";
 import { addCustomer, addVendor, emptySales, salesToJson } from "@pnw/sales";
 import { companyFromJson, companyToJson } from "./company";
+import type { Rail } from "./rail";
 
 const books = createBooks({ businessName: "T", fiscalYearStartMonth: 1 });
 const payroll = addWorker(emptyPayroll(), {
@@ -18,6 +19,23 @@ describe("company file", () => {
   it("round-trips books, payroll, sales and dimensions together", () => {
     const dimensions = addTag(addProject(emptyDimensions(), { name: "Kitchen", customerId: "cust-1" }).dims, "class", { name: "Residential" }).dims;
     expect(companyFromJson(companyToJson({ books, payroll, sales, dimensions }))).toEqual({ books, payroll, sales, dimensions });
+  });
+
+  it("carries the rail when an account is linked, and leaves it out when not", () => {
+    const rail: Rail = {
+      version: 1,
+      network: "testnet",
+      address: "aleo1" + "q".repeat(58),
+      linkedAt: "2026-10-14T18:00:00.000Z",
+      businessName: "brothers",
+      links: [{ workerId: "wkr-1", address: "aleo1" + "z".repeat(58), nameHash: "7", agreementId: "01".repeat(32) }],
+    };
+    const dimensions = emptyDimensions();
+    const linked = companyToJson({ books, payroll, sales, dimensions, rail });
+    expect(companyFromJson(linked)).toEqual({ books, payroll, sales, dimensions, rail });
+    const unlinked = companyToJson({ books, payroll, sales, dimensions });
+    expect(JSON.parse(unlinked)).not.toHaveProperty("rail");
+    expect(companyFromJson(unlinked)).not.toHaveProperty("rail");
   });
 
   it("still opens company files saved before projects existed", () => {

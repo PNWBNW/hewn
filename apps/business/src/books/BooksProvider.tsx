@@ -21,6 +21,7 @@ import type { Payroll } from "@pnw/payroll";
 import { type AttachmentRef, MAX_ATTACHMENT_BYTES, type Sales } from "@pnw/sales";
 import { BRAND } from "@/brand";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
+import type { Rail } from "./rail";
 import {
   type VaultSession,
   IndexedDbStore,
@@ -31,7 +32,8 @@ import {
   unlockVault,
 } from "@pnw/vault";
 
-const VAULT_ID = "default";
+/** Name of the one vault on this device; also part of what Shield signs when an account is linked. */
+export const VAULT_ID = "default";
 const IDLE_LOCK_MS = 15 * 60 * 1000;
 
 export type BooksStatus = "loading" | "new" | "locked" | "open";
@@ -44,6 +46,8 @@ type BooksContextValue = {
   payroll: Payroll | null;
   sales: Sales | null;
   dimensions: Dimensions | null;
+  /** The linked account, or null while the books are closed or no account is linked. */
+  rail: Rail | null;
   create: (input: SetupInput) => Promise<void>;
   unlock: (passphrase: string) => Promise<void>;
   lock: () => void;
@@ -247,6 +251,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       payroll: company?.payroll ?? null,
       sales: company?.sales ?? null,
       dimensions: company?.dimensions ?? null,
+      rail: company?.rail ?? null,
       create,
       unlock,
       lock,

@@ -8,6 +8,14 @@
 // See docs/THREAT_MODEL.md (T3).
 // ---------------------------------------------------------------------------
 
+/**
+ * The public ledger explorer the rail reads from (registered names, team
+ * agreements). The default mode never calls it: the only requests that go
+ * there are lookups the user starts from Settings after linking an account.
+ * It is the one host named in the policy.
+ */
+export const EXPLORER_ORIGIN = "https://api.explorer.provable.com";
+
 export type CspOptions = {
   nonce: string;
   /** Next.js dev mode needs eval for React's debug stacks. Never in production. */
@@ -21,8 +29,8 @@ export function buildCsp({ nonce, dev = false }: CspOptions): string {
     "style-src": ["'self'", `'nonce-${nonce}'`],
     "img-src": ["'self'", "blob:", "data:"],
     "font-src": ["'self'"],
-    // Same origin only: no analytics, no CDNs, no RPC endpoints in the default mode.
-    "connect-src": ["'self'"],
+    // Own origin plus the explorer: no analytics, no CDNs, nothing else.
+    "connect-src": ["'self'", EXPLORER_ORIGIN],
     "worker-src": ["'self'"],
     "manifest-src": ["'self'"],
     "object-src": ["'none'"],

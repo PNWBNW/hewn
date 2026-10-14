@@ -610,6 +610,61 @@ payment at actual cost (read back from the confirmed transaction), nothing deduc
 payee, no platform fee ever. A 10-worker run is 10 wallet taps, then nothing to babysit. Both
 docs updated; the Leo session shrinks to the toolchain bump and `gl_core.aleo`.
 
+## 2026-10-14 — Link Shield and import the on-chain team (Phase 0 part: the app knows who is on-chain)
+
+Audit §6 tasks 2 and 3, offline-verifiable half. A business can now link its Shield account
+from a new Settings page and pull its team agreements into the books; nothing is sent on-chain.
+
+**Opt-in adaptor area.** `apps/business/src/chain/` is the only place in the app that may import
+`@pnw/wallet`, `@pnw/records`, `@pnw/config`, `@pnw/commitments` or `@provablehq/*`, or use chain
+vocabulary. Settings reaches it only through `next/dynamic` (`ssr: false`), so the chunk is fetched
+on the first tap of Connect or Import and never before. `fiat_boundary.test.ts` now enforces exactly
+that: no static `import`/`from` of a chain package or of `@/chain/` outside `src/chain/**`; the
+vocabulary check skips `src/chain/**` and tests; the packages may be declared in `package.json`.
+Verified in Chromium at 390×844 and 1280×800: the dashboard and Settings load 10 scripts, none
+carrying a rail string (`api.explorer.provable.com`, `employer_agreement_v4.aleo`, `shield.app`);
+exactly one chunk with those strings arrives after Connect; no console errors, no CSP violations.
+
+**Company file.** New optional `rail` part (`src/books/rail.ts`): account, network, linked date,
+registered business name and its hash, the signed link proof, and `links[]` of `workerId →
+{address, nameHash, agreementId}` (deduped by worker). `companyToJson` writes it only when present;
+every older file still opens. `BooksProvider` exposes `rail`; `updateCompany` covers writes.
+
+**Settings page** (`/settings`, in the rail's bottom group): Business card (name, fiscal year),
+Private payments card. Unlinked: one paragraph and **Connect Shield**. Linked: short account with
+copy, `name.hewn` (suffix from `BRAND.nameSuffix`), linked date, team count, **Import team**,
+**Unlink** (confirm dialog; drops `rail` and its links). Words on the page: Shield, rail, account,
+private payments; nothing else.
+
+**`src/chain/RailPanel.tsx`.** Connect: Shield only, no picker modal; states not detected /
+connecting / connected; then "Link this account to <business>?", `signMessage` over
+`hewn:link:v1\n<vault id>\n<address>\n<ISO time>` (prefix in `BRAND.railLinkDomain`), best-effort
+registered-name lookup, save. Import: `scanAgreementRecords` → one row per `FinalAgreement`
+(`name.hewn` or short address, short agreement id) with "Link to…" (existing active worker) or
+"Add to team" (opens `WorkerForm` pre-filled with the name; the worker and the link save in one
+`updateCompany`), or "Linked ✓". Refuses to import when Shield is on a different account than the
+linked one. No address or signature is ever logged.
+
+**Package fixes.** `@pnw/records` `agreement_reader`: `display_name` is the bare registered name
+(suffix is the app's choice) or undefined; names resolve in parallel (`Promise.allSettled`); the
+localStorage fallback `readAgreementRecords` and `StoredOffer` are gone, along with their only
+callers, the view-key `buildRosterTree` / `acquireRosterCredentials` in `coordinator` (dead legacy
+path; the manifest-based pair stays). `@pnw/wallet` provider builds its program list from
+`PROGRAMS` (every layer1, layer2 and external id, credits first, leaves before importers; the
+legacy v1/v2 literals are dropped) and no longer imports the react-ui picker modal or its
+stylesheet, which `@import`s a Google font and so broke the lazy chunk under the strict CSP;
+`@provablehq/aleo-wallet-adaptor-react-ui` is removed from the package. CSP `connect-src` gains
+`EXPLORER_ORIGIN` (`https://api.explorer.provable.com`), the one host in the policy; the default
+mode never calls it. Threat model note updated.
+
+**Deferred.** Phase 1's "vault opens with passphrase or linked wallet" is not touched: deriving a
+vault-wrapping secret from a Shield signature needs the signature to be deterministic for a fixed
+message, and whether Shield's `signMessage` is (and stays) deterministic across versions is
+unresolved. The link proof is stored so a later session can test exactly that. Also deferred:
+unlinking individual workers, re-scanning for status changes, and a vendor/customer account link.
+
+**Results:** 41 files, **361/361** (was 352: records +4, business +5). Build green, `pnpm audit`
+clean. Lockfile: four workspace links added to the app, one package removed from `@pnw/wallet`.
 ## 2026-10-14 — Phase 2: settlement fields and the paystub document
 
 Task from the integration audit's proposed order: make the fiat/rail parity criterion true and
