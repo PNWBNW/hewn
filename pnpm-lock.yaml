@@ -35,6 +35,9 @@ importers:
       '@pnw/payroll':
         specifier: workspace:*
         version: link:../../packages/payroll
+      '@pnw/rail':
+        specifier: workspace:*
+        version: link:../../packages/rail
       '@pnw/records':
         specifier: workspace:*
         version: link:../../packages/records
@@ -92,30 +95,6 @@ importers:
         version: 2.0.1
 
   packages/config: {}
-
-  packages/coordinator:
-    dependencies:
-      '@pnw/commitments':
-        specifier: workspace:*
-        version: link:../commitments
-      '@pnw/config':
-        specifier: workspace:*
-        version: link:../config
-      '@pnw/manifest':
-        specifier: workspace:*
-        version: link:../manifest
-      '@pnw/pnw-adapter':
-        specifier: workspace:*
-        version: link:../pnw-adapter
-      '@pnw/records':
-        specifier: workspace:*
-        version: link:../records
-      '@pnw/wallet':
-        specifier: workspace:*
-        version: link:../wallet
-      '@provablehq/sdk':
-        specifier: 0.10.1
-        version: 0.10.1
 
   packages/handshake:
     dependencies:
@@ -218,6 +197,21 @@ importers:
       '@pnw/config':
         specifier: workspace:*
         version: link:../config
+
+  packages/rail:
+    dependencies:
+      '@pnw/commitments':
+        specifier: workspace:*
+        version: link:../commitments
+      '@pnw/config':
+        specifier: workspace:*
+        version: link:../config
+      '@pnw/payroll':
+        specifier: workspace:*
+        version: link:../payroll
+      '@provablehq/sdk':
+        specifier: 0.10.1
+        version: 0.10.1
 
   packages/records:
     dependencies:

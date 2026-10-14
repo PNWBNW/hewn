@@ -50,6 +50,7 @@ export function AccountSelect({
   placeholder = "Choose an account",
   id,
   ariaLabel,
+  leading = [],
 }: {
   books: Books;
   value: string;
@@ -59,11 +60,18 @@ export function AccountSelect({
   placeholder?: string;
   id?: string;
   ariaLabel?: string;
+  /** Choices that aren't accounts, offered before the chart (the rail balance, say). */
+  leading?: { value: string; label: string }[];
 }) {
   const rows = orderedAccounts(books, filter);
   return (
     <select id={id} aria-label={ariaLabel} className={className} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
+      {leading.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
       {BASE_ORDER.map((base) => {
         const group = rows.filter(({ account }) => baseOf(account) === base);
         if (group.length === 0) return null;
@@ -83,6 +91,13 @@ export function AccountSelect({
 }
 
 export const typeLabel = (a: Account) => ACCOUNT_TYPES[a.type].label;
+
+/** A network fee in credits from microcredits (1,000,000 per credit), six decimals: "0.051580". */
+export function formatCredits(microcredits: bigint): string {
+  const whole = microcredits / 1_000_000n;
+  const frac = (microcredits % 1_000_000n).toString().padStart(6, "0");
+  return `${whole.toLocaleString("en-US")}.${frac}`;
+}
 
 /** Today's date in the user's own time zone, as YYYY-MM-DD. */
 export function todayIso(): string {

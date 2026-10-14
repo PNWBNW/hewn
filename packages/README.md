@@ -24,7 +24,7 @@ consume the `.ts` sources directly. Import modules by subpath, e.g.
 | 3 | `records` | Record scanners, `.pnw` name registry reads, shared record types |
 | 3 | `persistence` | Encrypted draft store (seed of the Phase 1 vault) |
 | 3 | `w4-crypto` | W-4 encryption between agreement parties |
-| 4 | `coordinator` | Settlement coordinator, double-pay guard, receipt reconciler, roster/credentials managers, batch anchor |
+| 4 | `rail` | The pay queue: one private stablecoin transfer per payee through the wallet, records pre-split, resumable (replaced `coordinator`, 2026-10-14) |
 | 4 | `nft-art` | Credential NFT terrain art |
 | 4 | `pdf` | Paystub, payroll run, credential and audit PDFs |
 

@@ -13,7 +13,7 @@ describe("content security policy", () => {
   const prod = directives(buildCsp({ nonce: "abc123" }));
 
   it("only runs scripts carrying this request's nonce", () => {
-    expect(prod["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
+    expect(prod["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
   });
 
   it("never allows inline or eval'd code in production", () => {

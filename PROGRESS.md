@@ -768,3 +768,116 @@ against a live Pinata account (no key in this session).
 everything (the brief's literal rule); `open` caps the envelope at payload + 29 bytes while the
 function allows + 64. **Deferred:** wiring into offers, W-4, paystubs and payment notes; the
 seq-scan bookkeeping in the vault; dropping the pin after the receiver's vault has the copy.
+## 2026-10-14 — The pay queue: settling a pay run on the rail (one transfer per payee)
+
+The prerequisite for the first settled run from this app (Phase 0 testnet-run criterion / Phase 2
+criterion 1). Design as fixed in `ALEO_CONSTRAINTS.md` §5 and `INTEGRATION_AUDIT.md` §2.2: per
+payee one `test_usdcx_stablecoin.aleo::transfer_private`, records pre-split with the stablecoin's
+own `split`, everything fired at once, resumable from the vault, the employer pays the actual
+network fee, no receipts program, no per-run anchor. Branch `rail/pay-queue`. Nothing sent to
+testnet yet; that run ticks the criteria.
+
+- **`packages/rail` (`@pnw/rail`, new).** Pure settlement logic with the wallet (`RailWallet`:
+  address, `requestRecords`, `executeTransaction`, `transactionStatus`), the network
+  (`RailNetwork.fetchJson` over `ENV.ALEO_ENDPOINT`) and time injected, so every path runs under
+  test with fakes. No React, no storage, never logs an address, record or signature.
+  - `records.ts`: `Token` plaintexts → `{plaintext, amount}` (unspent only), balance, cents ×
+    10,000 = minor units.
+  - `plan.ts`: `planTransfers`: exact-fit first, then largest payee takes the smallest record that
+    covers it, but only when there are at least as many free records as payees; otherwise the
+    rest are carved out of the biggest free record with one `split(token, amount)` per payee,
+    each spending the previous remainder, change kept as one record. Fails before anything is
+    signed on a short balance or when no single record covers a payee ("combine records first";
+    `join` is not planned yet). Deterministic; 10 tests incl. "one big record, five payees".
+  - `exclusion.ts`: the freeze list from `test_usdcx_freezelist.aleo` mappings
+    (`freeze_list_count[1u8]`, `freeze_list[iu32]`), `SealanceMerkleTree` depth 16, two sibling
+    paths, `formatMerkleProof`, exactly the coordinator's recipe. Built **once per run**. The SDK's
+    tree runs in Node, so the tests use the real one (shape pinned by regex) plus a fake that
+    pins the call order.
+  - `confirm.ts`: `GET transaction/<id>` → actual fee = sum of the fee transition's `u64` inputs
+    (base + priority, `fee_public` or `fee_private`), height from `block_height`/`blockHeight`/
+    `height`/`block.header.metadata.height`, else `find/blockHash` + `block/<hash>`; tolerant of
+    the transaction being wrapped under `transaction`; a `rejected`/`aborted` status throws.
+    Fixture `src/fixtures/transaction.json` is the snarkVM execute-transaction shape with the E10
+    USDCx transfer's id and a 51,580-microcredit `fee_public` (the explorer was unreachable from
+    the build container, so the shape is from snarkVM, not a live fetch: **verify on testnet**).
+  - `queue.ts`: `runPayQueue(ctx)`: plan → one proof → splits in order (each waits for the
+    wallet to show both outputs) → every `transfer_private` at once (`Promise.allSettled`),
+    inputs `[recipient, "<minor>u128", token plaintext, proof]`, `privateFee: false`, no `fee`
+    (the wallet estimates) → poll `transactionStatus` 2 s → 10 s, 15-minute cap, until an `at1…`
+    id and accepted/finalized/confirmed, or rejected/failed → confirm on the explorer (3-minute
+    window; if the explorer is slow the wallet's word settles it without a fee) → `settled
+    {workerId, transactionId, height, feeMicrocredits}` or `failed {workerId, failure}`. Takes
+    whatever is still pending or failed, so calling it again resumes; a failed split fails only
+    the payees that depended on it. 8 tests with a fake Shield that answers out of order, rejects
+    one, mints split outputs; a resume test; one proof for N transfers.
+- **`@pnw/payroll`**: `Settlement.feeMicrocredits?: bigint` (JSON as a decimal string, not
+  `{$c}`); `markPaycheckSettlement` validates it and now also allows **pending → pending with a
+  reference**: the wallet's id for a sent transfer is written to the paycheck the moment Shield
+  takes it, so a reload mid-run watches that id instead of paying twice (decision not in the
+  brief). `checkDoublePay(payroll, {payDate, lines})`: same person + date + gross with a settled
+  or pending paycheck = `blocked`; any other same-day paycheck (different amount, a failed one,
+  hours not entered yet) = `sameDay`; the two tiers of the old on-chain guard, now offline over
+  the vault. `ensureRailAccount(books)`: the bank-type "Rail balance" account, found by name or
+  created. **Year-to-date fix**: `yearToDate(payroll, workerId, payDate, beforeRun?)` counts runs
+  posted before `beforeRun` (all of them for the next run) with a pay date up to and including
+  `payDate`, so a second run the same day sees the first, and rebuilding a paystub later sees
+  exactly what posting saw (tested, including a backdated later run). Callers pass the run id
+  when rebuilding. 12 new tests (`settlement.test.ts`).
+- **App.** Run payroll: with Shield linked, "Paid from" offers "Rail balance (private rail)"
+  first (and defaults to it); choosing it posts `mode: "rail"` from `ensureRailAccount`, hides
+  "Payment reference", and keeps anyone without a link out with "Link on the rail first:
+  Settings → Import team". `checkDoublePay` runs before posting: blocked → error naming them;
+  same day → "Already paid on <date>" dialog with Post anyway / Go back. A rail run lands on
+  `/payroll?pay=<run>` with its pay panel open. **`src/chain/PayPanel.tsx`** (lazy, like
+  RailPanel; `useShield` moved to `src/chain/shield.ts`, `ShieldStatus` to its own file):
+  refuses a Shield account other than the linked one, shows the balance on the rail against the
+  run's net, lists everyone with Waiting / Approve in Shield / Sent / Settled · at1… / Failed ·
+  reason (Retry), **Pay now** or **Continue**, and writes each outcome through
+  `updateCompany` + `markPaycheckSettlement` as it happens. Pay runs list: rail runs still to
+  pay get a Continue (something pending) or Retry (only failures) button; settled rail paychecks'
+  paystubs read "Paid: On the rail · at1yphn8n…9ltw" and "Network fee: 0.051580 credits, paid by
+  employer". Rail ids are not shown on the run card (they were overflowing the phone width).
+  Fiat path untouched: no rail linked, no change on any screen; boundary test green with
+  `@pnw/rail` added to the chain list.
+- **CSP.** The SDK's Poseidon hashing is WebAssembly, which the strict CSP refused
+  (`WebAssembly.instantiate … 'unsafe-eval'`). `script-src` gains `'wasm-unsafe-eval'` (WASM
+  compilation only; JS eval stays refused). Test and `THREAT_MODEL.md` updated.
+- **`packages/coordinator` deleted.** Its wallet path is replaced by `@pnw/rail`, its CLI path
+  was legacy, its double-pay tiers are ported; nothing imported it. Also gone with it:
+  `receipt_reconciler`, `batch_anchor_finalizer`, the credentials/roster managers.
+  `packages/README.md` and CLAUDE.md's boundary lines updated; `manifest`, `pnw-adapter`,
+  `records` untouched. BUILD_PLAN.md's historical mentions left as they are.
+
+**Browser check** (production build, Chromium 390×844, `window.shield` mocked with two Token
+records of $1,500 and $2,000, `executeTransaction` → `shield_n`, `transactionStatus` → pending
+twice then accepted with the E10 transfer id, the explorer intercepted: freeze-list count `0u32`,
+missing mapping keys `null`, `/transaction/<id>` → the fixture with a height): link Shield,
+import the team (one `FinalAgreement`), link Ana Ruiz, run payroll on the rail (40 h at $30:
+net 1,048.05 → `1048050000u128`, the $1,500 record, a `[{siblings: […` proof, `privateFee`
+false, no fee), watched it settle; a second run the same day triggered the confirm dialog, was
+posted, reached "Sent", the page was reloaded (books relocked, unlocked), the card read
+"Settling… 0 of 1 · Continue", Continue resumed the sent transfer and settled it with **no second
+`executeTransaction`**; the paystub shows the id and the fee. No chain chunk before Connect; one
+more chunk (the SDK) arrives with the pay panel. No horizontal overflow on Payroll, Run payroll
+or Settings. Zero console errors or CSP violations.
+
+**For the first real testnet run to verify:** that Shield delegates `transfer_private` and
+`split` (single-call functions) rather than dropping them; the approval count per run (expected:
+one per split plus one per payee, all up front); wall-clock per transfer from approval to
+accepted; that the deployed `test_usdcx_stablecoin.aleo` exposes `split(token, amount) →
+(Token, Token)` with the amount first and the remainder second (the plan assumes that order);
+the explorer's `/transaction/<id>` shape (fee transition inputs, where the height lives, how an
+unindexed id answers) against `confirm.ts`; how long Shield takes to show split outputs in
+`requestRecords` (2-minute wait, 4 s polls); and whether Shield's `transactionStatus` accepts
+its own ids after a reload (the resume path depends on it).
+
+**Deferred.** Posting the fee to a "Network fees" expense (needs an ALEO asset account and a cost
+basis; the fee is kept on the settlement for now); `join` for a payee larger than any one record;
+the mailbox copy of the paystub; vendor/bill payments through the same queue.
+
+**Results:** 45 files, **364/364** (was 369: coordinator −60, rail +38, payroll 28 → 40; per
+package now: business 32, commitments 12, ledger 74, manifest 47, payroll 40, persistence 17,
+rail 38, records 11, sales 52, vault 28, wallet 13). Build green, typecheck clean, `pnpm audit`
+clean. Lockfile: `@pnw/rail` linked into the app, `@provablehq/sdk` 0.10.1 moved from the
+coordinator to `rail`, the coordinator's links dropped.

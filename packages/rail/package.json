@@ -1,0 +1,19 @@
+{
+  "name": "@pnw/rail",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pnw/commitments": "workspace:*",
+    "@pnw/config": "workspace:*",
+    "@pnw/payroll": "workspace:*",
+    "@provablehq/sdk": "0.10.1"
+  }
+}

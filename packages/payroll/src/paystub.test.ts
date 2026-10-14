@@ -43,7 +43,7 @@ describe("paystub document", () => {
     const second = postPayRun(first.books, first.payroll, s.input, clock);
     const run = second.run;
     const ben = run.paychecks[1]!;
-    const doc = paystubDocument(run, ben, s.ben, second.books.settings, yearToDate(second.payroll, s.ben.id, run.payDate));
+    const doc = paystubDocument(run, ben, s.ben, second.books.settings, yearToDate(second.payroll, s.ben.id, run.payDate, run.id));
     const earlier = first.run.paychecks[1]!;
     expect(doc).toEqual({
       version: 1,
@@ -74,7 +74,7 @@ describe("paystub document", () => {
     expect(ben.paystubHash).toMatch(/^[0-9a-f]{64}$/);
     // Salaried: no hours, position 1.
     const ana = run.paychecks[0]!;
-    const anaDoc = paystubDocument(run, ana, s.ana, second.books.settings, yearToDate(second.payroll, s.ana.id, run.payDate));
+    const anaDoc = paystubDocument(run, ana, s.ana, second.books.settings, yearToDate(second.payroll, s.ana.id, run.payDate, run.id));
     expect(anaDoc).toMatchObject({ payType: "salary", rate: 5_200_000n, position: 1 });
     expect("hours" in anaDoc).toBe(false);
     expect(() => paystubDocument(run, ana, s.ben, second.books.settings, { gross: 0n, withheld: 0n })).toThrow(/isn't in this run/);
@@ -173,7 +173,9 @@ describe("settlement on pay runs", () => {
     const ytd = yearToDate(r.payroll, s.ana.id, "2026-10-16");
     expect(ytd.withheld).toBe(withheld(r.run.paychecks[0]!));
     expect(ytd.gross).toBe(r.run.paychecks[0]!.gross);
-    expect(yearToDate(r.payroll, s.ana.id, "2026-10-02").withheld).toBe(0n);
+    // Rebuilding that run's own paystub stops before it, even on its own day.
+    expect(yearToDate(r.payroll, s.ana.id, "2026-10-02", r.run.id).withheld).toBe(0n);
+    expect(yearToDate(r.payroll, s.ana.id, "2026-10-01").withheld).toBe(0n);
   });
 });
 

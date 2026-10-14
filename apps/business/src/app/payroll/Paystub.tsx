@@ -10,11 +10,15 @@ import { type Paycheck, type PayRun, paystubDocument, yearToDate } from "@pnw/pa
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { Money } from "@/books/display";
+import { Money, formatCredits } from "@/books/display";
+import { shortAddress } from "@/books/rail";
 
-function paidLine(p: Paycheck): string {
+function paidLine(run: PayRun, p: Paycheck): string {
   const s = p.settlement;
-  if (s.status === "settled") return s.reference ? `${s.reference}` : "by bank";
+  if (s.status === "settled") {
+    if (run.mode === "rail") return s.reference ? `On the rail · ${shortAddress(s.reference)}` : "On the rail";
+    return s.reference ? `${s.reference}` : "by bank";
+  }
   if (s.status === "failed") return s.failure ? `Payment failed: ${s.failure}` : "Payment failed";
   return "Not yet paid";
 }
@@ -29,7 +33,8 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
       </section>
     );
   }
-  const doc = paystubDocument(run, paycheck, worker, books.settings, yearToDate(payroll, worker.id, run.payDate));
+  const doc = paystubDocument(run, paycheck, worker, books.settings, yearToDate(payroll, worker.id, run.payDate, run.id));
+  const fee = paycheck.settlement.feeMicrocredits;
   const pay =
     doc.payType === "hourly"
       ? `${formatCents(doc.rate)} per hour × ${doc.hours ?? 0} hours`
@@ -57,7 +62,8 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
         <Row label="Medicare" cents={doc.medicare} />
         {doc.additionalMedicare > 0n && <Row label="Additional Medicare" cents={doc.additionalMedicare} />}
         <Row label="Net pay" cents={doc.net} strong />
-        <Row label="Paid" value={paidLine(paycheck)} />
+        <Row label="Paid" value={paidLine(run, paycheck)} />
+        {fee !== undefined && <Row label="Network fee" value={`${formatCredits(fee)} credits, paid by employer`} muted />}
         <Row label="Employer Social Security" cents={doc.employerSocialSecurity} muted />
         <Row label="Employer Medicare" cents={doc.employerMedicare} muted />
         <Row label="Gross this year" cents={doc.ytdGross} />

@@ -108,11 +108,17 @@ export type SettlementMode = "external" | "rail";
  */
 export type Settlement = {
   status: "pending" | "settled" | "failed";
-  /** A bank batch number, a transfer id: whatever identifies the payment. */
+  /**
+   * A bank batch number, a transfer id: whatever identifies the payment. On a
+   * pending rail paycheck it is the id the wallet gave the transfer once it
+   * was sent, so a reload resumes by watching it rather than paying twice.
+   */
   reference?: string;
   height?: number;
   settledAt?: string;
   failure?: string;
+  /** Rail only: the network fee the employer actually paid, in microcredits (1,000,000 per credit). */
+  feeMicrocredits?: bigint;
 };
 
 export type Paycheck = {
@@ -213,17 +219,26 @@ export function updateWorker(payroll: Payroll, id: string, changes: Partial<Work
 
 // ---- Paychecks -------------------------------------------------------------
 
-/** Gross, SS and total withholding already paid to a worker this calendar year, before `beforeDate`. */
+/** Gross, SS and total withholding already paid to a worker this calendar year, before a given check. */
 export type YearToDate = { gross: Cents; socialSecurity: Cents; employerSocialSecurity: Cents; withheld: Cents };
 
-export function yearToDate(payroll: Payroll, workerId: string, beforeDate: IsoDate): YearToDate {
-  const year = beforeDate.slice(0, 4);
+/**
+ * What a worker has been paid this calendar year up to and including
+ * `payDate`, counting only the runs posted before `beforeRun` (every run so
+ * far when `beforeRun` is omitted: the next run to post). Two runs on the
+ * same day are therefore cumulative in the order they were posted, and
+ * rebuilding a paystub later sees exactly what posting saw.
+ */
+export function yearToDate(payroll: Payroll, workerId: string, payDate: IsoDate, beforeRun?: string): YearToDate {
+  const year = payDate.slice(0, 4);
+  const stop = beforeRun === undefined ? payroll.runs.length : payroll.runs.findIndex((r) => r.id === beforeRun);
+  if (stop < 0) throw new PayrollError("Pay run not found");
   let gross = 0n;
   let socialSecurity = 0n;
   let employerSocialSecurity = 0n;
   let withheldSoFar = 0n;
-  for (const run of payroll.runs) {
-    if (run.payDate.slice(0, 4) !== year || run.payDate >= beforeDate) continue;
+  for (const run of payroll.runs.slice(0, stop)) {
+    if (run.payDate.slice(0, 4) !== year || run.payDate > payDate) continue;
     for (const p of run.paychecks) {
       if (p.workerId !== workerId) continue;
       gross += p.gross;
@@ -307,6 +322,16 @@ export function ensurePayrollAccounts(books: Books): { books: Books; accounts: P
   return { books: next, accounts: { wagesId, employerTaxesId, liabilitiesId: systemAccount(next, "payroll_liabilities").id } };
 }
 
+export const RAIL_ACCOUNT_NAME = "Rail balance";
+
+/** The bank-type account a rail run's net pay is credited from, found by name or created. */
+export function ensureRailAccount(books: Books): { books: Books; accountId: string } {
+  const found = books.accounts.find((a) => a.active && a.type === "bank" && a.name.toLowerCase() === RAIL_ACCOUNT_NAME.toLowerCase());
+  if (found) return { books, accountId: found.id };
+  const r = addAccount(books, { name: RAIL_ACCOUNT_NAME, type: "bank" });
+  return { books: r.books, accountId: r.account.id };
+}
+
 // ---- Pay runs --------------------------------------------------------------
 
 export type PayRunInput = {
@@ -345,6 +370,43 @@ export function previewPayRun(payroll: Payroll, input: PayRunInput): PaycheckDra
 }
 
 export const SETTLEMENT_MODES: SettlementMode[] = ["external", "rail"];
+
+export type DoublePayCheck = {
+  /** Same person, same pay date, same gross as a paycheck that is paid or on its way: don't post. */
+  blocked: { workerId: string; runId: string }[];
+  /** Same person, same pay date, a different amount (or a failed payment): ask first. */
+  sameDay: { workerId: string; runId: string }[];
+};
+
+/**
+ * Looks for a run that already pays someone on this run's pay date, before
+ * anything posts. The two tiers come from the old on-chain guard: an exact
+ * repeat (worker, date, gross) with a settled or pending paycheck is blocked;
+ * any other same-day paycheck is a question for the user. A deliberate second
+ * payment passes by differing in amount.
+ */
+export function checkDoublePay(payroll: Payroll, input: Pick<PayRunInput, "payDate" | "lines">): DoublePayCheck {
+  const result: DoublePayCheck = { blocked: [], sameDay: [] };
+  for (const line of input.lines) {
+    const worker = payroll.workers.find((w) => w.id === line.workerId);
+    if (!worker) continue;
+    let gross: Cents | null = null;
+    try {
+      gross = grossFor(worker, line.hours);
+    } catch {
+      gross = null; // hours missing: previewPayRun will say so; nothing to compare yet
+    }
+    for (const run of payroll.runs) {
+      if (run.payDate !== input.payDate) continue;
+      for (const p of run.paychecks) {
+        if (p.workerId !== worker.id) continue;
+        const exact = gross !== null && p.gross === gross && p.settlement.status !== "failed";
+        (exact ? result.blocked : result.sameDay).push({ workerId: worker.id, runId: run.id });
+      }
+    }
+  }
+  return result;
+}
 
 export function postPayRun(
   books: Books,
@@ -423,7 +485,8 @@ const SETTLEMENT_STATUSES: Settlement["status"][] = ["pending", "settled", "fail
 
 /**
  * Records where one paycheck's payment stands, for the pay queue. Allowed
- * moves: pending → settled, pending → failed, failed → pending (a retry).
+ * moves: pending → settled, pending → failed, failed → pending (a retry), and
+ * pending → pending with a reference (the transfer was sent; here's its id).
  * A settled paycheck never changes. Pure: returns new payroll.
  */
 export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId: string, settlement: Settlement): Payroll {
@@ -436,9 +499,14 @@ export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId
   if (settlement.height !== undefined && (!Number.isInteger(settlement.height) || settlement.height < 0)) {
     throw new PayrollError("The payment height must be a whole number");
   }
+  if (settlement.feeMicrocredits !== undefined && (typeof settlement.feeMicrocredits !== "bigint" || settlement.feeMicrocredits < 0n)) {
+    throw new PayrollError("The network fee can't be negative");
+  }
   const from = paycheck.settlement.status;
   const to = settlement.status;
-  const allowed = (from === "pending" && to !== "pending") || (from === "failed" && to === "pending");
+  // pending → pending only to note the payment's id once it's been sent.
+  const allowed =
+    (from === "pending" && to !== "pending") || (from === "failed" && to === "pending") || (from === "pending" && to === "pending" && !!settlement.reference);
   if (!allowed) throw new PayrollError(`A ${from} paycheck can't become ${to}`);
   const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, settlement: { ...settlement } } : p));
   return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };

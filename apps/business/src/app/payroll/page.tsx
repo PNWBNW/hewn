@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ChevronDown, Plus } from "lucide-react";
@@ -27,6 +28,12 @@ import { PageHeader } from "@/shell/SectionView";
 import { Paystub } from "./Paystub";
 import { WorkerForm } from "./WorkerForm";
 
+// Fetched only when a run is paid on the rail: nobody else downloads the rail code.
+const PayPanel = dynamic(() => import("@/chain/PayPanel"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, 0n);
 
 const TABS = ["runs", "team", "owed"];
@@ -41,7 +48,9 @@ export default function PayrollPage() {
 
 function PayrollScreen() {
   const { payroll } = useOpenBooks();
-  const asked = useSearchParams().get("tab");
+  const params = useSearchParams();
+  const asked = params.get("tab");
+  const pay = params.get("pay"); // a rail run just posted: open its pay panel
   const activeTeam = payroll.workers.filter((w) => w.active);
   return (
     <div className="flex flex-col gap-6">
@@ -59,7 +68,7 @@ function PayrollScreen() {
           )
         }
       />
-      <Tabs defaultValue={asked && TABS.includes(asked) ? asked : payroll.runs.length ? "runs" : "team"} className="flex flex-col gap-4">
+      <Tabs defaultValue={asked && TABS.includes(asked) && !pay ? asked : payroll.runs.length ? "runs" : "team"} className="flex flex-col gap-4">
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <TabsList>
             <TabsTrigger value="runs" className="min-h-9">Pay runs</TabsTrigger>
@@ -68,7 +77,7 @@ function PayrollScreen() {
           </TabsList>
         </div>
         <TabsContent value="runs">
-          <PayRuns />
+          <PayRuns payRunId={pay} />
         </TabsContent>
         <TabsContent value="team">
           <Team />
@@ -83,7 +92,7 @@ function PayrollScreen() {
 
 // ---- Pay runs --------------------------------------------------------------
 
-function PayRuns() {
+function PayRuns({ payRunId }: { payRunId: string | null }) {
   const { payroll } = useOpenBooks();
   const runs = [...payroll.runs].sort((a, b) => b.payDate.localeCompare(a.payDate));
   if (runs.length === 0) {
@@ -96,7 +105,7 @@ function PayRuns() {
   return (
     <div className="flex flex-col gap-3">
       {runs.map((run) => (
-        <RunCard key={run.id} run={run} />
+        <RunCard key={run.id} run={run} payNow={run.id === payRunId} />
       ))}
     </div>
   );
@@ -112,15 +121,25 @@ function paymentStatus(run: PayRun): string {
   return parts.join(" · ");
 }
 
-/** The one reference every paycheck in the run shares (a bank batch number), if there is one. */
+/** The one reference every paycheck in an external run shares (a bank batch number), if there is one. Rail ids live on the paystub. */
 function sharedReference(run: PayRun): string | undefined {
+  if (run.mode === "rail") return undefined;
   const refs = new Set(run.paychecks.map((p) => p.settlement.reference ?? ""));
   return refs.size === 1 ? [...refs][0] || undefined : undefined;
 }
 
-function RunCard({ run }: { run: PayRun }) {
+/** A rail run with people still to pay offers Continue (some sent or not yet tried) or Retry (only failures left). */
+function nextStep(run: PayRun): "Continue" | "Retry" | null {
+  if (run.mode !== "rail") return null;
+  const open = run.paychecks.filter((p) => p.settlement.status !== "settled" && p.net > 0n);
+  if (open.length === 0) return null;
+  return open.every((p) => p.settlement.status === "failed") ? "Retry" : "Continue";
+}
+
+function RunCard({ run, payNow }: { run: PayRun; payNow: boolean }) {
   const { payroll, dimensions } = useOpenBooks();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(payNow);
+  const [paying, setPaying] = useState(payNow);
   const [viewing, setViewing] = useState<string | null>(null);
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
   const projects = tagNameMap(dimensions);
@@ -128,6 +147,7 @@ function RunCard({ run }: { run: PayRun }) {
   const net = sum(run.paychecks.map((p) => p.net));
   const status = paymentStatus(run);
   const reference = sharedReference(run);
+  const step = nextStep(run);
   const shown = viewing ? run.paychecks.find((p) => p.workerId === viewing) : undefined;
   return (
     <article className="rounded-lg border bg-card">
@@ -157,6 +177,18 @@ function RunCard({ run }: { run: PayRun }) {
           <ChevronDown aria-hidden className={cn("size-4 transition-transform", open && "rotate-180")} />
         </span>
       </button>
+      {step && !paying && (
+        <div className="border-t px-4 py-2">
+          <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setPaying(true)}>
+            {step}
+          </Button>
+        </div>
+      )}
+      {paying && (
+        <div className="border-t p-3">
+          <PayPanel runId={run.id} onClose={() => setPaying(false)} />
+        </div>
+      )}
       {open && (
         <div className="overflow-x-auto border-t px-4 py-3">
           <table className="w-full min-w-[34rem] text-sm">
@@ -179,7 +211,9 @@ function RunCard({ run }: { run: PayRun }) {
                     {p.hours !== undefined && <span className="ml-1 text-xs text-muted-foreground">{p.hours} h</span>}
                     {p.tags?.project && <span className="block text-xs text-muted-foreground">{projects.get(p.tags.project) ?? p.tags.project}</span>}
                     {p.settlement.status !== "settled" && (
-                      <span className="block text-xs text-muted-foreground">{p.settlement.status === "failed" ? "Payment failed" : "Settling…"}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {p.settlement.status === "failed" ? "Payment failed" : p.settlement.reference ? "Sent…" : "Settling…"}
+                      </span>
                     )}
                   </td>
                   <td className="py-1 text-right"><Money cents={p.gross} /></td>
