@@ -31,7 +31,7 @@ import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { WorkerForm } from "@/app/payroll/WorkerForm";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
-import { VAULT_ID, useOpenBooks } from "@/books/BooksProvider";
+import { useOpenBooks } from "@/books/BooksProvider";
 import type { Company } from "@/books/company";
 import { type Rail, type RailLink, addLink, markLinked, shortAddress, validateRail } from "@/books/rail";
 import { BRAND } from "@/brand";
@@ -70,7 +70,7 @@ async function lookupBusinessName(address: string): Promise<{ businessNameHash?:
 // ---- Connect ---------------------------------------------------------------
 
 function ConnectFlow({ onClose }: { onClose: () => void }) {
-  const { books, updateCompany } = useOpenBooks();
+  const { books, vaultId, updateCompany } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,8 +79,9 @@ function ConnectFlow({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
+      if (!vaultId) throw new Error("Log in first");
       const linkedAt = new Date().toISOString();
-      const message = `${BRAND.railLinkDomain}\n${VAULT_ID}\n${address}\n${linkedAt}`;
+      const message = `${BRAND.railLinkDomain}\n${vaultId}\n${address}\n${linkedAt}`;
       const signature = await wallet.signMessage(new TextEncoder().encode(message));
       if (!signature) throw new Error("Shield didn't sign the message");
       const rail: Rail = validateRail({

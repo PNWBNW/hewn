@@ -48,11 +48,6 @@ import {
   unlockVault,
 } from "@pnw/vault";
 
-/**
- * The id of the one vault from before accounts. Kept under its old name because the message Shield
- * signs to link an account has always carried it (see chain/RailPanel); new vaults have their own ids.
- */
-export const VAULT_ID = LEGACY_VAULT_ID;
 const IDLE_LOCK_MS = 15 * 60 * 1000;
 
 export type BooksStatus = "loading" | "new" | "locked" | "open";
@@ -91,6 +86,8 @@ type BooksContextValue = {
   status: BooksStatus;
   /** True when books from before accounts are on this device (they open with a passphrase alone). */
   legacyAvailable: boolean;
+  /** The open account's vault id (a hash of its email and role, or the old "default"); null while locked. */
+  vaultId: string | null;
   /** The open account's email; null on books made before accounts, or while locked. */
   email: string | null;
   books: Books | null;
@@ -189,6 +186,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<BooksStatus>("loading");
   const [legacyAvailable, setLegacyAvailable] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
+  const [vaultId, setVaultId] = useState<string | null>(null);
 
   // Is there anything here to log in to? Books from before accounts, or the flag a created account
   // leaves. The vault ids of accounts are hashes of emails, so the store can't be asked for them
@@ -208,6 +206,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     pending.current = [];
     session.current = s;
     companyRef.current = loaded;
+    setVaultId(s.id);
     setCompany(loaded);
     setStatus("open");
   }, []);
@@ -277,6 +276,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     pending.current.forEach((p) => p.session.lock());
     pending.current = [];
     companyRef.current = null;
+    setVaultId(null);
     setCompany(null);
     setStatus((s) => (s === "open" ? "locked" : s));
   }, []);
@@ -403,6 +403,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       legacyAvailable,
+      vaultId,
       email: company?.email ?? null,
       books: company?.books ?? null,
       payroll: company?.payroll ?? null,
@@ -425,7 +426,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       readAttachment,
       discardAttachment,
     }),
-    [status, legacyAvailable, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
+    [status, legacyAvailable, vaultId, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
   );
   return <BooksContext.Provider value={value}>{children}</BooksContext.Provider>;
 }
