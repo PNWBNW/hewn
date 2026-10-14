@@ -70,18 +70,17 @@ to 0.12.x regardless.
 to local proving for multi-call functions. Until then, **design every user-signed transition as a
 single-call function.** This reverses the audit's "one-shot is strictly better" line.
 
-Consequences:
-- The on-chain double-pay guard (`paid_epoch`) is only written by the one-shot path, so it is
-  never written today. Fix: `paystub_receipts.aleo` is `@admin`, so it can be **upgraded** (edition
-  +1) to assert and write `paid_epoch[{agreement_id, epoch_id}]` in `mint_paystub_receipts`'s
-  finalize. No new program, still single-call. The standalone `payroll_guard.aleo` in
-  `pnw_mvp_v2`'s plan is the alternative if we'd rather not touch receipts.
+Consequences (as decided, §5):
+- Per payment the only transaction is the stablecoin's own `transfer_private`. A wrapper that
+  also records a paystub hash or a `paid_epoch` guard would be a two-call function, which is
+  exactly what cannot be delegated, so the commitment lives in the books and the period anchor
+  instead, and the double-pay guard lives in the vault.
 - `assert_agreement_active` as a separate transaction guarantees nothing (nothing links it to
-  the transfer). Check `agreement_status` over REST for free and drop the step. Enforcing it
-  in-circuit returns when there is a single-call function that both checks and pays, which needs
-  a receipts/guard program upgrade that reads the agreement mapping in finalize.
-- `anchor_event` once **per run** (hash over all the run's receipt anchors), not per worker;
-  `mint_cycle_nft` takes that one hash. Two transactions per run instead of 2N.
+  the transfer). Check `agreement_status` over REST for free; no step.
+- `paystub_receipts`, `payroll_core_v2` and the per-run `anchor_event` + `mint_cycle_nft` are
+  retired from the payment path (the NFT stays available as an optional per-run anchor).
+- If the DPS limit lifts, a single-call wrapper becomes possible and the on-chain guard can
+  return without changing the user-facing design.
 
 ## 4. What else changed since April
 
@@ -116,24 +115,28 @@ Consequences:
 
 Goal: tap once, any number of payees, no babysitting.
 
+**Chosen (Joshua, 2026-10-14): rail + books + mailbox.** One transition per payee, nothing else
+on-chain per payment; the paystub through the mailbox; the commitment in the books, anchored per
+period by `gl_core.aleo`. Detail in `INTEGRATION_AUDIT.md` §2.2.
+
 **Per run, today's programs:**
 
-1. Books first: `postPayRun` / `payBills` post the entries, status "settling".
+1. Books first: `postPayRun` / `payBills` post the entries with the paystub hash in
+   `source.ref`, status "settling".
 2. **Pre-split**: the app keeps the employer's USDCx as many records. `split` is a single plain
    transition (one approval, proves in seconds, no proof of exclusion). Done when funds arrive, not
    at pay time.
-3. **Fire everything in parallel.** Per payee: `transfer_private` (single-call, delegatable). Per
-   worker additionally `mint_paystub_receipts` (single-call). Per run: one `anchor_event` and one
-   `mint_cycle_nft`. None depends on another's output, so all are broadcast at once; the app only
-   waits on the chain, never on itself. Fee is public (`privateFee: false`), which has no record
-   dependency either.
-4. Statuses flip in the vault as each confirms; failures retry alone; closing the tab loses
-   nothing.
+3. **Fire everything in parallel.** Per payee: one `transfer_private` (single-call, delegatable).
+   None depends on another's output, so all are broadcast at once; the app only waits on the
+   chain, never on itself. Fee is public (`privateFee: false`), paid by the employer, which has no
+   record dependency either.
+4. Statuses flip in the vault as each confirms; the actual fee is read from the confirmed
+   transaction and posted to Network fees; the paystub is dropped in the mailbox; failures retry
+   alone; closing the tab loses nothing.
 
-Approvals: Shield prompts once per `executeTransaction`. 10 workers = 10 transfers + 10 receipts
-+ 2 = 22 taps, all up front, then walk away. 10 vendors = 10 taps. A receipts transition that
-mints for up to 8 workers at once (16 outputs) cuts that to 10 + 2 + 2 = 14; it is single-call and
-fits the limits, so it is a cheap addition in the Leo session.
+Approvals: Shield prompts once per `executeTransaction`. 10 workers = 10 taps, all up front, then
+walk away. 10 vendors = 10 taps. The receipts and anchor transactions from the April design are
+gone, so there is nothing to batch.
 
 **Why there is no "one tap for ten transfers" with the programs as they are:** spending a record
 needs the owner's signature, and Shield signs one transaction per prompt. The only ways round it:
@@ -158,7 +161,9 @@ on testnet first.
    multi-call function still fail. Record numbers in `PROGRESS.md`.
 2. Confirm Shield fee sponsorship from a Provable source, and whether it covers dApp-initiated
    transactions.
-3. Read the upgradability guide and upgrade `paystub_receipts` (edition 1) with `paid_epoch`,
-   with negative tests, in a Fable session.
+3. Read the upgradability guide before the Leo session; `gl_core.aleo` is the only new program
+   the chosen design needs.
 4. Bump toolchain pins (Leo 4.4.5, snarkOS 4.12.0, SDK 0.12.x) in the same session.
 5. Add the compliance-record fact to `THREAT_MODEL.md`.
+6. Fee read-back: confirm the REST transaction response exposes the fee transition's amount so
+   the books post the actual fee.

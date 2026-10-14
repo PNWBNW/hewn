@@ -600,3 +600,12 @@ so `paid_epoch` moves into an upgraded `paystub_receipts`. Every private USDCx t
 `ComplianceRecord` to the stablecoin's investigator; noted for the threat model. Audit doc updated
 with the decisions from the same conversation (rail-only money movement, mailbox kept as the one
 server piece, `.hewn` display suffix, one pay queue for workers, subs and vendors).
+
+**Design decisions, same day (Joshua):** rail + books + mailbox. One `transfer_private` per
+payee is the only on-chain act per payment; the full paystub goes through the mailbox; the
+paystub hash sits in the journal entry's `source.ref` and the period root is anchored by
+`gl_core.aleo`, so proof covers paystubs, vendor payments and invoices alike. `paystub_receipts`
+and `payroll_core_v2` leave the payment path. Fees: the employer pays network fees on every
+payment at actual cost (read back from the confirmed transaction), nothing deducted from the
+payee, no platform fee ever. A 10-worker run is 10 wallet taps, then nothing to babysit. Both
+docs updated; the Leo session shrinks to the toolchain bump and `gl_core.aleo`.

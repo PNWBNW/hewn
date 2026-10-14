@@ -97,20 +97,38 @@ What each side has per paycheck:
 | Hours, rate, frequency | yes | no (frequency on the agreement) |
 | Proof | entry hash, chained | `receipt_anchor`, `payroll_inputs_hash`, block height via mapping |
 
-So the books are the richer record and must come first. The bridge, in fiat and settled mode
-alike, is:
+So the books are the richer record and must come first. **Chosen design (Joshua, 2026-10-14):
+rail + books + mailbox.** One transition per payee, the paystub through the mailbox, the link in
+the books:
 
 1. `postPayRun` posts one balanced entry per paycheck (already built: Dr Wages, Dr Employer
    Payroll Taxes, Cr Payroll Liabilities, Cr Bank). In settled mode the "bank" account is the
-   USDCx wallet account, and a `fee_amount > 0` adds a Dr Platform Fee / Cr Platform Fee Payable
-   pair (BUILD_PLAN Phase 2).
-2. The manifest is compiled **from the posted paychecks**, not from a separate table:
-   `gross = paycheck.gross`, `net = paycheck.net`, `tax_withheld = federal + SS + Medicare +
-   additional Medicare`, `epoch_id = payDate`.
-3. Settlement runs through the wallet; the resulting `receipt_anchor`, tx id and block height
-   are written to the entry's `source.ref` and to the `PayRun`.
-4. The entry hash chain is unchanged (the anchor goes in `source.ref`, which is hashed), so a
-   settled entry is bound to its receipt, which is what Phase 2's exit criterion asks for.
+   USDCx wallet account. The paystub document (full breakdown, hours, period, the transfer's
+   transition id and the worker's record commitment once known) is built from the paycheck;
+   `hash(paystub)` goes into the entry's `source.ref`, so it is inside the entry hash and the
+   chain.
+2. **On-chain, per worker: one `test_usdcx_stablecoin::transfer_private`** of the net amount.
+   Single-call, so Shield delegates it. No receipts program, no per-worker anchor.
+3. **The paystub goes to the worker through the mailbox** (§4.4), encrypted to `parties_key`,
+   unpinned once their vault has it. The employer's vault keeps its copy.
+4. **Proof is the period anchor.** `gl_core.aleo` anchors the period root; paystub → entry →
+   Merkle path → anchored root → block height verifies any paystub to anyone the worker chooses
+   to show it to. The same proof covers vendor payments and invoices.
+5. The entry's `source.ref` also carries the transition id and block height once confirmed.
+
+What this drops, deliberately: `paystub_receipts` records in the worker's wallet (the paystub is
+in their vault; the money record is in their wallet), the on-chain `paid_epoch` guard (the vault
+guard blocks exact repeats and warns on same-day runs; a per-worker on-chain guard needs a wrapper
+around the transfer, which is a two-call function Shield cannot prove), and the per-run cycle NFT
+(optional: one `anchor_event` plus one `mint_cycle_nft` per run if wanted). Credentials and
+agreements never depended on receipts.
+
+**Fees (decided):** the employer pays network fees on every payment; nothing is deducted from the
+payee and no fee ever goes to Hewn or anyone else. ALEO held for fees is a small asset account;
+each confirmed payment moves the **actual** fee (read from the confirmed transaction's fee
+transition, not the wallet's estimate) to a "Network fees" expense at the ALEO's cost. Paystubs
+and remittances show "Network fee: x ALEO, paid by employer". If Shield's fee sponsorship covers
+dApp transfers, the line reads zero.
 
 What this fixes from the portal: the portal threw the tax breakdown away
 (`portal:app/(employer)/payroll/new/page.tsx:389` keeps only `totalTax`), computed no employer
@@ -141,15 +159,9 @@ When both businesses are on Hewn, one transfer updates both sets of books.
 
 ### 2.4 The worker's paystub
 
-The worker's wallet holds a `WorkerPaystubReceipt` with totals only. Two ways to show a full
-paystub with no server:
-
-- **Now, zero cost:** the worker role keeps the worker's own W-4 in their vault, reads gross and
-  withheld from the record, and recomputes the breakdown with the same tax engine. The engine
-  is deterministic, so the recomputed total must equal `tax_withheld`; if it does not, the
-  paystub shows the total only and flags it.
-- **Clean, later (Leo session):** `paystub_receipts_v2.aleo` with per-tax fields and the pay
-  period on the private record. Private records can carry this; nothing public changes.
+Superseded by §2.2: the full paystub arrives through the mailbox and lives in the worker's vault;
+the worker's app checks that the transition id in the paystub produced the USDCx record in their
+wallet, and verifies the paystub hash against the anchored period root once it is anchored.
 
 ### 2.5 Hashing domains
 
@@ -291,14 +303,11 @@ the address-derived hash are throwaway.
 Answered 2026-10-14: the settlement path (single-call steps, parallel; `ALEO_CONSTRAINTS.md`),
 the W-4 channel (mailbox, §4.4) and the display name (`.hewn`, §2.1).
 
-Still open:
+Also answered: fees (employer pays, actual cost, no platform fee; §2.2) and the settlement shape
+(one transfer per payee; §2.2), which makes a 10-worker run 10 taps.
 
-1. **Fee**: is there a platform fee in settled mode, and who receives it? `fee_amount` exists on
-   every receipt; the books have no account for it yet.
-2. **Approvals per run.** With today's programs a 10-worker run is about 22 wallet taps up front
-   (then nothing). If that is too many, the Leo session can add an 8-worker receipts transition
-   (→ 14 taps) or go to a worker-pull or session-key design for one tap (`ALEO_CONSTRAINTS.md` §5);
-   both of those bend a rule and want a decision after feeling the testnet run.
+Still open: whether a true one-tap run (worker-pull escrow or a session key,
+`ALEO_CONSTRAINTS.md` §5) is worth its rule change, to be judged after feeling 10 taps on testnet.
 
 ## 6. Proposed order (one task, one exit criterion, one PR each)
 
@@ -308,11 +317,11 @@ Still open:
 | 2 | **Link a Shield wallet** from Settings: `packages/wallet` as an opt-in adaptor, vault key wrapped by a wallet signature over a domain-separated message | Phase 1: vault opens with passphrase *or* linked wallet |
 | 3 | **Identity map**: import `FinalAgreement` records into the Team list; store address, name hash, agreement id per worker; registered employer name hash in settings; `.hewn` display | Phase 0 (part): the app knows who is on-chain |
 | 4 | **Pay run settlement fields**: `PayRun` and entry `source.ref` carry mode, receipt anchor, tx id, height; fiat runs carry `settled_externally`; manifest compiled from paychecks; fee pair | Phase 2: fiat run produces identical entries minus the transfer |
-| 5 | **Pay queue** replacing the coordinator (§4.1–4.3 and `ALEO_CONSTRAINTS.md` §5): single-call steps, pre-split, parallel, resumable from the vault, wallet-only, tests replacing the CLI-path ones | prerequisite for 6 |
-| 6 | **Settled payroll run from `apps/business` on testnet**, 3 workers, three entries each linked to its receipt anchor; record taps and wall-clock per step | Phase 2 criterion 1 and Phase 0 criterion 1 |
-| 7 | **Mailbox**: the stateless function, one encryption scheme from `parties_key`, unpin after delivery; first payloads: agreement terms and the paystub breakdown | Phase 0 criterion 2 (part) |
-| 8 | **Worker role** inside the same app: wallet sign-in, offers, paystubs (breakdown from the mailbox), credential badge | Phase 0 criterion 2 (replaces `apps/worker`) |
-| 9 | **Leo session** (Fable, high effort): bump pins; upgrade `paystub_receipts` with `paid_epoch` and negative tests; optional 8-worker receipts transition; `gl_core.aleo` | Phase 1 chain criteria |
+| 5 | **Pay queue** replacing the coordinator (§4.1–4.3 and `ALEO_CONSTRAINTS.md` §5): one `transfer_private` per payee, pre-split, parallel, resumable from the vault, actual fee read back, wallet-only, tests replacing the CLI-path ones | prerequisite for 6 |
+| 6 | **Settled payroll run from `apps/business` on testnet**, 3 workers, three entries each carrying its paystub hash and transition id; record taps and wall-clock per transfer | Phase 2 criterion 1 and Phase 0 criterion 1 (criterion text to be reworded from "receipt anchor" to "paystub hash and transition id") |
+| 7 | **Mailbox**: the stateless function, one encryption scheme from `parties_key`, unpin after delivery; first payloads: agreement terms and the paystub | Phase 0 criterion 2 (part) |
+| 8 | **Worker role** inside the same app: wallet sign-in, offers, paystubs from the mailbox checked against the wallet's records, credential badge | Phase 0 criterion 2 (replaces `apps/worker`) |
+| 9 | **Leo session** (Fable, high effort): bump pins; `gl_core.aleo` period anchoring with negative tests; `paystub_receipts` and `payroll_core_v2` retired to `programs/archive/` | Phase 1 chain criteria |
 | 10 | Cleanup: delete `persistence`, `pnw_payroll_engine`, dead portal code; archive the portal repo with a pointer | Phase 0 criterion 4 |
 
 Tasks 2, 3 and 4 touch no chain transaction and can be verified entirely offline.
