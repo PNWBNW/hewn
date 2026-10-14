@@ -1,7 +1,9 @@
 // ---------------------------------------------------------------------------
 // The business app's browser security policy: the shared policy from
-// @pnw/security, plus the one origin this app may talk to and WebAssembly
-// for the rail's hashing library. See docs/THREAT_MODEL.md (T3).
+// @pnw/security, widened on exactly two pages. Settings and Payroll are
+// where the opt-in rail code is loaded, so only they may talk to the
+// explorer and compile WebAssembly; every other page keeps the strict
+// policy the site uses. See docs/THREAT_MODEL.md (T3).
 // ---------------------------------------------------------------------------
 import { buildCsp as buildSharedCsp, type CspOptions as SharedCspOptions } from "@pnw/security/headers";
 
@@ -9,18 +11,29 @@ export { SECURITY_HEADERS, newNonce } from "@pnw/security/headers";
 
 /**
  * The public ledger explorer the rail reads from (registered names, team
- * agreements). The default mode never calls it: the only requests that go
- * there are lookups the user starts from Settings after linking an account.
- * It is the one host named in the policy.
+ * agreements, transfer confirmations). The default mode never calls it: the
+ * only requests that go there are ones the user starts from Settings or
+ * Payroll after linking an account. It is the one host named in the policy.
  */
 export const EXPLORER_ORIGIN = "https://api.explorer.provable.com";
 
-export type CspOptions = Pick<SharedCspOptions, "nonce" | "dev">;
+/** The pages that host the rail panels (Connect Shield, Import team, Pay now). */
+export const RAIL_PATHS = ["/settings", "/payroll"] as const;
+
+export type CspOptions = Pick<SharedCspOptions, "nonce" | "dev"> & {
+  /** The request path; decides whether the rail allowances apply. */
+  path: string;
+};
+
+export function hostsRail(path: string): boolean {
+  return RAIL_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+}
 
 /**
- * 'wasm-unsafe-eval' lets the page compile WebAssembly (the rail's hashing library, loaded only
- * from the opt-in chain chunk) and nothing else: JS eval stays refused in production.
+ * On rail pages: the explorer in connect-src and 'wasm-unsafe-eval' (the rail's hashing
+ * library is WebAssembly; WASM compilation only, JS eval stays refused). Elsewhere: nothing.
  */
-export function buildCsp(options: CspOptions): string {
-  return buildSharedCsp({ ...options, connect: [EXPLORER_ORIGIN], wasm: true });
+export function buildCsp({ path, ...options }: CspOptions): string {
+  const rail = hostsRail(path);
+  return buildSharedCsp({ ...options, connect: rail ? [EXPLORER_ORIGIN] : [], wasm: rail });
 }
