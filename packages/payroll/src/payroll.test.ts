@@ -122,8 +122,8 @@ describe("pay runs", () => {
     const { books, payroll, run: posted, entries } = postPayRun(s.books, s.payroll(), run(s));
     expect(entries).toHaveLength(3);
     expect(posted.entryIds).toEqual(entries.map((e) => e.id));
-    for (const e of entries) {
-      expect(e.source).toEqual({ kind: "payroll", ref: posted.id });
+    for (const [i, e] of entries.entries()) {
+      expect(e.source).toEqual({ kind: "payroll", ref: posted.id, doc: posted.paychecks[i]!.paystubHash });
       const dr = e.lines.reduce((a, l) => a + l.debit, 0n);
       const cr = e.lines.reduce((a, l) => a + l.credit, 0n);
       expect(dr).toBe(cr);
@@ -139,8 +139,9 @@ describe("pay runs", () => {
     const s = setup();
     const input = run(s);
     const tagged = { ...input, lines: input.lines.map((l, i) => (i === 1 ? { ...l, tags: { project: "proj-1", class: "" } } : l)) };
-    const plain = postPayRun(s.books, s.payroll(), input);
-    const r = postPayRun(s.books, s.payroll(), tagged);
+    const clock = { now: () => "2026-10-16T12:00:00.000Z" };
+    const plain = postPayRun(s.books, s.payroll(), input, clock);
+    const r = postPayRun(s.books, s.payroll(), tagged, clock);
     // Same amounts either way; only Ben's wage and employer-tax lines gain the tag.
     expect(r.run.paychecks.map(({ tags: _t, ...p }) => p)).toEqual(plain.run.paychecks);
     expect(r.run.paychecks[1]!.tags).toEqual({ project: "proj-1" });

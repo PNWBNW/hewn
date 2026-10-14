@@ -24,6 +24,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
+import { Paystub } from "./Paystub";
 import { WorkerForm } from "./WorkerForm";
 
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, 0n);
@@ -101,13 +102,33 @@ function PayRuns() {
   );
 }
 
+/** "Paid", or how far along a run paid on the rail is. */
+function paymentStatus(run: PayRun): string {
+  const settled = run.paychecks.filter((p) => p.settlement.status === "settled").length;
+  const failed = run.paychecks.filter((p) => p.settlement.status === "failed").length;
+  if (settled === run.paychecks.length) return "Paid";
+  const parts = [`Settling… ${settled} of ${run.paychecks.length}`];
+  if (failed > 0) parts.push(`${failed} failed`);
+  return parts.join(" · ");
+}
+
+/** The one reference every paycheck in the run shares (a bank batch number), if there is one. */
+function sharedReference(run: PayRun): string | undefined {
+  const refs = new Set(run.paychecks.map((p) => p.settlement.reference ?? ""));
+  return refs.size === 1 ? [...refs][0] || undefined : undefined;
+}
+
 function RunCard({ run }: { run: PayRun }) {
   const { payroll, dimensions } = useOpenBooks();
   const [open, setOpen] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null);
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
   const projects = tagNameMap(dimensions);
   const gross = sum(run.paychecks.map((p) => p.gross));
   const net = sum(run.paychecks.map((p) => p.net));
+  const status = paymentStatus(run);
+  const reference = sharedReference(run);
+  const shown = viewing ? run.paychecks.find((p) => p.workerId === viewing) : undefined;
   return (
     <article className="rounded-lg border bg-card">
       <button
@@ -119,6 +140,10 @@ function RunCard({ run }: { run: PayRun }) {
         <span className="text-sm font-medium tabular-nums">{run.payDate}</span>
         <span className="text-xs text-muted-foreground">
           {run.periodStart} to {run.periodEnd} · {run.paychecks.length} {run.paychecks.length === 1 ? "person" : "people"}
+        </span>
+        <span className="text-xs">
+          <span className={cn(status === "Paid" ? "text-muted-foreground" : "font-medium")}>{status}</span>
+          {reference && <span className="text-muted-foreground"> · Ref. {reference}</span>}
         </span>
         <span className="ml-auto flex items-center gap-4 text-sm">
           <span>
@@ -143,6 +168,7 @@ function RunCard({ run }: { run: PayRun }) {
                 <th className="py-1 text-right font-medium">SS + Medicare</th>
                 <th className="py-1 text-right font-medium">Net</th>
                 <th className="py-1 text-right font-medium">Employer taxes</th>
+                <th className="py-1 text-right font-medium">Paystub</th>
               </tr>
             </thead>
             <tbody>
@@ -152,12 +178,27 @@ function RunCard({ run }: { run: PayRun }) {
                     {names.get(p.workerId) ?? p.workerId}
                     {p.hours !== undefined && <span className="ml-1 text-xs text-muted-foreground">{p.hours} h</span>}
                     {p.tags?.project && <span className="block text-xs text-muted-foreground">{projects.get(p.tags.project) ?? p.tags.project}</span>}
+                    {p.settlement.status !== "settled" && (
+                      <span className="block text-xs text-muted-foreground">{p.settlement.status === "failed" ? "Payment failed" : "Settling…"}</span>
+                    )}
                   </td>
                   <td className="py-1 text-right"><Money cents={p.gross} /></td>
                   <td className="py-1 text-right"><Money cents={p.federalIncomeTax} /></td>
                   <td className="py-1 text-right"><Money cents={p.socialSecurity + p.medicare + p.additionalMedicare} /></td>
                   <td className="py-1 text-right font-medium"><Money cents={p.net} /></td>
                   <td className="py-1 text-right text-muted-foreground"><Money cents={employerTaxes(p)} /></td>
+                  <td className="py-1 text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-11 sm:min-h-8"
+                      aria-pressed={viewing === p.workerId}
+                      onClick={() => setViewing((v) => (v === p.workerId ? null : p.workerId))}
+                    >
+                      View paystub
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -165,6 +206,12 @@ function RunCard({ run }: { run: PayRun }) {
           <p className="mt-2 text-xs text-muted-foreground">
             Posted as {run.entryIds.length} journal {run.entryIds.length === 1 ? "entry" : "entries"} in Transactions.
           </p>
+        </div>
+      )}
+      {/* Below the scrolling table, not inside it, so it never lands off-screen on a phone. */}
+      {open && shown && (
+        <div className="border-t p-3">
+          <Paystub run={run} paycheck={shown} onClose={() => setViewing(null)} />
         </div>
       )}
     </article>

@@ -665,3 +665,61 @@ unlinking individual workers, re-scanning for status changes, and a vendor/custo
 
 **Results:** 41 files, **361/361** (was 352: records +4, business +5). Build green, `pnpm audit`
 clean. Lockfile: four workspace links added to the app, one package removed from `@pnw/wallet`.
+## 2026-10-14 — Phase 2: settlement fields and the paystub document
+
+Task from the integration audit's proposed order: make the fiat/rail parity criterion true and
+tested, offline, with no wallet. Branch `payroll/settlement-fields`.
+
+- **`@pnw/ledger`**: an entry's `source` can carry `doc`, the hex BLAKE3 of the document the
+  entry commits to (validated: 64 lower-case hex, new error code `BAD_DOC`). The canonical form
+  is versioned: `[1, …]` exactly as before when there's no document, `[2, …, doc]` with the hash
+  appended when there is, so `hashEntry`/`verifyChain` verify every existing books file unchanged
+  (`documents.test.ts` pins a v1 fixture with its five hashes). Edits keep the document on the
+  replacement; reversals never copy it.
+- **`@pnw/payroll`**:
+  - `paystub.ts`: the paystub document (version, business, worker, dates, pay type/rate/hours,
+    every tax line, net, year-to-date gross and withholding after the check, run id, position)
+    and `paystubHash` = BLAKE3(`PNW::PAYSTUB::v1` ‖ 0x00 ‖ canonical JSON, fixed key order,
+    bigints as strings). Deterministic; a cent off changes it. `@noble/hashes` added at the
+    ledger's pin; boundary test allow-list extended.
+  - `PayRun.mode` (`"external"` | `"rail"`), `Paycheck.paystubHash` and `Paycheck.settlement`
+    (`pending` | `settled` | `failed`, with reference, height, settledAt, failure). External runs
+    settle as they post, with an optional free-text payment reference on every paycheck; rail
+    runs post pending with no reference (giving one is refused). `postPayRun` puts the paystub
+    hash in each entry's `source.doc` and takes an optional clock. `markPaycheckSettlement` for
+    the pay queue: pending → settled/failed, failed → pending; settled never changes.
+  - Older payroll files load: runs without the fields become external + settled, no reference,
+    no paystub hash (`paystubHash` is optional on the type for that reason; new runs always have
+    it). `YearToDate` gained `withheld`. `computePaycheck`/`previewPayRun` return a
+    `PaycheckDraft` (no settlement or hash yet).
+  - **Parity test** (`packages/payroll/src/parity.test.ts`, "posts identical entries, differing
+    only in the account the net pay is credited from"): the same 3-person run posted twice from
+    the same books, once external from Checking with a bank reference, once rail from a "Rail
+    balance" bank account. Every entry matches line for line (accounts, debits, credits, names,
+    tags, memo, date, `source` incl. `doc`) with only the net-pay credit's account differing;
+    `hash`/`prevHash` are left out of the comparison since they're computed over that account.
+    Paystub hashes are identical per worker and equal each entry's `source.doc`. Settling the
+    rail paychecks afterwards changes neither the entries nor the paystubs.
+- **App**: Run payroll gains "Payment reference" (optional, shown on each paystub); this screen
+  always posts `mode: "external"`. Pay runs show "Paid · Ref. …" (or "Settling… n of m" /
+  "n failed" for rail runs, render only). Expanding a run → "View paystub" per person →
+  `Paystub.tsx` renders the document in plain words below the table (business, person, period,
+  pay, every line, net, "Paid: <reference>" or "by bank", employer taxes, year to date, footer
+  "Paystub reference: <first 8 of the hash>"). No chain vocabulary; fiat boundary test green.
+
+**Browser check** (production build, Chromium 390×844): Services template, hourly worker Ana
+Ruiz at $30/hr, 40 h, reference "ACH batch 4471": gross 1,200.00, federal 60.15, SS 74.40,
+Medicare 17.40, net 1,048.05, employer taxes 91.80; the run card reads "Paid · Ref. ACH batch
+4471"; the paystub shows the reference and year-to-date 1,200.00 / 151.95; one payroll entry in
+the journal. Zero console or CSP errors (only the existing `bluetooth` Permissions-Policy
+warning). Fix found in the check: a screen-reader-only table header (position: absolute) escaped
+the table's scroll container and widened the page to 577px; it's visible text now and nothing
+overflows on any of the four screens.
+
+**Exit criteria:** ticked "Running the same payroll in fiat mode produces identical entries in
+the vault, minus the chain transfer". **Deferred:** the pay queue that creates rail runs and calls
+`markPaycheckSettlement`; a PDF of the paystub; the worker-side copy through the mailbox.
+Same-day second runs for one worker still compute year-to-date before the day (pre-existing).
+
+**Results:** 42 files, **369/369** (was 352: ledger +6, payroll +11). Build green, `pnpm audit`
+clean, typecheck clean. Lockfile: `@noble/hashes` linked into `@pnw/payroll` only.
