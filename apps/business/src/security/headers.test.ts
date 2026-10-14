@@ -35,16 +35,16 @@ describe("content security policy", () => {
     expect(buildCsp({ nonce: "n", path: "/" }).match(/https?:\/\/[^\s;]+/g)).toBeNull();
   });
 
-  it("widens exactly the three rail pages: the explorer and WebAssembly compilation", () => {
-    expect(RAIL_PATHS).toEqual(["/settings", "/payroll", "/work"]);
+  it("widens exactly the four rail pages: the explorer and WebAssembly compilation", () => {
+    expect(RAIL_PATHS).toEqual(["/settings", "/payroll", "/mailbox", "/work"]);
     expect(rail["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
     expect(rail["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
     expect(rail["default-src"]).toEqual(["'self'"]);
   });
 
   it("matches rail pages by path segment, not prefix", () => {
-    for (const p of ["/settings", "/payroll", "/payroll/run", "/settings/", "/work", "/work/offers"]) expect(hostsRail(p)).toBe(true);
-    for (const p of ["/", "/payrolls", "/settingsx", "/sales", "/transactions/new", "/workshop"]) expect(hostsRail(p)).toBe(false);
+    for (const p of ["/settings", "/payroll", "/payroll/run", "/settings/", "/mailbox", "/work", "/work/offers"]) expect(hostsRail(p)).toBe(true);
+    for (const p of ["/", "/payrolls", "/settingsx", "/mailboxes", "/sales", "/transactions/new", "/workshop"]) expect(hostsRail(p)).toBe(false);
   });
 
   it("blocks plugins, framing and base-tag hijacks everywhere", () => {

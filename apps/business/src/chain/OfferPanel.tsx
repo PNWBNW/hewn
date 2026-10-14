@@ -222,12 +222,17 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
     return (
       <>
         <p className="text-sm">
-          Offer sent to <span className="font-medium">{sentTo}</span>. It&apos;s in their mailbox now. Once they accept, Settings → Import team links
-          them.
+          Offer sent to <span className="font-medium">{sentTo}</span>. It&apos;s in their mailbox now. Once they accept, check for the reply in your
+          Mailbox and they&apos;re linked.
         </p>
-        <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
-          Done
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/mailbox" className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4 sm:min-h-9">
+            Open Mailbox
+          </Link>
+          <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={onClose}>
+            Done
+          </Button>
+        </div>
       </>
     );
   }
