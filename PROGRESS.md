@@ -562,3 +562,24 @@ it's checked on every open); applying a customer credit to a later invoice; emai
 **Results:** 39 files, **352/352** (was 312: ledger +8, sales +17, payroll +1, vault +10,
 business +4). Build green, `pnpm audit` clean. Lockfile changes only for the `@pnw/payroll`
 dev-dependency link in `@pnw/sales`.
+
+## 2026-10-14 — Integration audit (read-only)
+
+Joshua's call after Phase 3 and the first Vercel deploy: before tying the new app to the chain
+stack, comb through both and decide what ties in, what has to be redone, and in what order.
+Four parallel read-only passes (portal employer side, portal worker side, `pnw_mvp_v2` programs
+and manifest, this monorepo) feed `docs/INTEGRATION_AUDIT.md`. No code changed.
+
+**Headlines.** The seam is narrow: the books already hold more than the chain can store (the
+per-tax breakdown), and the chain already produces the proof the books need (receipt anchor,
+tx id, height), so a pay run is posted first, settled second, and the anchor is written back onto
+the entry. What has to be redone: the coordinator's run model (localStorage manifest, Zustand
+callbacks, required CLI path), five regex record parsers, the Pinata/IPFS server routes (W-4,
+terms, timesheet), and three different employer-name hashes. One decision blocks the payroll
+bridge: the portal code runs the monolithic `execute_payroll` (`USE_MONOLITHIC_PAYROLL = true`)
+while CLAUDE.md and BUILD_PLAN say the 4-step split; Joshua to confirm which works in Shield.
+Product direction recorded from the same conversation: no bank feeds or card processors; money
+that moves through the app moves on the rail; the books still work with no wallet.
+
+**Results:** 39 files, **352/352** (the one "failed to load" an auditor saw was a stale local
+`node_modules` missing the `@pnw/payroll` link; a frozen reinstall fixed it). No build change.
