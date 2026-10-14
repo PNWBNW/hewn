@@ -180,12 +180,33 @@ export async function resolveWorker(text: string, suffix: string, reg: Registry 
     const name = (await reg.namePlaintext(nameHash)) || undefined;
     return { address: raw, nameHash, ...(name ? { name } : {}) };
   }
-  const name = raw.toLowerCase().replace(new RegExp(`\\.${suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), "");
+  const name = bareName(raw, suffix);
   if (!name) throw new OfferError("Enter their name or account");
   const nameHash = computeNameHash(name);
   const address = await reg.nameOwner(nameHash);
   if (!address) throw new OfferError(NO_NAME_MESSAGE);
   return { address, nameHash, name };
+}
+
+/** A name as typed (any case, with or without the display suffix) → the bare registered name. */
+export function bareName(text: string, suffix: string): string {
+  return text.trim().toLowerCase().replace(new RegExp(`\\.${suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), "");
+}
+
+/**
+ * The business's own registered name, typed by hand when the lookup by
+ * account found none. It counts only when the registry says this very
+ * account owns it: an offer carries the name hash, and nobody may offer
+ * work under someone else's name.
+ */
+export async function resolveBusinessName(text: string, suffix: string, ownAddress: string, reg: Pick<Registry, "nameOwner"> = registry): Promise<{ nameHash: string; name: string }> {
+  const name = bareName(text, suffix);
+  if (!name) throw new OfferError("Enter your registered business name");
+  const nameHash = computeNameHash(name);
+  const owner = await reg.nameOwner(nameHash);
+  if (!owner) throw new OfferError("No one has registered that name");
+  if (owner !== ownAddress) throw new OfferError("That name belongs to a different account");
+  return { nameHash, name };
 }
 
 // ---- Import: which offers were accepted ---------------------------------------------------

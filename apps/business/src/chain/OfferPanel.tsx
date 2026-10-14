@@ -4,19 +4,23 @@
 // Send an employment offer to a typed team member, from their row in Team.
 // Loaded through a dynamic import, so nobody without the rail downloads it.
 //
+//   0. A short checklist of what the offer needs (Shield linked, the
+//      business's registered name) that fills in as each piece is done.
 //   1. Find them on the rail by registered name or account (public registry).
-//   2. Dates, industry and the terms; pay type, rate and frequency come from
-//      the team member's record, so the offer says what the books say.
-//   3. Send: the terms go to their mailbox first, sealed to the two of you,
+//   2. Dates, industry and a few plain fields (role, duties, hours, notice)
+//      that draft the terms; pay type, rate and frequency come from the team
+//      member's record, so the offer says what the books say. The draft is
+//      only text and can be edited freely.
+//   3. Review: the agreement exactly as they will read it.
+//   4. Send: the terms go to their mailbox first, sealed to the two of you,
 //      then one transaction in Shield; the link is saved as "Offer sent".
 //
 // No address, key or document is ever logged from here.
 // ---------------------------------------------------------------------------
 
-import { useMemo, useState } from "react";
-import { formatCents } from "@pnw/ledger";
+import Link from "next/link";
+import { type ReactNode, useMemo, useState } from "react";
 import { MailboxClient } from "@pnw/mailbox";
-import { PAY_FREQUENCIES } from "@pnw/payroll";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
@@ -27,7 +31,8 @@ import { type Rail, addLink, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import type { Company } from "@/books/company";
 import { ShieldStatus } from "./ShieldStatus";
-import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveWorker, sendOffer } from "./offer";
+import { draftProblem, draftTerms, longDate, payLine } from "./agreement_draft";
+import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveBusinessName, resolveWorker, sendOffer } from "./offer";
 import { useShield } from "./shield";
 
 export type OfferPanelProps = { workerId: string; onClose: () => void };
@@ -61,6 +66,30 @@ function railOf(c: Company): Rail {
   return c.rail;
 }
 
+type Step = { done: boolean; text: ReactNode; action?: ReactNode };
+
+/** What an offer needs, ticked off as each piece is in place. */
+function Checklist({ steps }: { steps: Step[] }) {
+  return (
+    <ol className="flex flex-col gap-3">
+      {steps.map((s, i) => (
+        <li key={i} className="flex items-start gap-3 text-sm">
+          <span
+            aria-hidden
+            className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border text-xs ${s.done ? "border-transparent bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            {s.done ? "✓" : i + 1}
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <span className={s.done ? "text-muted-foreground" : "font-medium"}>{s.text}</span>
+            {s.action}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   const { books, payroll, rail, updateCompany } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
@@ -69,11 +98,20 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   const [who, setWho] = useState("");
   const [found, setFound] = useState<ResolvedWorker | null>(null);
   const [finding, setFinding] = useState(false);
+  const [jobTitle, setJobTitle] = useState("");
+  const [duties, setDuties] = useState("");
+  const [hoursPerWeek, setHoursPerWeek] = useState("");
+  const [noticeDays, setNoticeDays] = useState("14");
   const [startDate, setStartDate] = useState(todayIso());
   const [reviewDate, setReviewDate] = useState(daysFromToday(90));
   const [endDate, setEndDate] = useState("");
   const [industryCode, setIndustryCode] = useState(1);
+  // The terms follow the fields until the person edits them by hand.
   const [termsText, setTermsText] = useState("");
+  const [termsEdited, setTermsEdited] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [bizName, setBizName] = useState("");
+  const [bizBusy, setBizBusy] = useState(false);
   const [stage, setStage] = useState<OfferStage | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [mailboxOff, setMailboxOff] = useState(false);
@@ -81,17 +119,45 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
 
   const address = state.kind === "connected" ? state.address : null;
   const mismatch = address !== null && rail !== null && address !== rail.address;
+  const businessName = rail?.businessName ?? books.settings.businessName;
 
-  if (!rail) return <FormError message="Link Shield in Settings first" />;
-  if (!rail.businessNameHash) return <FormError message="Register a business name on the rail first" />;
+  const fieldProblem = draftProblem({ hoursPerWeek, noticeDays });
+  const draft = useMemo(() => {
+    if (!worker || fieldProblem) return "";
+    return draftTerms({
+      businessName,
+      workerName: worker.name,
+      payType: worker.payType,
+      rate: worker.rate,
+      frequency: worker.frequency,
+      startDate,
+      reviewDate,
+      endDate,
+      jobTitle,
+      duties,
+      hoursPerWeek,
+      noticeDays,
+    });
+  }, [worker, fieldProblem, businessName, startDate, reviewDate, endDate, jobTitle, duties, hoursPerWeek, noticeDays]);
+  const terms = termsEdited ? termsText : draft;
+
   if (!worker) return <FormError message="Team member not found" />;
 
-  const pay =
-    worker.payType === "hourly"
-      ? `${formatCents(worker.rate)}/hr`
-      : `${formatCents(worker.rate)}/yr salary`;
-  const freq = PAY_FREQUENCIES.find((f) => f.id === worker.frequency)?.label.toLowerCase();
   const nameOf = (r: ResolvedWorker) => (r.name ? `${r.name}.${BRAND.nameSuffix}` : shortAddress(r.address));
+
+  async function confirmBusinessName() {
+    if (!rail) return;
+    setError(null);
+    setBizBusy(true);
+    try {
+      const own = await resolveBusinessName(bizName, BRAND.nameSuffix, rail.address);
+      await updateCompany((c) => ({ ...c, rail: { ...railOf(c), businessNameHash: own.nameHash, businessName: own.name } }));
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBizBusy(false);
+    }
+  }
 
   async function find() {
     setError(null);
@@ -115,12 +181,12 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
       const sent = await sendOffer({
         employerAddress: current,
         employerNameHash: rail.businessNameHash,
-        businessName: rail.businessName ?? books.settings.businessName,
+        businessName,
         worker,
         workerAddress: found.address,
         workerNameHash: found.nameHash,
         industryCode,
-        termsText,
+        termsText: terms,
         startDate,
         reviewDate,
         endDate,
@@ -146,12 +212,18 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
     }
   }
 
+  const cancel = (
+    <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
+      Close
+    </Button>
+  );
+
   if (sentTo) {
     return (
       <>
         <p className="text-sm">
-          Offer sent to <span className="font-medium">{sentTo}</span>. They&apos;ll see it in their app; once they accept, Settings → Import team
-          links them.
+          Offer sent to <span className="font-medium">{sentTo}</span>. It&apos;s in their mailbox now. Once they accept, Settings → Import team links
+          them.
         </p>
         <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
           Done
@@ -160,14 +232,120 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
     );
   }
 
-  const canSend = !!found && !!termsText.trim() && !stage && !mailboxOff;
+  // 0. What the offer needs before it can be written.
+  if (!rail || !rail.businessNameHash) {
+    return (
+      <>
+        <div>
+          <h3 className="text-sm font-semibold">Send an offer to {worker.name}</h3>
+          <p className="text-xs text-muted-foreground">Two things first. Each is done once for the whole business.</p>
+        </div>
+        <Checklist
+          steps={[
+            {
+              done: !!rail,
+              text: rail ? `Shield is linked (${shortAddress(rail.address)})` : "Link your Shield account to these books",
+              action: !rail && (
+                <Link href="/settings" className="inline-flex min-h-11 items-center self-start text-sm font-medium underline sm:min-h-9">
+                  Open Settings and tap Connect Shield
+                </Link>
+              ),
+            },
+            {
+              done: false,
+              text: "Confirm your business's registered name",
+              action: rail ? (
+                <form
+                  className="flex flex-col gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (bizName.trim() && !bizBusy) void confirmBusinessName();
+                  }}
+                >
+                  <p className="text-xs text-muted-foreground">
+                    We couldn&apos;t find one for this account automatically. If you already have one, like dayco.{BRAND.nameSuffix}, type it here; it counts
+                    only if this account owns it. Registering a new business name isn&apos;t in {BRAND.name} yet.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      className={inputClass}
+                      aria-label="Your registered business name"
+                      value={bizName}
+                      onChange={(e) => setBizName(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <Button type="submit" variant="outline" className="min-h-11 whitespace-nowrap sm:min-h-10" disabled={bizBusy || !bizName.trim()}>
+                      {bizBusy ? "Checking…" : "Check"}
+                    </Button>
+                  </div>
+                </form>
+              ) : undefined,
+            },
+          ]}
+        />
+        <FormError message={error} />
+        {cancel}
+      </>
+    );
+  }
+
+  const pay = payLine(worker.payType, worker.rate, worker.frequency);
+
+  // 3. The agreement as they will read it.
+  if (reviewing && found && address && !mismatch) {
+    return (
+      <>
+        <div>
+          <h3 className="text-sm font-semibold">Review the offer to {worker.name}</h3>
+          <p className="text-xs text-muted-foreground">This is exactly what lands in their mailbox. Check it, then send.</p>
+        </div>
+        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-xs text-muted-foreground">To</dt>
+            <dd className="font-medium">{nameOf(found)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Pay</dt>
+            <dd>{pay}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Starts</dt>
+            <dd>{longDate(startDate)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Ends</dt>
+            <dd>{endDate ? longDate(endDate) : "Open-ended"}</dd>
+          </div>
+        </dl>
+        <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-card p-3 font-sans text-sm">{terms}</pre>
+        {stage && <p className="text-xs text-muted-foreground">{STAGE_COPY[stage]}</p>}
+        {!stage && (
+          <p className="text-xs text-muted-foreground">
+            Shield asks you to approve one transaction; the employer pays its network fee. Nothing is paid to anyone.
+          </p>
+        )}
+        <FormError message={error ?? shieldError} />
+        <div className="flex gap-3">
+          <Button type="button" variant="outline" className="h-11 flex-1 sm:flex-none" onClick={() => setReviewing(false)} disabled={!!stage}>
+            Back
+          </Button>
+          <Button type="button" className="h-11 flex-1 sm:flex-none" disabled={!!stage || mailboxOff} onClick={() => void send(address)}>
+            {stage ? "Sending…" : "Send offer"}
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  const canReview = !!found && !!terms.trim() && !fieldProblem;
 
   return (
     <>
       <div>
         <h3 className="text-sm font-semibold">Send an offer to {worker.name}</h3>
         <p className="text-xs text-muted-foreground">
-          {pay} · paid {freq}, from their team record. The terms go to their mailbox, sealed; only a fingerprint of them goes on the rail.
+          {pay}, from their team record. The terms go to their mailbox, sealed; only a fingerprint of them goes on the rail.
         </p>
         {worker.frequency === "semimonthly" && (
           <p className="text-xs text-muted-foreground">The agreement records twice a month as every two weeks; the terms say twice a month.</p>
@@ -182,16 +360,14 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
             Shield is signed in to a different account ({shortAddress(address)}) than the one linked to these books ({shortAddress(rail.address)}).
             Switch accounts in Shield, then try again.
           </p>
-          <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
-            Close
-          </Button>
+          {cancel}
         </>
       ) : (
         <form
           className="grid gap-4 sm:grid-cols-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (canSend) void send(address);
+            if (canReview) setReviewing(true);
           }}
         >
           <Field label="Their name or account" hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account starting aleo1.`}>
@@ -219,8 +395,21 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
                 <span className="block font-mono text-xs text-muted-foreground">{shortAddress(found.address)}</span>
               </span>
             ) : (
-              <span className="text-xs text-muted-foreground">Find them first; the offer goes to the account their name points at.</span>
+              <span className="text-xs text-muted-foreground">
+                Find them first; the offer goes to the account their name points at. They set up a name under Profile in their own {BRAND.name}.
+              </span>
             )}
+          </div>
+          <Field label="Role" hint="Optional. Their job title.">
+            <input className={inputClass} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label="Hours a week" hint="Optional. Leave blank to leave it out.">
+            <input className={inputClass} inputMode="decimal" value={hoursPerWeek} onChange={(e) => setHoursPerWeek(e.target.value)} autoComplete="off" />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Duties" hint="Optional. A sentence or two on what the job is.">
+              <textarea className={`${inputClass} min-h-20`} value={duties} onChange={(e) => setDuties(e.target.value)} />
+            </Field>
           </div>
           <Field label="Starts">
             <input type="date" className={inputClass} value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
@@ -231,6 +420,9 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
           <Field label="Ends" hint="Optional. Leave blank for open-ended.">
             <input type="date" className={inputClass} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </Field>
+          <Field label="Notice to end (days)" hint="Optional. How much notice either side gives.">
+            <input className={inputClass} inputMode="numeric" value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} autoComplete="off" />
+          </Field>
           <Field label="Industry">
             <select className={inputClass} value={industryCode} onChange={(e) => setIndustryCode(Number(e.target.value))}>
               {Object.entries(INDUSTRY_SUFFIXES).map(([code, { label }]) => (
@@ -240,23 +432,39 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
               ))}
             </select>
           </Field>
-          <Field label="Terms" hint="What you're offering, in your words: hours, duties, notice. They read exactly this.">
-            <textarea className={`${inputClass} min-h-28`} value={termsText} onChange={(e) => setTermsText(e.target.value)} required />
-          </Field>
-          <div className="flex flex-col gap-3 sm:col-span-2">
-            {stage && <p className="text-xs text-muted-foreground">{STAGE_COPY[stage]}</p>}
-            {!stage && (
-              <p className="text-xs text-muted-foreground">
-                Shield asks you to approve one transaction; the employer pays its network fee. Nothing is paid to anyone.
-              </p>
-            )}
-            <FormError message={error ?? shieldError} />
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" className="h-11 flex-1 sm:flex-none" onClick={onClose} disabled={!!stage}>
-                {stage ? "Keep open" : "Cancel"}
+          <div className="sm:col-span-2">
+            <Field
+              label="Terms"
+              hint={
+                termsEdited
+                  ? "Your own wording. They read exactly this."
+                  : "Drafted from the fields above. Edit it however you like; they read exactly this."
+              }
+            >
+              <textarea
+                className={`${inputClass} min-h-40`}
+                value={terms}
+                onChange={(e) => {
+                  setTermsText(e.target.value);
+                  setTermsEdited(true);
+                }}
+                required
+              />
+            </Field>
+            {termsEdited && (
+              <Button type="button" variant="ghost" size="sm" className="mt-1 min-h-11 sm:min-h-8" onClick={() => setTermsEdited(false)}>
+                Start over from the fields
               </Button>
-              <Button type="submit" className="h-11 flex-1 sm:flex-none" disabled={!canSend}>
-                {stage ? "Sending…" : "Send offer"}
+            )}
+          </div>
+          <div className="flex flex-col gap-3 sm:col-span-2">
+            <FormError message={error ?? fieldProblem ?? shieldError} />
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="h-11 flex-1 sm:flex-none" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" className="h-11 flex-1 sm:flex-none" disabled={!canReview}>
+                Review offer
               </Button>
             </div>
           </div>

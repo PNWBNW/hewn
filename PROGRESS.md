@@ -1463,3 +1463,25 @@ Changing the passphrase or email from Settings.
 The message Shield signs when linking an account now carries the open account's vault id instead of
 `default` (`BooksProvider` exposes `vaultId`, set on open, cleared on lock; `RailPanel` throws "Log in
 first" without one). The exported `VAULT_ID` is gone. Typecheck clean; `pnpm test` 561/561.
+
+## 2026-10-14 — Send offer: always reachable, with a draft and a review
+
+Joshua's first build account had nowhere to build an employment agreement: "Send offer" only appeared
+once Shield was linked and a business name was found, with no hint why. Now every active typed team
+member has Send offer, and the panel opens with a checklist that ticks off as each piece is done
+(Shield linked → business's registered name). If the lookup by account finds no name, the business can
+type one it already owns; it is accepted only when the registry says this account owns it
+(`resolveBusinessName`). Registering a new business name is not built (back burner, may be dropped).
+
+The offer form drafts the terms from plain fields (role, duties, hours a week, notice days, dates) plus
+the team record's pay (`agreement_draft.ts`, pure). The draft follows the fields until the text is
+edited by hand; "Start over from the fields" returns to it. A Review step shows the agreement exactly as
+the worker will read it before the single Shield approval. Nothing about the terms contract, the
+mailbox slot or the 16 `create_job_offer` inputs changed.
+
+Tests: `pnpm test` 569/569 (+8: draft text, optional lines, refusals, long dates, business-name
+ownership). Browser check on a fresh account: Team → Send offer shows the checklist with the Settings
+link. Not run here: the linked-account form and review (needs Shield), to be covered by Joshua's
+testnet run. Unverified assumption: that employer names live in the same registry mapping
+`queryNameOwner` reads for worker names; if not, the typed-name check says "No one has registered that
+name".

@@ -23,6 +23,7 @@ import {
   finalAgreementIds,
   isMailboxOff,
   offerEpochs,
+  resolveBusinessName,
   resolveWorker,
   sendOffer,
 } from "./offer";
@@ -219,6 +220,24 @@ describe("resolveWorker", () => {
     await expect(resolveWorker("aleo1" + "q".repeat(58), "hewn", reg)).rejects.toThrow(NO_NAME_MESSAGE);
     await expect(resolveWorker("aleo1short", "hewn", reg)).rejects.toThrow(/63 characters/);
     await expect(resolveWorker("", "hewn", reg)).rejects.toThrow(/name or account/);
+  });
+});
+
+describe("resolveBusinessName", () => {
+  it("accepts a name only when this very account owns it", async () => {
+    const { computeNameHash } = await import("@pnw/records/registry/name_registry");
+    const hash = computeNameHash("dayco");
+    const owns = async (h: string) => (h === hash ? EMPLOYER : null);
+    expect(await resolveBusinessName(" DayCo.hewn ", "hewn", EMPLOYER, { nameOwner: owns })).toEqual({ nameHash: hash, name: "dayco" });
+    expect(await resolveBusinessName("dayco", "hewn", EMPLOYER, { nameOwner: owns })).toEqual({ nameHash: hash, name: "dayco" });
+  });
+
+  it("refuses an unregistered name, someone else's name and an empty one", async () => {
+    const { computeNameHash } = await import("@pnw/records/registry/name_registry");
+    const hash = computeNameHash("dayco");
+    await expect(resolveBusinessName("dayco", "hewn", EMPLOYER, { nameOwner: async () => null })).rejects.toThrow("No one has registered that name");
+    await expect(resolveBusinessName("dayco", "hewn", EMPLOYER, { nameOwner: async (h) => (h === hash ? WORKER : null) })).rejects.toThrow("belongs to a different account");
+    await expect(resolveBusinessName("  .hewn", "hewn", EMPLOYER, { nameOwner: async () => EMPLOYER })).rejects.toThrow(/business name/);
   });
 });
 
