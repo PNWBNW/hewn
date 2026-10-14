@@ -23,57 +23,10 @@
 import type { Address, Bytes32, Field } from "@pnw/commitments/aleo_types";
 import type { RosterTree, RosterInclusionProof } from "@pnw/pnw-adapter/sealance_types";
 import { domainHash, toHex, DOMAIN_TAGS } from "@pnw/commitments/hash";
-import { readAgreementRecords } from "@pnw/records/agreement_reader";
 
 // ----------------------------------------------------------------
 // Public API
 // ----------------------------------------------------------------
-
-/**
- * Build the employer's roster tree from their active agreements.
- *
- * @param viewKey - Employer's view key (for reading agreement records)
- * @param employerAddr - Employer's Aleo address
- * @returns RosterTree with root, sorted leaves, and depth
- */
-export async function buildRosterTree(
-  viewKey: string,
-  employerAddr: Address,
-): Promise<RosterTree> {
-  // Fetch all agreement records for this employer
-  const workerRecords = await readAgreementRecords(viewKey, employerAddr);
-
-  // Filter to active agreements only
-  const activeRecords = workerRecords.filter((r) => r.status === "active");
-
-  if (activeRecords.length === 0) {
-    return {
-      root: "0field",
-      leaves: [],
-      depth: 0,
-      employer_addr: employerAddr,
-      built_at: Math.floor(Date.now() / 1000),
-    };
-  }
-
-  // Convert agreement_ids to roster leaves
-  const leaves = activeRecords
-    .map((r) => agreementIdToLeaf(r.agreement_id))
-    .sort(compareFields);
-
-  // Build the Merkle tree
-  const depth = Math.ceil(Math.log2(Math.max(leaves.length, 2)));
-  const paddedLeaves = padLeaves(leaves, depth);
-  const root = computeMerkleRoot(paddedLeaves);
-
-  return {
-    root,
-    leaves,
-    depth,
-    employer_addr: employerAddr,
-    built_at: Math.floor(Date.now() / 1000),
-  };
-}
 
 /**
  * Build a roster tree from a pre-fetched list of agreement IDs.

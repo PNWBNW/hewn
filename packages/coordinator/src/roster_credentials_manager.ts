@@ -27,7 +27,6 @@ import type {
   RosterState,
 } from "@pnw/pnw-adapter/sealance_types";
 import {
-  buildRosterTree,
   buildRosterTreeFromAgreements,
   buildInclusionProof,
   isInRoster,
@@ -42,112 +41,6 @@ import {
 // ----------------------------------------------------------------
 // Public API
 // ----------------------------------------------------------------
-
-/**
- * Acquire roster credentials for the employer's current worker roster.
- *
- * Steps:
- * 1. Build the roster tree from active agreements
- * 2. Verify all manifest workers are in the roster
- * 3. Call get_roster_credentials() on payroll_core
- * 4. Return RosterState with credentials for settlement
- *
- * @param viewKey - Employer's view key
- * @param employerAddr - Employer's Aleo address
- * @param walletExecute - Wallet adapter execute function
- * @param manifestAgreementIds - Agreement IDs from the manifest (for validation)
- */
-export async function acquireRosterCredentials(
-  viewKey: string,
-  employerAddr: Address,
-  walletExecute: WalletExecuteFn,
-  manifestAgreementIds?: Bytes32[],
-): Promise<RosterState> {
-  try {
-    // Step 1: Build roster tree
-    const tree = await buildRosterTree(viewKey, employerAddr);
-
-    if (tree.leaves.length === 0) {
-      return {
-        status: "no_active_workers",
-        tree: null,
-        credentials: null,
-        error: "No active agreements found for this employer",
-      };
-    }
-
-    // Step 2: Validate all manifest workers are in the roster
-    if (manifestAgreementIds) {
-      for (const agreementId of manifestAgreementIds) {
-        if (!isInRoster(agreementId, tree)) {
-          return {
-            status: "error",
-            tree,
-            credentials: null,
-            error: `Agreement ${agreementId} is not in the active roster — worker may be paused or terminated`,
-          };
-        }
-      }
-    }
-
-    // Step 3: Call get_roster_credentials on payroll_core
-    const payrollCoreProgram = PROGRAMS.layer1.payroll_core;
-    const inputs = [
-      tree.root, // roster_root field
-      `${tree.leaves.length}u32`, // roster_size
-    ];
-
-    const txId = await executeAleoTransaction(
-      walletExecute,
-      payrollCoreProgram,
-      "get_roster_credentials",
-      inputs,
-      500_000, // 0.5 credits
-    );
-
-    // Step 4: Poll for confirmation
-    const result = await pollTransactionStatus(txId);
-
-    if (result.status === "rejected") {
-      return {
-        status: "error",
-        tree,
-        credentials: null,
-        error: `get_roster_credentials rejected: ${result.error ?? "unknown"}`,
-      };
-    }
-
-    if (result.status === "unknown") {
-      return {
-        status: "error",
-        tree,
-        credentials: null,
-        error: "get_roster_credentials timed out — credentials may still be valid",
-      };
-    }
-
-    const credentials: RosterCredentialsRecord = {
-      owner: employerAddr,
-      roster_root: tree.root,
-      block_height: result.blockHeight ?? 0,
-      nonce: txId,
-    };
-
-    return {
-      status: "valid",
-      tree,
-      credentials,
-      error: null,
-    };
-  } catch (err) {
-    return {
-      status: "error",
-      tree: null,
-      credentials: null,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
 
 /**
  * Build roster credentials from a pre-fetched agreement list.

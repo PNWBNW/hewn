@@ -4,11 +4,10 @@
  * Surfaces the active worker list by scanning on-chain agreement records
  * owned by the employer's wallet.
  *
- * Primary path: wallet adapter's requestRecords() → parse FinalAgreement
- * and PendingAgreement records → return WorkerRecords.
- *
- * Fallback path: localStorage sent offers → cross-reference with on-chain
- * agreement_status mapping. Used when wallet doesn't support requestRecords.
+ * The only path is the wallet adapter's requestRecords() → parse FinalAgreement
+ * and PendingAgreement records → return WorkerRecords. (The old localStorage
+ * fallback is gone: a package never reads browser storage, and localStorage is
+ * not a book of record.)
  */
 
 import { ENV } from "@pnw/config/env";
@@ -19,18 +18,6 @@ import { queryWorkerName, queryNamePlaintext } from "./registry/name_registry";
 
 /** Agreement status from on-chain state */
 export type AgreementStatus = "active" | "paused" | "terminated";
-
-/** Sent offer shape from localStorage */
-type StoredOffer = {
-  agreement_id: string;
-  worker_pnw_name: string;
-  worker_address: string;
-  industry_code: number;
-  pay_frequency: number;
-  terms_text: string;
-  tx_id: string;
-  created_at: number;
-};
 
 const STATUS_MAP: Record<string, AgreementStatus> = {
   "0u8": "active",   // PENDING maps to active for display (offer sent)
@@ -138,68 +125,23 @@ export async function scanAgreementRecords(
 
     console.log("[PNW] Parsed worker records:", workers.length);
 
-    // Resolve .pnw names for each worker
-    for (const worker of workers) {
-      try {
+    // Resolve registered names, all at once; each lookup is best-effort.
+    // display_name is the bare registered name (the suffix shown next to it
+    // is the app's choice), or undefined when the worker has none.
+    await Promise.allSettled(
+      workers.map(async (worker) => {
         const nameHash = await queryWorkerName(worker.worker_addr);
-        if (nameHash) {
-          const cleanHash = nameHash.replace(/field$/, "").trim();
-          if (!worker.worker_name_hash) worker.worker_name_hash = cleanHash;
-          const plaintext = await queryNamePlaintext(cleanHash);
-          if (plaintext) worker.display_name = `${plaintext}.pnw`;
-        }
-      } catch {
-        // Name resolution is best-effort
-      }
-      // Fallback display: truncated address
-      if (!worker.display_name) {
-        worker.display_name = `${worker.worker_addr.slice(0, 12)}...${worker.worker_addr.slice(-6)}`;
-      }
-    }
+        if (!nameHash) return;
+        const cleanHash = nameHash.replace(/field$/, "").trim();
+        if (!worker.worker_name_hash) worker.worker_name_hash = cleanHash;
+        const plaintext = await queryNamePlaintext(cleanHash);
+        if (plaintext) worker.display_name = plaintext;
+      }),
+    );
 
     return workers;
   } catch (error) {
     console.warn("[PNW] Wallet record scan failed:", error);
-    return [];
-  }
-}
-
-/**
- * Fallback: read from localStorage sent offers + on-chain status.
- * Used when wallet doesn't support requestRecords.
- *
- * @param _viewKey - Employer's view key (reserved for future use)
- * @param address - Employer's Aleo address
- * @returns Array of worker records from localStorage offers
- */
-export async function readAgreementRecords(
-  _viewKey: string,
-  address: Address,
-): Promise<WorkerRecord[]> {
-  try {
-    const raw = localStorage.getItem(`pnw_sent_offers_${address}`);
-    if (!raw) return [];
-
-    const offers: StoredOffer[] = JSON.parse(raw);
-    if (!Array.isArray(offers) || offers.length === 0) return [];
-
-    const workers: WorkerRecord[] = [];
-    for (const offer of offers) {
-      const status = await queryAgreementStatusInternal(offer.agreement_id);
-      if (status) {
-        workers.push({
-          worker_addr: offer.worker_address,
-          worker_name_hash: "",
-          agreement_id: offer.agreement_id,
-          status,
-          display_name: offer.worker_pnw_name ? `${offer.worker_pnw_name}.pnw` : undefined,
-        });
-      }
-    }
-
-    return workers;
-  } catch (error) {
-    console.warn("Agreement reader error:", error);
     return [];
   }
 }

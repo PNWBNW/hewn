@@ -5,16 +5,48 @@ import {
   AleoWalletProvider,
   useWallet,
 } from "@provablehq/aleo-wallet-adaptor-react";
-import { WalletModalProvider } from "@provablehq/aleo-wallet-adaptor-react-ui";
 import { WalletReadyState } from "@provablehq/aleo-wallet-standard";
 import { Network } from "@provablehq/aleo-types";
 import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
 import { ShieldWalletAdapter } from "@provablehq/aleo-wallet-adaptor-shield";
+import { PROGRAMS } from "@pnw/config/programs";
 
-// Official wallet adapter CSS (provides the modal, buttons, and icons)
-import "@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css";
+// Re-exported so src/chain in the app needs no direct dependency on the adaptor packages.
+export { useWallet, WalletReadyState, Network };
 
-export { useWallet };
+const { layer1, layer2, external } = PROGRAMS;
+
+/**
+ * Every live program the wallet is asked to authorize, from the manifest
+ * mirror in @pnw/config (never a literal here, so a redeploy changes one file).
+ *
+ * Dependency order matters: imports must come before programs that import them.
+ * Shield wallet loads programs in order; out-of-order imports cause silent failures.
+ */
+export const WALLET_PROGRAMS: string[] = [
+  "credits.aleo",
+  // Leaf programs (no imports from our set)
+  external.usdcx_freezelist,
+  layer1.employer_license_registry,
+  layer1.pnw_name_registry,
+  layer1.employer_profiles,
+  layer1.worker_profiles,
+  layer1.paystub_receipts,
+  layer1.payroll_audit_log,
+  // Depends on freezelist
+  external.usdcx,
+  // Depends on stablecoin + registry
+  layer1.pnw_name_registrar,
+  // Depends on license_registry + name_registry
+  layer1.employer_agreement,
+  // Depends on stablecoin + agreement + paystub_receipts + payroll_audit_log
+  layer1.payroll_core,
+  // Router and L2 anchors (payroll_nfts_v2 and credential_nft_v3 import employer_agreement_v4)
+  layer1.pnw_router,
+  layer2.payroll_nfts,
+  layer2.credential_nft,
+  layer2.audit_nft,
+];
 
 /**
  * Mobile wallet connection works via the wallet's in-app browser:
@@ -92,8 +124,9 @@ function getMobileWalletUrl(
  * Aleo wallet provider — matches the official pattern from
  * aleo-dev-toolkit-react-app.vercel.app/wallet.
  *
- * Adapter: Shield only (decision 2026-10-13; other Aleo wallets dropped).
- * WalletModalProvider wraps children with the pre-built connect modal UI.
+ * Adapter: Shield only (decision 2026-10-13; other Aleo wallets dropped), so
+ * there is no picker modal: the official react-ui package (and its stylesheet,
+ * which pulls a Google font and so trips a strict CSP) is not used.
  */
 export function AleoWalletProviderWrapper({
   children,
@@ -108,51 +141,11 @@ export function AleoWalletProviderWrapper({
       autoConnect={true}
       network={Network.TESTNET}
       decryptPermission={DecryptPermission.UponRequest}
-      programs={[
-        // Dependency order matters: imports must come before programs that import them.
-        // Shield wallet loads programs in order; out-of-order imports cause silent failures.
-        "credits.aleo",
-        // Leaf programs (no imports from our set)
-        "test_usdcx_freezelist.aleo",
-        "employer_license_registry.aleo",
-        "pnw_name_registry_v2.aleo",
-        "employer_profiles_v2.aleo",
-        "pnw_worker_profiles_v2.aleo",
-        "paystub_receipts.aleo",
-        "payroll_audit_log.aleo",
-        // Depends on freezelist
-        "test_usdcx_stablecoin.aleo",
-        // Depends on stablecoin + registry
-        "pnw_name_registrar_v5.aleo",
-        // Depends on license_registry + name_registry
-        "employer_agreement_v4.aleo",
-        // Depends on stablecoin + agreement + paystub_receipts + payroll_audit_log
-        "payroll_core_v2.aleo",
-        // Router and L2 anchors
-        "pnw_router_v4.aleo",
-        // Legacy v1 (still @noupgrade but listed for read compatibility)
-        "payroll_nfts.aleo",
-        // New v2 (imports employer_agreement_v4 instead of v2)
-        "payroll_nfts_v2.aleo",
-        // Legacy v1 credential NFT (kept for read compatibility with
-        // credentials minted before the v2 cutover)
-        "credential_nft.aleo",
-        // v2 credential NFT (kept for read compatibility with credentials
-        // minted during the v2 → v3 transition period). Dual-record mint
-        // but no on-chain auth check.
-        "credential_nft_v2.aleo",
-        // v3 credential NFT — dual-record mint + hard on-chain auth via
-        // employer_agreement_v4::assert_employer_authorized. This is the
-        // active program for all new mints, revokes, and scans.
-        "credential_nft_v3.aleo",
-        "audit_nft.aleo",
-      ]}
+      programs={WALLET_PROGRAMS}
       onError={(error) => console.error("[Wallet]", error.message)}
     >
-      <WalletModalProvider>
-        <WalletMobileRedirectHandler />
-        {children}
-      </WalletModalProvider>
+      <WalletMobileRedirectHandler />
+      {children}
     </AleoWalletProvider>
   );
 }

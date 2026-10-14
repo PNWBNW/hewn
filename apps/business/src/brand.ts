@@ -8,6 +8,10 @@ export const BRAND = {
   tagline: "honest books, grounded and true.",
   /** Extension for downloaded backup files. */
   backupExtension: "plumb",
+  /** Shown after a registered name (`name.hewn`). The registry stores the bare name. */
+  nameSuffix: "hewn",
+  /** Prefix of the message Shield signs to link an account. A protocol tag: it stays put if the name changes. */
+  railLinkDomain: "hewn:link:v1",
   colors: { green: "#113b31", cream: "#f5f0e3", ink: "#091623", canvas: "#f7f5ef" },
   assets: {
     markDark: "/brand/plumb-mark-dark.png",

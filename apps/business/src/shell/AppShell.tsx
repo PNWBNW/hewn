@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Lock,
   Menu,
+  Settings,
   Users,
   X,
   type LucideIcon,
@@ -93,6 +94,20 @@ function Rail({
         );
       })}
       <div className="mt-auto flex flex-col gap-1 border-t border-rail-border pt-4">
+        <Link
+          href="/settings"
+          onClick={onNavigate}
+          aria-current={isActive(pathname, "/settings") ? "page" : undefined}
+          className={cn(
+            "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors",
+            isActive(pathname, "/settings")
+              ? "bg-rail-active font-medium text-rail-active-foreground"
+              : "hover:bg-white/5 hover:text-rail-active-foreground",
+          )}
+        >
+          <Settings aria-hidden className={cn("size-4 shrink-0", isActive(pathname, "/settings") && "text-rail-accent")} />
+          Settings
+        </Link>
         <RailButton icon={Download} label="Download a backup" onClick={onBackup} />
         <RailButton icon={Lock} label="Lock books" onClick={onLock} />
         <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
