@@ -29,6 +29,9 @@ importers:
       '@pnw/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger
+      '@pnw/mailbox':
+        specifier: workspace:*
+        version: link:../../packages/mailbox
       '@pnw/payroll':
         specifier: workspace:*
         version: link:../../packages/payroll
@@ -132,6 +135,12 @@ importers:
       fast-check:
         specifier: 4.10.2
         version: 4.10.2
+
+  packages/mailbox:
+    dependencies:
+      '@noble/hashes':
+        specifier: 2.0.1
+        version: 2.0.1
 
   packages/manifest:
     dependencies:

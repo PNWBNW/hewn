@@ -19,7 +19,7 @@ Status: ✅ in place · 🔜 planned (phase) · ⚠️ accepted risk.
   what the user sees (T8).
 - **The server is not trusted with data.** It serves code and nothing else: no database, no API
   that sees plaintext. A breached host can serve bad code (T3) but cannot leak stored books,
-  because there are none.
+  because there are none. The one API it has, the mailbox, sees ciphertext only (below).
 - **Dependencies are untrusted until reviewed.** Every package runs with the app's privileges.
 - **The chain is public.** Only hashes, commitments and block heights go there.
 
@@ -83,6 +83,37 @@ The highest risk for a browser app.
   auto-lock and short key lifetime.
 - ⚠️ A forgotten passphrase means unrecoverable books. 🔜 P1: optional recovery key, nudges to
   keep an encrypted backup.
+
+## The mailbox
+
+The one server function (`/api/mailbox/<lookup>`, `@pnw/mailbox`; decision in
+`docs/INTEGRATION_AUDIT.md` §4.4). It carries a document (offer terms, a W-4, a paystub, a payment
+note) from one party of an agreement to the other, with no email, no PDF and no third party able
+to read it. It holds the pinning key, stores nothing, has no database.
+
+**What the function, the host and the pinning service can see:** ciphertext; lookup hashes
+(`BLAKE3("PNW::MAILBOX::LOOKUP::v1" ‖ 0x00 ‖ parties_key ‖ kind ‖ seq)`, which only the two parties
+can compute and which relate to nothing else); request timing and sizes; client IP addresses.
+**What they cannot:** who the parties are, which kind of document it is, how many documents an
+agreement has exchanged, or any content. Every envelope is AES-256-GCM under a key derived with
+HKDF-SHA256 from the agreement's on-chain `parties_key` and the document kind, bound to its lookup
+as associated data, so it can't be read, replayed into another slot or passed off as another kind.
+The function refuses anything that isn't a sealed envelope (hex lookup, octet-stream body, version
+byte, 256 KiB cap) and logs neither bodies nor lookups. Same origin only, no CORS. ✅
+
+**Pinata holds ciphertext in flight only.** The receiver's vault keeps its copy the moment the
+document is opened and the pin is then dropped; the sender's vault kept one from the start.
+Nothing on a pin but the lookup as its name: no addresses, kinds or dates in metadata. ✅
+
+**Delivery is not proof.** The mailbox is a courier. Both vaults keep copies, and what proves a
+paystub or a payment is the books: the document hash in the entry, the entry hash in the chain,
+the period root anchored. A lost or dropped envelope costs a re-send, never a record. ✅
+
+Without `PINATA_JWT` the function answers 503 and everything else in the app works; the mailbox
+is the only feature that needs the host to have a secret. ⚠️ Accepted: the host can refuse
+delivery (denial of service) or see that two unknown parties exchanged *something*. Scanning by
+lookup also means an attacker who steals a `parties_key` can read that pair's envelopes while
+they're pinned; the key is in a private record and in the vault, never elsewhere.
 
 ## Not yet covered
 
