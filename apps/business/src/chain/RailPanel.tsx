@@ -38,15 +38,16 @@ import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
 import { finalAgreementIds } from "./offer";
 import { partiesKeysOf } from "./parties_key";
+import { RegisterFlow } from "./RegisterBusiness";
 import { useShield } from "./shield";
 
-export type RailPanelProps = { mode: "connect" | "import"; onClose: () => void };
+export type RailPanelProps = { mode: "connect" | "import" | "register"; onClose: () => void };
 
 export default function RailPanel({ mode, onClose }: RailPanelProps) {
   return (
     <AleoWalletProviderWrapper>
       <div className="flex flex-col gap-4 rounded-md border bg-muted/40 p-4">
-        {mode === "connect" ? <ConnectFlow onClose={onClose} /> : <ImportFlow onClose={onClose} />}
+        {mode === "connect" ? <ConnectFlow onClose={onClose} /> : mode === "import" ? <ImportFlow onClose={onClose} /> : <RegisterFlow onClose={onClose} />}
       </div>
     </AleoWalletProviderWrapper>
   );

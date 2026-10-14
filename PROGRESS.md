@@ -1509,3 +1509,27 @@ ordering). Browser check: a fresh business account shows the Mailbox item and it
 here: a populated feed and a real scan (need two Shield accounts and `PINATA_JWT`); Joshua's testnet
 run covers them. Not built: turning received hours into a pay run's hours (next), worker-sent W-4s
 (the worker app doesn't send one yet).
+
+## 2026-10-14 — Register a business name (.hewn)
+
+Settings → Register business name, and the same flow inside the Send offer checklist
+(`chain/RegisterBusiness.tsx`, `chain/business_registry.ts`). It reads the registry for the linked
+account and goes one of four ways: already holds a business name (kept), holds a worker's name (a
+business needs its own Shield account), not yet approved (shows the account to send to the registry
+authority, with Check again), or free to register (name + industry, availability check, one Shield
+approval of `pnw_name_registrar_v5::register_employer_name`, done only when Shield reports it
+accepted; saved to the books as `rail.businessName`). The authority's own account also gets an Approve
+button (`employer_license_registry::set_verified`), for itself or a pasted account.
+
+**Found in the Leo source (not what I assumed):** registering a business name, and `create_job_offer`,
+both require the account to be approved in `employer_license_registry`, and only its `AUTHORITY`
+account can approve. The UBI/licence number is not checked on chain (only a commitment is stored; we
+store a placeholder), but the approval gate itself is real and the registry is `@noupgrade`. So a
+business needs the authority's one-time approval before it can register or send offers. Dropping the
+gate needs a registrar v6 and agreement v5 (Leo session, not started). Also: the old
+`buildRegisterEmployerNameCommand` in `@pnw/records` has the pre-v5 signature and is not used.
+Recorded in `docs/ALEO_CONSTRAINTS.md` §7.
+
+Tests: `pnpm test` 605/605 (+13: v5 input encoding pinned, name and industry refusals, approval
+inputs, authority check, the four account states, availability). Not run here: the panels themselves
+(need Shield, public USDCx and a funded account); Joshua's testnet run covers them.
