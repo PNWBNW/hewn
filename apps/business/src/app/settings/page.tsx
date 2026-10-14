@@ -21,7 +21,7 @@ const RailPanel = dynamic(() => import("@/chain/RailPanel"), {
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function SettingsPage() {
-  const { books, role } = useOpenBooks();
+  const { books, role, email } = useOpenBooks();
   const worker = role === "worker";
   return (
     <div className="flex flex-col gap-6">
@@ -41,7 +41,12 @@ export default function SettingsPage() {
                 <dd className="font-medium">{MONTHS[books.settings.fiscalYearStartMonth - 1] ?? "January"}</dd>
               </>
             )}
+            <dt className="text-muted-foreground">Account</dt>
+            <dd className="break-all font-medium">{email ?? <span className="text-muted-foreground">Created before accounts</span>}</dd>
           </dl>
+          <p className="mt-4 text-xs text-muted-foreground">
+            You can add the other kind later from the front page: New here? → choose the other one.
+          </p>
         </CardContent>
       </Card>
 

@@ -3,8 +3,10 @@
 // ---------------------------------------------------------------------------
 // Holds the open books for the whole app.
 //
-// Lifecycle: loading → "new" (no books on this device yet) or "locked" →
-// "open". Every change goes through `update`, which runs a pure ledger
+// Lifecycle: loading → "new" (no books on this device yet) or "locked" (some
+// are here) → "open". An account is an email plus a passphrase (see
+// account.ts): the vault id is a hash of the email and the role, and the
+// vault key is wrapped with the email and passphrase together. Every change goes through `update`, which runs a pure ledger
 // operation, then seals the result and saves it to IndexedDB before the
 // screen moves on. Plaintext exists only in this tab's memory; locking (or
 // 15 idle minutes) drops it along with the vault key.
@@ -20,12 +22,25 @@ import { type Books, type Dimensions, type Settings, type TemplateId, applyTempl
 import type { Payroll } from "@pnw/payroll";
 import { type AttachmentRef, MAX_ATTACHMENT_BYTES, type Sales } from "@pnw/sales";
 import { BRAND } from "@/brand";
+import {
+  AccountError,
+  LEGACY_VAULT_ID,
+  ROLES,
+  accountSecret,
+  checkAccountPassphrase,
+  findAccounts,
+  hasLegacyVault,
+  legacyOpen,
+  normalizeEmail,
+  vaultIdFor,
+} from "./account";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
 import type { Rail } from "./rail";
 import { type Role, type Work, emptyWork } from "./work";
 import {
   type VaultSession,
   IndexedDbStore,
+  VaultError,
   createVault,
   exportBackup,
   parseBackup,
@@ -33,8 +48,11 @@ import {
   unlockVault,
 } from "@pnw/vault";
 
-/** Name of the one vault on this device; also part of what Shield signs when an account is linked. */
-export const VAULT_ID = "default";
+/**
+ * The id of the one vault from before accounts. Kept under its old name because the message Shield
+ * signs to link an account has always carried it (see chain/RailPanel); new vaults have their own ids.
+ */
+export const VAULT_ID = LEGACY_VAULT_ID;
 const IDLE_LOCK_MS = 15 * 60 * 1000;
 
 export type BooksStatus = "loading" | "new" | "locked" | "open";
@@ -44,10 +62,37 @@ export type BooksStatus = "loading" | "new" | "locked" | "open";
  * person who works for one gives only their name, and gets blank books with
  * the work part alongside.
  */
-export type SetupInput = Settings & { template: TemplateId | "blank"; passphrase: string; role?: Role };
+export type SetupInput = Settings & { template: TemplateId | "blank"; email: string; passphrase: string; role: Role };
+
+/** What a login came to: the books are open, or one email and passphrase opened both kinds and the person picks. */
+export type UnlockOutcome = { opened: true } | { opened: false; choices: Role[] };
+
+// Only records that an account exists on this device (to tell the front page which button to
+// emphasise), never whose. localStorage can be blocked or cleared; the page works without it.
+const HAS_ACCOUNT_FLAG = "pnw:has-account";
+
+function readAccountFlag(): boolean {
+  try {
+    return localStorage.getItem(HAS_ACCOUNT_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeAccountFlag(): void {
+  try {
+    localStorage.setItem(HAS_ACCOUNT_FLAG, "1");
+  } catch {
+    // Blocked storage: the front page just won't lean towards Log in.
+  }
+}
 
 type BooksContextValue = {
   status: BooksStatus;
+  /** True when books from before accounts are on this device (they open with a passphrase alone). */
+  legacyAvailable: boolean;
+  /** The open account's email; null on books made before accounts, or while locked. */
+  email: string | null;
   books: Books | null;
   payroll: Payroll | null;
   sales: Sales | null;
@@ -59,15 +104,25 @@ type BooksContextValue = {
   /** A person's own side (agreements, hours, paystubs), or null on a business's books. */
   work: Work | null;
   create: (input: SetupInput) => Promise<void>;
-  unlock: (passphrase: string) => Promise<void>;
+  /** Log in with an email and passphrase. Throws a message that never says which of the two was wrong. */
+  unlock: (email: string, passphrase: string) => Promise<UnlockOutcome>;
+  /** After `unlock` offered a choice: open the business or the worker account. */
+  chooseAccount: (role: Role) => Promise<void>;
+  /** Drop an offered choice (the dialog closed) and its keys. */
+  cancelChoice: () => void;
+  /** Open books created before accounts, with the passphrase alone. */
+  unlockLegacy: (passphrase: string) => Promise<void>;
   lock: () => void;
   /** Apply a ledger operation; resolves once the result is safely stored. */
   update: (op: (books: Books) => Books) => Promise<Books>;
   /** Same, for operations that change the books with payroll or sales (a pay run, an invoice). */
   updateCompany: (op: (company: Company) => Company) => Promise<Company>;
   downloadBackup: () => Promise<void>;
-  /** Restore a backup file onto this device, then open it. */
-  restore: (fileText: string, passphrase: string) => Promise<void>;
+  /**
+   * Restore a backup file onto this device, then open it. The backup must belong to this email; a
+   * backup from before accounts needs only the passphrase (pass null for the email).
+   */
+  restore: (fileText: string, email: string | null, passphrase: string) => Promise<void>;
   /** Seals a photo or PDF into the vault and returns the reference a bill keeps. */
   addAttachment: (file: File) => Promise<AttachmentRef>;
   /** Opens a sealed file, checking it against the fingerprint the bill holds. */
@@ -111,6 +166,13 @@ export function useWork(): OpenBooks & { work: Work; updateWork: (op: (work: Wor
   return { ...ctx, work, updateWork };
 }
 
+/** Turns the vault's "wrong passphrase" into a message of ours; anything else passes through. */
+function rethrowWrong(message: string) {
+  return (e: unknown): never => {
+    throw e instanceof VaultError && e.code === "WRONG_PASSPHRASE" ? new AccountError(message) : e;
+  };
+}
+
 const ATTACHMENT_TYPES = /^(image\/[a-z0-9.+-]+|application\/pdf)$/;
 
 function newAttachmentId(): string {
@@ -123,18 +185,27 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const session = useRef<VaultSession | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const companyRef = useRef<Company | null>(null);
+  const pending = useRef<{ role: Role; session: VaultSession }[]>([]);
   const [status, setStatus] = useState<BooksStatus>("loading");
+  const [legacyAvailable, setLegacyAvailable] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
 
+  // Is there anything here to log in to? Books from before accounts, or the flag a created account
+  // leaves. The vault ids of accounts are hashes of emails, so the store can't be asked for them
+  // without one; the login looks for them once the email is typed.
   useEffect(() => {
-    store.load(VAULT_ID).then(
-      (record) => setStatus(record ? "locked" : "new"),
-      () => setStatus("new"),
+    hasLegacyVault(store).then(
+      (legacy) => {
+        setLegacyAvailable(legacy);
+        setStatus(legacy || readAccountFlag() ? "locked" : "new");
+      },
+      () => setStatus(readAccountFlag() ? "locked" : "new"),
     );
   }, [store]);
 
   const open = useCallback(async (s: VaultSession) => {
     const loaded = companyFromJson(await s.read());
+    pending.current = [];
     session.current = s;
     companyRef.current = loaded;
     setCompany(loaded);
@@ -142,25 +213,60 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const create = useCallback(
-    async ({ template, passphrase, role, ...settings }: SetupInput) => {
+    async ({ template, email: rawEmail, passphrase, role, ...settings }: SetupInput) => {
+      const email = normalizeEmail(rawEmail);
+      checkAccountPassphrase(passphrase);
+      const id = await vaultIdFor(email, role);
+      // Never overwrite: this screen is reachable on a device that already has accounts.
+      if (await store.load(id)) {
+        throw new AccountError(
+          `There is already a ${role === "worker" ? "worker" : "business"} account for that email on this device. Log in, or use a different email.`,
+        );
+      }
       let fresh = createBooks(settings);
       if (template !== "blank") fresh = applyTemplate(fresh, template);
-      const company: Company = role === "worker" ? { ...emptyCompany(fresh), role, work: emptyWork(settings.businessName) } : emptyCompany(fresh);
-      const s = await createVault(passphrase, companyToJson(company), { id: VAULT_ID });
+      const base: Company = role === "worker" ? { ...emptyCompany(fresh), role, work: emptyWork(settings.businessName) } : emptyCompany(fresh);
+      const s = await createVault(accountSecret(email, passphrase), companyToJson({ ...base, email }), { id });
       await store.save(s.record);
+      writeAccountFlag();
       await open(s);
     },
     [store, open],
   );
 
   const unlock = useCallback(
-    async (passphrase: string) => {
-      const record = await store.load(VAULT_ID);
-      if (!record) {
-        setStatus("new");
-        return;
+    async (email: string, passphrase: string): Promise<UnlockOutcome> => {
+      const found = await findAccounts(store, email, passphrase); // throws the one generic message
+      writeAccountFlag();
+      if (found.length === 1) {
+        await open(found[0]!.session);
+        return { opened: true };
       }
-      await open(await unlockVault(record, passphrase));
+      pending.current.forEach((p) => p.session.lock());
+      pending.current = found;
+      return { opened: false, choices: found.map((f) => f.role) };
+    },
+    [store, open],
+  );
+
+  const chooseAccount = useCallback(
+    async (role: Role) => {
+      const pick = pending.current.find((p) => p.role === role);
+      if (!pick) throw new Error("Log in again to choose");
+      pending.current.filter((p) => p !== pick).forEach((p) => p.session.lock());
+      await open(pick.session);
+    },
+    [open],
+  );
+
+  const cancelChoice = useCallback(() => {
+    pending.current.forEach((p) => p.session.lock());
+    pending.current = [];
+  }, []);
+
+  const unlockLegacy = useCallback(
+    async (passphrase: string) => {
+      await open(await legacyOpen(store, passphrase));
     },
     [store, open],
   );
@@ -168,6 +274,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const lock = useCallback(() => {
     session.current?.lock();
     session.current = null;
+    pending.current.forEach((p) => p.session.lock());
+    pending.current = [];
     companyRef.current = null;
     setCompany(null);
     setStatus((s) => (s === "open" ? "locked" : s));
@@ -202,7 +310,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     const s = session.current;
     if (!s) return;
     // Every sealed file goes in too, still encrypted: a restore brings the receipts back.
-    const attachments = await store.listAttachments(VAULT_ID);
+    const attachments = await store.listAttachments(s.id);
     const blob = new Blob([exportBackup(s.record, attachments)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -214,13 +322,25 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, [company, store]);
 
   const restore = useCallback(
-    async (fileText: string, passphrase: string) => {
+    async (fileText: string, rawEmail: string | null, passphrase: string) => {
       const backup = parseBackup(fileText);
-      const record = { ...backup.record, id: VAULT_ID };
-      const s = await unlockVault(record, passphrase); // proves the passphrase before anything is replaced
+      let s: VaultSession;
+      if (backup.record.id === LEGACY_VAULT_ID) {
+        // From before accounts: the passphrase alone, as ever.
+        s = await unlockVault(backup.record, passphrase).catch(rethrowWrong("That passphrase doesn't open this backup"));
+      } else {
+        const email = normalizeEmail(rawEmail ?? "");
+        const ids = await Promise.all(ROLES.map((role) => vaultIdFor(email, role)));
+        if (!ids.includes(backup.record.id)) throw new AccountError("This backup belongs to a different account");
+        s = await unlockVault(backup.record, accountSecret(email, passphrase)).catch(
+          rethrowWrong("That email and passphrase don't open this backup"),
+        ); // proves them before anything is replaced
+      }
       companyFromJson(await s.read()); // and that the books inside are intact
       for (const a of backup.attachments) await s.openAttachment(a); // and every file
       await store.replace(s.record, backup.attachments);
+      writeAccountFlag();
+      if (backup.record.id === LEGACY_VAULT_ID) setLegacyAvailable(true);
       await open(s);
     },
     [store, open],
@@ -236,7 +356,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const attachmentId = newAttachmentId();
       const sha256 = await sha256Hex(bytes);
-      await store.saveAttachment(VAULT_ID, await s.sealAttachment(attachmentId, bytes));
+      await store.saveAttachment(s.id, await s.sealAttachment(attachmentId, bytes));
       return { attachmentId, sha256, type: file.type, size: bytes.length, name: file.name || "receipt" };
     },
     [store],
@@ -246,7 +366,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     async (ref: AttachmentRef): Promise<Blob> => {
       const s = session.current;
       if (!s) throw new Error("Books are locked");
-      const sealed = await store.loadAttachment(VAULT_ID, ref.attachmentId);
+      const sealed = await store.loadAttachment(s.id, ref.attachmentId);
       if (!sealed) throw new Error("That file isn't on this device. Restore a backup that includes it.");
       const bytes = await s.openAttachment(sealed);
       if ((await sha256Hex(bytes)) !== ref.sha256) throw new Error("That file doesn't match the one attached to this bill");
@@ -255,7 +375,13 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store],
   );
 
-  const discardAttachment = useCallback((attachmentId: string) => store.removeAttachment(VAULT_ID, attachmentId), [store]);
+  const discardAttachment = useCallback(
+    async (attachmentId: string) => {
+      const s = session.current;
+      if (s) await store.removeAttachment(s.id, attachmentId);
+    },
+    [store],
+  );
 
   // Auto-lock after inactivity.
   useEffect(() => {
@@ -276,6 +402,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       status,
+      legacyAvailable,
+      email: company?.email ?? null,
       books: company?.books ?? null,
       payroll: company?.payroll ?? null,
       sales: company?.sales ?? null,
@@ -285,6 +413,9 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       work: company?.work ?? null,
       create,
       unlock,
+      chooseAccount,
+      cancelChoice,
+      unlockLegacy,
       lock,
       update,
       updateCompany,
@@ -294,7 +425,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       readAttachment,
       discardAttachment,
     }),
-    [status, company, create, unlock, lock, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
+    [status, legacyAvailable, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
   );
   return <BooksContext.Provider value={value}>{children}</BooksContext.Provider>;
 }

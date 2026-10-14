@@ -68,6 +68,22 @@ describe("company file", () => {
     expect(() => companyFromJson(bad)).toThrow(/role/);
   });
 
+  it("carries the account's email inside the file, and leaves it out when there is none", () => {
+    const dimensions = emptyDimensions();
+    const withEmail = companyToJson({ books, payroll, sales, dimensions, email: "ana@example.com" });
+    expect(JSON.parse(withEmail).email).toBe("ana@example.com");
+    expect(companyFromJson(withEmail)).toEqual({ books, payroll, sales, dimensions, email: "ana@example.com" });
+    const without = companyToJson({ books, payroll, sales, dimensions });
+    expect(JSON.parse(without)).not.toHaveProperty("email");
+    expect(companyFromJson(without)).not.toHaveProperty("email");
+  });
+
+  it("opens files saved before accounts with no email", () => {
+    const old = JSON.stringify({ format: "pnw-company", version: 1, books: booksToJson(books), payroll: payrollToJson(payroll), sales: salesToJson(sales), role: "business" });
+    expect(companyFromJson(old).email).toBeUndefined();
+    expect(companyFromJson(booksToJson(books)).email).toBeUndefined();
+  });
+
   it("still opens company files saved before projects existed", () => {
     const old = JSON.stringify({ format: "pnw-company", version: 1, books: booksToJson(books), payroll: payrollToJson(payroll), sales: salesToJson(sales) });
     expect(companyFromJson(old)).toEqual({ books, payroll, sales, dimensions: emptyDimensions() });

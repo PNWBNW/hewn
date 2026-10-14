@@ -1358,3 +1358,102 @@ visible, no horizontal overflow, zero console errors.
 **Notes for Joshua:** the app icon source is 217 px, so the 512 px icons are upscaled (send a larger
 file or SVG and re-run the script for crisper ones). The hero still says "FREE • OPEN SOURCE" while
 the licence is proprietary (site copy says only "free").
+
+## 2026-10-14 — Front page, Log in pop-up and email accounts
+
+Joshua's problem: the app opened with the passphrase card already over the hero, hiding the front
+page. Now a real front page, a Log in pop-up, a New here? entry, and an account that is an email
+plus a passphrase. Branch `front/login`. No server, no email sent, no verification, no sync; moving
+device is by backup file.
+
+- **`FrontPage.tsx`** (rendered by `BooksGate` when status is `new` or `locked`, never auto-opening
+  anything): top bar with the wordmark and, on the right, **New here?** (text) and **Log in** (icon +
+  words, 44px tall on a phone); the whole hero, uncropped and uncovered; the tagline as the heading;
+  the site's intro trimmed; **Get started** and **Log in** buttons (the filled one is Get started on
+  a device with no books and Log in on one with books, and comes first); three value lines with
+  icons; "Encrypted on this device. Nothing is sent to a server." About 1.07 screens at 390px.
+- **`LoginDialog.tsx`** (`@pnw/ui` Dialog): Email, Passphrase (show/hide), Log in; links Restore
+  from a backup file, New here? Create an account, and, only if a `"default"` vault exists, Open
+  books created before accounts (swaps to a passphrase-only form). Esc, backdrop and an X close it;
+  focus goes to Email only once the dialog is open and returns to Log in on close; the form is
+  mounted only while open, so closing clears it. `autoComplete` email / current-password. One
+  generic error. Busy state during the 600k-round derivation. If one email and passphrase open both
+  a business and a worker account, a chooser ("Open your business books" / "Open your worker
+  account"); the other session's key is dropped.
+- **New here**: the existing `SetupScreen` as a full view with a Back link (to the front page; later
+  steps label it "Front page" so it isn't mistaken for the step Back). The protect step gains Email
+  (validated, normalised) above Passphrase; the "no password reset" line sits under the passphrase;
+  the old checkbox is shortened and no longer hard-codes a company name. Setup refuses to overwrite
+  an existing account for that email and role. `AuthCard` is now top bar + hero + card below it (the
+  negative-margin overlap is gone); Settings says "You can add the other kind later from the front
+  page: New here? → choose the other one."
+- **`account.ts`** (pure): `normalizeEmail` (trim, NFKC, lowercase, shape, 254 max),
+  `vaultIdFor` (`acct-` + 32 hex of SHA-256 over `hewn:acct:v1:<role>:<email>`), `accountSecret`
+  (`hewn:v1\n<email>\n<NFKC passphrase>`), `findAccounts(store, email, passphrase)` (0, 1 or 2
+  accounts; one generic error; a failed lookup spends one decoy key derivation so timing doesn't say
+  whether the email exists), `legacyOpen`, `hasLegacyVault`. `Company.email` (normalised, inside the
+  encrypted file; absent on older files).
+- **`BooksProvider`**: `create({ email, role, passphrase, … })`, `unlock(email, passphrase)` →
+  opened or a choice, `chooseAccount`, `cancelChoice`, `unlockLegacy`, `restore(file, email,
+  passphrase)`. Saves, attachments and backups use the open session's vault id. `locked` now means
+  "some books are on this device": the `VaultStore` interface has no list method and an account's
+  id is a hash of an email, so it is `"default"` exists **or** the small `localStorage` flag
+  `pnw:has-account` (set on create, login and restore; holds only "1", never an email). If the flag
+  is lost the page leans towards Get started but Log in still finds the account (the login computes
+  the ids from the typed email). `restore` requires the backup's record id to be one of the ids for
+  that email ("This backup belongs to a different account"); a `"default"` backup restores with the
+  passphrase alone. `RestoreScreen` asks email + passphrase, or passphrase only after reading a
+  pre-accounts file. Backup names and contents carry no email (only the hash id). `UnlockScreen` is
+  gone, replaced by the dialog.
+- **Docs**: CLAUDE.md "Keys and storage" (unlock secret is email + passphrase); THREAT_MODEL T2
+  (email part of the secret, hashed local id, no server accounts, no credential stuffing, no reset,
+  recovery key planned, and the accepted risk that the unsalted id lets someone holding a file test
+  a guessed email, which opens nothing).
+
+**Tests**: 561/561 in 67 files (was 534/66 on main): `account.test.ts` 25 (normalisation incl.
+unicode, full-width, combining accents, idempotence, bad shapes, 254/255; id stable and pinned,
+differs by role and email, no email in it; secret changes with either input; passphrase alone
+cannot open an account vault; the email is absent from the record and the backup; `findAccounts`
+right/wrong email, wrong passphrase, other email's passphrase, both roles, different passphrases
+per role, empty device, legacy vault not opened by it; `legacyOpen`, `hasLegacyVault`), `company.test.ts`
++2 (email round trip, files from before accounts). Fiat boundary green (no banned word in the new
+copy). Typecheck, business build and `pnpm audit --audit-level=moderate` clean.
+
+**Chromium** on the production build (107 checks, scratch `login.mjs`, shots in
+`shots-login/`), 390×844 and 1280×800, light and dark: a fresh profile shows the front page with
+no dialog open, nothing focused, the whole hero visible and uncovered (9 sample points hit the
+image) and at its true 1536:526 shape; no horizontal overflow anywhere; the wordmark, New here? and
+Log in sit side by side at 390px with 44px targets. Log in opens the pop-up (Email focused, correct
+autocomplete values), Esc, backdrop tap and X each close it and focus returns to Log in. New here →
+setup with Back → front page; Get started goes to the same place. Created a business account with
+`Ana.Ruiz@Example.com`; reload → front page with **Log in** now the filled button; wrong email and
+wrong passphrase both give "That email and passphrase don't match an account on this device";
+Log in is disabled with no email; `  ana.ruiz@EXAMPLE.com ` + passphrase opens it; Settings shows
+Account `ana.ruiz@example.com` and the hint. A worker account with the same email and passphrase:
+Log in → chooser, each choice opens the right side; creating a second account for the same email and
+role is refused, not overwritten. The business backup (record id `acct-…`, no email in the file or
+its name) restores on a fresh profile with its email and passphrase, is refused for another email
+("This backup belongs to a different account") and for a wrong passphrase, and logs in afterwards.
+A pre-seeded `"default"` vault (made with the real `createVault`, 600k rounds, by a throwaway
+vitest and written into IndexedDB in the page) shows "Open books created before accounts", rejects a
+wrong passphrase, opens with the right one, and Settings says "Created before accounts". Desktop
+dark: create, lock, log in. Zero console errors or CSP violations; the only console output is the
+existing `Permissions-Policy … Unrecognized feature: 'bluetooth'` warning from this Chromium build
+(header set in `@pnw/security`, untouched).
+
+**Decided (not in the brief).** (1) `RailPanel` still imports `VAULT_ID` for the message Shield signs
+when linking an account, so I kept that export, pointing at `"default"`, instead of editing
+`src/chain`; the signed message therefore says `default` for every account (see Deferred). (2)
+`vaultIdFor` and `accountSecret` take the already-normalised email as given (as specified); the
+callers normalise. (3) A failed login spends one decoy PBKDF2 so a wrong email isn't visibly
+faster than a wrong passphrase. (4) Creating an account where that email and role already exist is
+refused rather than replacing the vault. (5) Restore on a device with books warns "If this account
+already has books on this device, restoring replaces them", since only that account's vault is
+replaced now. (6) No edits to `packages/vault`, `packages/ledger`, `apps/site`, `brand/`, or
+`src/chain`/`work`/`payroll`/`sales`/`expenses`.
+
+**Deferred.** The recovery key (a second wrapped copy of the data key; the email is kept in the
+account for it). Email verification (needs a server; not planned). Migrating `"default"` books to an
+email account. Cross-device sync is intentionally not planned. Binding the Shield link message to
+the open vault's id instead of `default` (needs a one-line change in `src/chain/RailPanel.tsx`).
+Changing the passphrase or email from Settings.
