@@ -29,6 +29,9 @@ importers:
       '@pnw/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@pnw/handshake':
+        specifier: workspace:*
+        version: link:../../packages/handshake
       '@pnw/ledger':
         specifier: workspace:*
         version: link:../../packages/ledger

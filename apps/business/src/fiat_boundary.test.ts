@@ -24,6 +24,7 @@ const CHAIN_PACKAGES = [
   "@pnw/records",
   "@pnw/config",
   "@pnw/commitments",
+  "@pnw/handshake",
   "aleo-adapters",
 ];
 const CHAIN_SCOPES = ["@provablehq/", "@/chain/"];

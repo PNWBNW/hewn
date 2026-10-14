@@ -34,7 +34,9 @@ import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
-import { PartyForm } from "./PartyForm";
+import { LinkBadge } from "@/books/LinkBadge";
+import { linkStatus } from "@/books/rail";
+import { PartyForm, partyLinkView, withPartyAddress } from "./PartyForm";
 import { ReceivePaymentForm } from "./ReceivePaymentForm";
 import { AgingCard, EstimateBadge, StatusBadge, voidWithFallback } from "./parts";
 
@@ -353,7 +355,7 @@ function Estimates({ onConverted }: { onConverted: () => void }) {
 // ---- Customers -------------------------------------------------------------
 
 function Customers() {
-  const { sales, updateCompany } = useOpenBooks();
+  const { sales, rail, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(sales.customers.length === 0 ? "new" : null);
   const [error, setError] = useState<string | null>(null);
   const termsLabel = (id: string) => TERMS.find((t) => t.id === id)?.label ?? id;
@@ -369,9 +371,13 @@ function Customers() {
       {editing === "new" && (
         <PartyForm
           kind="customer"
+          link={partyLinkView(rail, "customer", undefined)}
           onCancel={() => setEditing(null)}
-          onSave={async (input) => {
-            await updateCompany((c) => ({ ...c, sales: addCustomer(c.sales, input).sales }));
+          onSave={async (input, address) => {
+            await updateCompany((c) => {
+              const added = addCustomer(c.sales, input);
+              return withPartyAddress({ ...c, sales: added.sales }, "customer", added.customer.id, address);
+            });
             setEditing(null);
           }}
         />
@@ -385,9 +391,10 @@ function Customers() {
                 <PartyForm
                   kind="customer"
                   initial={cust}
+                  link={partyLinkView(rail, "customer", cust.id)}
                   onCancel={() => setEditing(null)}
-                  onSave={async (input) => {
-                    await updateCompany((c) => ({ ...c, sales: updateCustomer(c.sales, cust.id, input) }));
+                  onSave={async (input, address) => {
+                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateCustomer(c.sales, cust.id, input) }, "customer", cust.id, address));
                     setEditing(null);
                   }}
                 />
@@ -395,7 +402,10 @@ function Customers() {
             ) : (
               <li key={cust.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <div className={cn("text-sm font-medium", !cust.active && "text-muted-foreground line-through")}>{cust.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("truncate text-sm font-medium", !cust.active && "text-muted-foreground line-through")}>{cust.name}</span>
+                    <LinkBadge status={linkStatus(rail, "customer", cust.id)} />
+                  </div>
                   <div className="truncate text-xs text-muted-foreground">
                     {[cust.email, termsLabel(cust.terms), !cust.active && "Inactive"].filter(Boolean).join(" · ")}
                   </div>
