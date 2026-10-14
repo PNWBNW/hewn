@@ -2,17 +2,22 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeftRight,
   ChartColumn,
+  Clock,
   Download,
   CreditCard,
   FileText,
   FolderKanban,
+  Home,
+  IdCard,
+  Inbox,
   Landmark,
   LayoutDashboard,
   Lock,
+  Mailbox,
   Menu,
   Settings,
   Users,
@@ -21,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
+import type { Role } from "@/books/work";
 import { BRAND } from "@/brand";
 import { BrandLogo } from "./Brand";
 import { SECTIONS } from "./sections";
@@ -35,13 +41,34 @@ const ICONS: Record<string, LucideIcon> = {
   taxes: Landmark,
 };
 
-const NAV = [
+type NavItem = { href: string; label: string; icon: LucideIcon };
+
+const BUSINESS_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText })),
 ];
 
+/** A person who works for a business: their own, smaller app. */
+export const WORK_NAV: NavItem[] = [
+  { href: "/work", label: "Home", icon: Home },
+  { href: "/work/offers", label: "Offers", icon: Inbox },
+  { href: "/work/hours", label: "Hours", icon: Clock },
+  { href: "/work/paystubs", label: "Paystubs", icon: Mailbox },
+  { href: "/work/profile", label: "Profile", icon: IdCard },
+];
+
+export const isWorkPath = (pathname: string) => pathname === "/work" || pathname.startsWith("/work/");
+
+/** Where a vault of this role belongs when it lands on the other role's pages; null when the path is fine. */
+export function redirectFor(role: Role, pathname: string): string | null {
+  if (pathname === "/settings" || pathname.startsWith("/settings/")) return null;
+  if (role === "worker") return isWorkPath(pathname) ? null : "/work";
+  return isWorkPath(pathname) ? "/" : null;
+}
+
 function isActive(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const home = href === "/" || href === "/work";
+  return home ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function RailButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
@@ -59,21 +86,26 @@ function RailButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: s
 
 function Rail({
   pathname,
+  role,
   onNavigate,
   onBackup,
   onLock,
 }: {
   pathname: string;
+  role: Role;
   onNavigate?: () => void;
   onBackup: () => void;
   onLock: () => void;
 }) {
+  const worker = role === "worker";
+  const nav = worker ? WORK_NAV : BUSINESS_NAV;
+  const home = worker ? "/work" : "/";
   return (
     <nav aria-label="Main" className="flex h-full flex-col gap-1 bg-rail px-3 py-4 text-rail-foreground">
-      <Link href="/" onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label={`${BRAND.name}, dashboard`}>
+      <Link href={home} onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label={`${BRAND.name}, ${worker ? "home" : "dashboard"}`}>
         <BrandLogo tone="onDark" height={30} />
       </Link>
-      {NAV.map(({ href, label, icon: Icon }) => {
+      {nav.map(({ href, label, icon: Icon }) => {
         const active = isActive(pathname, href);
         return (
           <Link
@@ -109,9 +141,10 @@ function Rail({
           Settings
         </Link>
         <RailButton icon={Download} label="Download a backup" onClick={onBackup} />
-        <RailButton icon={Lock} label="Lock books" onClick={onLock} />
+        <RailButton icon={Lock} label={worker ? "Lock" : "Lock books"} onClick={onLock} />
         <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
-          Your books stay on this device, encrypted. Nothing is sent to a server.
+          {worker ? "Your hours and paystubs stay on this device, encrypted." : "Your books stay on this device, encrypted."} Nothing is sent to a
+          server.
         </p>
       </div>
     </nav>
@@ -120,8 +153,16 @@ function Rail({
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { books, lock, downloadBackup } = useOpenBooks();
+  const router = useRouter();
+  const { books, role, lock, downloadBackup } = useOpenBooks();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // A worker's vault lives under /work and a business's everywhere else;
+  // landing on the other side (a stale link, a typed URL) goes home.
+  const redirect = redirectFor(role, pathname);
+  useEffect(() => {
+    if (redirect) router.replace(redirect);
+  }, [redirect, router]);
 
   // Close the mobile drawer on navigation and on Escape.
   useEffect(() => setDrawerOpen(false), [pathname]);
@@ -135,7 +176,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh border-r border-rail-border lg:block">
-        <Rail pathname={pathname} onBackup={() => void downloadBackup()} onLock={lock} />
+        <Rail pathname={pathname} role={role} onBackup={() => void downloadBackup()} onLock={lock} />
       </aside>
 
       {drawerOpen && (
@@ -146,7 +187,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">
-            <Rail pathname={pathname} onNavigate={() => setDrawerOpen(false)} onBackup={() => void downloadBackup()} onLock={lock} />
+            <Rail pathname={pathname} role={role} onNavigate={() => setDrawerOpen(false)} onBackup={() => void downloadBackup()} onLock={lock} />
           </div>
         </div>
       )}
@@ -165,13 +206,19 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <span
             className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2.5 py-1 text-xs text-muted-foreground"
-            title="Your books are kept only on this device, encrypted. Money moves through your bank as usual."
+            title={
+              role === "worker"
+                ? "Your hours and paystubs are kept only on this device, encrypted."
+                : "Your books are kept only on this device, encrypted. Money moves through your bank as usual."
+            }
           >
             <Lock aria-hidden className="size-3" />
             Private · this device
           </span>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:py-8">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:py-8">
+          {redirect ? <p className="text-sm text-muted-foreground">Taking you home…</p> : children}
+        </main>
       </div>
     </div>
   );

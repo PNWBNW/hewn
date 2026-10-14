@@ -21,21 +21,26 @@ const RailPanel = dynamic(() => import("@/chain/RailPanel"), {
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function SettingsPage() {
-  const { books } = useOpenBooks();
+  const { books, role } = useOpenBooks();
+  const worker = role === "worker";
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Settings" summary="Your business, and how it pays." />
+      <PageHeader title="Settings" summary={worker ? "You, and how you get paid." : "Your business, and how it pays."} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Business</CardTitle>
+          <CardTitle className="text-base">{worker ? "You" : "Business"}</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
             <dt className="text-muted-foreground">Name</dt>
             <dd className="font-medium">{books.settings.businessName}</dd>
-            <dt className="text-muted-foreground">Fiscal year starts</dt>
-            <dd className="font-medium">{MONTHS[books.settings.fiscalYearStartMonth - 1] ?? "January"}</dd>
+            {!worker && (
+              <>
+                <dt className="text-muted-foreground">Fiscal year starts</dt>
+                <dd className="font-medium">{MONTHS[books.settings.fiscalYearStartMonth - 1] ?? "January"}</dd>
+              </>
+            )}
           </dl>
         </CardContent>
       </Card>
@@ -46,7 +51,8 @@ export default function SettingsPage() {
 }
 
 function PrivatePayments() {
-  const { rail, payroll, updateCompany } = useOpenBooks();
+  const { rail, payroll, role, updateCompany } = useOpenBooks();
+  const worker = role === "worker";
   const [panel, setPanel] = useState<"connect" | "import" | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,9 +62,13 @@ function PrivatePayments() {
       <CardHeader>
         <CardTitle className="text-base">Private payments</CardTitle>
         <p className="text-sm text-muted-foreground">
-          {rail
-            ? "Shield is linked. Payments to your team and vendors can go straight from this account."
-            : "Connect Shield to pay your team and vendors directly, with no bank in the middle. Your books stay on this device either way."}
+          {worker
+            ? rail
+              ? "Shield is linked. Offers and pay reach this account directly."
+              : "Connect Shield to receive offers and get paid directly, with no bank in the middle. Your hours and paystubs stay on this device either way."
+            : rail
+              ? "Shield is linked. Payments to your team and vendors can go straight from this account."
+              : "Connect Shield to pay your team and vendors directly, with no bank in the middle. Your books stay on this device either way."}
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -68,9 +78,11 @@ function PrivatePayments() {
           <RailPanel mode={panel} onClose={() => setPanel(null)} />
         ) : rail ? (
           <div className="flex flex-wrap gap-3">
-            <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("import")}>
-              Import team
-            </Button>
+            {!worker && (
+              <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("import")}>
+                Import team
+              </Button>
+            )}
             <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmUnlink(true)}>
               Unlink
             </Button>
@@ -88,8 +100,9 @@ function PrivatePayments() {
             <DialogHeader>
               <DialogTitle>Unlink this account?</DialogTitle>
               <DialogDescription>
-                The account and the {payroll.workers.length === 1 ? "link" : "links"} to your team come off your books. Nothing happens
-                to the account itself, and you can connect it again later.
+                {worker
+                  ? "The account comes off this device. Your agreements, hours and paystubs stay, and you can connect it again later."
+                  : `The account and the ${payroll.workers.length === 1 ? "link" : "links"} to your team come off your books. Nothing happens to the account itself, and you can connect it again later.`}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-4 gap-2">
@@ -120,13 +133,15 @@ function PrivatePayments() {
 }
 
 function LinkedAccount() {
-  const { rail, payroll } = useOpenBooks();
+  const { rail, payroll, role, work } = useOpenBooks();
   const [copied, setCopied] = useState(false);
   if (!rail) return null;
+  const worker = role === "worker";
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
   const linked = rail.links.filter((l) => names.has(l.workerId) && l.status === "linked").length;
   const offered = rail.links.filter((l) => names.has(l.workerId) && l.status === "offered").length;
   const linkedOn = new Date(rail.linkedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const registered = worker ? work?.profile?.name : rail.businessName;
 
   return (
     <dl className="grid gap-x-6 gap-y-3 rounded-md border border-dashed p-3 text-sm sm:grid-cols-[auto_1fr]">
@@ -151,14 +166,18 @@ function LinkedAccount() {
         </button>
       </dd>
       <dt className="text-muted-foreground">Registered name</dt>
-      <dd className="font-medium">{rail.businessName ? `${rail.businessName}.${BRAND.nameSuffix}` : <span className="text-muted-foreground">None yet</span>}</dd>
+      <dd className="font-medium">{registered ? `${registered}.${BRAND.nameSuffix}` : <span className="text-muted-foreground">None yet</span>}</dd>
       <dt className="text-muted-foreground">Linked</dt>
       <dd className="font-medium">{linkedOn}</dd>
-      <dt className="text-muted-foreground">Team</dt>
-      <dd className="font-medium">
-        {linked} {linked === 1 ? "team member" : "team members"} linked
-        {offered > 0 && ` · ${offered} ${offered === 1 ? "offer" : "offers"} sent`}
-      </dd>
+      {!worker && (
+        <>
+          <dt className="text-muted-foreground">Team</dt>
+          <dd className="font-medium">
+            {linked} {linked === 1 ? "team member" : "team members"} linked
+            {offered > 0 && ` · ${offered} ${offered === 1 ? "offer" : "offers"} sent`}
+          </dd>
+        </>
+      )}
     </dl>
   );
 }

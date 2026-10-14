@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { addProject, addTag, booksToJson, createBooks, emptyDimensions } from "@pnw/ledger";
 import { addWorker, emptyPayroll, payrollToJson } from "@pnw/payroll";
 import { addCustomer, addVendor, emptySales, salesToJson } from "@pnw/sales";
-import { companyFromJson, companyToJson } from "./company";
+import { companyFromJson, companyToJson, roleOf } from "./company";
 import type { Rail } from "./rail";
+import { emptyWork, punch, upsertAgreement } from "./work";
 
 const books = createBooks({ businessName: "T", fiscalYearStartMonth: 1 });
 const payroll = addWorker(emptyPayroll(), {
@@ -36,6 +37,35 @@ describe("company file", () => {
     const unlinked = companyToJson({ books, payroll, sales, dimensions });
     expect(JSON.parse(unlinked)).not.toHaveProperty("rail");
     expect(companyFromJson(unlinked)).not.toHaveProperty("rail");
+  });
+
+  it("carries a worker's role and work, and leaves both out of a business's file", () => {
+    const dimensions = emptyDimensions();
+    let work = upsertAgreement(emptyWork("Ana Ruiz"), {
+      agreementId: "01".repeat(32),
+      partiesKey: "ab".repeat(32),
+      employerAddress: "aleo1" + "k".repeat(58),
+      employerNameHash: "1",
+      status: "active",
+      employerName: "brothers",
+    });
+    work = punch(work, "01".repeat(32), "2026-10-14T15:00:00.000Z", "p1").work;
+    const worker = companyToJson({ books, payroll: emptyPayroll(), sales: emptySales(), dimensions, role: "worker", work });
+    expect(JSON.parse(worker).role).toBe("worker");
+    expect(companyFromJson(worker)).toEqual({ books, payroll: emptyPayroll(), sales: emptySales(), dimensions, role: "worker", work });
+    expect(roleOf(companyFromJson(worker))).toBe("worker");
+    const business = companyToJson({ books, payroll, sales, dimensions });
+    expect(JSON.parse(business)).not.toHaveProperty("role");
+    expect(JSON.parse(business)).not.toHaveProperty("work");
+    expect(companyFromJson(business)).not.toHaveProperty("role");
+  });
+
+  it("treats every file from before roles existed as a business's", () => {
+    const old = JSON.stringify({ format: "pnw-company", version: 1, books: booksToJson(books), payroll: payrollToJson(payroll), sales: salesToJson(sales) });
+    expect(roleOf(companyFromJson(old))).toBe("business");
+    expect(roleOf(companyFromJson(booksToJson(books)))).toBe("business");
+    const bad = JSON.stringify({ format: "pnw-company", version: 1, books: booksToJson(books), payroll: payrollToJson(payroll), role: "owner" });
+    expect(() => companyFromJson(bad)).toThrow(/role/);
   });
 
   it("still opens company files saved before projects existed", () => {

@@ -1170,3 +1170,165 @@ slot counter (`mailboxSeq.terms`) and the worker's scan to try each slot.
 
 **Deferred.** Linking vendors, subs and customers (the party-agreement program); paying a bill on
 the rail; cancelling or re-sending an offer; a worker's name shown on the Team row once linked.
+## 2026-10-14 — The worker side, inside the same app
+
+`INTEGRATION_AUDIT.md` §6 task 8, Phase 0 criterion 2 (the worker sees their paystub). Branch
+`work/worker-side`. A person who works for a business sets up their own vault on their own phone
+and gets a profile on the registry, offers to accept, clock in / clock out with the week sent to
+the employer, and paystubs arriving through the mailbox. No new Leo program; every transition is
+one the old portal exercised, encoded the same way.
+
+- **Role in the company file.** `Company.role?: "business" | "worker"` (absent = business, so
+  every existing file opens as before; an unknown role is refused) and `Company.work?: Work`
+  (`src/books/work.ts`: `workToJson` / `workFromJson`, field-by-field validation, one agreement
+  per id, punches sorted). `Work` = display name, `profile?` (name hash, name, done flag,
+  registered-at), `agreements` (id, parties key, employer address and name hash, optional
+  registered name, status pending/active/paused/terminated, optional `Terms`, accepted-at),
+  `punches`, `timesheets` (sent weeks), `paystubs` (received) and `mailboxSeq` per agreement
+  (`paystub`, `timesheet`). Pure operations: `upsertAgreement` (keeps terms/name/acceptance an
+  earlier copy had), `setProfile`, `nextWorkSeq` / `bumpWorkSeq` (never backwards), `addPaystub`
+  (one per slot), `recordTimesheet` (a week sent again replaces the record), `punch` (the
+  opposite of the last punch; only against an active agreement), `updatePunch`, `removePunch`
+  (a lone last out can go alone and reopens the shift; removing an in takes its out with it).
+  **The rule:** per agreement, punches in time order alternate in, out, in, out… from an in, no two
+  at the same time; `checkPunches` enforces it on every add, edit and removal, which is what makes
+  overlapping shifts impossible. 15 tests.
+- **Hours maths** (`src/books/hours.ts`): local calendar days, weeks start Monday
+  (`weekStartOf`), a shift crossing midnight is split between its two days, an open shift counts
+  up to now or, once its day has ended, to that midnight (a forgotten clock-out never bleeds into
+  the next day). `buildTimesheet` = the shared payload `{ version: 1, kind: "timesheet",
+  agreementId, weekStart, entries: [{ date, in, out, minutes }], totalMinutes, sentAt }`, refused
+  for a non-Monday or an empty week. 7 tests, pinned to `America/Los_Angeles`.
+- **Setup chooses the role.** `SetupScreen` opens with "What brings you here?": *I run a
+  business* (today's flow, unchanged) or *I work for a business* (your name and a passphrase
+  only → blank books named after the person, `role: "worker"`, empty `work`). `BooksProvider`
+  exposes `role` and `work`, `create` takes the role, and `useWork()` gives the worker pages
+  `work` + `updateWork`. Company-file tests cover the round trip with role/work, a business file
+  carrying neither, and files from before roles opening as a business's.
+- **Worker shell.** `AppShell` renders its own nav for a worker (Home, Offers, Hours, Paystubs,
+  Profile, then Settings / backup / Lock), the header badge reads for hours and paystubs, and
+  `redirectFor(role, path)` sends a worker off any business page to `/work` and a business off
+  `/work/*` to `/` (Settings is shared); `src/app/work/layout.tsx` renders nothing for a
+  non-worker vault. Routes are literal under `src/app/work/**`, so they win over `[section]`.
+- **Pages** (fiat-safe words only; every Shield/mailbox panel is a `dynamic()` import from
+  `src/chain/work/**`, so a person who never taps a button never downloads it):
+  - `/work` Home: one big Clock in / Clock out button (vault only; a select appears with more
+    than one active employer), today and this week, the employer list with pay terms, Send this
+    week, the latest paystub.
+  - `/work/hours`: the week's punches by day (earlier weeks a tap away), each editable
+    (datetime-local, the alternating rule explained on refusal) or removable with a confirm,
+    the weekly total, Send to <employer>. `src/chain/work/SendTimesheet.tsx` seals the payload
+    with the agreement's parties key under kind `timesheet` at the next slot and `put`s it;
+    409 = sent; 503 = "Timesheet delivery is off on this server". Note: `timesheet` is not one of
+    the kinds `@pnw/mailbox` names (`packages/*` were off limits); the mailbox accepts any
+    lower-case kind and the kind is part of the key, so it works as is — adding it to `KINDS`
+    is a one-line follow-up for whoever next edits the package.
+  - `/work/offers`: the agreements in the vault, pending first ("Waiting for you"), with the
+    terms once known. "Check for offers" → `src/chain/work/Offers.tsx`: reads
+    `employer_agreement_v4` records from Shield (`PendingAgreement` and `FinalAgreement`, parsed
+    as the old portal parsed them plus `parties_key` and `terms_doc_hash`; a final copy wins over
+    a pending one; a final agreement's paused/terminated status from the `agreement_status`
+    mapping, best effort), resolves the employer's registered name from
+    `name_plaintext(employer_name_hash)` (best effort), fetches the terms at
+    `lookupId(partiesKey, "terms", 0)`, **verifies `computeTermsDocHash(canonicalTerms(terms))`
+    equals the record's `terms_doc_hash`** ("Terms don't match the agreement" and no Accept
+    otherwise; the same when the terms haven't arrived or the host has no mailbox), shows pay
+    type, rate, frequency, start date and the terms text, and **Accept** runs
+    `employer_agreement_v4::accept_job_offer(recordPlaintext, accept_time_hash)` with the hash
+    built exactly as the old portal built it (BLAKE3("PNW::DOC", TLV 0x6008 of the u32 epoch
+    seconds) as a `[u8; 32]`), then marks the agreement active with its terms and `drop`s the
+    terms pin. Every agreement found is written to the vault, so the list stands without Shield.
+  - `/work/paystubs`: the list, newest first, each opening in `PaystubView` (document only, plain
+    words: period, pay, gross, each tax, net, "Paid on the rail · <short id>", the fee line,
+    employer taxes, year to date). "Check for new paystubs" → `src/chain/work/Inbox.tsx`, which
+    runs `scanPaystubs` (`inbox.ts`): for each accepted agreement, slots of kind `paystub` from
+    `mailboxSeq[agreementId].paystub ?? 0` upward until `get` returns null; each envelope is
+    opened, parsed as `{ version: 1, kind: "paystub", document, settlement, businessName }`
+    (what `src/chain/deliver.ts` writes), its hash recomputed with `paystubHash` from the typed
+    document (`src/books/paystub_document.ts` reads the canonical form back), kept in the vault
+    (`addPaystub`, which bumps the slot), and only then `drop`ped. An envelope that won't open
+    or won't parse is skipped with a visible error and its slot moved on, so one bad document
+    never blocks the ones behind it; 503 stops the scan with the one-line message. Needs no
+    Shield: the keys are in the vault.
+  - `/work/profile`: the registered name and the two steps. `src/chain/work/Profile.tsx`: connect
+    Shield (`useShield`, checked against the account linked in Settings), look the account up in
+    `worker_primary_name_of` → `name_plaintext`; else **Register name**: availability through
+    `name_owner(computeNameHash(name))` (a name already owned by this account is "already
+    yours" and skips the transaction), then `pnw_name_registrar_v5::register_worker_name(<hash>field,
+    <name as u128>u128)` exactly as `RegisterNameStep.tsx` encoded it, with "Needs 1 USDCx in
+    your public balance and a little ALEO for the fee"; then **Create profile**: the 15-input
+    `pnw_worker_profiles_v2::create_worker_profile` exactly as `CreateProfileStep.tsx` encoded it
+    (legal first/middle/last name as u128, age from the date of birth, gender with "Prefer not to
+    say" = the old code's 3 and the default, FIPS state, ISO country, industry, citizenship;
+    schema/policy/rev 1u16; the anchor BLAKE3("PNW::DOC", TLV 0x5010 of name hash, address, u32
+    seconds); the state-issued id the old form sent as "0" when blank). No skip: the profile is
+    done only when Shield reports the transaction accepted. The vault keeps only `nameHash`,
+    `name`, `profileAnchored`, `registeredAt`.
+  - Settings for a worker: "You" instead of "Business" (no fiscal year), the copy on Private
+    payments reads for receiving, no Import team, the registered name comes from the profile.
+    Shield linking is the same `RailPanel` connect flow (the other worker's file, untouched).
+- **`src/chain/work/execute.ts`**: every write goes through `@pnw/wallet`'s
+  `executeAleoTransaction` with `privateFee: false`, the fee left to Shield's estimate as the pay
+  queue does, then the wallet's own `transactionStatus` until accepted/rejected (5-minute cap,
+  injectable clock). Nothing logs an input, an id or an error. The old portal's
+  `useTransactionExecutor` is not used: it `console.log`s every input.
+- **CSP**: `/work` joins `/settings` and `/payroll` as a rail page (`RAIL_PATHS`), so the worker
+  pages may compile WebAssembly and reach the explorer; everything else stays strict. Headers
+  tests and THREAT_MODEL T3 updated. `@pnw/handshake` is linked into the app (lockfile +3 lines)
+  for `computeTermsDocHash`.
+
+**Shared contracts** (with the employer's Send offer, built in parallel): `Terms` =
+`{ version: 1, kind: "terms", agreementId, termsText, payType, rate (cents, decimal string),
+frequency, startDate, businessName, offeredAt }`, canonical form = `JSON.stringify` with keys in
+exactly that order; the record's `terms_doc_hash` = `computeTermsDocHash(canonical)`. Pinned
+fixture: the terms above with rate 3000, weekly, start 2026-10-19, "Day Construction", offered
+2026-10-14T16:00:00.000Z → `0b56276bce6516f482492af7b1acbfc5d40690f20ab1967a45151edc4986719f`.
+`Terms.agreementId` may be the agreement id or the offer time hash; the app matches by the
+record's `agreement_id` and only checks the hash. The timesheet payload is above.
+
+**Tests**: 29 new in the app (work 15, hours 7, company +2, headers edited) plus `src/chain/work`
+(terms 6 with the pinned hash and `fetchTerms` outcomes; agreements 7 incl. the pinned accept-time
+hash; execute 4; inbox 7 with a fake mailbox: stops at the first miss, bumps the slot, drops pins
+after storing, skips one bad envelope with a visible error, starts from the remembered slot,
+503/502, pending agreements left alone; timesheet 4; registry 8 with the pinned fixtures
+`ana_ruiz` → `4547698302048783622388735066678619945457518107237306768812295900000616107966field`,
+`7020655931687266682u128`, "Ana" → `4288097u128`, " " → `32u128`, "Ruiz" → `1383426426u128`).
+Root `pnpm test` **503/503** in 63 files (was 435/54); `@pnw/business` typecheck and build
+green; `pnpm audit --audit-level=moderate` clean; fiat boundary green (no chain word or import
+outside `src/chain`).
+
+**Chromium 390×844** on the production build (scratch `worker.mjs`: `window.shield` owned by the
+worker, the explorer intercepted, `/api/mailbox/*` served from sealed fixtures made with the real
+`seal`): set up as a worker → lands on `/work`, `/payroll` bounces back to `/work`; Settings →
+Connect Shield → "Shield is linked. Offers and pay reach this account directly.", no Import team;
+Profile → the mocked registered name `ana_ruiz.hewn`, the profile form → Create profile →
+`create_worker_profile` with 15 inputs (`12345field`, `4288097u128`, …, `36u8`, `3u8`, `53u16`,
+`840u16`, …, `9u8`, a `[u8; 32]` anchor), `privateFee: false`, no fee → "Profile complete";
+Offers → Check → 1 agreement found, terms fetched from slot 0 once, `brothers.hewn` / Day
+Construction / $30.00 per hour / weekly / starts 2026-10-19 / the terms text, Accept →
+`accept_job_offer` with the record plaintext as Shield gave it and a `[u8; 32]` accept-time hash
+→ "Accepted", the terms pin DELETEd, the list shows Active; Home → Clock in ("On the clock since
+…") → Clock out; Hours → edit the clock-in two hours back → 2h 00m → Send this week → one POST,
+201, to a bare 64-hex lookup (= slot 0 of the `timesheet` kind for this agreement), octet-stream,
+335 bytes starting with **0x01**, no field name, name or hour in the clear; Paystubs → Check → "1
+new paystub arrived", the paystub slot read once then DELETEd, the view shows gross 1,200.00,
+each tax, net 1,048.05, "Paid on the rail · at1yphn8n…9ltw", the fee line; a second check reads
+slot 1 only (the vault remembers); Home shows the latest paystub. Zero console errors or CSP
+violations (a mailbox 404 is the end of a scan and is filtered as such), no horizontal overflow on
+any page. `business-smoke.mjs`: *I run a business* → the dashboard, `/work/hours` bounces to `/`,
+Settings unchanged. Screenshots in scratch `shots-worker/`.
+
+**Decided (not in the brief).** (1) A name already on the registry marks step 1 done but not the
+profile: `profileAnchored` is false until `create_worker_profile` is accepted in this app, since
+the profile's anchor can't be looked up without the anchor itself; someone who made a profile in
+the old portal is asked again (whether the program accepts a second profile for the same name is
+for the testnet run to tell). (2) `employerLabel` prefers the business name from the terms, then
+the registered name, then the short account. (3) Removing a punch takes the other end of its shift
+only when the rest would no longer alternate; a last out can go alone. (4) A shift still open when
+a week is sent is cut at now / that midnight rather than refused. (5) The fee on the three
+transitions is left to Shield's estimate (the pay queue's precedent) rather than the old portal's
+flat 0.5 credits. (6) Paystubs are scanned for paused and terminated agreements too (pay can
+arrive after a pause), never for pending ones. (7) The inbox needs no Shield; Offers and Profile
+do. **Deferred:** checking the paystub's transition id against the USDCx record in the worker's
+account (§2.4) and against the anchored period root; the credential badge; W-4 through the
+mailbox; the employer's side of the timesheet (receiving the week); a "sent" mark per day.
