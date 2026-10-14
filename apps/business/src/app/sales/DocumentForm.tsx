@@ -324,7 +324,7 @@ function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoi
                     checked={r.taxable}
                     aria-label={`Line ${i + 1} taxable`}
                     onChange={(e) => setRow(r.key, { taxable: e.target.checked })}
-                    className="size-4 accent-[var(--plumb-green)]"
+                    className="size-4 accent-[var(--hewn-green)]"
                   />
                   <span className="lg:sr-only">Taxable</span>
                 </label>

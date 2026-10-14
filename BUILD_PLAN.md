@@ -1,9 +1,9 @@
-# Plumb — Build Plan
+# Hewn — Build Plan
 
 Oct 13, 2026 · Joshua Day
 
 > Source of truth for what gets built and in what order. Mirrors the Claude Doc
-> "PNW Ledger — Build Plan" (the product is now named Plumb). When an exit criterion is met, tick it here and log it in PROGRESS.md.
+> "PNW Ledger — Build Plan" (the product is now named Hewn). When an exit criterion is met, tick it here and log it in PROGRESS.md.
 
 ## Scope
 
@@ -256,6 +256,6 @@ No seat cap; the wallet is the user.
 - [x] Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed (2026-10-13).
 - [x] Greenlight for Phase 0 (2026-10-13).
 - [ ] Minimum group size for publishing aggregates (suggested 5). Gates Phase 3 public flag.
-- [ ] Product name for the bookkeeping surface. "Plumb" is the working name (taken; final TBD). Renaming = edit `packages/brand/src/index.ts` + new art in `brand/source/`.
+- [x] Product name for the bookkeeping surface: **Hewn** (hewnaccounting.com; app at app.hewnaccounting.com) (2026-10-14). The name, tagline, colours and asset paths live in `packages/brand/src/index.ts`; art in `brand/source/`.
 - [ ] Phase 6 before Phase 3, if multi-user is wanted before anything ships to a second person.
 - [ ] Greenlight for Phase 1.

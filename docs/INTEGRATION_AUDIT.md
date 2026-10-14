@@ -313,7 +313,7 @@ the address-derived hash are throwaway.
   superseded by `@pnw/vault`. Delete after its tests are archived.
 - `pnw_payroll_engine/` (Julia): retired, still in the tree. Delete.
 - Monorepo: `SetupScreen.tsx:170` says "including PNW"; `tokens.css` duplicates brand colours and
-  `--plumb-*` vars; three pages use `--plumb-green` directly. Collapse into `packages/brand` when
+  `--hewn-*` vars; three pages use `--hewn-green` directly. Collapse into `packages/brand` when
   the Hewn art lands.
 
 ### 4.7 Documentation drift to fix when the code moves

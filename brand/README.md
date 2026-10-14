@@ -1,6 +1,7 @@
-# Plumb brand assets
+# Hewn brand assets
 
-`source/` holds the original artwork (logo on light, logo on dark, front-page hero).
+`source/` holds the original artwork: the logo on light and on dark, the front-page hero, the app icon
+(`hewn-icon.png`), the "Every business. One Hewn." strip, and the product tiles in `tiles/`.
 Everything the app (`apps/business`) and the marketing site (`apps/site`) serve is generated from it:
 
 ```sh
@@ -14,13 +15,14 @@ paths the code uses live in `packages/brand`.
 | Output | Use |
 |---|---|
 | `apps/*/src/app/icon.png`, `apple-icon.png`, `favicon.ico` | Browser tab, iOS home screen (Next.js picks these up by filename) |
-| `public/brand/plumb-icon-{192,512}.png`, `plumb-icon-maskable-512.png` | Installable app icons (`src/app/manifest.ts`) |
-| `public/brand/plumb-mark-{dark,light}.png` | The pine-cone tile inside the app |
-| `public/brand/plumb-wordmark-{green,cream}.png` | "Plumb" lettering, transparent; green on light, cream on dark |
-| `public/brand/plumb-hero-*.{webp,jpg}` | Setup/unlock screens and the README (1.9 MB PNG → 86–301 KB) |
+| `public/brand/hewn-icon-{192,512}.png`, `hewn-icon-maskable-512.png` | Installable app icons (`src/app/manifest.ts`) |
+| `public/brand/hewn-mark.png` | The pine-cone tile (the app icon) |
+| `public/brand/hewn-wordmark-{green,cream}.png` | "Hewn Accounting" lettering, transparent; green on light, cream on dark |
+| `public/brand/hewn-tile-{books,payroll,invoices,reports}.png` | Product tiles on the marketing site (`tiles/farm.png` and `tiles/build.png` wait for their templates) |
+| `public/brand/hewn-hero-*.{webp,jpg}` | Setup/unlock screens, the site and the README |
 
-Colours sampled from the art: green `#113b31`, cream `#f5f0e3`, ink `#091623`, gold `#f8d084`,
+Colours: green `#113b31`, cream `#f5f0e3`, ink `#091623`, gold `#f8d084`,
 cyan `#18dccb` (tokens in `packages/ui/src/tokens.css`).
 
-The source logo's mark is about 190 px across, so the 512 px icons are upscaled. Drop in a vector
-(SVG) or ≥1024 px source and re-run the script for crisper icons.
+The app icon source is 217 px, so the 512 px icons are upscaled. Drop in a vector (SVG) or ≥1024 px
+source as `hewn-icon.png` and re-run the script for crisper icons.

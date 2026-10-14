@@ -1,8 +1,8 @@
-<p align="center"><img src="apps/business/public/brand/plumb-hero-1536.jpg" alt="Plumb: honest books, grounded and true." width="100%"></p>
+<p align="center"><img src="apps/business/public/brand/hewn-hero-1536.jpg" alt="Hewn: honest books, grounded and true." width="100%"></p>
 
-## Plumb
+## Hewn
 
-**Plumb** is the bookkeeping app being built in this repo: double-entry books, payroll and reports
+**Hewn** is the bookkeeping app being built in this repo: double-entry books, payroll and reports
 that live encrypted on your own device. No account, no server, no wallet needed. Proofs on Aleo are
 an optional upgrade, never a requirement. Spec: [`BUILD_PLAN.md`](BUILD_PLAN.md) ·
 progress: [`PROGRESS.md`](PROGRESS.md) · app: [`apps/business`](apps/business).

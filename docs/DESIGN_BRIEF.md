@@ -1,4 +1,4 @@
-# Plumb — Design Brief (business shell)
+# Hewn — Design Brief (business shell)
 
 Phase 0, deliverable 3. Clean-room: written from what bookkeepers need to *do*, not from any
 other product's screens, icons, text or layout.

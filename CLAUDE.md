@@ -1,10 +1,10 @@
-# CLAUDE.md — Plumb
+# CLAUDE.md — Hewn
 
 Read this whole file at the start of every session, then follow **Session start** below.
 
 ## What this is
 
-**Plumb** (formerly "PNW Ledger"): a clean-room, open-source rebuild of QuickBooks Advanced (minus AI and support features) on top of
+**Hewn** (formerly "PNW Ledger"): a clean-room, open-source rebuild of QuickBooks Advanced (minus AI and support features) on top of
 Joshua Day's existing Aleo ZK payroll stack (PNW — Proven National Workers). Same mental model
 bookkeepers already know, our own screens and code. Never copy QuickBooks screens, icons, text or
 layouts; match what it *does*, not how it *looks*.
@@ -13,7 +13,7 @@ Three operating modes on one codebase: **fiat** (default, encrypted local vault,
 **anchored** (same, plus period roots anchored on Aleo), **settled** (USDCx on Aleo, the existing payroll
 stack). The double-entry core is identical in all three.
 
-Brand: working name **Plumb** (taken; final name TBD by Joshua), tagline "honest books, grounded and
+Brand: **Hewn** (hewnaccounting.com; the app at app.hewnaccounting.com), tagline "honest books, grounded and
 true." The name, tagline, colours, asset paths and the app/site URLs live only in `packages/brand`
 (`@pnw/brand`; `apps/business/src/brand.ts` is a re-export of it); never hard-code the product name
 elsewhere (packages say "this app"). Source art and the asset build script live in `brand/`; never

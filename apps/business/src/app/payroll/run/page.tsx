@@ -201,7 +201,7 @@ export default function RunPayrollPage() {
                     checked={row.include}
                     disabled={problem === LINK_FIRST}
                     onChange={(e) => setRows((r) => ({ ...r, [worker.id]: { ...row, include: e.target.checked } }))}
-                    className="size-4 accent-[var(--plumb-green)]"
+                    className="size-4 accent-[var(--hewn-green)]"
                   />
                   <span>
                     <span className="block text-sm font-medium">{worker.name}</span>

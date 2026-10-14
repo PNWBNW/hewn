@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     siteName: BRAND.name,
     title: BRAND.name,
     description: DESCRIPTION,
-    images: [{ url: BRAND.assets.heroJpg1536, width: 1536, height: 729, alt: `${BRAND.name}: ${BRAND.tagline}` }],
+    images: [{ url: BRAND.assets.heroJpg1536, width: 1536, height: 526, alt: `${BRAND.name}: ${BRAND.tagline}` }],
   },
   robots: { index: true, follow: true },
 };
