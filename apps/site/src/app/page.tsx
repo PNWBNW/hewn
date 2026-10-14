@@ -4,6 +4,27 @@ import { BRAND } from "@pnw/brand";
 import { BrandHero, BrandLogo } from "@/components/Brand";
 import { buttonClass } from "@/components/Chrome";
 
+/* eslint-disable @next/next/no-img-element -- static brand art, served from /public */
+const TILES = [
+  ["books", "Books"],
+  ["payroll", "Payroll"],
+  ["invoices", "Invoices"],
+  ["reports", "Reports"],
+] as const;
+
+function ProductTiles() {
+  return (
+    <ul className="mt-4 grid grid-cols-4 gap-3">
+      {TILES.map(([id, label]) => (
+        <li key={id} className="flex flex-col items-center gap-1.5 text-xs font-medium text-foreground">
+          <img src={BRAND.assets.tiles[id]} width={56} height={56} alt="" className="size-14" />
+          {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Section({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
     <section className="rounded-xl border bg-card p-6">
@@ -23,7 +44,7 @@ export default function Home() {
     <>
       {/* The whole hero, never cropped: the tagline is part of the art. On wide screens it's
           capped and fades into the ink band at the sides. */}
-      <div className="bg-[var(--plumb-ink)]">
+      <div className="bg-[var(--hewn-ink)]">
         <BrandHero className="mx-auto max-w-[1100px] lg:[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]" />
       </div>
 
@@ -68,6 +89,7 @@ export default function Home() {
               Payroll with federal withholding and paystubs for your team. Profit and loss, balance
               sheet and trial balance, downloadable as spreadsheets for your accountant.
             </p>
+            <ProductTiles />
           </Section>
 
           <Section icon={<HandCoins className="size-5" />} title="Pay your team directly, if you want to">

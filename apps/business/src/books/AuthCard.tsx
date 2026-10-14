@@ -8,7 +8,7 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
     <div className="min-h-dvh bg-background">
       {/* Whole hero, never cropped (the tagline is part of the art). On wide screens it's capped
           and fades into the ink band at the sides. */}
-      <div className="bg-[var(--plumb-ink)]">
+      <div className="bg-[var(--hewn-ink)]">
         <BrandHero className="mx-auto max-w-[1100px] lg:[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]" />
       </div>
       <div className="relative mx-auto -mt-6 w-full max-w-md px-4 pb-10 sm:-mt-16">

@@ -107,7 +107,7 @@ export function PartyForm({
             type="checkbox"
             checked={tracks1099}
             onChange={(e) => setTracks1099(e.target.checked)}
-            className="size-4 accent-[var(--plumb-green)]"
+            className="size-4 accent-[var(--hewn-green)]"
           />
           Track payments for a 1099 (contractors you pay $600 or more a year)
         </label>

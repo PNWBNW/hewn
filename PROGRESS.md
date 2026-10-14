@@ -1332,3 +1332,29 @@ arrive after a pause), never for pending ones. (7) The inbox needs no Shield; Of
 do. **Deferred:** checking the paystub's transition id against the USDCx record in the worker's
 account (§2.4) and against the anchored period root; the credential badge; W-4 through the
 mailbox; the employer's side of the timesheet (receiving the week); a "sent" mark per day.
+
+## 2026-10-14 — Hewn branding
+
+Joshua's final name and art arrived: **Hewn** (hewnaccounting.com, app at app.hewnaccounting.com).
+New sources in `brand/source/`: `hewn-logo-light.png`, `hewn-logo-dark.png`, `hewn-hero.png`,
+`hewn-icon.png` (the pine-cone-on-a-plumb-line tile, now the app icon), `hewn-strip.png`
+("Every business. One Hewn.", source only) and `tiles/` (books, payroll, invoices, reports, farm,
+build). `brand/build_assets.py` was rewritten for the new art (the logos are lettering with the pine
+inside the H rather than a mark beside it, so the wordmarks are extracted per logo, the dark one from
+inside its navy panel) and starts by clearing the output folder so a rename leaves nothing behind. It
+regenerates `hewn-*` files into `apps/business` and copies them byte-for-byte to `apps/site`.
+`packages/brand`: name Hewn, backup extension `.hewn` (old `.plumb` backups still restore: the file
+picker takes any file), asset paths, `wordmarkAspect` 315/123, and a `tiles` map. The lockup is now the
+wordmark alone (it carries its own pine) in both apps; hero dimensions 1536×526 everywhere including
+the social-share image; the site's "Everything a small business needs" card shows the four tiles that
+exist today (Books, Payroll, Invoices, Reports; Farm and Build wait for their templates). CSS
+variables renamed `--plumb-*` → `--hewn-*`. CLAUDE.md, README, BUILD_PLAN (product-name decision
+ticked), brand README and doc titles updated. Internal names stay `@pnw/*` and `pnw-*` formats.
+
+**Results:** 534/534, both apps build, audit clean. Chromium on the production builds, 390×844 and
+1280×800, light and dark: site and app setup screen render with the new lockup and hero, tagline
+visible, no horizontal overflow, zero console errors.
+
+**Notes for Joshua:** the app icon source is 217 px, so the 512 px icons are upscaled (send a larger
+file or SVG and re-run the script for crisper ones). The hero still says "FREE • OPEN SOURCE" while
+the licence is proprietary (site copy says only "free").
