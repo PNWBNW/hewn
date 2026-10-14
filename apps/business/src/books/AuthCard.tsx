@@ -1,27 +1,79 @@
-import type { ReactNode } from "react";
-import { Lock } from "lucide-react";
+"use client";
+
+import { type ReactNode, type Ref, useState } from "react";
+import { ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
+import { cn } from "@pnw/ui/utils";
 import { BrandHero, BrandLogo } from "@/shell/Brand";
 
-/** Full-page frame for setup, unlock and restore: the books aren't open yet. */
-export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
+/** The wordmark on the left, whatever the page puts on the right. Shared by the front page and the screens behind it. */
+export function AuthTopBar({ children }: { children?: ReactNode }) {
+  return (
+    <header className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-2 px-4">
+      <BrandLogo height={30} />
+      <div className="flex items-center gap-1">{children}</div>
+    </header>
+  );
+}
+
+/** Whole hero, never cropped or covered (the tagline is part of the art). On wide screens it's capped and fades into the ink band at the sides. */
+export function AuthHero() {
+  return (
+    <div className="bg-[var(--hewn-ink)]">
+      <BrandHero className="mx-auto max-w-[1100px] lg:[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]" />
+    </div>
+  );
+}
+
+export function AuthFooter() {
+  return (
+    <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+      <Lock aria-hidden className="size-3" />
+      Encrypted on this device. Nothing is sent to a server.
+    </p>
+  );
+}
+
+/**
+ * Full-page frame for setup and restore (the books aren't open yet): top bar, the hero, then the
+ * card below it. The card sits under the art and never over it. `onBack` adds a Back link to the bar.
+ */
+export function AuthCard({
+  title,
+  subtitle,
+  onBack,
+  backLabel = "Back",
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  onBack?: () => void;
+  backLabel?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="min-h-dvh bg-background">
-      {/* Whole hero, never cropped (the tagline is part of the art). On wide screens it's capped
-          and fades into the ink band at the sides. */}
-      <div className="bg-[var(--hewn-ink)]">
-        <BrandHero className="mx-auto max-w-[1100px] lg:[mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]" />
-      </div>
-      <div className="relative mx-auto -mt-6 w-full max-w-md px-4 pb-10 sm:-mt-16">
-        <div className="rounded-xl border bg-card p-6 shadow-lg">
-          <BrandLogo height={30} className="mb-5" />
+      <AuthTopBar>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ArrowLeft aria-hidden className="size-4" />
+            {backLabel}
+          </button>
+        )}
+      </AuthTopBar>
+      <AuthHero />
+      <div className="mx-auto w-full max-w-md px-4 pb-10 pt-6">
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
           <div className="mt-6">{children}</div>
         </div>
-        <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-          <Lock aria-hidden className="size-3" />
-          Encrypted on this device. Nothing is sent to a server.
-        </p>
+        <div className="mt-4">
+          <AuthFooter />
+        </div>
       </div>
     </div>
   );
@@ -48,6 +100,49 @@ export function FormError({ message }: { message: string | null }) {
 
 export const inputClass =
   "flex h-11 w-full rounded-md border border-input bg-card px-3 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-10 sm:text-sm";
+
+/** A passphrase box with a show/hide toggle. The toggle is a real button, 44px on phones. */
+export function PassphraseInput({
+  value,
+  onChange,
+  autoComplete = "current-password",
+  name = "password",
+  inputRef,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete?: "current-password" | "new-password";
+  name?: string;
+  inputRef?: Ref<HTMLInputElement>;
+}) {
+  const [shown, setShown] = useState(false);
+  const Icon = shown ? EyeOff : Eye;
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        className={cn(inputClass, "pr-12")}
+        type={shown ? "text" : "password"}
+        name={name}
+        aria-label="Passphrase"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete}
+        autoCapitalize="none"
+        spellCheck={false}
+      />
+      <button
+        type="button"
+        onClick={() => setShown((s) => !s)}
+        aria-label={shown ? "Hide passphrase" : "Show passphrase"}
+        aria-pressed={shown}
+        className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Icon aria-hidden className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : "Something went wrong";

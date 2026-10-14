@@ -8,7 +8,7 @@
 // payroll), a company file without sales (before invoices and bills), one
 // without dimensions (before projects), one without a rail (most of them),
 // and one without a role (every file from before the worker side existed is
-// a business's).
+// a business's), and one without an email (made before accounts).
 // ---------------------------------------------------------------------------
 
 import { type Books, type Dimensions, booksFromJson, booksToJson, dimensionsFromJson, dimensionsToJson, emptyDimensions } from "@pnw/ledger";
@@ -27,6 +27,8 @@ export type Company = {
   role?: Role;
   /** A person's own side: agreements, hours, paystubs. Only on a worker's file. */
   work?: Work;
+  /** The account's email, normalised. Kept inside the encrypted file, never in the vault id's clear. Absent on books made before accounts. */
+  email?: string;
 };
 
 const ROLES: Role[] = ["business", "worker"];
@@ -44,6 +46,7 @@ export function companyToJson(c: Company): string {
     ...(c.rail ? { rail: railToJson(c.rail) } : {}),
     ...(c.role ? { role: c.role } : {}),
     ...(c.work ? { work: workToJson(c.work) } : {}),
+    ...(c.email ? { email: c.email } : {}),
   });
 }
 
@@ -58,6 +61,7 @@ export function companyFromJson(text: string): Company {
     rail?: string;
     role?: string;
     work?: string;
+    email?: string;
   };
   if (doc.format === FORMAT && doc.version === 1 && typeof doc.books === "string" && typeof doc.payroll === "string") {
     const company: Company = {
@@ -72,6 +76,7 @@ export function companyFromJson(text: string): Company {
       company.role = doc.role as Role;
     }
     if (typeof doc.work === "string") company.work = workFromJson(doc.work);
+    if (typeof doc.email === "string" && doc.email) company.email = doc.email;
     return company;
   }
   // Earlier saves held only the books.

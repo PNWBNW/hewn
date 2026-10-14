@@ -35,6 +35,21 @@ No server, no database. ✅ Structural, from the architecture.
 - Backups are the sealed record itself; nothing is decrypted to write one. Restore proves the
   passphrase and re-verifies the hash chain before replacing anything. ✅
 - Auto-lock after 15 idle minutes; reload or Lock drops the key and plaintext from memory. ✅
+- **Email + passphrase.** The unlock secret is the normalised email and the passphrase together
+  (`hewn:v1\n<email>\n<passphrase>`), so a stolen file needs both to open; the passphrase alone
+  does not. The vault id is `acct-` plus 32 hex of SHA-256 over role and email, local to the
+  device. ✅ `apps/business/src/books/account.ts`
+- ⚠️ The id is an unsalted hash, so someone holding a file or the browser profile can test a
+  guessed email against it cheaply. That confirms an address they already suspect; it opens
+  nothing (the key still needs the passphrase), and the email is not stored in the clear anywhere
+  (it lives inside the encrypted company file). Accepted.
+- Login never says whether an email has an account here: one generic message for a wrong email,
+  a wrong passphrase or an empty device, and a failed lookup spends one key derivation so the wait
+  tells the same story. ✅
+- There are no server accounts, so there is no credential-stuffing surface, no reset email to
+  hijack and no password reset. A lost passphrase is unrecoverable. 🔜 The recovery key (a second
+  wrapped copy of the data key, held by the user) is the planned recovery mechanism; the email is
+  kept in the account so recovery can use it.
 
 ### T3 — Malicious code in the page (XSS, compromised dependency, compromised host)
 The highest risk for a browser app.

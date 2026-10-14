@@ -6,7 +6,8 @@ import { TEMPLATES, type TemplateId } from "@pnw/ledger";
 import { MIN_PASSPHRASE } from "@pnw/vault";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
-import { AuthCard, Field, FormError, errorMessage, inputClass } from "./AuthCard";
+import { AuthCard, Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
+import { isEmail } from "./account";
 import { useBooks } from "./BooksProvider";
 import type { Role } from "./work";
 
@@ -17,29 +18,34 @@ const MONTHS = [
 
 type Step = "role" | "business" | "accounts" | "person" | "protect";
 
-export function SetupScreen({ onRestore }: { onRestore: () => void }) {
+/** New here: what brings you, a few details, then an email and passphrase. `onBack` returns to the front page. */
+export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onRestore: () => void }) {
   const { create } = useBooks();
   const [role, setRole] = useState<Role>("business");
   const [step, setStep] = useState<Step>("role");
   const [businessName, setBusinessName] = useState("");
   const [fiscalYearStartMonth, setFyStart] = useState(1);
   const [template, setTemplate] = useState<TemplateId | "blank">("service");
+  const [email, setEmail] = useState("");
+  const [emailTouched, setEmailTouched] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   const [confirm, setConfirm] = useState("");
   const [understood, setUnderstood] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const tooShort = [...passphrase].length < MIN_PASSPHRASE;
+  const tooShort = [...passphrase.normalize("NFKC")].length < MIN_PASSPHRASE;
   const mismatch = confirm.length > 0 && confirm !== passphrase;
+  const emailOk = isEmail(email);
+  const emailBad = emailTouched && email.trim() !== "" && !emailOk;
   const worker = role === "worker";
 
   async function finish() {
     setError(null);
     setBusy(true);
     try {
-      if (worker) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", passphrase, role });
-      else await create({ businessName: businessName.trim(), fiscalYearStartMonth, template, passphrase });
+      if (worker) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", email, passphrase, role });
+      else await create({ businessName: businessName.trim(), fiscalYearStartMonth, template, email, passphrase, role });
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -53,7 +59,12 @@ export function SetupScreen({ onRestore }: { onRestore: () => void }) {
   const title = step === "role" ? "Welcome" : worker ? "Set up your space" : "Set up your books";
 
   return (
-    <AuthCard title={title} subtitle={`Step ${stepNo} of ${steps.length}`}>
+    <AuthCard
+      title={title}
+      subtitle={`Step ${stepNo} of ${steps.length}`}
+      onBack={onBack}
+      backLabel={step === "role" ? "Back" : "Front page"}
+    >
       {step === "role" && (
         <div className="flex flex-col gap-5">
           <p className="text-sm text-muted-foreground">What brings you here?</p>
@@ -77,7 +88,10 @@ export function SetupScreen({ onRestore }: { onRestore: () => void }) {
               }}
             />
           </div>
-          <button type="button" onClick={onRestore} className="text-sm text-muted-foreground underline underline-offset-4">
+          <p className="text-xs text-muted-foreground">
+            You can have both. Make one now and add the other later, with the same email.
+          </p>
+          <button type="button" onClick={onRestore} className="min-h-11 self-start text-sm text-muted-foreground underline underline-offset-4">
             I have a backup file to restore
           </button>
         </div>
@@ -200,23 +214,34 @@ export function SetupScreen({ onRestore }: { onRestore: () => void }) {
           className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!tooShort && !mismatch && confirm === passphrase && understood) void finish();
+            if (emailOk && !tooShort && !mismatch && confirm === passphrase && understood) void finish();
           }}
         >
           <p className="text-sm text-muted-foreground">
-            {worker ? "Your agreements, hours and paystubs are" : "Your books are"} encrypted on this device with a passphrase only you know. Pick
-            something long and memorable, like a short sentence.
+            {worker ? "Your agreements, hours and paystubs are" : "Your books are"} encrypted on this device. Your email and a passphrase only you
+            know open them together. Pick something long and memorable, like a short sentence.
           </p>
-          <Field label="Passphrase" hint={`At least ${MIN_PASSPHRASE} characters.`}>
+          <Field label="Email" hint="Your account name on this device. Nothing is sent to it.">
             <input
-              className={inputClass}
-              type="password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              autoComplete="new-password"
+              className={cn(inputClass, emailBad && "border-destructive")}
+              type="email"
+              name="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
+              aria-invalid={emailBad}
               autoFocus
             />
           </Field>
+          {emailBad && <p className="-mt-3 text-xs text-destructive">Enter an email like name@example.com.</p>}
+          <Field label="Passphrase" hint={`At least ${MIN_PASSPHRASE} characters.`}>
+            <PassphraseInput value={passphrase} onChange={setPassphrase} autoComplete="new-password" name="new-password" />
+          </Field>
+          <p className="-mt-3 text-sm">There is no password reset. If you lose your passphrase, you lose the books, so keep a backup.</p>
           <Field label="Type it again">
             <input
               className={cn(inputClass, mismatch && "border-destructive")}
@@ -235,10 +260,7 @@ export function SetupScreen({ onRestore }: { onRestore: () => void }) {
               onChange={(e) => setUnderstood(e.target.checked)}
               className="mt-0.5 accent-[var(--pnw-forest-500)]"
             />
-            <span>
-              I understand there is no &ldquo;forgot passphrase&rdquo;. No one, including PNW, can open {worker ? "this" : "these books"}
-              {" "}without it. I&apos;ll keep a backup file somewhere safe.
-            </span>
+            <span>I understand, and I&apos;ll keep a backup file somewhere safe.</span>
           </label>
           <FormError message={error} />
           <div className="flex gap-3">
@@ -248,7 +270,7 @@ export function SetupScreen({ onRestore }: { onRestore: () => void }) {
             <Button
               type="submit"
               className="h-11 flex-1"
-              disabled={busy || tooShort || mismatch || confirm !== passphrase || !understood}
+              disabled={busy || !emailOk || tooShort || mismatch || confirm !== passphrase || !understood}
             >
               {busy ? "Encrypting…" : worker ? "Create my space" : "Create my books"}
             </Button>

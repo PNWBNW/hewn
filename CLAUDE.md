@@ -58,11 +58,15 @@ company and protocol namespace).
 
 **Keys and storage**
 - Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs.
-- The vault key is derived from the user's unlock secret: a passphrase in fiat mode (no wallet
-  needed), or a Shield wallet signature over a domain-separated message once a wallet is linked. It
-  is never stored in plaintext and never leaves the vault module. Scheme (`@pnw/vault`): a random
-  AES-256-GCM data key encrypts the books; the unlock secret (PBKDF2-SHA256, 600k rounds) only wraps
-  that key, so a wallet unlock or per-member access later just adds another wrapped copy.
+- The vault key is derived from the user's unlock secret: **email + passphrase** together in fiat
+  mode (no wallet needed; `apps/business/src/books/account.ts`: the secret is the normalised email
+  and the passphrase, the vault id a hash of role + email, so one email can hold a business and a
+  worker account), and, later, a Shield wallet signature over a domain-separated message once a
+  wallet is linked. It is never stored in plaintext and never leaves the vault module. There is no
+  server account: no email is sent, nothing is verified remotely, and a lost passphrase is
+  unrecoverable until the planned recovery key exists. Scheme (`@pnw/vault`): a random AES-256-GCM
+  data key encrypts the books; the unlock secret (PBKDF2-SHA256, 600k rounds) only wraps that key,
+  so a recovery key, a wallet unlock or per-member access later just adds another wrapped copy.
 - localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault.
 
 **Boundaries**
