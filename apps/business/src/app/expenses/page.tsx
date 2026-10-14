@@ -241,10 +241,10 @@ function Vendors() {
           kind="vendor"
           link={partyLinkView(rail, "vendor", undefined)}
           onCancel={() => setEditing(null)}
-          onSave={async (input, address) => {
+          onSave={async (input, address, nameHash) => {
             await updateCompany((c) => {
               const added = addVendor(c.sales, input);
-              return withPartyAddress({ ...c, sales: added.sales }, "vendor", added.vendor.id, address);
+              return withPartyAddress({ ...c, sales: added.sales }, "vendor", added.vendor.id, address, nameHash);
             });
             setEditing(null);
           }}
@@ -261,8 +261,8 @@ function Vendors() {
                   initial={v}
                   link={partyLinkView(rail, "vendor", v.id)}
                   onCancel={() => setEditing(null)}
-                  onSave={async (input, address) => {
-                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateVendor(c.sales, v.id, input) }, "vendor", v.id, address));
+                  onSave={async (input, address, nameHash) => {
+                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateVendor(c.sales, v.id, input) }, "vendor", v.id, address, nameHash));
                     setEditing(null);
                   }}
                 />

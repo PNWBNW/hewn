@@ -6,7 +6,7 @@
 //
 //   0. A short checklist of what the offer needs (Shield linked, the
 //      business's registered name) that fills in as each piece is done.
-//   1. Find them on the rail by registered name or account (public registry).
+//   1. Find them on the registry by name or account (NameLookup; public data).
 //   2. Dates, industry and a few plain fields (role, duties, hours, notice)
 //      that draft the terms; pay type, rate and frequency come from the team
 //      member's record, so the offer says what the books say. The draft is
@@ -33,7 +33,9 @@ import type { Company } from "@/books/company";
 import { RegisterFlow } from "./RegisterBusiness";
 import { ShieldStatus } from "./ShieldStatus";
 import { draftProblem, draftTerms, longDate, payLine } from "./agreement_draft";
-import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveBusinessName, resolveWorker, sendOffer } from "./offer";
+import NameLookup from "./NameLookup";
+import { type DirectoryEntry, entryLabel } from "./directory";
+import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveBusinessName, sendOffer } from "./offer";
 import { useShield } from "./shield";
 
 export type OfferPanelProps = { workerId: string; onClose: () => void };
@@ -96,9 +98,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   const { state, connect, error: shieldError, wallet } = useShield();
   const client = useMemo(() => new MailboxClient(), []);
   const worker = payroll.workers.find((w) => w.id === workerId);
-  const [who, setWho] = useState("");
   const [found, setFound] = useState<ResolvedWorker | null>(null);
-  const [finding, setFinding] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
   const [duties, setDuties] = useState("");
   const [hoursPerWeek, setHoursPerWeek] = useState("");
@@ -145,7 +145,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
 
   if (!worker) return <FormError message="Team member not found" />;
 
-  const nameOf = (r: ResolvedWorker) => (r.name ? `${r.name}.${BRAND.nameSuffix}` : shortAddress(r.address));
+  const nameOf = (r: ResolvedWorker) => entryLabel({ ...r, name: r.name ?? "", kind: "worker" }, BRAND.nameSuffix);
 
   async function confirmBusinessName() {
     if (!rail) return;
@@ -158,19 +158,6 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
       setError(errorMessage(e));
     } finally {
       setBizBusy(false);
-    }
-  }
-
-  async function find() {
-    setError(null);
-    setFound(null);
-    setFinding(true);
-    try {
-      setFound(await resolveWorker(who, BRAND.nameSuffix));
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setFinding(false);
     }
   }
 
@@ -388,35 +375,13 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
             if (canReview) setReviewing(true);
           }}
         >
-          <Field label="Their name or account" hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account starting aleo1.`}>
-            <div className="flex gap-2">
-              <input
-                className={inputClass}
-                value={who}
-                onChange={(e) => {
-                  setWho(e.target.value);
-                  setFound(null);
-                }}
-                autoComplete="off"
-                spellCheck={false}
-                required
-              />
-              <Button type="button" variant="outline" className="min-h-11 whitespace-nowrap sm:min-h-10" disabled={finding || !who.trim()} onClick={() => void find()}>
-                {finding ? "Finding…" : "Find"}
-              </Button>
-            </div>
-          </Field>
-          <div className="flex items-end text-sm">
-            {found ? (
-              <span>
-                <span className="font-medium">{nameOf(found)}</span>
-                <span className="block font-mono text-xs text-muted-foreground">{shortAddress(found.address)}</span>
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                Find them first; the offer goes to the account their name points at. They set up a name under Profile in their own {BRAND.name}.
-              </span>
-            )}
+          <div className="sm:col-span-2">
+            <NameLookup
+              allow={["worker"]}
+              label="Their name or account"
+              hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account starting aleo1. They set a name up under Profile in their own ${BRAND.name}.`}
+              onChange={(entry: DirectoryEntry | null) => setFound(entry ? { address: entry.address, nameHash: entry.nameHash, ...(entry.name ? { name: entry.name } : {}) } : null)}
+            />
           </div>
           <Field label="Role" hint="Optional. Their job title.">
             <input className={inputClass} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} autoComplete="off" />
