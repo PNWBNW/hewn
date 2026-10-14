@@ -68,10 +68,18 @@ export type SourceKind =
   | "sales_tax_payment"
   | "reversal";
 
+/**
+ * Where an entry came from. `ref` names the record that posted it (a run, an
+ * invoice). `doc` is the hex BLAKE3 of the document the entry commits to (a
+ * paystub, say): it's inside the entry hash, so the document is as
+ * tamper-evident as the entry.
+ */
+export type Source = { kind: SourceKind; ref?: string; doc?: string };
+
 export type EntryInput = {
   date: IsoDate;
   memo?: string;
-  source?: { kind: SourceKind; ref?: string };
+  source?: Source;
   lines: LineInput[];
 };
 
@@ -80,7 +88,7 @@ export type Entry = {
   seq: number;
   date: IsoDate;
   memo?: string;
-  source: { kind: SourceKind; ref?: string };
+  source: Source;
   lines: Line[];
   postedAt: string;
   /** Set on a reversal: the entry it cancels. */
@@ -268,6 +276,17 @@ export function postEntry(books: Books, input: EntryInput, clock?: Clock): { boo
   return post(books, input, {}, clock);
 }
 
+const DOC_HASH = /^[0-9a-f]{64}$/;
+
+/** A document hash is 32 bytes as lower-case hex, exactly as the hash functions write it. */
+function normalizeSource(source: Source | undefined): Source {
+  if (!source) return { kind: "manual" };
+  if (source.doc !== undefined && (typeof source.doc !== "string" || !DOC_HASH.test(source.doc))) {
+    fail("BAD_DOC", "A document hash must be 64 lower-case hex characters");
+  }
+  return source;
+}
+
 function post(
   books: Books,
   input: EntryInput,
@@ -276,13 +295,14 @@ function post(
 ): { books: Books; entry: Entry } {
   const date = assertDate(input.date);
   assertOpen(books.marks, date);
+  const source = normalizeSource(input.source);
   const lines = normalizeLines(books, input.lines);
   return append(
     books,
     {
       date,
       ...(input.memo ? { memo: input.memo } : {}),
-      source: input.source ?? { kind: "manual" },
+      source,
       lines,
       ...links,
     },
@@ -345,6 +365,7 @@ export function editEntry(
   const original = findEntry(books, id);
   // Validate the replacement before posting anything, so a bad edit changes nothing.
   assertOpen(books.marks, assertDate(corrected.date));
+  normalizeSource(corrected.source);
   normalizeLines(books, corrected.lines);
   const reversed = reverseEntry(books, id, options.reversalDate ? { date: options.reversalDate } : {}, clock);
   const posted = post(

@@ -8,6 +8,12 @@
 // always produces the same bytes. The 0x00 separator follows the decision to
 // put the delimiter fix into new versioned domains rather than retrofit the
 // portal's live hashes (PROGRESS.md, 2026-10-13).
+//
+// The array's first element is its layout version. Layout 1 is the original.
+// Layout 2 is layout 1 with the entry's document hash (`source.doc`, the
+// paystub or other document the entry commits to) appended as the last
+// element. An entry without a document still hashes in layout 1, so every
+// books file written before documents existed verifies unchanged.
 // ---------------------------------------------------------------------------
 
 import { blake3 } from "@noble/hashes/blake3.js";
@@ -20,8 +26,9 @@ export const GENESIS_HASH = "0".repeat(64);
 const opt = (v: string | undefined) => v ?? null;
 
 export function canonicalEntry(entry: Omit<Entry, "hash">): string {
+  const doc = entry.source.doc;
   return JSON.stringify([
-    1,
+    doc === undefined ? 1 : 2,
     entry.seq,
     entry.id,
     entry.date,
@@ -43,6 +50,7 @@ export function canonicalEntry(entry: Omit<Entry, "hash">): string {
       opt(l.tags?.location),
       opt(l.tags?.project),
     ]),
+    ...(doc === undefined ? [] : [doc]),
   ]);
 }
 

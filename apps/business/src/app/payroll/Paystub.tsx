@@ -1,0 +1,81 @@
+"use client";
+
+// One paycheck's paystub, in plain words. Rebuilt from the vault (the run,
+// the paycheck and the person as saved), the same document the journal
+// entry committed to when the run posted. Nothing here leaves the device.
+
+import { X } from "lucide-react";
+import { formatCents } from "@pnw/ledger";
+import { type Paycheck, type PayRun, paystubDocument, yearToDate } from "@pnw/payroll";
+import { Button } from "@pnw/ui/button";
+import { cn } from "@pnw/ui/utils";
+import { useOpenBooks } from "@/books/BooksProvider";
+import { Money } from "@/books/display";
+
+function paidLine(p: Paycheck): string {
+  const s = p.settlement;
+  if (s.status === "settled") return s.reference ? `${s.reference}` : "by bank";
+  if (s.status === "failed") return s.failure ? `Payment failed: ${s.failure}` : "Payment failed";
+  return "Not yet paid";
+}
+
+export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Paycheck; onClose: () => void }) {
+  const { books, payroll } = useOpenBooks();
+  const worker = payroll.workers.find((w) => w.id === paycheck.workerId);
+  if (!worker) {
+    return (
+      <section aria-label="Paystub" className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+        This person is no longer in the team list, so the paystub can&apos;t be rebuilt.
+      </section>
+    );
+  }
+  const doc = paystubDocument(run, paycheck, worker, books.settings, yearToDate(payroll, worker.id, run.payDate));
+  const pay =
+    doc.payType === "hourly"
+      ? `${formatCents(doc.rate)} per hour × ${doc.hours ?? 0} hours`
+      : `${formatCents(doc.rate)} per year, paid ${run.periodStart} to ${run.periodEnd}`;
+
+  return (
+    <section aria-label={`Paystub for ${doc.workerName}`} className="rounded-lg border bg-card">
+      <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">Paystub</h3>
+          <p className="text-xs text-muted-foreground">
+            {doc.businessName} · {doc.workerName} · paid {doc.payDate}
+          </p>
+        </div>
+        <Button type="button" variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={onClose} aria-label="Close paystub">
+          <X aria-hidden className="size-4" />
+        </Button>
+      </div>
+      <dl className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm sm:grid-cols-2">
+        <Row label="Pay period" value={`${doc.periodStart} to ${doc.periodEnd}`} />
+        <Row label="Pay" value={pay} />
+        <Row label="Gross pay" cents={doc.gross} />
+        <Row label="Federal income tax" cents={doc.federalIncomeTax} />
+        <Row label="Social Security" cents={doc.socialSecurity} />
+        <Row label="Medicare" cents={doc.medicare} />
+        {doc.additionalMedicare > 0n && <Row label="Additional Medicare" cents={doc.additionalMedicare} />}
+        <Row label="Net pay" cents={doc.net} strong />
+        <Row label="Paid" value={paidLine(paycheck)} />
+        <Row label="Employer Social Security" cents={doc.employerSocialSecurity} muted />
+        <Row label="Employer Medicare" cents={doc.employerMedicare} muted />
+        <Row label="Gross this year" cents={doc.ytdGross} />
+        <Row label="Withheld this year" cents={doc.ytdWithheld} />
+      </dl>
+      <p className="border-t px-4 py-2 text-xs text-muted-foreground">
+        Employer taxes are paid by {doc.businessName}, not taken from pay.
+        {paycheck.paystubHash && <> Paystub reference: {paycheck.paystubHash.slice(0, 8)}</>}
+      </p>
+    </section>
+  );
+}
+
+function Row({ label, value, cents, strong, muted }: { label: string; value?: string; cents?: bigint; strong?: boolean; muted?: boolean }) {
+  return (
+    <div className={cn("flex items-baseline justify-between gap-4", muted && "text-muted-foreground")}>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={cn("text-right", strong && "font-semibold")}>{cents !== undefined ? <Money cents={cents} /> : value}</dd>
+    </div>
+  );
+}

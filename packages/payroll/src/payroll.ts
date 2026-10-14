@@ -17,14 +17,20 @@
 // A paycheck tagged with a project (or class, location) carries the tag on
 // its wage and employer-tax lines: that's the labour cost of the job.
 //
-// The same entry shape is what payroll_gl_bridge.aleo will post in settled
-// mode (plus the USDCx transfer and platform fee), so fiat and settled books
-// match line for line.
+// Each entry commits to that paycheck's paystub document (`source.doc`, see
+// paystub.ts). The entry is the same whichever way the net pay moves: a run
+// paid outside the app (mode "external": the bank does the money, settled
+// the moment it posts, with an optional payment reference) and a run paid
+// on the rail (mode "rail": posted pending, settled per paycheck as each
+// transfer confirms) differ only in which bank-type account the net pay is
+// credited from. That's the Phase 2 parity criterion, tested in
+// parity.test.ts.
 // ---------------------------------------------------------------------------
 
 import {
   type Books,
   type Cents,
+  type Clock,
   type Entry,
   type IsoDate,
   type Tags,
@@ -42,6 +48,10 @@ import {
   computePayrollTax,
   getTaxTableInfo,
 } from "@pnw/tax-engine/tax-engine";
+import { PayrollError } from "./errors";
+import { paystubDocument, paystubHash } from "./paystub";
+
+export { PayrollError };
 
 // ---- Types -----------------------------------------------------------------
 
@@ -87,6 +97,24 @@ export type Worker = {
 
 export type WorkerInput = Omit<Worker, "id" | "active">;
 
+/** How a run's net pay moves: outside the app (the bank), or on the rail. */
+export type SettlementMode = "external" | "rail";
+
+/**
+ * Where one paycheck's payment stands. External runs are settled as they
+ * post; rail paychecks start pending and are marked as each transfer
+ * confirms (`reference` = the transfer's id, `height` = the block it landed
+ * in) or fails, and a failed one can go back to pending for a retry.
+ */
+export type Settlement = {
+  status: "pending" | "settled" | "failed";
+  /** A bank batch number, a transfer id: whatever identifies the payment. */
+  reference?: string;
+  height?: number;
+  settledAt?: string;
+  failure?: string;
+};
+
 export type Paycheck = {
   workerId: string;
   hours?: number;
@@ -100,7 +128,17 @@ export type Paycheck = {
   net: Cents;
   /** Project, class or location this paycheck's labour is charged to. */
   tags?: Tags;
+  /**
+   * Hex BLAKE3 of the paystub document (paystub.ts), the same value as the
+   * journal entry's `source.doc`. Absent only on runs posted before paystub
+   * documents existed.
+   */
+  paystubHash?: string;
+  settlement: Settlement;
 };
+
+/** A paycheck as computed for review, before a run commits to it and pays it. */
+export type PaycheckDraft = Omit<Paycheck, "paystubHash" | "settlement">;
 
 export type PayRun = {
   id: string;
@@ -108,6 +146,7 @@ export type PayRun = {
   periodStart: IsoDate;
   periodEnd: IsoDate;
   bankAccountId: string;
+  mode: SettlementMode;
   paychecks: Paycheck[];
   /** One journal entry per paycheck, in the same order. */
   entryIds: string[];
@@ -124,12 +163,8 @@ export type Payroll = {
 
 export const emptyPayroll = (): Payroll => ({ version: 1, workers: [], runs: [], nextWorker: 1 });
 
-export class PayrollError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "PayrollError";
-  }
-}
+/** Timestamps come from the caller so posting stays deterministic in tests. */
+const stamp = (clock?: Clock) => (clock?.now ?? (() => new Date().toISOString()))();
 
 // ---- Cents ⇄ dollars at the tax-engine boundary ------------------------------
 
@@ -178,14 +213,15 @@ export function updateWorker(payroll: Payroll, id: string, changes: Partial<Work
 
 // ---- Paychecks -------------------------------------------------------------
 
-/** Gross and SS already paid to a worker this calendar year, before `beforeDate`. */
-export type YearToDate = { gross: Cents; socialSecurity: Cents; employerSocialSecurity: Cents };
+/** Gross, SS and total withholding already paid to a worker this calendar year, before `beforeDate`. */
+export type YearToDate = { gross: Cents; socialSecurity: Cents; employerSocialSecurity: Cents; withheld: Cents };
 
 export function yearToDate(payroll: Payroll, workerId: string, beforeDate: IsoDate): YearToDate {
   const year = beforeDate.slice(0, 4);
   let gross = 0n;
   let socialSecurity = 0n;
   let employerSocialSecurity = 0n;
+  let withheldSoFar = 0n;
   for (const run of payroll.runs) {
     if (run.payDate.slice(0, 4) !== year || run.payDate >= beforeDate) continue;
     for (const p of run.paychecks) {
@@ -193,9 +229,10 @@ export function yearToDate(payroll: Payroll, workerId: string, beforeDate: IsoDa
       gross += p.gross;
       socialSecurity += p.socialSecurity;
       employerSocialSecurity += p.employerSocialSecurity;
+      withheldSoFar += withheld(p);
     }
   }
-  return { gross, socialSecurity, employerSocialSecurity };
+  return { gross, socialSecurity, employerSocialSecurity, withheld: withheldSoFar };
 }
 
 /** Gross for one period: hours × rate, or annual salary ÷ periods per year. */
@@ -207,7 +244,7 @@ export function grossFor(worker: Worker, hours?: number): Cents {
   return (worker.rate * centiHours + 50n) / 100n;
 }
 
-export function computePaycheck(worker: Worker, gross: Cents, ytd: Partial<YearToDate> & { gross: Cents }, hours?: number): Paycheck {
+export function computePaycheck(worker: Worker, gross: Cents, ytd: Partial<YearToDate> & { gross: Cents }, hours?: number): PaycheckDraft {
   if (gross < 0n) throw new PayrollError("Gross pay can't be negative");
   const t = computePayrollTax({
     gross: toDollars(gross),
@@ -232,7 +269,7 @@ export function computePaycheck(worker: Worker, gross: Cents, ytd: Partial<YearT
   // Employer matches SS (same wage base) and regular Medicare; it does not match Additional Medicare.
   const ssRoom = SS_WAGE_BASE - ytd.gross > 0n ? SS_WAGE_BASE - ytd.gross : 0n;
   const ssWages = gross < ssRoom ? gross : ssRoom;
-  const paycheck: Paycheck = {
+  const paycheck: PaycheckDraft = {
     workerId: worker.id,
     ...(worker.payType === "hourly" && hours !== undefined ? { hours } : {}),
     gross,
@@ -248,8 +285,8 @@ export function computePaycheck(worker: Worker, gross: Cents, ytd: Partial<YearT
   return paycheck;
 }
 
-export const withheld = (p: Paycheck) => p.federalIncomeTax + p.socialSecurity + p.medicare + p.additionalMedicare;
-export const employerTaxes = (p: Paycheck) => p.employerSocialSecurity + p.employerMedicare;
+export const withheld = (p: PaycheckDraft) => p.federalIncomeTax + p.socialSecurity + p.medicare + p.additionalMedicare;
+export const employerTaxes = (p: PaycheckDraft) => p.employerSocialSecurity + p.employerMedicare;
 
 // ---- Accounts --------------------------------------------------------------
 
@@ -276,7 +313,12 @@ export type PayRunInput = {
   payDate: IsoDate;
   periodStart: IsoDate;
   periodEnd: IsoDate;
+  /** The bank-type account net pay comes from: a bank account, or the rail balance. */
   bankAccountId: string;
+  /** Default "external": the money moves outside the app and the run is settled as it posts. */
+  mode?: SettlementMode;
+  /** External runs only: a free-text payment reference (the bank's batch number, say) for every paycheck. */
+  reference?: string;
   /**
    * Who's paid in this run. Hourly workers need hours; salaried ones don't.
    * Optional tags (a project, say) go on that paycheck's wage and employer-tax
@@ -286,7 +328,7 @@ export type PayRunInput = {
 };
 
 /** Computes every paycheck without touching the books, for the review screen. */
-export function previewPayRun(payroll: Payroll, input: PayRunInput): Paycheck[] {
+export function previewPayRun(payroll: Payroll, input: PayRunInput): PaycheckDraft[] {
   assertDate(input.payDate);
   if (input.lines.length === 0) throw new PayrollError("Choose at least one person to pay");
   const seen = new Set<string>();
@@ -302,20 +344,38 @@ export function previewPayRun(payroll: Payroll, input: PayRunInput): Paycheck[] 
   });
 }
 
+export const SETTLEMENT_MODES: SettlementMode[] = ["external", "rail"];
+
 export function postPayRun(
   books: Books,
   payroll: Payroll,
   input: PayRunInput,
+  clock?: Clock,
 ): { books: Books; payroll: Payroll; run: PayRun; entries: Entry[] } {
   assertDate(input.periodStart);
   assertDate(input.periodEnd);
   if (input.periodStart > input.periodEnd) throw new PayrollError("The pay period ends before it starts");
   const bank = accountMap(books).get(input.bankAccountId);
   if (!bank || bank.type !== "bank") throw new PayrollError("Choose the bank account paychecks come from");
-  const paychecks = previewPayRun(payroll, input);
+  const mode = input.mode ?? "external";
+  if (!SETTLEMENT_MODES.includes(mode)) throw new PayrollError("Choose how this run is paid");
+  if (input.reference !== undefined && typeof input.reference !== "string") throw new PayrollError("The payment reference must be text");
+  const reference = input.reference?.trim() || undefined;
+  if (reference && mode === "rail") throw new PayrollError("A payment reference is only for runs paid outside the app");
+  const computed = previewPayRun(payroll, input);
 
   let { books: next, accounts } = ensurePayrollAccounts(books);
   const runId = `run-${payroll.runs.length + 1}`;
+  // External runs are paid the moment they post; rail paychecks wait for their transfer.
+  const settlement: Settlement =
+    mode === "external" ? { status: "settled", settledAt: stamp(clock), ...(reference ? { reference } : {}) } : { status: "pending" };
+  const draft = { id: runId, payDate: input.payDate, periodStart: input.periodStart, periodEnd: input.periodEnd, paychecks: computed };
+  const paychecks: Paycheck[] = computed.map((p) => {
+    const worker = payroll.workers.find((w) => w.id === p.workerId)!;
+    const doc = paystubDocument(draft, p, worker, books.settings, yearToDate(payroll, worker.id, input.payDate));
+    return { ...p, paystubHash: paystubHash(doc), settlement: { ...settlement } };
+  });
+
   const entries: Entry[] = [];
   // Pure function: if any paycheck breaks a ledger rule (closed period, inactive account...),
   // postEntry throws and the caller's books and payroll are left exactly as they were.
@@ -331,12 +391,16 @@ export function postPayRun(
         : []),
       ...(p.net > 0n ? [{ accountId: input.bankAccountId, credit: p.net, name: employee }] : []),
     ];
-    const r = postEntry(next, {
-      date: input.payDate,
-      memo: `Payroll, ${input.periodStart} to ${input.periodEnd}`,
-      source: { kind: "payroll", ref: runId },
-      lines,
-    });
+    const r = postEntry(
+      next,
+      {
+        date: input.payDate,
+        memo: `Payroll, ${input.periodStart} to ${input.periodEnd}`,
+        source: { kind: "payroll", ref: runId, doc: p.paystubHash! },
+        lines,
+      },
+      clock,
+    );
     next = r.books;
     entries.push(r.entry);
   }
@@ -346,10 +410,38 @@ export function postPayRun(
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
     bankAccountId: input.bankAccountId,
+    mode,
     paychecks,
     entryIds: entries.map((e) => e.id),
   };
   return { books: next, payroll: { ...payroll, runs: [...payroll.runs, run] }, run, entries };
+}
+
+// ---- Settlement ------------------------------------------------------------
+
+const SETTLEMENT_STATUSES: Settlement["status"][] = ["pending", "settled", "failed"];
+
+/**
+ * Records where one paycheck's payment stands, for the pay queue. Allowed
+ * moves: pending → settled, pending → failed, failed → pending (a retry).
+ * A settled paycheck never changes. Pure: returns new payroll.
+ */
+export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId: string, settlement: Settlement): Payroll {
+  const run = payroll.runs.find((r) => r.id === runId);
+  if (!run) throw new PayrollError("Pay run not found");
+  const paycheck = run.paychecks.find((p) => p.workerId === workerId);
+  if (!paycheck) throw new PayrollError("That person isn't in this pay run");
+  if (!SETTLEMENT_STATUSES.includes(settlement.status)) throw new PayrollError("Unknown payment status");
+  if (settlement.reference !== undefined && typeof settlement.reference !== "string") throw new PayrollError("The payment reference must be text");
+  if (settlement.height !== undefined && (!Number.isInteger(settlement.height) || settlement.height < 0)) {
+    throw new PayrollError("The payment height must be a whole number");
+  }
+  const from = paycheck.settlement.status;
+  const to = settlement.status;
+  const allowed = (from === "pending" && to !== "pending") || (from === "failed" && to === "pending");
+  if (!allowed) throw new PayrollError(`A ${from} paycheck can't become ${to}`);
+  const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, settlement: { ...settlement } } : p));
+  return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };
 }
 
 // ---- Withholding owed --------------------------------------------------------

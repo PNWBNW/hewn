@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@pnw/ledger";
 import {
-  type Paycheck,
+  type PaycheckDraft,
   computePaycheck,
   employerTaxes,
   grossFor,
@@ -38,6 +38,7 @@ export default function RunPayrollPage() {
   const [periodEnd, setPeriodEnd] = useState(today);
   const [periodStart, setPeriodStart] = useState(daysBefore(today, 13));
   const [bank, setBank] = useState(books.accounts.find((a) => a.type === "bank" && a.active)?.id ?? "");
+  const [reference, setReference] = useState("");
   const [rows, setRows] = useState<Record<string, Row>>(() =>
     Object.fromEntries(team.map((w) => [w.id, { include: true, hours: "" }])),
   );
@@ -65,8 +66,8 @@ export default function RunPayrollPage() {
   );
 
   const included = preview.filter((p) => p.row.include);
-  const checks = included.map((p) => p.paycheck).filter((p): p is Paycheck => p !== null);
-  const total = (f: (p: Paycheck) => bigint) => checks.reduce((a, p) => a + f(p), 0n);
+  const checks = included.map((p) => p.paycheck).filter((p): p is PaycheckDraft => p !== null);
+  const total = (f: (p: PaycheckDraft) => bigint) => checks.reduce((a, p) => a + f(p), 0n);
   const ready = included.length > 0 && included.every((p) => p.paycheck) && !!bank;
 
   async function post() {
@@ -79,6 +80,9 @@ export default function RunPayrollPage() {
           periodStart,
           periodEnd,
           bankAccountId: bank,
+          // This screen records pay that moves through the bank; it's settled as it posts.
+          mode: "external",
+          ...(reference.trim() ? { reference: reference.trim() } : {}),
           lines: included.map(({ worker, row }) => ({
             workerId: worker.id,
             ...(worker.payType === "hourly" ? { hours: Number(row.hours) } : {}),
@@ -115,7 +119,7 @@ export default function RunPayrollPage() {
           if (ready) void post();
         }}
       >
-        <div className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-4">
+        <div className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-3 lg:grid-cols-5">
           <Field label="Pay date">
             <input type="date" className={inputClass} value={payDate} onChange={(e) => setPayDate(e.target.value)} required />
           </Field>
@@ -133,6 +137,15 @@ export default function RunPayrollPage() {
               filter={(a) => a.type === "bank" && a.active}
               className={inputClass}
               placeholder="Choose a bank account"
+            />
+          </Field>
+          <Field label="Payment reference" hint="Optional. Shown on each paystub.">
+            <input
+              className={inputClass}
+              placeholder="e.g. bank batch number"
+              maxLength={80}
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
             />
           </Field>
         </div>
