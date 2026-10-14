@@ -40,12 +40,12 @@ No server, no database. ✅ Structural, from the architecture.
 The highest risk for a browser app.
 - Strict CSP, a fresh nonce per request, `'strict-dynamic'`, no `unsafe-inline`/`unsafe-eval`
   in production. `'wasm-unsafe-eval'` (WASM compilation only; JS eval stays refused) is granted on
-  exactly two pages, `/settings` and `/payroll`, the ones that load the opt-in rail code whose
-  hashing library is WebAssembly; every other page keeps the strict policy. ✅
+  exactly three pages, `/settings`, `/payroll` and the worker's `/work`, the ones that load the
+  opt-in rail code whose hashing library is WebAssembly; every other page keeps the strict policy. ✅
   `packages/security/src/headers.ts` (shared with the marketing site `apps/site`, whose policy
   names no host and allows no WebAssembly), `apps/business/src/security/headers.ts` (the per-path
   widening), each app's `src/proxy.ts`
-- `connect-src 'self'` everywhere, plus the explorer REST origin on the same two pages (read-only
+- `connect-src 'self'` everywhere, plus the explorer REST origin on the same three pages (read-only
   lookups and transfer confirmations the user starts after linking Shield; the default mode never
   calls it): injected code has nowhere to send data but a public read-only API, and only from those
   pages. Verified in a browser: third-party fetch, framing and inline handlers are all

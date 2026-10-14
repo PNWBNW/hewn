@@ -6,15 +6,30 @@
 // in this document. Each part keeps its own serializer; this file just wraps
 // them in one document. Older saves still open: a bare books file (before
 // payroll), a company file without sales (before invoices and bills), one
-// without dimensions (before projects), and one without a rail (most of them).
+// without dimensions (before projects), one without a rail (most of them),
+// and one without a role (every file from before the worker side existed is
+// a business's).
 // ---------------------------------------------------------------------------
 
 import { type Books, type Dimensions, booksFromJson, booksToJson, dimensionsFromJson, dimensionsToJson, emptyDimensions } from "@pnw/ledger";
 import { type Payroll, emptyPayroll, payrollFromJson, payrollToJson } from "@pnw/payroll";
 import { type Sales, emptySales, salesFromJson, salesToJson } from "@pnw/sales";
 import { type Rail, railFromJson, railToJson } from "./rail";
+import { type Role, type Work, workFromJson, workToJson } from "./work";
 
-export type Company = { books: Books; payroll: Payroll; sales: Sales; dimensions: Dimensions; rail?: Rail };
+export type Company = {
+  books: Books;
+  payroll: Payroll;
+  sales: Sales;
+  dimensions: Dimensions;
+  rail?: Rail;
+  /** Who this vault belongs to: a business (the default) or a person who works for one. */
+  role?: Role;
+  /** A person's own side: agreements, hours, paystubs. Only on a worker's file. */
+  work?: Work;
+};
+
+const ROLES: Role[] = ["business", "worker"];
 
 const FORMAT = "pnw-company";
 
@@ -27,6 +42,8 @@ export function companyToJson(c: Company): string {
     sales: salesToJson(c.sales),
     dimensions: dimensionsToJson(c.dimensions),
     ...(c.rail ? { rail: railToJson(c.rail) } : {}),
+    ...(c.role ? { role: c.role } : {}),
+    ...(c.work ? { work: workToJson(c.work) } : {}),
   });
 }
 
@@ -39,6 +56,8 @@ export function companyFromJson(text: string): Company {
     sales?: string;
     dimensions?: string;
     rail?: string;
+    role?: string;
+    work?: string;
   };
   if (doc.format === FORMAT && doc.version === 1 && typeof doc.books === "string" && typeof doc.payroll === "string") {
     const company: Company = {
@@ -48,6 +67,11 @@ export function companyFromJson(text: string): Company {
       dimensions: typeof doc.dimensions === "string" ? dimensionsFromJson(doc.dimensions) : emptyDimensions(),
     };
     if (typeof doc.rail === "string") company.rail = railFromJson(doc.rail);
+    if (doc.role !== undefined) {
+      if (!ROLES.includes(doc.role as Role)) throw new Error("Unknown role in this company file");
+      company.role = doc.role as Role;
+    }
+    if (typeof doc.work === "string") company.work = workFromJson(doc.work);
     return company;
   }
   // Earlier saves held only the books.
@@ -60,3 +84,6 @@ export const emptyCompany = (books: Books): Company => ({
   sales: emptySales(),
   dimensions: emptyDimensions(),
 });
+
+/** The role a file was saved with; files from before roles existed are a business's. */
+export const roleOf = (c: Pick<Company, "role">): Role => c.role ?? "business";

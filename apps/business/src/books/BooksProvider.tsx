@@ -20,8 +20,9 @@ import { type Books, type Dimensions, type Settings, type TemplateId, applyTempl
 import type { Payroll } from "@pnw/payroll";
 import { type AttachmentRef, MAX_ATTACHMENT_BYTES, type Sales } from "@pnw/sales";
 import { BRAND } from "@/brand";
-import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
+import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
 import type { Rail } from "./rail";
+import { type Role, type Work, emptyWork } from "./work";
 import {
   type VaultSession,
   IndexedDbStore,
@@ -38,7 +39,12 @@ const IDLE_LOCK_MS = 15 * 60 * 1000;
 
 export type BooksStatus = "loading" | "new" | "locked" | "open";
 
-export type SetupInput = Settings & { template: TemplateId | "blank"; passphrase: string };
+/**
+ * What setup asks for. A business picks a template and a fiscal year; a
+ * person who works for one gives only their name, and gets blank books with
+ * the work part alongside.
+ */
+export type SetupInput = Settings & { template: TemplateId | "blank"; passphrase: string; role?: Role };
 
 type BooksContextValue = {
   status: BooksStatus;
@@ -48,6 +54,10 @@ type BooksContextValue = {
   dimensions: Dimensions | null;
   /** The linked account, or null while the books are closed or no account is linked. */
   rail: Rail | null;
+  /** Whose vault this is; "business" until the books are open. */
+  role: Role;
+  /** A person's own side (agreements, hours, paystubs), or null on a business's books. */
+  work: Work | null;
   create: (input: SetupInput) => Promise<void>;
   unlock: (passphrase: string) => Promise<void>;
   lock: () => void;
@@ -83,6 +93,24 @@ export function useOpenBooks(): OpenBooks {
   return ctx as OpenBooks;
 }
 
+/** A person's own side of the app, for screens that only render on a worker's vault. */
+export function useWork(): OpenBooks & { work: Work; updateWork: (op: (work: Work) => Work) => Promise<Work> } {
+  const ctx = useOpenBooks();
+  const { updateCompany, work } = ctx;
+  const updateWork = useCallback(
+    async (op: (w: Work) => Work) => {
+      const next = await updateCompany((c) => {
+        if (!c.work) throw new Error("These books aren't a worker's");
+        return { ...c, work: op(c.work) };
+      });
+      return next.work!;
+    },
+    [updateCompany],
+  );
+  if (!work) throw new Error("These books aren't a worker's");
+  return { ...ctx, work, updateWork };
+}
+
 const ATTACHMENT_TYPES = /^(image\/[a-z0-9.+-]+|application\/pdf)$/;
 
 function newAttachmentId(): string {
@@ -114,10 +142,11 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const create = useCallback(
-    async ({ template, passphrase, ...settings }: SetupInput) => {
+    async ({ template, passphrase, role, ...settings }: SetupInput) => {
       let fresh = createBooks(settings);
       if (template !== "blank") fresh = applyTemplate(fresh, template);
-      const s = await createVault(passphrase, companyToJson(emptyCompany(fresh)), { id: VAULT_ID });
+      const company: Company = role === "worker" ? { ...emptyCompany(fresh), role, work: emptyWork(settings.businessName) } : emptyCompany(fresh);
+      const s = await createVault(passphrase, companyToJson(company), { id: VAULT_ID });
       await store.save(s.record);
       await open(s);
     },
@@ -252,6 +281,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       sales: company?.sales ?? null,
       dimensions: company?.dimensions ?? null,
       rail: company?.rail ?? null,
+      role: company ? roleOf(company) : "business",
+      work: company?.work ?? null,
       create,
       unlock,
       lock,

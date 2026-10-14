@@ -1,0 +1,429 @@
+// ---------------------------------------------------------------------------
+// The work part of a company file: what a person who works for a business
+// keeps in their own vault. Their registered name, the agreements they hold
+// with employers (and the terms they accepted), their clock-in / clock-out
+// punches, the weeks they have sent, and the paystubs that have arrived.
+//
+// Nothing here talks to the rail or the mailbox. Reading offers, accepting
+// them, sending a week and collecting paystubs live in src/chain/work,
+// loaded only when the person taps the button; everything saved comes back
+// through the pure operations below and the vault like any other change.
+//
+// Two shapes are a contract shared with the employer's side of the app and
+// must not drift: `Terms` (what an offer says, sealed at terms slot 0) and
+// the timesheet payload built in hours.ts.
+// ---------------------------------------------------------------------------
+
+export type Role = "business" | "worker";
+
+export type AgreementStatus = "pending" | "active" | "paused" | "terminated";
+
+/** What an offer says. Sealed by the employer; the person keeps it once accepted. */
+export type Terms = {
+  version: 1;
+  kind: "terms";
+  /** The agreement id, or the offer's time hash (the employer may not know the id yet). */
+  agreementId: string;
+  termsText: string;
+  payType: "hourly" | "salary";
+  /** Cents, as a decimal string. Hourly: per hour. Salary: per year. */
+  rate: string;
+  frequency: "weekly" | "biweekly" | "semimonthly" | "monthly";
+  startDate: string;
+  businessName: string;
+  offeredAt: string;
+};
+
+export type WorkAgreement = {
+  /** Hex, no `0x`. */
+  agreementId: string;
+  /** The secret the two parties share, 64 hex characters: what seals every document between them. */
+  partiesKey: string;
+  employerAddress: string;
+  employerNameHash: string;
+  employerName?: string;
+  status: AgreementStatus;
+  terms?: Terms;
+  acceptedAt?: string;
+};
+
+export type Punch = { id: string; agreementId: string; at: string; kind: "in" | "out" };
+
+export type SentTimesheet = {
+  agreementId: string;
+  /** Monday, YYYY-MM-DD. */
+  weekStart: string;
+  seq: number;
+  lookup: string;
+  totalMinutes: number;
+  sentAt: string;
+};
+
+export type ReceivedPaystub = {
+  agreementId: string;
+  seq: number;
+  lookup: string;
+  receivedAt: string;
+  /** The paystub document exactly as received (keys in hash order, amounts as decimal strings). */
+  document: unknown;
+  settlement: { transactionId: string; height?: number; feeMicrocredits?: string };
+  businessName: string;
+  paystubHash: string;
+};
+
+export type WorkProfile = { nameHash: string; name: string; profileAnchored: boolean; registeredAt: string };
+
+export type MailboxSeq = { paystub?: number; timesheet?: number };
+
+export type Work = {
+  version: 1;
+  displayName: string;
+  profile?: WorkProfile;
+  agreements: WorkAgreement[];
+  punches: Punch[];
+  timesheets: SentTimesheet[];
+  paystubs: ReceivedPaystub[];
+  /** The next unused mailbox slot per agreement and kind of document. Missing means 0. */
+  mailboxSeq: Record<string, MailboxSeq>;
+};
+
+export class WorkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkError";
+  }
+}
+
+const ADDRESS = /^aleo1[a-z0-9]{58}$/;
+const HEX = /^[0-9a-f]+$/;
+const PARTIES_KEY = /^[0-9a-f]{64}$/;
+const LOOKUP = /^[0-9a-f]{64}$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_SEQ = 0xffff_ffff;
+const PAY_TYPES = ["hourly", "salary"] as const;
+const FREQUENCIES = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
+const STATUSES: AgreementStatus[] = ["pending", "active", "paused", "terminated"];
+const MAILBOX_KINDS = ["paystub", "timesheet"] as const;
+
+export const emptyWork = (displayName: string): Work => ({
+  version: 1,
+  displayName,
+  agreements: [],
+  punches: [],
+  timesheets: [],
+  paystubs: [],
+  mailboxSeq: {},
+});
+
+// ---- Validation --------------------------------------------------------------
+
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const text = (v: unknown, what: string): string => {
+  if (typeof v !== "string") throw new WorkError(`${what} must be text`);
+  return v;
+};
+const optionalText = (v: unknown, what: string): string | undefined => (v === undefined ? undefined : text(v, what));
+const isoDate = (v: unknown, what: string): string => {
+  const s = text(v, what);
+  if (Number.isNaN(Date.parse(s))) throw new WorkError(`${what} must be a date`);
+  return s;
+};
+const dayDate = (v: unknown, what: string): string => {
+  const s = text(v, what);
+  if (!DATE.test(s) || Number.isNaN(Date.parse(s))) throw new WorkError(`${what} must be a YYYY-MM-DD date`);
+  return s;
+};
+const seqNumber = (v: unknown, what: string): number => {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > MAX_SEQ) throw new WorkError(`${what} must be a whole number`);
+  return v;
+};
+const minutes = (v: unknown, what: string): number => {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 0) throw new WorkError(`${what} must be a whole number of minutes`);
+  return v;
+};
+
+export function validateTerms(raw: unknown): Terms {
+  if (!isObject(raw)) throw new WorkError("Terms must be an object");
+  if (raw.version !== 1) throw new WorkError("Unknown terms version");
+  if (raw.kind !== "terms") throw new WorkError("That document isn't an offer's terms");
+  const payType = text(raw.payType, "Pay type");
+  if (!(PAY_TYPES as readonly string[]).includes(payType)) throw new WorkError("Pay type must be hourly or salary");
+  const frequency = text(raw.frequency, "Pay frequency");
+  if (!(FREQUENCIES as readonly string[]).includes(frequency)) throw new WorkError("Unknown pay frequency");
+  const rate = text(raw.rate, "Rate");
+  if (!/^\d+$/.test(rate)) throw new WorkError("Rate must be a whole number of cents");
+  return {
+    version: 1,
+    kind: "terms",
+    agreementId: text(raw.agreementId, "Agreement id"),
+    termsText: text(raw.termsText, "Terms text"),
+    payType: payType as Terms["payType"],
+    rate,
+    frequency: frequency as Terms["frequency"],
+    startDate: dayDate(raw.startDate, "Start date"),
+    businessName: text(raw.businessName, "Business name"),
+    offeredAt: isoDate(raw.offeredAt, "Offered at"),
+  };
+}
+
+export function validateAgreement(raw: unknown): WorkAgreement {
+  if (!isObject(raw)) throw new WorkError("Each agreement must be an object");
+  const agreementId = text(raw.agreementId, "Agreement id").toLowerCase();
+  if (!agreementId || !HEX.test(agreementId) || agreementId.length % 2 !== 0) throw new WorkError("Agreement id must be hex");
+  const partiesKey = text(raw.partiesKey, "Parties key").toLowerCase();
+  if (!PARTIES_KEY.test(partiesKey)) throw new WorkError("The parties key must be 64 hex characters");
+  const employerAddress = text(raw.employerAddress, "Employer account");
+  if (!ADDRESS.test(employerAddress)) throw new WorkError("Each agreement needs the employer's account");
+  const status = text(raw.status, "Status") as AgreementStatus;
+  if (!STATUSES.includes(status)) throw new WorkError("Unknown agreement status");
+  const a: WorkAgreement = { agreementId, partiesKey, employerAddress, employerNameHash: text(raw.employerNameHash, "Employer name hash"), status };
+  const employerName = optionalText(raw.employerName, "Employer name");
+  if (employerName !== undefined) a.employerName = employerName;
+  if (raw.terms !== undefined) a.terms = validateTerms(raw.terms);
+  if (raw.acceptedAt !== undefined) a.acceptedAt = isoDate(raw.acceptedAt, "Accepted at");
+  return a;
+}
+
+export function validatePunch(raw: unknown): Punch {
+  if (!isObject(raw)) throw new WorkError("Each punch must be an object");
+  const kind = text(raw.kind, "Punch kind");
+  if (kind !== "in" && kind !== "out") throw new WorkError("A punch is in or out");
+  const id = text(raw.id, "Punch id");
+  if (!id) throw new WorkError("Each punch needs an id");
+  return { id, agreementId: text(raw.agreementId, "Agreement id"), at: isoDate(raw.at, "Punch time"), kind };
+}
+
+export function validateTimesheet(raw: unknown): SentTimesheet {
+  if (!isObject(raw)) throw new WorkError("Each sent week must be an object");
+  const lookup = text(raw.lookup, "Lookup");
+  if (!LOOKUP.test(lookup)) throw new WorkError("A lookup id is 64 hex characters");
+  return {
+    agreementId: text(raw.agreementId, "Agreement id"),
+    weekStart: dayDate(raw.weekStart, "Week start"),
+    seq: seqNumber(raw.seq, "The timesheet sequence number"),
+    lookup,
+    totalMinutes: minutes(raw.totalMinutes, "Total"),
+    sentAt: isoDate(raw.sentAt, "Sent at"),
+  };
+}
+
+export function validatePaystub(raw: unknown): ReceivedPaystub {
+  if (!isObject(raw)) throw new WorkError("Each paystub must be an object");
+  const lookup = text(raw.lookup, "Lookup");
+  if (!LOOKUP.test(lookup)) throw new WorkError("A lookup id is 64 hex characters");
+  if (!isObject(raw.settlement)) throw new WorkError("Each paystub needs its payment");
+  const settlement: ReceivedPaystub["settlement"] = { transactionId: text(raw.settlement.transactionId, "Payment id") };
+  if (raw.settlement.height !== undefined) {
+    if (typeof raw.settlement.height !== "number" || !Number.isInteger(raw.settlement.height)) throw new WorkError("Height must be a whole number");
+    settlement.height = raw.settlement.height;
+  }
+  const fee = optionalText(raw.settlement.feeMicrocredits, "Fee");
+  if (fee !== undefined) {
+    if (!/^\d+$/.test(fee)) throw new WorkError("Fee must be a whole number");
+    settlement.feeMicrocredits = fee;
+  }
+  if (raw.document === undefined || raw.document === null) throw new WorkError("Each paystub needs its document");
+  const paystubHash = text(raw.paystubHash, "Paystub hash");
+  if (!LOOKUP.test(paystubHash)) throw new WorkError("A paystub hash is 64 hex characters");
+  return {
+    agreementId: text(raw.agreementId, "Agreement id"),
+    seq: seqNumber(raw.seq, "The paystub sequence number"),
+    lookup,
+    receivedAt: isoDate(raw.receivedAt, "Received at"),
+    document: raw.document,
+    settlement,
+    businessName: text(raw.businessName, "Business name"),
+    paystubHash,
+  };
+}
+
+function validateProfile(raw: unknown): WorkProfile {
+  if (!isObject(raw)) throw new WorkError("Profile must be an object");
+  if (typeof raw.profileAnchored !== "boolean") throw new WorkError("Profile needs to say whether it was created");
+  return {
+    nameHash: text(raw.nameHash, "Name hash"),
+    name: text(raw.name, "Registered name"),
+    profileAnchored: raw.profileAnchored,
+    registeredAt: isoDate(raw.registeredAt, "Registered at"),
+  };
+}
+
+function validateSeq(raw: unknown): Record<string, MailboxSeq> {
+  if (!isObject(raw)) throw new WorkError("Mailbox sequence numbers must be an object");
+  const out: Record<string, MailboxSeq> = {};
+  for (const [agreementId, seq] of Object.entries(raw)) {
+    if (!isObject(seq)) throw new WorkError("Mailbox sequence numbers must be an object");
+    const clean: MailboxSeq = {};
+    for (const [kind, n] of Object.entries(seq)) {
+      if (!(MAILBOX_KINDS as readonly string[]).includes(kind)) throw new WorkError(`Unknown mailbox document kind: ${kind}`);
+      if (n === undefined) continue;
+      clean[kind as keyof MailboxSeq] = seqNumber(n, `The ${kind} sequence number`);
+    }
+    if (Object.keys(clean).length > 0) out[agreementId] = clean;
+  }
+  return out;
+}
+
+/** Checks every field; later agreements with the same id replace earlier ones. */
+export function validateWork(raw: unknown): Work {
+  if (!isObject(raw)) throw new WorkError("Work must be an object");
+  if (raw.version !== 1) throw new WorkError("Unknown work version");
+  if (!Array.isArray(raw.agreements) || !Array.isArray(raw.punches) || !Array.isArray(raw.timesheets) || !Array.isArray(raw.paystubs)) {
+    throw new WorkError("Work needs its agreements, punches, timesheets and paystubs");
+  }
+  const byId = new Map<string, WorkAgreement>();
+  for (const a of raw.agreements.map(validateAgreement)) byId.set(a.agreementId, a);
+  const punches = raw.punches.map(validatePunch);
+  if (new Set(punches.map((p) => p.id)).size !== punches.length) throw new WorkError("Two punches share an id");
+  const work: Work = {
+    version: 1,
+    displayName: text(raw.displayName, "Name"),
+    agreements: [...byId.values()],
+    punches: punches.sort(byTime),
+    timesheets: raw.timesheets.map(validateTimesheet),
+    paystubs: raw.paystubs.map(validatePaystub),
+    mailboxSeq: validateSeq(raw.mailboxSeq ?? {}),
+  };
+  if (raw.profile !== undefined) work.profile = validateProfile(raw.profile);
+  return work;
+}
+
+export const workToJson = (work: Work): string => JSON.stringify(validateWork(work));
+export const workFromJson = (text: string): Work => validateWork(JSON.parse(text));
+
+// ---- Operations --------------------------------------------------------------
+
+const byTime = (a: Punch, b: Punch) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1);
+
+export const agreementFor = (work: Work, agreementId: string): WorkAgreement | undefined => work.agreements.find((a) => a.agreementId === agreementId);
+
+/** The agreements the person can clock in against. */
+export const activeAgreements = (work: Work): WorkAgreement[] => work.agreements.filter((a) => a.status === "active");
+
+/** Adds or replaces one agreement; an existing one keeps its terms, name and acceptance unless the new one brings its own. */
+export function upsertAgreement(work: Work, agreement: WorkAgreement): Work {
+  const fresh = validateAgreement(agreement);
+  const previous = agreementFor(work, fresh.agreementId);
+  const merged: WorkAgreement = previous ? { ...previous, ...fresh } : fresh;
+  if (previous?.terms && !fresh.terms) merged.terms = previous.terms;
+  if (previous?.employerName && !fresh.employerName) merged.employerName = previous.employerName;
+  if (previous?.acceptedAt && !fresh.acceptedAt) merged.acceptedAt = previous.acceptedAt;
+  return validateWork({ ...work, agreements: [...work.agreements.filter((a) => a.agreementId !== fresh.agreementId), merged] });
+}
+
+export function setProfile(work: Work, profile: WorkProfile): Work {
+  return validateWork({ ...work, profile });
+}
+
+/** The next unused slot of `kind` in the mailbox shared with one employer (0 before anything). */
+export function nextWorkSeq(work: Work, agreementId: string, kind: keyof MailboxSeq): number {
+  return work.mailboxSeq[agreementId]?.[kind] ?? 0;
+}
+
+/** Notes that slot `used` has gone (or arrived), so the next one is after it. Never moves backwards. */
+export function bumpWorkSeq(work: Work, agreementId: string, kind: keyof MailboxSeq, used: number): Work {
+  if (!agreementFor(work, agreementId)) throw new WorkError("No agreement with that id");
+  const current = nextWorkSeq(work, agreementId, kind);
+  const next = Math.max(current, seqNumber(used, `The ${kind} sequence number`) + 1);
+  return validateWork({ ...work, mailboxSeq: { ...work.mailboxSeq, [agreementId]: { ...work.mailboxSeq[agreementId], [kind]: next } } });
+}
+
+/** Keeps a paystub that arrived and moves the slot past it. One per agreement and slot. */
+export function addPaystub(work: Work, paystub: ReceivedPaystub): Work {
+  const fresh = validatePaystub(paystub);
+  if (!agreementFor(work, fresh.agreementId)) throw new WorkError("No agreement with that id");
+  if (work.paystubs.some((p) => p.agreementId === fresh.agreementId && p.seq === fresh.seq)) return bumpWorkSeq(work, fresh.agreementId, "paystub", fresh.seq);
+  return bumpWorkSeq({ ...work, paystubs: [...work.paystubs, fresh] }, fresh.agreementId, "paystub", fresh.seq);
+}
+
+/** Records a week sent to an employer and moves the slot past it. A week sent again replaces the earlier record. */
+export function recordTimesheet(work: Work, sent: SentTimesheet): Work {
+  const fresh = validateTimesheet(sent);
+  if (!agreementFor(work, fresh.agreementId)) throw new WorkError("No agreement with that id");
+  const others = work.timesheets.filter((t) => !(t.agreementId === fresh.agreementId && t.weekStart === fresh.weekStart));
+  return bumpWorkSeq({ ...work, timesheets: [...others, fresh] }, fresh.agreementId, "timesheet", fresh.seq);
+}
+
+export const sentWeek = (work: Work, agreementId: string, weekStart: string): SentTimesheet | undefined =>
+  work.timesheets.find((t) => t.agreementId === agreementId && t.weekStart === weekStart);
+
+// ---- Punches ---------------------------------------------------------------------
+
+/**
+ * The rule every list of punches must keep, per agreement: in time order they
+ * alternate in, out, in, out… starting with an in, and no two share a time.
+ * That is what makes "overlapping" shifts impossible.
+ */
+export function checkPunches(punches: Punch[]): void {
+  const byAgreement = new Map<string, Punch[]>();
+  for (const p of [...punches].sort(byTime)) {
+    const list = byAgreement.get(p.agreementId) ?? [];
+    list.push(p);
+    byAgreement.set(p.agreementId, list);
+  }
+  for (const list of byAgreement.values()) {
+    let expect: Punch["kind"] = "in";
+    let last: string | null = null;
+    for (const p of list) {
+      if (last !== null && p.at <= last) throw new WorkError("Two punches can't be at the same time");
+      if (p.kind !== expect) throw new WorkError(expect === "in" ? "Punches overlap: you were still clocked in" : "Punches overlap: you weren't clocked in");
+      expect = expect === "in" ? "out" : "in";
+      last = p.at;
+    }
+  }
+}
+
+function newPunchId(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(8));
+  return `pch-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** The open shift for one agreement (an in with no out after it), if any. */
+export function openPunch(work: Work, agreementId: string): Punch | undefined {
+  const last = [...work.punches].filter((p) => p.agreementId === agreementId).sort(byTime).at(-1);
+  return last?.kind === "in" ? last : undefined;
+}
+
+/** Clocks in or out: the opposite of the last punch, at `at` (now by default). */
+export function punch(work: Work, agreementId: string, at: string = new Date().toISOString(), id: string = newPunchId()): { work: Work; punch: Punch } {
+  const agreement = agreementFor(work, agreementId);
+  if (!agreement) throw new WorkError("No agreement with that id");
+  if (agreement.status !== "active") throw new WorkError("This agreement isn't active");
+  const kind: Punch["kind"] = openPunch(work, agreementId) ? "out" : "in";
+  const p = validatePunch({ id, agreementId, at, kind });
+  const punches = [...work.punches, p];
+  checkPunches(punches);
+  return { work: validateWork({ ...work, punches }), punch: p };
+}
+
+/** Moves one punch to a new time (and kind). The list must still alternate. */
+export function updatePunch(work: Work, id: string, changes: Partial<Pick<Punch, "at" | "kind">>): Work {
+  const existing = work.punches.find((p) => p.id === id);
+  if (!existing) throw new WorkError("No punch with that id");
+  const next = validatePunch({ ...existing, ...changes });
+  const punches = work.punches.map((p) => (p.id === id ? next : p));
+  checkPunches(punches);
+  return validateWork({ ...work, punches });
+}
+
+/**
+ * Removes one punch. If the rest no longer alternates on its own (an in
+ * whose out would be left dangling), the other end of the same shift goes
+ * with it; a last out can go alone, which leaves that shift open.
+ */
+export function removePunch(work: Work, id: string): Work {
+  const existing = work.punches.find((p) => p.id === id);
+  if (!existing) throw new WorkError("No punch with that id");
+  let punches = work.punches.filter((p) => p.id !== id);
+  try {
+    checkPunches(punches);
+  } catch {
+    const sorted = work.punches.filter((p) => p.agreementId === existing.agreementId).sort(byTime);
+    const at = sorted.findIndex((p) => p.id === id);
+    // The other half of the same shift: the next punch after an in, the one before an out.
+    const partner = existing.kind === "in" ? sorted[at + 1] : sorted[at - 1];
+    punches = punches.filter((p) => p.id !== partner?.id);
+    checkPunches(punches);
+  }
+  return validateWork({ ...work, punches });
+}
