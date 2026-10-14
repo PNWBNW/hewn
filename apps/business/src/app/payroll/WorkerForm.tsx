@@ -20,25 +20,29 @@ function money(text: string, label: string, allowZero = true): Cents {
   return v;
 }
 
-/** Add or edit a team member. Everything here stays in the encrypted vault. */
+/**
+ * Add or edit a team member. Everything here stays in the encrypted vault.
+ * `initial` is a whole worker when editing, or just a name or two to start
+ * a new one from (a team member imported from the rail).
+ */
 export function WorkerForm({
   initial,
   onSave,
   onCancel,
 }: {
-  initial?: Worker;
+  initial?: Partial<Worker>;
   onSave: (input: WorkerInput) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [payType, setPayType] = useState<Worker["payType"]>(initial?.payType ?? "hourly");
-  const [rate, setRate] = useState(initial ? plain(initial.rate) : "");
+  const [rate, setRate] = useState(initial?.rate !== undefined ? plain(initial.rate) : "");
   const [frequency, setFrequency] = useState<PayFrequency>(initial?.frequency ?? "biweekly");
-  const [filingStatus, setFilingStatus] = useState<W4["filingStatus"]>(initial?.w4.filingStatus ?? "single");
-  const [dependents, setDependents] = useState(initial ? plain(initial.w4.dependentCredit) : "0");
-  const [otherIncome, setOtherIncome] = useState(initial ? plain(initial.w4.otherIncome) : "0");
-  const [deductions, setDeductions] = useState(initial ? plain(initial.w4.extraDeductions) : "0");
-  const [extra, setExtra] = useState(initial ? plain(initial.w4.extraWithholding) : "0");
+  const [filingStatus, setFilingStatus] = useState<W4["filingStatus"]>(initial?.w4?.filingStatus ?? "single");
+  const [dependents, setDependents] = useState(initial?.w4 ? plain(initial.w4.dependentCredit) : "0");
+  const [otherIncome, setOtherIncome] = useState(initial?.w4 ? plain(initial.w4.otherIncome) : "0");
+  const [deductions, setDeductions] = useState(initial?.w4 ? plain(initial.w4.extraDeductions) : "0");
+  const [extra, setExtra] = useState(initial?.w4 ? plain(initial.w4.extraWithholding) : "0");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -123,7 +127,7 @@ export function WorkerForm({
             Cancel
           </Button>
           <Button type="submit" className="h-11 flex-1 sm:flex-none" disabled={busy || !name.trim() || !rate.trim()}>
-            {initial ? "Save changes" : "Add to team"}
+            {initial?.id ? "Save changes" : "Add to team"}
           </Button>
         </div>
       </div>

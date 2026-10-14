@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SECURITY_HEADERS, buildCsp, newNonce } from "./headers";
+import { EXPLORER_ORIGIN, SECURITY_HEADERS, buildCsp, newNonce } from "./headers";
 
 const directives = (csp: string) =>
   Object.fromEntries(
@@ -26,8 +26,8 @@ describe("content security policy", () => {
     expect(directives(buildCsp({ nonce: "n", dev: true }))["script-src"]).toContain("'unsafe-eval'");
   });
 
-  it("lets the page talk to its own origin and nothing else", () => {
-    expect(prod["connect-src"]).toEqual(["'self'"]);
+  it("lets the page talk to its own origin and the explorer, nothing else", () => {
+    expect(prod["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
     expect(prod["default-src"]).toEqual(["'self'"]);
   });
 
@@ -38,8 +38,9 @@ describe("content security policy", () => {
     expect(prod["base-uri"]).toEqual(["'none'"]);
   });
 
-  it("names no third-party host anywhere", () => {
-    expect(buildCsp({ nonce: "n" })).not.toMatch(/https?:\/\//);
+  it("names the explorer once, in connect-src, and no other host anywhere", () => {
+    expect(EXPLORER_ORIGIN).toMatch(/^https:\/\/[a-z.]+$/);
+    expect(buildCsp({ nonce: "n" }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
   });
 });
 
