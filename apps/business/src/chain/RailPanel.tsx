@@ -22,13 +22,15 @@ import { scanAgreementRecords } from "@pnw/records/agreement_reader";
 import { queryEmployerName, queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import type { WorkerRecord } from "@pnw/records/types/worker";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper, Network, WalletReadyState, useWallet } from "@pnw/wallet/wallet-provider";
+import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { WorkerForm } from "@/app/payroll/WorkerForm";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { VAULT_ID, useOpenBooks } from "@/books/BooksProvider";
 import type { Company } from "@/books/company";
 import { type Rail, type RailLink, addLink, shortAddress, validateRail } from "@/books/rail";
 import { BRAND } from "@/brand";
+import { ShieldStatus } from "./ShieldStatus";
+import { useShield } from "./shield";
 
 export type RailPanelProps = { mode: "connect" | "import"; onClose: () => void };
 
@@ -39,82 +41,6 @@ export default function RailPanel({ mode, onClose }: RailPanelProps) {
         {mode === "connect" ? <ConnectFlow onClose={onClose} /> : <ImportFlow onClose={onClose} />}
       </div>
     </AleoWalletProviderWrapper>
-  );
-}
-
-// ---- Shield ----------------------------------------------------------------
-
-type ShieldState = { kind: "missing" } | { kind: "ready" } | { kind: "connecting" } | { kind: "connected"; address: string };
-
-/** Drives the single Shield adapter: no picker modal, one button. */
-function useShield() {
-  const wallet = useWallet();
-  const shield = wallet.wallets[0]; // Shield is the only adapter registered
-  const [asked, setAsked] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const detected = shield?.readyState === WalletReadyState.INSTALLED || shield?.readyState === WalletReadyState.LOADABLE;
-
-  // Selecting is one render and connecting the next: the adaptor's connect()
-  // reads the selected wallet from its own state.
-  useEffect(() => {
-    if (!asked || !wallet.wallet || wallet.connected || wallet.connecting) return;
-    setAsked(false);
-    wallet.connect(Network.TESTNET).catch((e: unknown) => setError(errorMessage(e)));
-  }, [asked, wallet]);
-
-  const connect = () => {
-    if (!shield) return;
-    setError(null);
-    setAsked(true);
-    wallet.selectWallet(shield.adapter.name);
-  };
-
-  const state: ShieldState =
-    wallet.connected && wallet.address
-      ? { kind: "connected", address: wallet.address }
-      : wallet.connecting || asked
-        ? { kind: "connecting" }
-        : detected
-          ? { kind: "ready" }
-          : { kind: "missing" };
-
-  return { state, connect, error, wallet };
-}
-
-function ShieldStatus({ state, connect, onClose }: { state: ShieldState; connect: () => void; onClose: () => void }) {
-  if (state.kind === "missing") {
-    return (
-      <>
-        <p className="text-sm">
-          Shield wasn&apos;t found. Install the Shield browser extension, or open this page inside the Shield app on your phone, then
-          try again.
-        </p>
-        <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
-          Cancel
-        </Button>
-      </>
-    );
-  }
-  if (state.kind === "connecting") {
-    return (
-      <>
-        <p className="text-sm">Connecting… approve the request in Shield.</p>
-        <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
-          Cancel
-        </Button>
-      </>
-    );
-  }
-  return (
-    <div className="flex flex-wrap gap-3">
-      <Button className="min-h-11 sm:min-h-9" onClick={connect}>
-        Connect Shield
-      </Button>
-      <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={onClose}>
-        Cancel
-      </Button>
-    </div>
   );
 }
 

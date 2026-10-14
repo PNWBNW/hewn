@@ -6,14 +6,17 @@ import { useRouter } from "next/navigation";
 import { formatCents } from "@pnw/ledger";
 import {
   type PaycheckDraft,
+  checkDoublePay,
   computePaycheck,
   employerTaxes,
+  ensureRailAccount,
   grossFor,
   postPayRun,
   withheld,
   yearToDate,
 } from "@pnw/payroll";
 import { Button, buttonVariants } from "@pnw/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
@@ -29,27 +32,37 @@ function daysBefore(iso: string, days: number): string {
 /** One optional project per paycheck: its wages and employer taxes count as that job's labour. */
 type Row = { include: boolean; hours: string; project?: string };
 
+/** The "Paid from" choice that isn't a bank account: the business's own rail balance. */
+const RAIL = "rail";
+const LINK_FIRST = "Link on the rail first: Settings → Import team";
+
 export default function RunPayrollPage() {
-  const { books, payroll, dimensions, updateCompany } = useOpenBooks();
+  const { books, payroll, dimensions, rail, updateCompany } = useOpenBooks();
   const router = useRouter();
   const team = payroll.workers.filter((w) => w.active);
+  const linked = useMemo(() => new Set(rail?.links.map((l) => l.workerId) ?? []), [rail]);
   const today = todayIso();
   const [payDate, setPayDate] = useState(today);
   const [periodEnd, setPeriodEnd] = useState(today);
   const [periodStart, setPeriodStart] = useState(daysBefore(today, 13));
-  const [bank, setBank] = useState(books.accounts.find((a) => a.type === "bank" && a.active)?.id ?? "");
+  // With an account on the rail, paying from it is the first choice; otherwise the first bank account.
+  const [bank, setBank] = useState(rail ? RAIL : (books.accounts.find((a) => a.type === "bank" && a.active)?.id ?? ""));
+  const onRail = rail !== null && bank === RAIL;
   const [reference, setReference] = useState("");
   const [rows, setRows] = useState<Record<string, Row>>(() =>
     Object.fromEntries(team.map((w) => [w.id, { include: true, hours: "" }])),
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmSameDay, setConfirmSameDay] = useState<string[] | null>(null);
 
   // Live preview, one paycheck at a time so each row can show its own problem.
   const preview = useMemo(
     () =>
       team.map((w) => {
         const row = rows[w.id] ?? { include: false, hours: "" };
+        // Paying on the rail needs an account for everyone included; a row without one stays out.
+        if (onRail && !linked.has(w.id)) return { worker: w, row: { ...row, include: false }, paycheck: null, problem: LINK_FIRST };
         if (!row.include) return { worker: w, row, paycheck: null, problem: null };
         try {
           const hours = w.payType === "hourly" ? (row.hours.trim() ? Number(row.hours) : undefined) : undefined;
@@ -62,36 +75,61 @@ export default function RunPayrollPage() {
           return { worker: w, row, paycheck: null, problem: errorMessage(e) };
         }
       }),
-    [team, rows, payroll, payDate],
+    [team, rows, payroll, payDate, onRail, linked],
   );
 
   const included = preview.filter((p) => p.row.include);
   const checks = included.map((p) => p.paycheck).filter((p): p is PaycheckDraft => p !== null);
   const total = (f: (p: PaycheckDraft) => bigint) => checks.reduce((a, p) => a + f(p), 0n);
   const ready = included.length > 0 && included.every((p) => p.paycheck) && !!bank;
+  const names = new Map(team.map((w) => [w.id, w.name]));
+  const lines = () =>
+    included.map(({ worker, row }) => ({
+      workerId: worker.id,
+      ...(worker.payType === "hourly" ? { hours: Number(row.hours) } : {}),
+      ...(row.project ? { tags: { project: row.project } } : {}),
+    }));
+
+  /** Before posting: refuse an exact repeat of a payment on this date; ask about any other same-day pay. */
+  function submit() {
+    setError(null);
+    const check = checkDoublePay(payroll, { payDate, lines: lines() });
+    const who = (xs: { workerId: string }[]) => [...new Set(xs.map((x) => names.get(x.workerId) ?? x.workerId))];
+    if (check.blocked.length > 0) {
+      setError(`Already paid on ${payDate} for the same amount: ${who(check.blocked).join(", ")}. Change the amount or the pay date to pay again.`);
+      return;
+    }
+    if (check.sameDay.length > 0) {
+      setConfirmSameDay(who(check.sameDay));
+      return;
+    }
+    void post();
+  }
 
   async function post() {
     setBusy(true);
     setError(null);
+    setConfirmSameDay(null);
     try {
+      let runId = "";
       await updateCompany((c) => {
-        const r = postPayRun(c.books, c.payroll, {
+        // On the rail: net pay comes from the "Rail balance" account and settles per person as each
+        // payment lands. Otherwise the money moves through the bank and the run is settled as it posts.
+        const from = onRail ? ensureRailAccount(c.books) : { books: c.books, accountId: bank };
+        const r = postPayRun(from.books, c.payroll, {
           payDate,
           periodStart,
           periodEnd,
-          bankAccountId: bank,
-          // This screen records pay that moves through the bank; it's settled as it posts.
-          mode: "external",
-          ...(reference.trim() ? { reference: reference.trim() } : {}),
-          lines: included.map(({ worker, row }) => ({
-            workerId: worker.id,
-            ...(worker.payType === "hourly" ? { hours: Number(row.hours) } : {}),
-            ...(row.project ? { tags: { project: row.project } } : {}),
-          })),
+          bankAccountId: from.accountId,
+          mode: onRail ? "rail" : "external",
+          ...(!onRail && reference.trim() ? { reference: reference.trim() } : {}),
+          lines: lines(),
         });
+        runId = r.run.id;
         return { ...c, books: r.books, payroll: r.payroll };
       });
-      router.push("/payroll");
+      // A rail run goes straight to the pay panel; the rest is done.
+      router.push(onRail ? `/payroll?pay=${runId}` : "/payroll");
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -116,10 +154,10 @@ export default function RunPayrollPage() {
         className="flex flex-col gap-5"
         onSubmit={(e) => {
           e.preventDefault();
-          if (ready) void post();
+          if (ready && !busy) submit();
         }}
       >
-        <div className="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className={cn("grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-3", onRail ? "lg:grid-cols-4" : "lg:grid-cols-5")}>
           <Field label="Pay date">
             <input type="date" className={inputClass} value={payDate} onChange={(e) => setPayDate(e.target.value)} required />
           </Field>
@@ -137,17 +175,20 @@ export default function RunPayrollPage() {
               filter={(a) => a.type === "bank" && a.active}
               className={inputClass}
               placeholder="Choose a bank account"
+              leading={rail ? [{ value: RAIL, label: "Rail balance (private rail)" }] : []}
             />
           </Field>
-          <Field label="Payment reference" hint="Optional. Shown on each paystub.">
-            <input
-              className={inputClass}
-              placeholder="e.g. bank batch number"
-              maxLength={80}
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-            />
-          </Field>
+          {!onRail && (
+            <Field label="Payment reference" hint="Optional. Shown on each paystub.">
+              <input
+                className={inputClass}
+                placeholder="e.g. bank batch number"
+                maxLength={80}
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+              />
+            </Field>
+          )}
         </div>
 
         <ul className="flex flex-col gap-3">
@@ -158,6 +199,7 @@ export default function RunPayrollPage() {
                   <input
                     type="checkbox"
                     checked={row.include}
+                    disabled={problem === LINK_FIRST}
                     onChange={(e) => setRows((r) => ({ ...r, [worker.id]: { ...row, include: e.target.checked } }))}
                     className="size-4 accent-[var(--plumb-green)]"
                   />
@@ -189,7 +231,7 @@ export default function RunPayrollPage() {
                   className="mt-3 sm:grid-cols-2"
                 />
               )}
-              {row.include && problem && <p className="mt-2 text-xs text-destructive">{problem}</p>}
+              {(row.include || problem === LINK_FIRST) && problem && <p className="mt-2 text-xs text-destructive">{problem}</p>}
               {paycheck && (
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-3 text-sm sm:grid-cols-5">
                   <Figure label="Gross" cents={paycheck.gross} />
@@ -216,11 +258,30 @@ export default function RunPayrollPage() {
               Cancel
             </Link>
             <Button type="submit" className="h-11 flex-1 sm:flex-none" disabled={!ready || busy}>
-              {busy ? "Posting…" : `Post payroll for ${included.length}`}
+              {busy ? "Posting…" : onRail ? `Post and pay ${included.length}` : `Post payroll for ${included.length}`}
             </Button>
           </div>
         </div>
       </form>
+
+      <Dialog open={confirmSameDay !== null} onOpenChange={(open) => !open && setConfirmSameDay(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Already paid on {payDate}</DialogTitle>
+            <DialogDescription>
+              {confirmSameDay?.join(", ")} {confirmSameDay?.length === 1 ? "has" : "have"} another paycheck dated {payDate}. Post this one as well?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 gap-2">
+            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmSameDay(null)}>
+              Go back
+            </Button>
+            <Button className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void post()}>
+              Post anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

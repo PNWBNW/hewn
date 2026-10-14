@@ -16,6 +16,7 @@
     "@pnw/ledger": "workspace:*",
     "@pnw/mailbox": "workspace:*",
     "@pnw/payroll": "workspace:*",
+    "@pnw/rail": "workspace:*",
     "@pnw/records": "workspace:*",
     "@pnw/sales": "workspace:*",
     "@pnw/ui": "workspace:*",

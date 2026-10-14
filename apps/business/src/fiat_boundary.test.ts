@@ -20,7 +20,7 @@ const CHAIN_DIR = join(SRC, "chain") + sep;
 const CHAIN_PACKAGES = [
   "@pnw/wallet",
   "@pnw/pnw-adapter",
-  "@pnw/coordinator",
+  "@pnw/rail",
   "@pnw/records",
   "@pnw/config",
   "@pnw/commitments",

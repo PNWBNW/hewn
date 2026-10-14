@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@pnw/ui", "@pnw/ledger", "@pnw/vault", "@pnw/payroll", "@pnw/sales", "@pnw/tax-engine", "@pnw/mailbox",
     // Opt-in rail adaptor, reached only from src/chain.
-    "@pnw/wallet", "@pnw/records", "@pnw/config", "@pnw/commitments",
+    "@pnw/wallet", "@pnw/records", "@pnw/rail", "@pnw/config", "@pnw/commitments",
   ],
   poweredByHeader: false,
   async headers() {

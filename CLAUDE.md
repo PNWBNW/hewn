@@ -66,12 +66,12 @@ Internal package names stay `@pnw/*` (PNW is the company and protocol namespace)
 **Boundaries**
 - Every on-chain write is signed in the user's wallet through the `wallet` package's executor, so
   the wallet shows what is being signed. Program and transition names come from `pnw-adapter`
-  (never hard-coded elsewhere). The CLI adapter / Path B (pasted private key) is legacy:
-  it stays in `coordinator` for now so its tests keep running, but no new code or screen may use it,
-  and it is removed when the coordinator tests are rewritten around the wallet path. Nothing calls `snarkos` or the SDK execute path directly.
+  (never hard-coded elsewhere). The CLI adapter / Path B (pasted private key) is legacy: the
+  `coordinator` package that carried it is gone (2026-10-14; the pay queue in `rail` is the wallet
+  path), and no new code or screen may use `pnw-adapter`'s CLI adapter. Nothing calls `snarkos` or the SDK execute path directly.
 - **Fiat first; chain is optional.** The whole product must work with no wallet, no network and no
   Aleo package loaded. The ledger core, vault, reports and fiat payroll never import `wallet`,
-  `pnw-adapter`, `coordinator` or `records`; those are opt-in adapters for anchored/settled modes,
+  `pnw-adapter`, `rail` or `records`; those are opt-in adapters for anchored/settled modes,
   loaded only after the user upgrades a business.
 - Extension modules may never touch posting logic or the vault key.
 - Mode upgrades (fiat → anchored → settled) are one-way, show exactly what goes on-chain, and require
