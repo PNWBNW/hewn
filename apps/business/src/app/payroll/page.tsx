@@ -272,8 +272,7 @@ function Team() {
   const [editing, setEditing] = useState<string | "new" | null>(payroll.workers.length === 0 ? "new" : null);
   const [offering, setOffering] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // An offer needs the business's registered name on the rail: it goes on the agreement.
-  const canOffer = rail !== null && !!rail.businessNameHash;
+  // The offer panel itself says what is still missing (Shield linked, the business's registered name).
 
   return (
     <div className="flex flex-col gap-4">
@@ -322,7 +321,7 @@ function Team() {
                       {!w.active && " · Inactive"}
                     </div>
                   </div>
-                  {status === "typed" && canOffer && w.active && offering !== w.id && (
+                  {status === "typed" && w.active && offering !== w.id && (
                     <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setOffering(w.id)}>
                       Send offer
                     </Button>
@@ -357,16 +356,9 @@ function Team() {
         </ul>
       )}
       <p className="text-xs text-muted-foreground">
-        Names, pay rates and W-4 details are stored only in your encrypted books on this device.
-        {rail && (
-          <>
-            {" "}
-            <span className="font-medium">Typed</span>: a name you entered; the books work, nothing else.{" "}
-            <span className="font-medium">Linked</span>: an agreement approved by both sides, so they can be paid on the rail and receive
-            paystubs.
-            {!canOffer && " Register a business name on the rail to send offers."}
-          </>
-        )}
+        Names, pay rates and W-4 details are stored only in your encrypted books on this device.{" "}
+        <span className="font-medium">Typed</span>: a name you entered; the books work, nothing else. <span className="font-medium">Linked</span>: an
+        agreement approved by both sides, so they can be paid on the rail and receive paystubs. Tap Send offer to start one.
       </p>
     </div>
   );
