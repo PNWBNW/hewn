@@ -30,6 +30,7 @@ import { todayIso } from "@/books/display";
 import { type Rail, addLink, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import type { Company } from "@/books/company";
+import { RegisterFlow } from "./RegisterBusiness";
 import { ShieldStatus } from "./ShieldStatus";
 import { draftProblem, draftTerms, longDate, payLine } from "./agreement_draft";
 import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveBusinessName, resolveWorker, sendOffer } from "./offer";
@@ -112,6 +113,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   const [reviewing, setReviewing] = useState(false);
   const [bizName, setBizName] = useState("");
   const [bizBusy, setBizBusy] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [stage, setStage] = useState<OfferStage | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [mailboxOff, setMailboxOff] = useState(false);
@@ -258,33 +260,44 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
             },
             {
               done: false,
-              text: "Confirm your business's registered name",
+              text: "Register your business name",
               action: rail ? (
-                <form
-                  className="flex flex-col gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (bizName.trim() && !bizBusy) void confirmBusinessName();
-                  }}
-                >
-                  <p className="text-xs text-muted-foreground">
-                    We couldn&apos;t find one for this account automatically. If you already have one, like dayco.{BRAND.nameSuffix}, type it here; it counts
-                    only if this account owns it. Registering a new business name isn&apos;t in {BRAND.name} yet.
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      className={inputClass}
-                      aria-label="Your registered business name"
-                      value={bizName}
-                      onChange={(e) => setBizName(e.target.value)}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    <Button type="submit" variant="outline" className="min-h-11 whitespace-nowrap sm:min-h-10" disabled={bizBusy || !bizName.trim()}>
-                      {bizBusy ? "Checking…" : "Check"}
+                registering ? (
+                  <RegisterFlow onClose={() => setRegistering(false)} />
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <Button className="min-h-11 self-start sm:min-h-9" onClick={() => setRegistering(true)}>
+                      Register your business name
                     </Button>
+                    <details className="text-xs text-muted-foreground">
+                      <summary className="cursor-pointer">I already have one</summary>
+                      <form
+                        className="mt-2 flex flex-col gap-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (bizName.trim() && !bizBusy) void confirmBusinessName();
+                        }}
+                      >
+                        <p>
+                          Type it, like dayco.{BRAND.nameSuffix}. It counts only if this account owns it.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            className={inputClass}
+                            aria-label="Your registered business name"
+                            value={bizName}
+                            onChange={(e) => setBizName(e.target.value)}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                          <Button type="submit" variant="outline" className="min-h-11 whitespace-nowrap sm:min-h-10" disabled={bizBusy || !bizName.trim()}>
+                            {bizBusy ? "Checking…" : "Check"}
+                          </Button>
+                        </div>
+                      </form>
+                    </details>
                   </div>
-                </form>
+                )
               ) : undefined,
             },
           ]}

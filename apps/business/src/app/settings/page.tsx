@@ -58,7 +58,7 @@ export default function SettingsPage() {
 function PrivatePayments() {
   const { rail, payroll, role, updateCompany } = useOpenBooks();
   const worker = role === "worker";
-  const [panel, setPanel] = useState<"connect" | "import" | null>(null);
+  const [panel, setPanel] = useState<"connect" | "import" | "register" | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +86,11 @@ function PrivatePayments() {
             {!worker && (
               <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("import")}>
                 Import team
+              </Button>
+            )}
+            {!worker && !rail.businessNameHash && (
+              <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("register")}>
+                Register business name
               </Button>
             )}
             <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmUnlink(true)}>

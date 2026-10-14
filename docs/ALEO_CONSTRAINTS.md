@@ -167,3 +167,19 @@ on testnet first.
 5. Add the compliance-record fact to `THREAT_MODEL.md`.
 6. Fee read-back: confirm the REST transaction response exposes the fee transition's amount so
    the books post the actual fee.
+
+## 7. Registry gates (read from the Leo source, 2026-10-14)
+
+- `pnw_name_registrar_v5::register_employer_name(name_hash, name_u128, industry_u8)` asserts the
+  signer is `is_verified` in `employer_license_registry`, takes 1 USDCx from the signer's **public**
+  balance (`transfer_public_as_signer`), and allows one name per account (worker or business, never
+  both). It is a four-program call, so Shield must prove it locally (not delegated); the old portal
+  did this successfully in April.
+- `employer_license_registry.set_verified(wallet, license_hash, flag)` is callable only by its
+  `AUTHORITY` (the DAO treasury account) and the program is `@noupgrade`. No licence number is
+  checked on chain; only a commitment is stored. Hewn stores a fixed placeholder.
+- `employer_agreement_v4::create_job_offer` asserts the same approval **and** that the caller owns the
+  employer name hash. So a business can neither register nor send an offer until the authority has
+  approved its account. Removing that gate needs new program versions (registrar v6, agreement v5);
+  a Leo task, not started. Until then the Settings → Register business name flow shows the account
+  to send to the authority, and the authority's own account gets an Approve button.
