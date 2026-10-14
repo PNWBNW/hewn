@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXPLORER_ORIGIN, RAIL_PATHS, SECURITY_HEADERS, buildCsp, hostsRail, newNonce } from "./headers";
+import { EXPLORER_ORIGIN, LOOKUP_PATHS, RAIL_PATHS, SECURITY_HEADERS, buildCsp, hostsLookup, hostsRail, newNonce } from "./headers";
 
 const directives = (csp: string) =>
   Object.fromEntries(
@@ -12,6 +12,7 @@ const directives = (csp: string) =>
 describe("content security policy", () => {
   const books = directives(buildCsp({ nonce: "abc123", path: "/transactions" }));
   const rail = directives(buildCsp({ nonce: "abc123", path: "/payroll/run" }));
+  const lookup = directives(buildCsp({ nonce: "abc123", path: "/sales" }));
 
   it("only runs scripts carrying this request's nonce", () => {
     expect(books["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
@@ -42,6 +43,15 @@ describe("content security policy", () => {
     expect(rail["default-src"]).toEqual(["'self'"]);
   });
 
+  it("lets exactly the customer and vendor pages reach the explorer, and still no WebAssembly", () => {
+    expect(LOOKUP_PATHS).toEqual(["/sales", "/expenses"]);
+    expect(lookup["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
+    expect(lookup["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
+    expect(directives(buildCsp({ nonce: "n", path: "/expenses/bills" }))["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
+    for (const p of ["/sales", "/expenses", "/expenses/new"]) expect(hostsLookup(p)).toBe(true);
+    for (const p of ["/", "/salesperson", "/expense", "/payroll", "/transactions"]) expect(hostsLookup(p)).toBe(false);
+  });
+
   it("matches rail pages by path segment, not prefix", () => {
     for (const p of ["/settings", "/payroll", "/payroll/run", "/settings/", "/mailbox", "/work", "/work/offers"]) expect(hostsRail(p)).toBe(true);
     for (const p of ["/", "/payrolls", "/settingsx", "/mailboxes", "/sales", "/transactions/new", "/workshop"]) expect(hostsRail(p)).toBe(false);
@@ -58,7 +68,7 @@ describe("content security policy", () => {
 
   it("names the explorer once, in connect-src, and no other host anywhere", () => {
     expect(EXPLORER_ORIGIN).toMatch(/^https:\/\/[a-z.]+$/);
-    expect(buildCsp({ nonce: "n", path: "/settings" }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
+    for (const path of ["/settings", "/sales"]) expect(buildCsp({ nonce: "n", path }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
   });
 });
 

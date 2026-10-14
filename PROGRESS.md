@@ -1533,3 +1533,27 @@ Recorded in `docs/ALEO_CONSTRAINTS.md` §7.
 Tests: `pnpm test` 605/605 (+13: v5 input encoding pinned, name and industry refusals, approval
 inputs, authority check, the four account states, availability). Not run here: the panels themselves
 (need Shield, public USDCx and a funded account); Joshua's testnet run covers them.
+
+## 2026-10-14 — Find people and businesses by their .hewn name
+
+One lookup for both (`chain/directory.ts`, `chain/NameLookup.tsx`): type `ana.hewn`, `dayco`, `@dayco`
+or an account starting aleo1 and get who it is: a person or a business, its industry (businesses),
+whether a business is approved to send offers, and the account it points at. Public registry data only,
+no Shield needed. It replaces the offer panel's own "name or account" field (which now refuses a
+business with "dayco.hewn is a business, not a person") and appears on the customer and vendor forms
+as "Find on the registry", filling the party's rail address and keeping the name's hash on the party
+(`PartyLink.nameHash`, cleared if the account is then edited by hand). The old `resolveWorker` is gone.
+
+Names are held on chain as hashes, so only an exact name can be found: no search by first letters and
+no list to browse. The message for a miss says to check the spelling. (A browsable directory would
+need an indexer, which is a server; not planned.) `/sales` and `/expenses` may now reach the explorer
+for this lookup (connect-src only, still no WebAssembly); THREAT_MODEL updated.
+
+Not built, and not possible with today's programs: agreements and payments between businesses. A
+customer or vendor found by name is still "typed" (the books work, nothing is sent on the rail), because
+a bilateral agreement between two businesses (job contract, hold harmless, NDA, anything else) needs a
+party-agreement Leo program that doesn't exist yet. That is the next Leo session (Fable 5.1, high effort).
+
+Tests: `pnpm test` 622/622 (+17: name normalisation, business and person results, industry and
+approval, misses, exact-name refusals, kind mismatch, the suffix query, name-hash handling on parties,
+the CSP for the two lookup pages). `next build` clean.

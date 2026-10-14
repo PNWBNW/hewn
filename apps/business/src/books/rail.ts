@@ -284,10 +284,19 @@ export function removePartyLink(rail: Rail, kind: PartyKind, id: string): Rail {
 
 /**
  * Sets (or, with nothing, clears) the account a typed customer or vendor
- * can be reached at. An offered or linked party keeps its agreement, so only
- * its address moves. Returns the rail unchanged when nothing is linked.
+ * can be reached at, and, when the account was found by its registered name,
+ * that name's hash (`null` clears a hash that no longer matches the account;
+ * leaving it out keeps whatever is there). An offered or linked party keeps
+ * its agreement, so only its address moves. Returns the rail unchanged when
+ * nothing is linked.
  */
-export function setPartyAddress(rail: Rail | null | undefined, kind: PartyKind, id: string, address: string | undefined): Rail | undefined {
+export function setPartyAddress(
+  rail: Rail | null | undefined,
+  kind: PartyKind,
+  id: string,
+  address: string | undefined,
+  nameHash?: string | null,
+): Rail | undefined {
   if (!rail) return undefined;
   const clean = address?.trim() || undefined;
   const current = partyLinkFor(rail, kind, id);
@@ -297,7 +306,11 @@ export function setPartyAddress(rail: Rail | null | undefined, kind: PartyKind, 
     return removePartyLink(rail, kind, id);
   }
   if (!isRailAddress(clean)) throw new RailError(ADDRESS_HINT);
-  return setPartyLink(rail, { ...(current ?? { kind, id, status: "typed" }), address: clean });
+  if (nameHash && !/^\d{1,80}$/.test(nameHash)) throw new RailError("A name hash is a whole number");
+  const next: PartyLink = { ...(current ?? { kind, id, status: "typed" }), address: clean };
+  if (nameHash) next.nameHash = nameHash;
+  else if (nameHash === null) delete next.nameHash;
+  return setPartyLink(rail, next);
 }
 
 /** The next unused slot of `kind` in this person's mailbox (0 before anything was sent). */

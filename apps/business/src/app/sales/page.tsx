@@ -373,10 +373,10 @@ function Customers() {
           kind="customer"
           link={partyLinkView(rail, "customer", undefined)}
           onCancel={() => setEditing(null)}
-          onSave={async (input, address) => {
+          onSave={async (input, address, nameHash) => {
             await updateCompany((c) => {
               const added = addCustomer(c.sales, input);
-              return withPartyAddress({ ...c, sales: added.sales }, "customer", added.customer.id, address);
+              return withPartyAddress({ ...c, sales: added.sales }, "customer", added.customer.id, address, nameHash);
             });
             setEditing(null);
           }}
@@ -393,8 +393,8 @@ function Customers() {
                   initial={cust}
                   link={partyLinkView(rail, "customer", cust.id)}
                   onCancel={() => setEditing(null)}
-                  onSave={async (input, address) => {
-                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateCustomer(c.sales, cust.id, input) }, "customer", cust.id, address));
+                  onSave={async (input, address, nameHash) => {
+                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateCustomer(c.sales, cust.id, input) }, "customer", cust.id, address, nameHash));
                     setEditing(null);
                   }}
                 />

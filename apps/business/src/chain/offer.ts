@@ -22,8 +22,9 @@ import { PAY_FREQUENCY_CODES, type ComputedAgreementValues } from "@pnw/handshak
 import { KINDS, MailboxError, type MailboxClient, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
-import { computeNameHash, queryNameOwner, queryNamePlaintext, queryWorkerName } from "@pnw/records/registry/name_registry";
+import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
 import { type RailLink, isRailAddress } from "../books/rail";
+import { bareDirectoryName } from "./directory";
 import { byteArrayHex } from "./parties_key";
 import { type Terms, canonicalTerms } from "./terms";
 
@@ -154,44 +155,14 @@ export function createJobOfferInputs(i: OfferInputs): string[] {
 
 // ---- Who the offer goes to ---------------------------------------------------------------
 
+/** Who was found to send an offer to (see directory.ts for the lookup itself). */
 export type ResolvedWorker = { address: string; nameHash: string; name?: string };
 
 export type Registry = {
   nameOwner: (nameHash: string) => Promise<string | null>;
-  workerName: (address: string) => Promise<string | null>;
-  namePlaintext: (nameHash: string) => Promise<string | null>;
 };
 
-const registry: Registry = { nameOwner: queryNameOwner, workerName: queryWorkerName, namePlaintext: queryNamePlaintext };
-
-/**
- * A registered name (with or without the display suffix) → its owner's
- * account, or an account → its registered name. Someone without a name
- * can't be offered to: the agreement carries their name hash.
- */
-export async function resolveWorker(text: string, suffix: string, reg: Registry = registry): Promise<ResolvedWorker> {
-  const raw = text.trim();
-  if (!raw) throw new OfferError("Enter their name or account");
-  if (raw.startsWith("aleo1")) {
-    if (!isRailAddress(raw)) throw new OfferError("That account isn't complete: 63 characters starting aleo1");
-    const found = await reg.workerName(raw);
-    if (!found) throw new OfferError(NO_NAME_MESSAGE);
-    const nameHash = bareField(found);
-    const name = (await reg.namePlaintext(nameHash)) || undefined;
-    return { address: raw, nameHash, ...(name ? { name } : {}) };
-  }
-  const name = bareName(raw, suffix);
-  if (!name) throw new OfferError("Enter their name or account");
-  const nameHash = computeNameHash(name);
-  const address = await reg.nameOwner(nameHash);
-  if (!address) throw new OfferError(NO_NAME_MESSAGE);
-  return { address, nameHash, name };
-}
-
-/** A name as typed (any case, with or without the display suffix) → the bare registered name. */
-export function bareName(text: string, suffix: string): string {
-  return text.trim().toLowerCase().replace(new RegExp(`\\.${suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), "");
-}
+const registry: Registry = { nameOwner: queryNameOwner };
 
 /**
  * The business's own registered name, typed by hand when the lookup by
@@ -199,8 +170,8 @@ export function bareName(text: string, suffix: string): string {
  * account owns it: an offer carries the name hash, and nobody may offer
  * work under someone else's name.
  */
-export async function resolveBusinessName(text: string, suffix: string, ownAddress: string, reg: Pick<Registry, "nameOwner"> = registry): Promise<{ nameHash: string; name: string }> {
-  const name = bareName(text, suffix);
+export async function resolveBusinessName(text: string, suffix: string, ownAddress: string, reg: Registry = registry): Promise<{ nameHash: string; name: string }> {
+  const name = bareDirectoryName(text, suffix);
   if (!name) throw new OfferError("Enter your registered business name");
   const nameHash = computeNameHash(name);
   const owner = await reg.nameOwner(nameHash);

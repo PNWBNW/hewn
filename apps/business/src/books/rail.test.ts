@@ -259,4 +259,15 @@ describe("customers and vendors on the rail", () => {
     expect(partyLinkFor(setPartyAddress(withLinked, "customer", "cust-1", ADDR)!, "customer", "cust-1")).toEqual({ ...linkedParty, address: ADDR });
     expect(() => setPartyAddress(withLinked, "customer", "cust-1", "")).toThrow(/keeps its account/);
   });
+
+  it("keep the hash of the registered name an account was found by, until the account is edited by hand", () => {
+    const found = setPartyAddress(rail, "vendor", "vend-1", ADDR_B, "123456789")!;
+    expect(partyLinkFor(found, "vendor", "vend-1")).toEqual({ ...typed, nameHash: "123456789" });
+    // Saving again without saying anything about the name keeps it.
+    expect(partyLinkFor(setPartyAddress(found, "vendor", "vend-1", ADDR_B)!, "vendor", "vend-1")?.nameHash).toBe("123456789");
+    // The account typed over by hand no longer matches the name: null drops it.
+    expect(partyLinkFor(setPartyAddress(found, "vendor", "vend-1", ADDR, null)!, "vendor", "vend-1")).toEqual({ ...typed, address: ADDR });
+    // A hash is a whole number.
+    expect(() => setPartyAddress(rail, "vendor", "vend-1", ADDR_B, "not a hash")).toThrow(/whole number/);
+  });
 });

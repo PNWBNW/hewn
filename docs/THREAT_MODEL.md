@@ -60,7 +60,8 @@ The highest risk for a browser app.
   `packages/security/src/headers.ts` (shared with the marketing site `apps/site`, whose policy
   names no host and allows no WebAssembly), `apps/business/src/security/headers.ts` (the per-path
   widening), each app's `src/proxy.ts`
-- `connect-src 'self'` everywhere, plus the explorer REST origin on the same four pages (read-only
+- `connect-src 'self'` everywhere, plus the explorer REST origin on the same four pages, and on `/sales`
+  and `/expenses` for the registry lookup in the customer and vendor forms, with no WebAssembly there (read-only
   lookups and transfer confirmations the user starts after linking Shield; the default mode never
   calls it): injected code has nowhere to send data but a public read-only API, and only from those
   pages. Verified in a browser: third-party fetch, framing and inline handlers are all

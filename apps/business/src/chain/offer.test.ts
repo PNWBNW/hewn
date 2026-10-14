@@ -24,7 +24,6 @@ import {
   isMailboxOff,
   offerEpochs,
   resolveBusinessName,
-  resolveWorker,
   sendOffer,
 } from "./offer";
 import { canonicalTerms, parseTerms } from "./terms";
@@ -198,28 +197,6 @@ describe("dates as block heights", () => {
     await expect(fetchLatestHeight(down, "https://explorer.example")).rejects.toThrow(/block height/);
     const odd = (async () => new Response('"4210777u32"', { status: 200 })) as unknown as typeof fetch;
     await expect(fetchLatestHeight(odd, "https://explorer.example")).rejects.toThrow(/block height/);
-  });
-});
-
-// ---- Who ----------------------------------------------------------------------------------
-describe("resolveWorker", () => {
-  const reg = {
-    nameOwner: async (hash: string) => (hash === "7" ? WORKER : null),
-    workerName: async (address: string) => (address === WORKER ? "7field" : null),
-    namePlaintext: async (hash: string) => (hash === "7" ? "ana" : null),
-  };
-  // computeNameHash is deterministic; the fake registry answers only for its result.
-  it("resolves a name (with or without the suffix) to its owner, and an account to its name", async () => {
-    const { computeNameHash } = await import("@pnw/records/registry/name_registry");
-    const hash = computeNameHash("ana");
-    const r = { ...reg, nameOwner: async (h: string) => (h === hash ? WORKER : null) };
-    expect(await resolveWorker("Ana", "hewn", r)).toEqual({ address: WORKER, nameHash: hash, name: "ana" });
-    expect(await resolveWorker(" ana.hewn ", "hewn", r)).toEqual({ address: WORKER, nameHash: hash, name: "ana" });
-    expect(await resolveWorker(WORKER, "hewn", reg)).toEqual({ address: WORKER, nameHash: "7", name: "ana" });
-    await expect(resolveWorker("nobody", "hewn", r)).rejects.toThrow(NO_NAME_MESSAGE);
-    await expect(resolveWorker("aleo1" + "q".repeat(58), "hewn", reg)).rejects.toThrow(NO_NAME_MESSAGE);
-    await expect(resolveWorker("aleo1short", "hewn", reg)).rejects.toThrow(/63 characters/);
-    await expect(resolveWorker("", "hewn", reg)).rejects.toThrow(/name or account/);
   });
 });
 
