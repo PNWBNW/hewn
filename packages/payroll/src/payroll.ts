@@ -141,10 +141,20 @@ export type Paycheck = {
    */
   paystubHash?: string;
   settlement: Settlement;
+  /** Where the paystub was last sent to the person, once it has been. */
+  delivery?: PaycheckDelivery;
 };
 
+/**
+ * The outbox record for one paystub: which slot of the person's mailbox it
+ * went to (`seq`, with the slot's `lookup` id) and when. Only the last send
+ * is kept; a resend takes a new slot and replaces it. What was sent is
+ * rebuilt from the vault, so nothing else needs keeping.
+ */
+export type PaycheckDelivery = { seq: number; lookup: string; sentAt: string };
+
 /** A paycheck as computed for review, before a run commits to it and pays it. */
-export type PaycheckDraft = Omit<Paycheck, "paystubHash" | "settlement">;
+export type PaycheckDraft = Omit<Paycheck, "paystubHash" | "settlement" | "delivery">;
 
 export type PayRun = {
   id: string;
@@ -509,6 +519,32 @@ export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId
     (from === "pending" && to !== "pending") || (from === "failed" && to === "pending") || (from === "pending" && to === "pending" && !!settlement.reference);
   if (!allowed) throw new PayrollError(`A ${from} paycheck can't become ${to}`);
   const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, settlement: { ...settlement } } : p));
+  return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };
+}
+
+// ---- Delivery ------------------------------------------------------------------
+
+const LOOKUP = /^[0-9a-f]{64}$/;
+
+/**
+ * Records that one paycheck's paystub went to the person: which mailbox slot
+ * and when. Only a settled paycheck's paystub is sent (its payment id is part
+ * of what goes), and a resend simply replaces the record with the new slot.
+ * Pure: returns new payroll.
+ */
+export function markPaycheckDelivery(payroll: Payroll, runId: string, workerId: string, delivery: PaycheckDelivery): Payroll {
+  const run = payroll.runs.find((r) => r.id === runId);
+  if (!run) throw new PayrollError("Pay run not found");
+  const paycheck = run.paychecks.find((p) => p.workerId === workerId);
+  if (!paycheck) throw new PayrollError("That person isn't in this pay run");
+  if (paycheck.settlement.status !== "settled") throw new PayrollError("A paystub is sent once the pay has settled");
+  if (!delivery || typeof delivery !== "object") throw new PayrollError("The delivery must say which slot it went to and when");
+  if (!Number.isInteger(delivery.seq) || delivery.seq < 0 || delivery.seq > 0xffff_ffff) throw new PayrollError("The delivery slot must be a whole number");
+  if (typeof delivery.lookup !== "string" || !LOOKUP.test(delivery.lookup)) throw new PayrollError("The delivery lookup must be 64 hex characters");
+  if (typeof delivery.sentAt !== "string" || Number.isNaN(Date.parse(delivery.sentAt))) throw new PayrollError("The delivery needs the time it was sent");
+  if (paycheck.delivery && delivery.seq < paycheck.delivery.seq) throw new PayrollError("A paystub can't be re-sent to an earlier slot");
+  const clean: PaycheckDelivery = { seq: delivery.seq, lookup: delivery.lookup, sentAt: delivery.sentAt };
+  const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, delivery: clean } : p));
   return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };
 }
 

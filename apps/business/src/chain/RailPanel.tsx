@@ -8,8 +8,10 @@
 //   connect  pick Shield (the only adapter), connect, prove control of the
 //            address with a signed domain-separated message, look up the
 //            business's registered name, save the `rail` part of the company.
-//   import   read the employer's FinalAgreement records from the wallet and
-//            link each one to a team member, or add one.
+//   import   read the employer's agreement records from the wallet and link
+//            each one to a team member, or add one. The link keeps the
+//            agreement's parties key, which seals paystubs to that person;
+//            a link made before that existed is imported again to get it.
 //
 // No transaction is ever sent from here, and no address or signature is ever
 // logged. Everything saved goes through the vault like any other change.
@@ -30,6 +32,7 @@ import type { Company } from "@/books/company";
 import { type Rail, type RailLink, addLink, shortAddress, validateRail } from "@/books/rail";
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
+import { readPartiesKeys } from "./parties_key";
 import { useShield } from "./shield";
 
 export type RailPanelProps = { mode: "connect" | "import"; onClose: () => void };
@@ -127,17 +130,19 @@ function railOf(c: Company): Rail {
   return c.rail;
 }
 
-const toLink = (workerId: string, r: WorkerRecord): RailLink => ({
-  workerId,
-  address: r.worker_addr,
-  nameHash: r.worker_name_hash,
-  agreementId: r.agreement_id,
-});
+/** The link for one agreement; the parties key comes from the same record, read separately. */
+function toLink(workerId: string, r: WorkerRecord, partiesKey: string | undefined): RailLink {
+  if (!partiesKey) throw new Error("Couldn't read this agreement's key from Shield. Try importing again.");
+  return { workerId, address: r.worker_addr, nameHash: r.worker_name_hash, agreementId: r.agreement_id, partiesKey };
+}
+
+const REIMPORT_HINT = "Re-import to enable paystub delivery";
 
 function ImportFlow({ onClose }: { onClose: () => void }) {
   const { rail, payroll, updateCompany } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
   const [rows, setRows] = useState<WorkerRecord[] | null>(null);
+  const [keys, setKeys] = useState<Map<string, string>>(new Map()); // agreement id → parties key
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null); // agreement id with the add form open
   const started = useRef(false);
@@ -148,13 +153,19 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!address || mismatch || started.current) return;
     started.current = true;
-    scanAgreementRecords(wallet.requestRecords, address).then(setRows, (e: unknown) => setError(errorMessage(e)));
+    Promise.all([scanAgreementRecords(wallet.requestRecords, address), readPartiesKeys(wallet.requestRecords)]).then(
+      ([found, found_keys]) => {
+        setKeys(found_keys);
+        setRows(found);
+      },
+      (e: unknown) => setError(errorMessage(e)),
+    );
   }, [address, mismatch, wallet.requestRecords]);
 
   async function save(r: WorkerRecord, workerId: string) {
     setError(null);
     try {
-      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), toLink(workerId, r)) }));
+      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), toLink(workerId, r, keys.get(r.agreement_id))) }));
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -193,6 +204,9 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
               {rows.map((r) => {
                 const link = rail.links.find((l) => l.agreementId === r.agreement_id || l.address === r.worker_addr);
                 const linkedName = link ? names.get(link.workerId) : undefined;
+                // A link from before paystub delivery existed: pick the same person again to fill in the key.
+                const needsKey = !!link && !!linkedName && !link.partiesKey;
+                const choices = needsKey ? [...payroll.workers.filter((w) => w.id === link.workerId), ...unlinked] : unlinked;
                 return (
                   <li key={r.agreement_id} className="flex flex-col gap-3 p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -201,31 +215,38 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
                           {r.display_name ? `${r.display_name}.${BRAND.nameSuffix}` : shortAddress(r.worker_addr)}
                         </div>
                         <div className="font-mono text-xs text-muted-foreground">agreement {r.agreement_id.slice(0, 8)}…</div>
+                        {needsKey && (
+                          <div className="text-xs text-muted-foreground">
+                            Linked to {linkedName} · {REIMPORT_HINT}
+                          </div>
+                        )}
                       </div>
-                      {linkedName ? (
+                      {linkedName && !needsKey ? (
                         <span className="text-sm text-money-positive">Linked ✓ · {linkedName}</span>
                       ) : (
                         <div className="flex gap-2">
                           <select
                             className={`${inputClass} sm:w-44`}
-                            aria-label="Link to a team member"
+                            aria-label={needsKey ? "Re-import as a team member" : "Link to a team member"}
                             value=""
                             onChange={(e) => e.target.value && void save(r, e.target.value)}
                           >
-                            <option value="">Link to…</option>
-                            {unlinked.map((w) => (
+                            <option value="">{needsKey ? "Re-import as…" : "Link to…"}</option>
+                            {choices.map((w) => (
                               <option key={w.id} value={w.id}>
                                 {w.name}
                               </option>
                             ))}
                           </select>
-                          <Button
-                            variant="outline"
-                            className="min-h-11 whitespace-nowrap sm:min-h-10"
-                            onClick={() => setAdding(adding === r.agreement_id ? null : r.agreement_id)}
-                          >
-                            Add to team
-                          </Button>
+                          {!linkedName && (
+                            <Button
+                              variant="outline"
+                              className="min-h-11 whitespace-nowrap sm:min-h-10"
+                              onClick={() => setAdding(adding === r.agreement_id ? null : r.agreement_id)}
+                            >
+                              Add to team
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -236,7 +257,7 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
                         onSave={async (input) => {
                           await updateCompany((c) => {
                             const added = addWorker(c.payroll, input);
-                            return { ...c, payroll: added.payroll, rail: addLink(railOf(c), toLink(added.worker.id, r)) };
+                            return { ...c, payroll: added.payroll, rail: addLink(railOf(c), toLink(added.worker.id, r, keys.get(r.agreement_id))) };
                           });
                           setAdding(null);
                         }}

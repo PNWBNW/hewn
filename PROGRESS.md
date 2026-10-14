@@ -881,3 +881,82 @@ package now: business 32, commitments 12, ledger 74, manifest 47, payroll 40, pe
 rail 38, records 11, sales 52, vault 28, wallet 13). Build green, typecheck clean, `pnpm audit`
 clean. Lockfile: `@pnw/rail` linked into the app, `@provablehq/sdk` 0.10.1 moved from the
 coordinator to `rail`, the coordinator's links dropped.
+## 2026-10-14 — Paystubs delivered through the mailbox after settlement
+
+The first document to travel through the mailbox (`INTEGRATION_AUDIT.md` §2.2 step 3, §4.4):
+once a paycheck settles on the rail, the employer's app seals the full paystub to the person and
+puts it in their mailbox. Branch `mailbox/paystubs`. Mailbox, not archive: the employer's vault
+records what was sent so it can go again; the worker's app (a later task) scans the slots, keeps
+its copy and drops the pin.
+
+- **`src/books/rail.ts`:** `RailLink.partiesKey` (64 hex, no `0x`; the agreement's shared secret,
+  the only thing that seals a paystub to this person) and `mailboxSeq?: { paystub?: number }`
+  (the next unused slot per kind, missing = 0). `validateLink` requires the key on a new link;
+  `railFromJson` / `railToJson` accept links from before it existed (`allowLegacyLinks`), so older
+  files open and save unchanged until the person is imported again. `addLink` validates the new
+  link strictly, replaces the link with the same `workerId` in place, keeps `mailboxSeq` when the
+  same agreement (same key) is re-imported and starts it over for a new one. `linkFor`,
+  `nextSeq(link, kind)`, `bumpSeq(rail, workerId, kind, used?)` (= max(current, used + 1); never
+  backwards). Tests 5 → 12.
+- **`@pnw/payroll`:** `Paycheck.delivery?: { seq, lookup, sentAt }` (the outbox record; only the
+  last send is kept) and `markPaycheckDelivery(payroll, runId, workerId, delivery)`: settled
+  paychecks only, seq a whole number, lookup 64 hex, sentAt a date, never an earlier slot than the
+  last. Plain JSON fields, so the serializer needed no change. `delivery.test.ts`, 4 tests.
+- **`src/chain/deliver.ts`** (pure; the mailbox client and the clock injected):
+  `paystubEnvelope(company, runId, workerId)` rebuilds the paystub with `paystubDocument` from
+  exactly what posting used (`yearToDate(…, run.id)`), **refuses to send unless
+  `paystubHash(doc) === paycheck.paystubHash`**, and wraps it as `{ version: 1, kind: "paystub",
+  document, settlement: { transactionId, height?, feeMicrocredits? (decimal string) },
+  businessName }` where `document` is the canonical paystub (hash key order, amounts as decimal
+  strings, absent fields null) so the receiver hashes it exactly as the books did.
+  `deliverPaystub({ company, runId, workerId, client, now })` → `seal(partiesKey, "paystub", seq,
+  utf8(json))` → `client.put(lookup, envelope)` → `{ company, delivery, slotTaken }` with the
+  delivery on the paycheck and the slot bumped. **409 (slot taken)** = an earlier attempt reached
+  the pin but not the vault: counted as delivered, slot advanced. Anything else throws and the
+  company is untouched. `recordDelivery(company, runId, workerId, delivery)` is the pure apply
+  step the app runs on the latest vault copy. `isMailboxOff(e)` = 503. 7 tests with a fake
+  client: the envelope opens with the key/kind/slot and not otherwise, no name or amount or
+  transfer id in the ciphertext, resend → next slot with a fresh IV, 409, 502/503/network failure
+  leave the input unchanged, hash mismatch and a renamed worker refuse before any request, missing
+  parties key → "Re-import this team member in Settings to enable paystub delivery".
+- **`src/chain/parties_key.ts`:** `WorkerRecord` doesn't carry `parties_key` and
+  `packages/records` was off limits, so the import reads the employer's agreement records once
+  more (`readPartiesKeys(requestRecords)`, pending and final, unspent) and maps agreement id →
+  key, with the agreement id parsed the way `scanAgreementRecords` parses it. 3 tests.
+- **App.** Import team saves the key on every link; a link without one shows "Linked to <name> ·
+  Re-import to enable paystub delivery" with a "Re-import as…" select that offers the same person
+  (the link is replaced in place). Pay panel (`src/chain/PayPanel.tsx`): the moment a paycheck's
+  settlement is in the vault its paystub is sent; each settled row reads "Paystub sent" /
+  "Sending paystub…" / "Paystub not sent · <reason> · Send"; a send that fails never touches the
+  settlement. On a **503** one line, "Paystub delivery is off on this server", the Send buttons go
+  away and nothing else is sent that session (`usePaystubDelivery` short-circuits; no loop). The
+  paystub view (`Paystub.tsx`) shows, for settled rail paychecks only, "Paystub sent <when> ·
+  Resend paystub" (or "Paystub not sent · Send paystub") through a lazily loaded
+  `src/chain/PaystubDelivery.tsx`, so nobody without a rail paycheck downloads it. Fiat path
+  untouched; boundary test green.
+
+**Verified:** root `pnpm test` **435/435** in 54 files (was 414/51); `@pnw/business` build and
+typecheck green; `pnpm audit` clean; lockfile unchanged. Chromium 390×844 on the production
+build, the pay-queue check's mocked Shield (agreement record now with a `parties_key`) and
+intercepted explorer, `/api/mailbox/*` answered by the script: link, import ("Linked ✓", no
+re-import hint), run payroll on the rail, settle → **"Paystub sent"**; the one POST went to a
+64-hex lookup with nothing else in the URL, `application/octet-stream`, 706 bytes starting with
+**0x01**, no name, business, amount or transfer id in the clear, nothing but the lookup in any
+header. Reload → paystub view reads "Paystub sent Oct 14, 2026, 6:50 AM · Resend paystub";
+Resend with the script answering **409** → still "Paystub sent", slot advanced; Resend again →
+**201** at a third distinct lookup, fresh ciphertext; after another reload the next send took a
+fourth slot (the vault remembers). Second run with the script answering **503**: settled, "Paystub
+not sent", the one line, exactly one request, no Send button. No horizontal overflow on Payroll
+or Settings; zero console errors or CSP violations (the scripted 409/503 and Playwright's
+"aborted" note on a fulfilled route are filtered as the interception, and the page is checked to
+have received every scripted status: 201, 409, 201, 201, 503).
+
+**Decided (not in the brief):** `deliverPaystub` returns `{ company, delivery, slotTaken }`
+rather than a bare `Company`, so the app can apply the delivery onto the latest vault copy
+(`recordDelivery`) while other paychecks' settlements land at the same time; the parties key is
+read from the wallet's records in `src/chain` (see above) rather than from `WorkerRecord`; a
+pending agreement can be linked too (it carries the key); `markPaycheckDelivery` requires a
+settled paycheck; `height` and `feeMicrocredits` are left out of the envelope when the settlement
+has none, not sent as null; re-importing the same agreement keeps the mailbox counter.
+**Deferred:** the worker side (scan, keep, drop the pin); offers, W-4 and payment notes through
+the same mailbox; a "sent" mark on the pay runs list itself (it is on the panel and the paystub).

@@ -4,6 +4,7 @@
 // the paycheck and the person as saved), the same document the journal
 // entry committed to when the run posted. Nothing here leaves the device.
 
+import dynamic from "next/dynamic";
 import { X } from "lucide-react";
 import { formatCents } from "@pnw/ledger";
 import { type Paycheck, type PayRun, paystubDocument, yearToDate } from "@pnw/payroll";
@@ -12,6 +13,12 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, formatCredits } from "@/books/display";
 import { shortAddress } from "@/books/rail";
+
+// Only a paystub paid on the rail is sent to the person from here; nobody else downloads that code.
+const PaystubDelivery = dynamic(() => import("@/chain/PaystubDelivery"), {
+  ssr: false,
+  loading: () => <span>Paystub delivery…</span>,
+});
 
 function paidLine(run: PayRun, p: Paycheck): string {
   const s = p.settlement;
@@ -73,6 +80,11 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
         Employer taxes are paid by {doc.businessName}, not taken from pay.
         {paycheck.paystubHash && <> Paystub reference: {paycheck.paystubHash.slice(0, 8)}</>}
       </p>
+      {run.mode === "rail" && paycheck.settlement.status === "settled" && (
+        <div className="border-t px-4 py-2 text-xs text-muted-foreground">
+          <PaystubDelivery runId={run.id} paycheck={paycheck} />
+        </div>
+      )}
     </section>
   );
 }
