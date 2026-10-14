@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // The business app's browser security policy: the shared policy from
-// @pnw/security, widened on exactly three pages. Settings, Payroll and the
-// worker's /work pages are where the opt-in rail code is loaded, so only
-// they may talk to the explorer and compile WebAssembly; every other page
+// @pnw/security, widened on exactly four pages. Settings, Payroll, the
+// Mailbox and the worker's /work pages are where the opt-in rail code is
+// loaded, so only they may talk to the explorer and compile WebAssembly; every other page
 // keeps the strict policy the site uses. See docs/THREAT_MODEL.md (T3).
 // ---------------------------------------------------------------------------
 import { buildCsp as buildSharedCsp, type CspOptions as SharedCspOptions } from "@pnw/security/headers";
@@ -17,8 +17,8 @@ export { SECURITY_HEADERS, newNonce } from "@pnw/security/headers";
  */
 export const EXPLORER_ORIGIN = "https://api.explorer.provable.com";
 
-/** The pages that host the rail panels (Connect Shield, Import team, Pay now; a worker's offers, hours, paystubs and profile). */
-export const RAIL_PATHS = ["/settings", "/payroll", "/work"] as const;
+/** The pages that host the rail panels (Connect Shield, Import team, Pay now, the Mailbox's check for a reply; a worker's offers, hours, paystubs and profile). */
+export const RAIL_PATHS = ["/settings", "/payroll", "/mailbox", "/work"] as const;
 
 export type CspOptions = Pick<SharedCspOptions, "nonce" | "dev"> & {
   /** The request path; decides whether the rail allowances apply. */

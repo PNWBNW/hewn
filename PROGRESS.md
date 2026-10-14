@@ -1485,3 +1485,27 @@ link. Not run here: the linked-account form and review (needs Shield), to be cov
 testnet run. Unverified assumption: that employer names live in the same registry mapping
 `queryNameOwner` reads for worker names; if not, the typed-name check says "No one has registered that
 name".
+
+## 2026-10-14 — The business Mailbox
+
+A Mailbox page for the business (sidebar item, `/mailbox`), one list, newest first, of what has
+passed between it and its team: offers sent (waiting), "X accepted your offer" (linked), paystubs
+delivered, and weeks of hours the team sends. Offers and paystubs are read from the rail links and
+pay runs (no copies); hours are new: the business collects them from each linked agreement's sealed
+`timesheet` slots when the page opens and on "Check now", needing no Shield (the parties keys are in
+the vault). Each week is written to the vault (`Company.mailbox`) before its pin is dropped, then
+shown with its daily entries; unread weeks show a badge on the sidebar item. A waiting offer shows
+"Check for a reply", which opens the existing Import team panel (the acceptance still has to be read
+from the Shield account). "Offer sent" now points to the Mailbox.
+
+Hours come from another person's device, so `books/mailbox.ts` treats them as untrusted: version 1
+timesheet naming exactly the agreement whose key opened it, total equal to the sum of the entries,
+entries bounded to a day and to 100, unknown fields dropped; a failing document is skipped and
+reported with its pin left. `/mailbox` joins `/settings`, `/payroll` and `/work` as the fourth page
+allowed the explorer and WebAssembly (the reply check runs there); THREAT_MODEL updated.
+
+Tests: `pnpm test` 592/592 (+23: validation, slots, unread, scan order and failure modes, feed
+ordering). Browser check: a fresh business account shows the Mailbox item and its empty state. Not run
+here: a populated feed and a real scan (need two Shield accounts and `PINATA_JWT`); Joshua's testnet
+run covers them. Not built: turning received hours into a pay run's hours (next), worker-sent W-4s
+(the worker app doesn't send one yet).

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { unreadCount } from "@/books/mailbox";
 import type { Role } from "@/books/work";
 import { BRAND } from "@/brand";
 import { BrandLogo } from "./Brand";
@@ -46,6 +47,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon };
 const BUSINESS_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText })),
+  { href: "/mailbox", label: "Mailbox", icon: Mailbox },
 ];
 
 /** A person who works for a business: their own, smaller app. */
@@ -97,6 +99,8 @@ function Rail({
   onBackup: () => void;
   onLock: () => void;
 }) {
+  const { mailbox } = useOpenBooks();
+  const unread = unreadCount(mailbox);
   const worker = role === "worker";
   const nav = worker ? WORK_NAV : BUSINESS_NAV;
   const home = worker ? "/work" : "/";
@@ -122,6 +126,11 @@ function Rail({
           >
             <Icon aria-hidden className={cn("size-4 shrink-0", active && "text-rail-accent")} />
             {label}
+            {href === "/mailbox" && unread > 0 && (
+              <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unread} unread`}>
+                {unread}
+              </span>
+            )}
           </Link>
         );
       })}

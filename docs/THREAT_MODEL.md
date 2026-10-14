@@ -55,12 +55,12 @@ No server, no database. ✅ Structural, from the architecture.
 The highest risk for a browser app.
 - Strict CSP, a fresh nonce per request, `'strict-dynamic'`, no `unsafe-inline`/`unsafe-eval`
   in production. `'wasm-unsafe-eval'` (WASM compilation only; JS eval stays refused) is granted on
-  exactly three pages, `/settings`, `/payroll` and the worker's `/work`, the ones that load the
+  exactly four pages, `/settings`, `/payroll`, the business's `/mailbox` and the worker's `/work`, the ones that load the
   opt-in rail code whose hashing library is WebAssembly; every other page keeps the strict policy. ✅
   `packages/security/src/headers.ts` (shared with the marketing site `apps/site`, whose policy
   names no host and allows no WebAssembly), `apps/business/src/security/headers.ts` (the per-path
   widening), each app's `src/proxy.ts`
-- `connect-src 'self'` everywhere, plus the explorer REST origin on the same three pages (read-only
+- `connect-src 'self'` everywhere, plus the explorer REST origin on the same four pages (read-only
   lookups and transfer confirmations the user starts after linking Shield; the default mode never
   calls it): injected code has nowhere to send data but a public read-only API, and only from those
   pages. Verified in a browser: third-party fetch, framing and inline handlers are all
@@ -125,6 +125,13 @@ byte, 256 KiB cap) and logs neither bodies nor lookups. Same origin only, no COR
 **Pinata holds ciphertext in flight only.** The receiver's vault keeps its copy the moment the
 document is opened and the pin is then dropped; the sender's vault kept one from the start.
 Nothing on a pin but the lookup as its name: no addresses, kinds or dates in metadata. ✅
+
+**What the business takes in.** A team member's week of hours arrives sealed to the agreement and is
+opened on the business's device. It comes from another person, so it is treated as untrusted input
+(`books/mailbox.ts`): it must be a version 1 timesheet naming exactly the agreement whose key opened
+it, its total must equal the sum of its entries, every entry must fit in a day, and nothing beyond the
+known fields is kept. A document that fails is skipped and reported, never half-kept, and its pin
+stays. A week is written to the vault before its pin is dropped. ✅
 
 **Delivery is not proof.** The mailbox is a courier. Both vaults keep copies, and what proves a
 paystub or a payment is the books: the document hash in the entry, the entry hash in the chain,

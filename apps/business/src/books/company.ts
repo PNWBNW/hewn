@@ -14,6 +14,7 @@
 import { type Books, type Dimensions, booksFromJson, booksToJson, dimensionsFromJson, dimensionsToJson, emptyDimensions } from "@pnw/ledger";
 import { type Payroll, emptyPayroll, payrollFromJson, payrollToJson } from "@pnw/payroll";
 import { type Sales, emptySales, salesFromJson, salesToJson } from "@pnw/sales";
+import { type Mailbox, mailboxFromJson, mailboxToJson } from "./mailbox";
 import { type Rail, railFromJson, railToJson } from "./rail";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
 
@@ -23,6 +24,8 @@ export type Company = {
   sales: Sales;
   dimensions: Dimensions;
   rail?: Rail;
+  /** What other people have sent this business (a team member's hours). Only on a business's file, once something arrived. */
+  mailbox?: Mailbox;
   /** Who this vault belongs to: a business (the default) or a person who works for one. */
   role?: Role;
   /** A person's own side: agreements, hours, paystubs. Only on a worker's file. */
@@ -44,6 +47,7 @@ export function companyToJson(c: Company): string {
     sales: salesToJson(c.sales),
     dimensions: dimensionsToJson(c.dimensions),
     ...(c.rail ? { rail: railToJson(c.rail) } : {}),
+    ...(c.mailbox ? { mailbox: mailboxToJson(c.mailbox) } : {}),
     ...(c.role ? { role: c.role } : {}),
     ...(c.work ? { work: workToJson(c.work) } : {}),
     ...(c.email ? { email: c.email } : {}),
@@ -59,6 +63,7 @@ export function companyFromJson(text: string): Company {
     sales?: string;
     dimensions?: string;
     rail?: string;
+    mailbox?: string;
     role?: string;
     work?: string;
     email?: string;
@@ -71,6 +76,7 @@ export function companyFromJson(text: string): Company {
       dimensions: typeof doc.dimensions === "string" ? dimensionsFromJson(doc.dimensions) : emptyDimensions(),
     };
     if (typeof doc.rail === "string") company.rail = railFromJson(doc.rail);
+    if (typeof doc.mailbox === "string") company.mailbox = mailboxFromJson(doc.mailbox);
     if (doc.role !== undefined) {
       if (!ROLES.includes(doc.role as Role)) throw new Error("Unknown role in this company file");
       company.role = doc.role as Role;
