@@ -5,6 +5,8 @@ import { type Cents, formatCents, parseCents } from "@pnw/ledger";
 import { FILING_STATUSES, PAY_FREQUENCIES, type PayFrequency, type W4, type Worker, type WorkerInput } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
+import { LinkBadge } from "@/books/LinkBadge";
+import type { LinkStatus } from "@/books/rail";
 
 const plain = (c: Cents) => formatCents(c).replace(/,/g, "");
 
@@ -27,10 +29,13 @@ function money(text: string, label: string, allowZero = true): Cents {
  */
 export function WorkerForm({
   initial,
+  status,
   onSave,
   onCancel,
 }: {
   initial?: Partial<Worker>;
+  /** Where they stand with the rail, shown when editing; left out when adding. */
+  status?: LinkStatus;
   onSave: (input: WorkerInput) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -73,6 +78,14 @@ export function WorkerForm({
         }
       }}
     >
+      {status && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-2">
+          <LinkBadge status={status} />
+          {status === "typed" && "A name you entered; the books work, nothing else."}
+          {status === "offered" && "An agreement is waiting for them on the rail."}
+          {status === "linked" && "An agreement approved by both sides; they can be paid on the rail and receive paystubs."}
+        </div>
+      )}
       <Field label="Name">
         <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
       </Field>

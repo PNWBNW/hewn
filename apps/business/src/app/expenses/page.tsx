@@ -27,7 +27,9 @@ import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
-import { PartyForm } from "../sales/PartyForm";
+import { LinkBadge } from "@/books/LinkBadge";
+import { linkStatus } from "@/books/rail";
+import { PartyForm, partyLinkView, withPartyAddress } from "../sales/PartyForm";
 import { AgingCard, StatusBadge, voidWithFallback } from "../sales/parts";
 import { PayBillsForm } from "./PayBillsForm";
 import { AttachButton, ReceiptList } from "./Receipts";
@@ -221,7 +223,7 @@ function Bills({ onPay }: { onPay: (p: Paying) => void }) {
 // ---- Vendors ---------------------------------------------------------------
 
 function Vendors() {
-  const { sales, updateCompany } = useOpenBooks();
+  const { sales, rail, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(sales.vendors.length === 0 ? "new" : null);
   const [error, setError] = useState<string | null>(null);
   const termsLabel = (id: string) => TERMS.find((t) => t.id === id)?.label ?? id;
@@ -237,9 +239,13 @@ function Vendors() {
       {editing === "new" && (
         <PartyForm
           kind="vendor"
+          link={partyLinkView(rail, "vendor", undefined)}
           onCancel={() => setEditing(null)}
-          onSave={async (input) => {
-            await updateCompany((c) => ({ ...c, sales: addVendor(c.sales, input).sales }));
+          onSave={async (input, address) => {
+            await updateCompany((c) => {
+              const added = addVendor(c.sales, input);
+              return withPartyAddress({ ...c, sales: added.sales }, "vendor", added.vendor.id, address);
+            });
             setEditing(null);
           }}
         />
@@ -253,9 +259,10 @@ function Vendors() {
                 <PartyForm
                   kind="vendor"
                   initial={v}
+                  link={partyLinkView(rail, "vendor", v.id)}
                   onCancel={() => setEditing(null)}
-                  onSave={async (input) => {
-                    await updateCompany((c) => ({ ...c, sales: updateVendor(c.sales, v.id, input) }));
+                  onSave={async (input, address) => {
+                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateVendor(c.sales, v.id, input) }, "vendor", v.id, address));
                     setEditing(null);
                   }}
                 />
@@ -263,9 +270,10 @@ function Vendors() {
             ) : (
               <li key={v.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <div className={cn("text-sm font-medium", !v.active && "text-muted-foreground line-through")}>
-                    {v.name}
-                    {v.tracks1099 && <span className="ml-2 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">1099</span>}
+                  <div className="flex items-center gap-2">
+                    <span className={cn("truncate text-sm font-medium", !v.active && "text-muted-foreground line-through")}>{v.name}</span>
+                    {v.tracks1099 && <span className="rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">1099</span>}
+                    <LinkBadge status={linkStatus(rail, "vendor", v.id)} />
                   </div>
                   <div className="truncate text-xs text-muted-foreground">
                     {[v.email, termsLabel(v.terms), !v.active && "Inactive"].filter(Boolean).join(" · ")}

@@ -12,6 +12,9 @@
 //            each one to a team member, or add one. The link keeps the
 //            agreement's parties key, which seals paystubs to that person;
 //            a link made before that existed is imported again to get it.
+//            An offer this app sent (OfferPanel) shows as "Offer sent" until
+//            the worker's acceptance is in the wallet as a FinalAgreement,
+//            at which point the link turns linked by itself.
 //
 // No transaction is ever sent from here, and no address or signature is ever
 // logged. Everything saved goes through the vault like any other change.
@@ -19,6 +22,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ENV } from "@pnw/config/env";
+import { PROGRAMS } from "@pnw/config/programs";
 import { addWorker } from "@pnw/payroll";
 import { scanAgreementRecords } from "@pnw/records/agreement_reader";
 import { queryEmployerName, queryNamePlaintext } from "@pnw/records/registry/name_registry";
@@ -29,10 +33,11 @@ import { WorkerForm } from "@/app/payroll/WorkerForm";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { VAULT_ID, useOpenBooks } from "@/books/BooksProvider";
 import type { Company } from "@/books/company";
-import { type Rail, type RailLink, addLink, shortAddress, validateRail } from "@/books/rail";
+import { type Rail, type RailLink, addLink, markLinked, shortAddress, validateRail } from "@/books/rail";
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
-import { readPartiesKeys } from "./parties_key";
+import { finalAgreementIds } from "./offer";
+import { partiesKeysOf } from "./parties_key";
 import { useShield } from "./shield";
 
 export type RailPanelProps = { mode: "connect" | "import"; onClose: () => void };
@@ -133,7 +138,14 @@ function railOf(c: Company): Rail {
 /** The link for one agreement; the parties key comes from the same record, read separately. */
 function toLink(workerId: string, r: WorkerRecord, partiesKey: string | undefined): RailLink {
   if (!partiesKey) throw new Error("Couldn't read this agreement's key from Shield. Try importing again.");
-  return { workerId, address: r.worker_addr, nameHash: r.worker_name_hash, agreementId: r.agreement_id, partiesKey };
+  return { workerId, address: r.worker_addr, nameHash: r.worker_name_hash, agreementId: r.agreement_id, partiesKey, status: "linked", linkedAt: new Date().toISOString() };
+}
+
+/** Every offer this app sent whose acceptance is now in the wallet becomes linked; anything else is left alone. */
+function acceptOffers(rail: Rail, finals: Set<string>, linkedAt: string): Rail {
+  let next = rail;
+  for (const l of rail.links) if (l.status === "offered" && finals.has(l.agreementId)) next = markLinked(next, l.workerId, linkedAt);
+  return next;
 }
 
 const REIMPORT_HINT = "Re-import to enable paystub delivery";
@@ -153,14 +165,19 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!address || mismatch || started.current) return;
     started.current = true;
-    Promise.all([scanAgreementRecords(wallet.requestRecords, address), readPartiesKeys(wallet.requestRecords)]).then(
-      ([found, found_keys]) => {
-        setKeys(found_keys);
+    // The records once more, raw: the parties key for each link, and which
+    // offers this app sent have been accepted (a FinalAgreement with that id).
+    Promise.all([scanAgreementRecords(wallet.requestRecords, address), wallet.requestRecords(PROGRAMS.layer1.employer_agreement, true)]).then(
+      async ([found, raw]) => {
+        const records = Array.isArray(raw) ? raw : [];
+        setKeys(partiesKeysOf(records));
+        const finals = finalAgreementIds(records);
+        if (finals.size > 0) await updateCompany((c) => (c.rail ? { ...c, rail: acceptOffers(c.rail, finals, new Date().toISOString()) } : c));
         setRows(found);
       },
       (e: unknown) => setError(errorMessage(e)),
     );
-  }, [address, mismatch, wallet.requestRecords]);
+  }, [address, mismatch, wallet, updateCompany]);
 
   async function save(r: WorkerRecord, workerId: string) {
     setError(null);
@@ -204,6 +221,8 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
               {rows.map((r) => {
                 const link = rail.links.find((l) => l.agreementId === r.agreement_id || l.address === r.worker_addr);
                 const linkedName = link ? names.get(link.workerId) : undefined;
+                // An offer this app sent, still waiting for the worker (the record is their pending agreement).
+                const offered = !!link && !!linkedName && link.status === "offered";
                 // A link from before paystub delivery existed: pick the same person again to fill in the key.
                 const needsKey = !!link && !!linkedName && !link.partiesKey;
                 const choices = needsKey ? [...payroll.workers.filter((w) => w.id === link.workerId), ...unlinked] : unlinked;
@@ -221,7 +240,9 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
                           </div>
                         )}
                       </div>
-                      {linkedName && !needsKey ? (
+                      {offered ? (
+                        <span className="text-sm">Offer sent · {linkedName}</span>
+                      ) : linkedName && !needsKey ? (
                         <span className="text-sm text-money-positive">Linked ✓ · {linkedName}</span>
                       ) : (
                         <div className="flex gap-2">

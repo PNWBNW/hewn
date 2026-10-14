@@ -82,6 +82,33 @@ choice: the registry stores the bare name and the portal appended `.pnw` in one 
 in `packages/brand` (`BRAND.nameSuffix`). The registry program names and the `PNW::NAME` hash domain (baked into every name
 hash) change only at the mainnet redeploy, when every program gets its final name once.
 
+#### Typed and linked parties
+
+**Decision (Joshua, 2026-10-14): two kinds of party, everywhere a party can be picked.** *Typed*: a
+name you entered; the books work, nothing else. *Linked*: has a profile and an agreement approved by
+both sides; only a linked party can be paid on the rail, receive documents through the mailbox, or
+send hours. In between, *Offer sent*: this app sent the agreement and the other side hasn't approved
+it yet. The badge (`src/books/LinkBadge.tsx`) sits on every Team, Customer and Vendor row and form;
+the status comes from the rail part of the company file (`linkStatus`), so a fiat user sees "Typed"
+and nothing else.
+
+Team members link through the employment agreement that exists today: **Send offer** on a typed
+team member's row (`src/chain/OfferPanel.tsx`) resolves their registered name or account, puts the
+terms document in their mailbox sealed to the agreement's `parties_key` (`terms`, slot 0; the
+canonical form in `src/chain/terms.ts` is a contract shared with the worker's app), then sends
+`employer_agreement_v4::create_job_offer` with the portal's 16 inputs through Shield. The link is
+saved as `offered`; Import team turns it `linked` once a `FinalAgreement` with that agreement id is
+in the employer's wallet. The terms document's `agreementId` holds the offer time hash, not the
+agreement id: the agreement id is derived from the terms hash, so it can't be inside the terms. The
+record's own `agreement_id` is the join.
+
+Vendors, subs and customers become linkable only once a party-agreement program exists (a later Leo
+session). Until then they carry an optional rail address on the party record (`Rail.partyLinks`,
+the vendor/customer form's "Rail address" field, shown once an account is linked in Settings) and
+always read "Typed": no document or payment goes to them on the rail yet. Run payroll on the rail
+already requires a linked team member; the pay-bills path has no rail option today, so nothing
+gates there.
+
 ### 2.2 Payroll (the main seam)
 
 What each side has per paycheck:

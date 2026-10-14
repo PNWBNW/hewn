@@ -53,7 +53,7 @@ function setup({ legacy = false, settle = true } = {}) {
   payroll = settle
     ? markPaycheckSettlement(posted.payroll, posted.run.id, ana.worker.id, { status: "settled", reference: TX, height: 4_210_777, settledAt: clock.now(), feeMicrocredits: 51_580n })
     : posted.payroll;
-  const link = { workerId: ana.worker.id, address: WORKER, nameHash: "12345", agreementId: "01020304", ...(partiesKey ? { partiesKey } : {}) };
+  const link = { workerId: ana.worker.id, address: WORKER, nameHash: "12345", agreementId: "01020304", status: "linked" as const, ...(partiesKey ? { partiesKey } : {}) };
   const company: Company = {
     books: posted.books,
     payroll,
