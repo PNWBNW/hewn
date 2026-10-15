@@ -68,7 +68,13 @@ The highest risk for a browser app.
 - ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
   so the explorer's operator can tie the user's IP to that address. The address is already public
   (it owns a registered name). Private balances come from Shield's own records and touch no server
-  of ours. Accepted. Verified in a browser: third-party fetch, framing and inline handlers are all
+  of ours. Accepted.
+- ⚠️ The app asks Shield for the "on-chain history" decrypt permission (the widest level), because
+  Shield answers `requestTransactionHistory` only at that level and the books are meant to fill from
+  the account's own past transfers. It lets the page read the linked account's history and decrypt
+  its own transitions; everything read stays in the browser session and the vault, and nothing is
+  sent anywhere but the read-only explorer. The permission is the user's to grant or revoke in
+  Shield. Accepted (Joshua, 2026-10-15). Verified in a browser: third-party fetch, framing and inline handlers are all
   refused. ✅
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
