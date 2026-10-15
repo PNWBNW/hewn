@@ -23,6 +23,7 @@ import { executeAndWait } from "./execute";
 import { COUNTRY_CODES, US_STATE_CODES } from "./geo";
 import { CITIZENSHIP, CREATE_PROFILE, GENDER_UNSPECIFIED, NAME_PATTERN, NAME_RULE, type ProfileForm, REGISTER, profileInputs, registerNameInputs } from "./registry";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
+import { assertKindFree } from "../account_kind";
 
 export type ProfilePanelProps = { onClose: () => void };
 
@@ -113,6 +114,8 @@ function RegisterName({ address, onClose }: { address: string; onClose: () => vo
     setError(null);
     try {
       const { nameHash, inputs } = registerNameInputs(name);
+      // One kind of account per Shield account: a wallet holding a business's name can't take a worker's.
+      if (address) await assertKindFree("worker", address);
       if (!availability.yours) await executeAndWait(wallet, { ...REGISTER, inputs });
       await updateWork((w) => setProfile(w, { nameHash, name, profileAnchored: false, registeredAt: new Date().toISOString() }));
     } catch (e) {
