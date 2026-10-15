@@ -42,6 +42,6 @@ export const BRAND = {
    * must offer them its source, so every copy links to where its code lives.
    * A fork changes this to its own repository.
    */
-  sourceUrl: "https://github.com/PNWBNW/pnw",
+  sourceUrl: "https://github.com/PNWBNW/hewn",
   licence: "AGPL-3.0",
 } as const;

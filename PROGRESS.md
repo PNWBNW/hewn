@@ -1939,3 +1939,9 @@ short history (PNW, the first private testnet payroll on 2026-04-10 with its tx 
 redesign into Hewn, `.hewn` under ANS next), a map of the repo with the retired and legacy
 folders marked, how to run it locally, where to report security problems, and the AGPL licence
 text unchanged. Docs only; no code changed.
+
+## 2026-10-15 — Source link points at the renamed repository
+
+The GitHub repository is now `PNWBNW/hewn`. `BRAND.sourceUrl` (the "source code" link the app
+and the site show, which the AGPL makes us keep) pointed at the old `PNWBNW/pnw`; GitHub
+redirected it, but the link now names the real home. One line in `packages/brand`.
