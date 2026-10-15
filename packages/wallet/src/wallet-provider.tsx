@@ -140,7 +140,10 @@ export function AleoWalletProviderWrapper({
       wallets={wallets}
       autoConnect={true}
       network={Network.TESTNET}
-      decryptPermission={DecryptPermission.UponRequest}
+      // On-chain history (the widest level): the books read the account's own past transfers to
+      // fill the "For review" list. Shield refuses requestTransactionHistory at any lower level.
+      // What is read stays in this browser (docs/THREAT_MODEL.md, T3).
+      decryptPermission={DecryptPermission.OnChainHistory}
       programs={WALLET_PROGRAMS}
       onError={(error) => console.error("[Wallet]", error.message)}
     >

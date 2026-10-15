@@ -1678,3 +1678,14 @@ Code: `chain/history_probe.ts` (+6 tests), `chain/HistoryProbe.tsx`, a button in
 `@pnw/rail`; nothing new downloaded).
 
 Tests: `pnpm test` 646/646. `next build` green.
+## 2026-10-15 — Shield asked for the history permission
+
+First run of the Shield history check (Joshua, testnet): records 0 for both programs (the account
+holds only public funds, matching the dashboard's "Private 0.00 · Public 19.00"), and history
+"failed: The dApp does not have decrypt permission". The app connected with
+`DecryptPermission.UponRequest`; Shield answers `requestTransactionHistory` only at
+`OnChainHistory`. The wallet provider now asks for `OnChainHistory` (it includes everything the
+lower levels allow). An existing connection keeps its old permission until Hewn is disconnected in
+Shield and connected again. Threat model T3 notes the wider permission.
+
+Tests: `pnpm test` 646/646. `next build` green.
