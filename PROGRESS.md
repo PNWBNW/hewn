@@ -1953,3 +1953,15 @@ Joshua's call after #57: the free tier's random `.hewn` name is public, like a p
 name and shows in every ANS-aware wallet and explorer. The only difference between the tiers is
 whether you choose the name. BUILD_PLAN "Mainnet names" and its Decisions line, and the CLAUDE.md
 registry note, say so now. Docs only; no code changed.
+
+## 2026-10-15 — README: the longer history
+
+Joshua opened his earlier repositories so the README's "Where it came from" could tell the whole
+story, not just 2026. Read from their commit history (not named in the README, at his request):
+the first PNW design (Feb 2025, ~480 commits in a month: Leo contracts and a whitepaper for a
+multi-chain worker network with SubDAOs, farm co-ops and trust funds, plus a farm-to-table
+market idea); the Aleo + Stellar MVP (Feb 2025 to mid 2025, ~1,240 commits, most of them
+March to May); a Cosmos sidechain and wage token sketched in May 2025 and set aside; the
+Aleo-only rebuild (Jan 2026) and the portal (Mar 2026); the first private testnet payroll during
+the Aleo Buildathon (2026-04-10); Hewn (Oct 2026). The section opens with Joshua's own words on
+why he started. Docs only; no code changed.
