@@ -3,6 +3,7 @@
 import { type ReactNode, type Ref, useState } from "react";
 import { ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
+import { BRAND } from "@/brand";
 import { BrandHero, BrandLogo } from "@/shell/Brand";
 
 /** The wordmark on the left, whatever the page puts on the right. Shared by the front page and the screens behind it. */
@@ -28,7 +29,10 @@ export function AuthFooter() {
   return (
     <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
       <Lock aria-hidden className="size-3" />
-      Encrypted on this device. Nothing is sent to a server.
+      Encrypted on this device. Nothing is sent to a server.{" "}
+      <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+        Source code
+      </a>
     </p>
   );
 }

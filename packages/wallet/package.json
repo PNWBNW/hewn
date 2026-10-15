@@ -2,6 +2,7 @@
   "name": "@pnw/wallet",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
     "./credential-signer": "./src/credential-signer.ts",

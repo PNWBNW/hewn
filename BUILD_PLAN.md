@@ -50,7 +50,7 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 - Every phase ends with its exit criteria green before the next starts. A phase can be reordered; it cannot be skipped.
 - New Leo programs get a third-party audit before any real books touch them (budget line, not a phase).
 - Circuits and ledger invariants on Fable 5.1 at high effort; scaffolding and UI on Opus 5.5 at default.
-- Licence stays as-is until the build is done; revisited then.
+- Licence: AGPL-3.0-only (decided 2026-10-15).
 
 ## Phase 0 — Salvage and scaffold
 
@@ -242,7 +242,7 @@ No seat cap; the wallet is the user.
 | Sales tax filing | Per-state registration and APIs | Liability computed and reported (Phase 3) |
 | Priority support, training | Operational | Docs and READMEs |
 | Intuit Intelligence block | Out of scope by decision | Revisit later; a local model over the vault |
-| Open-source licence | After the build | PNW Smart Contract License v1.7 stays |
+| Open-source licence | Decided 2026-10-15 | AGPL-3.0-only for Hewn and the Leo programs; Hewn name and logo not licensed |
 | ETH stablecoin + wallet rails | Back burner until the Aleo rails are much further along (2026-10-13) | Aleo/USDCx settled mode only |
 
 ## Decisions

@@ -1580,3 +1580,19 @@ compiled with 4.0.0 and sent with 4.4.5. The toolchain update (port sources to 4
 pins, SDK and adaptor) is the next task.
 
 Tests: `pnpm test` 618/618, `next build` clean.
+
+## 2026-10-15 — Open source: AGPL-3.0
+
+Joshua's decision: Hewn and the Leo programs are now **AGPL-3.0-only** (the proprietary PNW Smart
+Contract License v1.7 is retired here). `LICENSE` holds the canonical GNU text (661 lines; checked
+word-for-word against SPDX's copy). Every `package.json` says `"license": "AGPL-3.0-only"`. The app
+(sidebar note and the front page's lock note) and the site footer link to the source
+(`BRAND.sourceUrl`), since anyone running a changed copy for others must offer its source. The Hewn
+name and logo are not licensed (README). CLAUDE.md's licence rule and BUILD_PLAN's decision row are
+updated. `SCALE_GRANT_PROPOSAL` is left as written (a record of what was submitted).
+
+Before going public: both repos' full histories were scanned for private keys, view keys, Pinata
+tokens and committed `.env` files. Only placeholders (`APrivateKey1...`), dummy test keys and empty
+`.env.example` files were found. Making the repos public is Joshua's step (GitHub Settings).
+
+Tests: `pnpm test` 618/618; both apps typecheck.

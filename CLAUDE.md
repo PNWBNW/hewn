@@ -125,5 +125,6 @@ company and protocol namespace).
   shows otherwise.
 - The Julia tax service (`pnw_payroll_engine/`) is retired. The TypeScript engine
   (`src/lib/tax-engine.ts`) is the only tax engine.
-- Current licence is proprietary (PNW Smart Contract License v1.7). Don't change it; it's revisited
-  after the build.
+- Licence: **AGPL-3.0-only** since 2026-10-15 (Joshua), for this repo and `pnw_mvp_v2`; text in `LICENSE`.
+  Every package says `"license": "AGPL-3.0-only"`. The app and the site link to the source
+  (`BRAND.sourceUrl`); keep that link. The Hewn name and logo are not licensed.
