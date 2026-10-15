@@ -84,8 +84,9 @@ than by a long wallet address.
 
 ## Where it came from
 
-Hewn has been built on the side, for free, over a few years, around full-time work (with breaks
-in the busy seasons). Joshua Day, who started it, tells it best:
+Hewn has been built on the side, for free, over a few years, alongside a full-time job. In the
+peak seasons at work, building stopped; when time opened up again, it picked back up where it left
+off. Joshua Day, who started it, tells it best:
 
 > It started as "I want to learn more about blockchain." Then I wanted a say in where this
 > technology goes, instead of leaving it to big businesses to decide for us. Then it became
@@ -103,9 +104,10 @@ and a whitepaper in its first month.
 **Narrowing down (2025).** Building it taught what mattered. The second version kept two chains:
 private payroll records on Aleo and USDC payouts on Stellar, with NFT paystubs. More than a
 thousand commits went in that spring. A sovereign sidechain for governance and a pegged wage token
-were sketched, then set aside. Every cut made the core clearer: private, honest payroll.
+were sketched, then set aside. Every cut made the core clearer: private, honest payroll. Then
+work's busy season took over, and the project rested for the second half of the year.
 
-**Starting over, on Aleo alone (2026).** A clean rebuild in January: Aleo only, paid in
+**Starting over, on Aleo alone (2026).** Back at it in January, with a clean rebuild: Aleo only, paid in
 USDCx, wages and identities never public, and one adapter as the only path to the chain. A web
 portal for employers and workers followed in March.
 
