@@ -16,6 +16,7 @@
 import { type Books, type IsoDate, type NameRef, type Tags, addAccount, baseOf, findEntry, postEntry, reverseEntry } from "@pnw/ledger";
 import { RAIL_ACCOUNT_NAME, ensureRailAccount } from "@pnw/payroll";
 import type { Company } from "./company";
+import { isShieldFamily } from "./funds";
 import { minorToCents } from "./opening";
 
 export type ReviewStatus =
@@ -156,6 +157,8 @@ function withItem(company: Company, item: ReviewItem): Company {
 export type AcceptInput = {
   /** The account on the other side: income for money in, expense for money out, equity for the owner. */
   accountId: string;
+  /** Which part of the Shield account it came out of or went into: General (the Shield account itself, the default) or a set-aside. */
+  shieldAccountId?: string;
   /** The customer or vendor, if the business names one. */
   name?: NameRef;
   tags?: Tags;
@@ -176,8 +179,10 @@ export function acceptItem(company: Company, id: string, input: AcceptInput): Co
   if (cents === 0n) throw new ReviewError("That's less than a cent, too small to post. Exclude it instead.");
   if (!company.books.accounts.some((a) => a.id === input.accountId && a.active)) throw new ReviewError("Choose an account");
 
-  const { books: withAccount, accountId: shield } = ensureRailAccount(company.books);
-  if (input.accountId === shield) throw new ReviewError(`Choose an account other than the ${RAIL_ACCOUNT_NAME}`);
+  const { books: withAccount, accountId: parent } = ensureRailAccount(company.books);
+  if (isShieldFamily({ books: withAccount }, input.accountId)) throw new ReviewError(`Choose an account other than the ${RAIL_ACCOUNT_NAME}`);
+  if (input.shieldAccountId && !isShieldFamily({ books: withAccount }, input.shieldAccountId)) throw new ReviewError("Choose General or one of your set-asides");
+  const shield = input.shieldAccountId ?? parent;
   const other = {
     accountId: input.accountId,
     ...(input.name ? { name: input.name } : {}),
@@ -242,11 +247,13 @@ export function choicesOf(company: Pick<Company, "books" | "review">, id: string
   const item = company.review?.items.find((i) => i.id === id);
   if (item?.status !== "accepted" || !item.entryId) return null;
   const entry = company.books.entries.find((e) => e.id === item.entryId);
-  const shield = ensureRailAccount(company.books).accountId;
-  const other = entry?.lines.find((l) => l.accountId !== shield);
+  const parent = ensureRailAccount(company.books).accountId;
+  const other = entry?.lines.find((l) => !isShieldFamily(company, l.accountId));
+  const side = entry?.lines.find((l) => isShieldFamily(company, l.accountId));
   if (!entry || !other) return null;
   return {
     accountId: other.accountId,
+    ...(side && side.accountId !== parent ? { shieldAccountId: side.accountId } : {}),
     ...(other.name ? { name: other.name } : {}),
     ...(other.tags ? { tags: other.tags } : {}),
     ...(entry.memo ? { memo: entry.memo } : {}),

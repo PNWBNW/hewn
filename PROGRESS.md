@@ -1844,3 +1844,33 @@ payment as a customer payment, changed it to owner money in; it opened prefilled
 then read "Posted to Owner's Investment". No page errors.
 
 Tests: `pnpm test` 671/671 (+1). `next build` green.
+## 2026-10-15 — Set-asides ("floating values")
+
+Joshua: the business holds one wallet balance, but wants to earmark parts of it (10 of 20 USDCx
+for Equipment) without moving money, and have payments to certain vendors come out of the
+earmark. Built as **set-asides**: sub-accounts of the books' Shield account (bank accounts under
+it). What's left in the Shield account itself is **General**, free to spend; General plus every
+set-aside always equals the Shield account's total.
+
+- **Dashboard → Set-asides** (shown once the books have started): General and each set-aside with
+  its balance and the vendors it pays, and the total. **New set-aside** (name, optional amount to
+  set aside now, vendors it pays). **Manage**: Set aside (from General) / Release (back to
+  General), rename, change vendors, **Close set-aside** (its balance goes back to General, the
+  account is made inactive). Every move is a book entry (`manual`, ref `set-aside`); moving more
+  than General or the set-aside holds is refused.
+- **For review:** with set-asides open, each line asks **Paid from** (money out) or **Went into**
+  (money in): General or a set-aside, with balances. Picking a vendor a set-aside pays switches
+  the default to that set-aside (until changed by hand); a warning shows when a payment takes the
+  chosen one below zero (the money has already left, so it is not refused). Change reads it back
+  and can move it. A set-aside is never the "other side" of a review.
+- Code: `books/funds.ts` (+5 tests), `books/SetAsides.tsx`, `books/review.ts`
+  (`shieldAccountId` on accept, `choicesOf` reads it back), `chain/ReviewPanel.tsx`,
+  `books/company.ts` (`funds`), `app/page.tsx`.
+- Checked in Chromium with a seeded vault: made "Equipment fund" with 10.00 paying Saw Co;
+  reviewed a 4.625 payment with Saw Co as vendor, which defaulted to the fund; afterwards General
+  8.62, Equipment fund 5.38, total 14.00. No page errors.
+
+Not yet: payments the app sends itself (payroll) don't check General's balance before paying;
+that's the next step if wanted. Vendor payments aren't sent from the app at all yet.
+
+Tests: `pnpm test` 676/676 (+5). `next build` green.

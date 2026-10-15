@@ -16,6 +16,7 @@ import { type Payroll, emptyPayroll, payrollFromJson, payrollToJson } from "@pnw
 import { type Sales, emptySales, salesFromJson, salesToJson } from "@pnw/sales";
 import { type Mailbox, mailboxFromJson, mailboxToJson } from "./mailbox";
 import { type Review, reviewFromJson, reviewToJson } from "./review";
+import { type Funds, fundsFromJson, fundsToJson } from "./funds";
 import { type Rail, railFromJson, railToJson } from "./rail";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
 
@@ -29,6 +30,8 @@ export type Company = {
   mailbox?: Mailbox;
   /** Money that moved in the Shield account, waiting to be said what it was. Only once something was found. */
   review?: Review;
+  /** Set-asides inside the Shield account (books/funds.ts). Only once one was made. */
+  funds?: Funds;
   /** Who this vault belongs to: a business (the default) or a person who works for one. */
   role?: Role;
   /** A person's own side: agreements, hours, paystubs. Only on a worker's file. */
@@ -52,6 +55,7 @@ export function companyToJson(c: Company): string {
     ...(c.rail ? { rail: railToJson(c.rail) } : {}),
     ...(c.mailbox ? { mailbox: mailboxToJson(c.mailbox) } : {}),
     ...(c.review ? { review: reviewToJson(c.review) } : {}),
+    ...(c.funds ? { funds: fundsToJson(c.funds) } : {}),
     ...(c.role ? { role: c.role } : {}),
     ...(c.work ? { work: workToJson(c.work) } : {}),
     ...(c.email ? { email: c.email } : {}),
@@ -69,6 +73,7 @@ export function companyFromJson(text: string): Company {
     rail?: string;
     mailbox?: string;
     review?: string;
+    funds?: string;
     role?: string;
     work?: string;
     email?: string;
@@ -83,6 +88,7 @@ export function companyFromJson(text: string): Company {
     if (typeof doc.rail === "string") company.rail = railFromJson(doc.rail);
     if (typeof doc.mailbox === "string") company.mailbox = mailboxFromJson(doc.mailbox);
     if (typeof doc.review === "string") company.review = reviewFromJson(doc.review);
+    if (typeof doc.funds === "string") company.funds = fundsFromJson(doc.funds);
     if (doc.role !== undefined) {
       if (!ROLES.includes(doc.role as Role)) throw new Error("Unknown role in this company file");
       company.role = doc.role as Role;

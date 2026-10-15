@@ -9,6 +9,7 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
 import { waitingCount } from "@/books/review";
+import { SetAsides } from "@/books/SetAsides";
 import { PageHeader } from "@/shell/SectionView";
 
 // What the linked account holds, read from the network; loaded only once an account is linked.
@@ -89,6 +90,12 @@ export default function DashboardPage() {
       {rail && (
         <section id="balances" aria-label="Account balances" className="scroll-mt-20">
           <AccountBalances address={rail.address} />
+        </section>
+      )}
+
+      {rail?.start && (
+        <section aria-label="Set-asides">
+          <SetAsides />
         </section>
       )}
 
