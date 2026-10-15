@@ -62,6 +62,9 @@ importers:
       '@pnw/wallet':
         specifier: workspace:*
         version: link:../../packages/wallet
+      '@provablehq/sdk':
+        specifier: 0.10.1
+        version: 0.10.1
       lucide-react:
         specifier: 0.577.0
         version: 0.577.0(react@19.2.3)
