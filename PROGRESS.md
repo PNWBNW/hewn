@@ -1762,3 +1762,28 @@ updated (and a misplaced "verified in a browser" line in T3 put back under conne
 
 Tests: `pnpm test` 649/649 (the per-path tests are replaced by six for the single policy).
 `next build` green.
+## 2026-10-15 — Stay logged in
+
+Joshua: switching apps on the phone logged him out every time (the page is suspended or reloaded,
+and the unlocked books lived in memory only). Now the login has **Stay logged in on this device for
+24 hours** (ticked by default): the open data key is kept in IndexedDB as the browser's
+non-extractable `CryptoKey` with an expiry 24 hours after login, and the app reopens the books on
+load until then. **Log out** (the menu's old "Lock books") forgets it. Unticked, nothing is kept:
+15 idle minutes or a reload locks, as before. Creating an account and restoring a backup stay
+logged in too.
+
+- `@pnw/vault`: `VaultSession.remember(store, expiresAt)`, `resumeSession(store)`,
+  `forgetSession(store)`, `REMEMBER_MS`; one remembered slot per device (`RememberedSession` in a
+  new IndexedDB store, `DB_VERSION` 3). `resumeSession` refuses and clears an expired key, an
+  expiry more than 24 hours out, an extractable key, or a key that doesn't open its record.
+- `BooksProvider`: resumes on load; `open(session, stay)`; a timer logs out at expiry; the idle
+  lock applies only when not kept open; `stayUntil` on the context.
+- CLAUDE.md (the one exception to "the vault key is never stored") and threat model T1/T8 updated.
+- Checked in Chromium against a production build: created an account, reloaded (still open), Log
+  out then reload (asks again), logged in unticked then reload (asks again). No page errors.
+
+Idea logged (Joshua's roommate, no work planned): an optional paid tier with bank connections, customer
+service and extras. Bank feeds need a server-side aggregator (Plaid or similar), which the
+free app's no-server rule forbids, so it would be a separate opt-in service.
+
+Tests: `pnpm test` 655/655 (+6 vault). `next build` green.

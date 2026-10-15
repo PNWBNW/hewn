@@ -17,6 +17,7 @@ import {
   Landmark,
   LayoutDashboard,
   Lock,
+  LogOut,
   Mailbox,
   Menu,
   Settings,
@@ -156,7 +157,7 @@ function Rail({
           </Link>
         )}
         <RailButton icon={Download} label="Download a backup" onClick={onBackup} />
-        <RailButton icon={Lock} label={worker ? "Lock" : "Lock books"} onClick={onLock} />
+        <RailButton icon={LogOut} label="Log out" onClick={onLock} />
         <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
           {worker ? "Your hours and paystubs stay on this device, encrypted." : "Your books stay on this device, encrypted."} Nothing is sent to a
           server.{" "}

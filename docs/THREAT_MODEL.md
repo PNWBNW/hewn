@@ -34,7 +34,17 @@ No server, no database. ✅ Structural, from the architecture.
   from the passphrase; associated data binds each ciphertext to its vault and role. ✅
 - Backups are the sealed record itself; nothing is decrypted to write one. Restore proves the
   passphrase and re-verifies the hash chain before replacing anything. ✅
-- Auto-lock after 15 idle minutes; reload or Lock drops the key and plaintext from memory. ✅
+- Log out drops the key and plaintext from memory. Without "stay logged in": auto-lock after 15
+  idle minutes, and any reload locks. ✅
+- ⚠️ **Stay logged in** (ticked by default at login, Joshua 2026-10-15): the open data key is also
+  kept in IndexedDB as the browser's non-extractable `CryptoKey`, with an expiry 24 hours after
+  login, so a phone switching apps (which suspends or reloads the page) doesn't log the user out.
+  It can decrypt but can't be exported, so it can't be copied off the device; anyone holding the
+  unlocked device can open the books until it expires or Log out forgets it. `resumeSession`
+  refuses an expired key, an expiry further out than 24 hours, an extractable key, or one that
+  doesn't open its record, and clears it. One remembered session per device. Accepted: on a phone
+  the books open inside the Shield app, which itself needs a fingerprint. ✅ `@pnw/vault`
+  (`remember`, `resumeSession`, `forgetSession`)
 - **Email + passphrase.** The unlock secret is the normalised email and the passphrase together
   (`hewn:v1\n<email>\n<passphrase>`), so a stolen file needs both to open; the passphrase alone
   does not. The vault id is `acct-` plus 32 hex of SHA-256 over role and email, local to the
@@ -114,7 +124,9 @@ The highest risk for a browser app.
 
 ### T8 — Compromised device or lost passphrase
 - ⚠️ Malware on the user's own machine sees what the user sees. Mitigation is limited to
-  auto-lock and short key lifetime.
+  auto-lock and short key lifetime. With "stay logged in", a remembered key (24 hours at most,
+  non-extractable) lets anyone holding the unlocked device open the books until it expires or
+  Log out; untick it on a shared device.
 - ⚠️ A forgotten passphrase means unrecoverable books. 🔜 P1: optional recovery key, nudges to
   keep an encrypted backup.
 

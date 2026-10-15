@@ -53,6 +53,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
   const [legacy, setLegacy] = useState(false);
   const [email, setEmail] = useState("");
   const [passphrase, setPassphrase] = useState("");
+  const [stay, setStay] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [choices, setChoices] = useState<Role[] | null>(null);
@@ -72,10 +73,10 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
     setError(null);
     try {
       if (legacy) {
-        await unlockLegacy(passphrase);
+        await unlockLegacy(passphrase, stay);
         return;
       }
-      const outcome = await unlock(email, passphrase);
+      const outcome = await unlock(email, passphrase, stay);
       if (!outcome.opened) {
         setChoices(outcome.choices);
         setPassphrase("");
@@ -170,6 +171,14 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
       <Field label="Passphrase">
         <PassphraseInput value={passphrase} onChange={setPassphrase} inputRef={passphraseRef} />
       </Field>
+
+      <label className="flex min-h-11 items-center gap-3 text-sm">
+        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={stay} onChange={(e) => setStay(e.target.checked)} />
+        <span>
+          Stay logged in on this device for 24 hours
+          <span className="block text-xs text-muted-foreground">Until you log out. Leave it off on a shared device.</span>
+        </span>
+      </label>
 
       <FormError message={error} />
       <Button type="submit" className="h-11" disabled={busy || !passphrase || (!legacy && !email.trim())}>
