@@ -89,7 +89,8 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            You can have both. Make one now and add the other later, with the same email.
+            You can have both. Make one now and add the other later, with the same email. Each needs its own Shield account and its own
+            registered name.
           </p>
           <button type="button" onClick={onRestore} className="min-h-11 self-start text-sm text-muted-foreground underline underline-offset-4">
             I have a backup file to restore
@@ -219,7 +220,8 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
         >
           <p className="text-sm text-muted-foreground">
             {worker ? "Your agreements, hours and paystubs are" : "Your books are"} encrypted on this device. Your email and a passphrase only you
-            know open them together. Pick something long and memorable, like a short sentence.
+            know open them together. Pick something long and memorable, like a short sentence. Next, you&apos;ll link your Shield account and
+            register your name.
           </p>
           <Field label="Email" hint="Your account name on this device. Nothing is sent to it.">
             <input
