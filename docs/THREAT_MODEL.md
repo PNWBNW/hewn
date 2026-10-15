@@ -130,6 +130,15 @@ The highest risk for a browser app.
 - ⚠️ A forgotten passphrase means unrecoverable books. 🔜 P1: optional recovery key, nudges to
   keep an encrypted backup.
 
+## The review list (Transactions → For review)
+- Built on the device from Shield's own history and records plus the read-only explorer; kept in
+  the encrypted vault (amounts, dates and the other side's account). Nothing is sent anywhere. ✅
+- ⚠️ Naming the other side asks the registry (explorer) about that account's name, so the
+  explorer's operator can see which accounts the business looks up. Names already on the
+  business's customers, vendors or team are used without asking. Accepted.
+- An accepted item is undone from the review list (its entry reversed), never voided alone in the
+  register, so the list and the books can't disagree. ✅
+
 ## The mailbox
 
 The one server function (`/api/mailbox/<lookup>`, `@pnw/mailbox`; decision in

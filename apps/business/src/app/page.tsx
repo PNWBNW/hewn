@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
+import { waitingCount } from "@/books/review";
 import { PageHeader } from "@/shell/SectionView";
 
 // What the linked account holds, read from the network; loaded only once an account is linked.
@@ -26,7 +27,8 @@ function totalOf(books: Books, types: AccountType[]): bigint {
 }
 
 export default function DashboardPage() {
-  const { books, payroll, sales, rail } = useOpenBooks();
+  const { books, payroll, sales, rail, review } = useOpenBooks();
+  const waiting = waitingCount(review);
   const today = todayIso();
   const hasEntries = books.entries.length > 0;
   const hasCustomAccounts = books.accounts.some((a) => !a.system);
@@ -71,6 +73,18 @@ export default function DashboardPage() {
           </Card>
         ))}
       </section>
+
+      {waiting > 0 && (
+        <Link
+          href="/transactions?tab=review"
+          className="flex min-h-12 items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 text-sm font-medium hover:bg-primary/10"
+        >
+          <span className="flex-1">
+            {waiting} {waiting === 1 ? "transaction" : "transactions"} to review
+          </span>
+          <ArrowRight aria-hidden className="size-4 shrink-0" />
+        </Link>
+      )}
 
       {rail && (
         <section id="balances" aria-label="Account balances" className="scroll-mt-20">

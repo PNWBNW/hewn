@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
   type AccountType,
@@ -33,8 +35,17 @@ import {
   todayIso,
   typeLabel,
 } from "@/books/display";
+import { waitingCount } from "@/books/review";
 import { tagNameMap, tagSummary } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
+
+// Money that moved in the Shield account, for review; loaded only when the tab opens.
+const ReviewPanel = dynamic(() => import("@/chain/ReviewPanel"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
+const TABS = ["register", "accounts", "review"] as const;
 
 const SOURCE_LABELS: Record<Entry["source"]["kind"], string> = {
   manual: "Journal entry",
@@ -59,7 +70,16 @@ const FORM_SOURCES: Partial<Record<Entry["source"]["kind"], { href: string; labe
   bill_payment: { href: "/expenses", label: "Expenses" },
 };
 
+/** Where an entry is undone instead of voided here: its form, or the review list for money reviewed there. */
+function ownerOf(entry: Entry): { href: string; label: string } | undefined {
+  if (entry.source.ref?.startsWith("review:")) return { href: "/transactions?tab=review", label: "For review" };
+  return FORM_SOURCES[entry.source.kind];
+}
+
 export default function TransactionsPage() {
+  const asked = useSearchParams().get("tab");
+  const { review } = useOpenBooks();
+  const waiting = waitingCount(review);
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -72,12 +92,14 @@ export default function TransactionsPage() {
           </Link>
         }
       />
-      <Tabs defaultValue="register" className="flex flex-col gap-4">
+      <Tabs key={asked ?? "register"} defaultValue={TABS.find((t) => t === asked) ?? "register"} className="flex flex-col gap-4">
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <TabsList>
             <TabsTrigger value="register" className="min-h-9">All entries</TabsTrigger>
             <TabsTrigger value="accounts" className="min-h-9">Chart of accounts</TabsTrigger>
-            <TabsTrigger value="bank" className="min-h-9">Bank activity</TabsTrigger>
+            <TabsTrigger value="review" className="min-h-9">
+              For review{waiting > 0 ? ` (${waiting})` : ""}
+            </TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="register">
@@ -86,11 +108,8 @@ export default function TransactionsPage() {
         <TabsContent value="accounts">
           <ChartOfAccounts />
         </TabsContent>
-        <TabsContent value="bank">
-          <div className="rounded-lg border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
-            Import a bank statement (CSV or OFX) and each line will be matched to an entry in your books.
-            <span className="mt-1 block text-xs">Arrives in phase 7</span>
-          </div>
+        <TabsContent value="review">
+          <ReviewPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -209,13 +228,13 @@ function Journal() {
             </div>
             {!entry.reverses && !reversed && (
               <footer className="flex items-center justify-end border-t px-4 py-2">
-                {FORM_SOURCES[entry.source.kind] ? (
-                  // Voiding here would leave the invoice or bill thinking it's still posted.
+                {ownerOf(entry) ? (
+                  // Voiding here would leave the invoice, bill or review list thinking it's still posted.
                   <Link
-                    href={FORM_SOURCES[entry.source.kind]!.href}
+                    href={ownerOf(entry)!.href}
                     className="flex min-h-11 items-center px-3 text-xs text-muted-foreground hover:text-primary sm:min-h-8"
                   >
-                    Void it from {FORM_SOURCES[entry.source.kind]!.label}
+                    {ownerOf(entry)!.label === "For review" ? "Undo it from For review" : `Void it from ${ownerOf(entry)!.label}`}
                   </Link>
                 ) : (
                   <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => voidEntry(entry)}>
