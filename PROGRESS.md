@@ -1914,3 +1914,18 @@ per wallet on chain, and usage credit toward renewal (0.25 USDCx per paystub rec
 payment sent, private, capped at the renewal price, reset yearly, with opt-in auto-renewal that
 Shield approves). Exit criteria list the negative tests. Building it is a new Leo program, for a
 Fable 5.1 session. Docs only; no code changed.
+## 2026-10-15 — Mainnet names move to the Aleo Name Service; no renewals
+
+Joshua pointed at ARC-137 (the Aleo Name Service, built on ARC-721) for broad reverse resolution,
+and he was right: ANS is one shared registry with `primary_names` and `names` mappings, and the
+wallets and explorers that support it read them through an open-source indexer that follows the
+registry's `tlds` mapping. So a `hewn` TLD registered there (one admin-only `register_tld` by the
+ANS team, our registrar program as owner) makes `john.hewn` show, and receive, in every ANS-aware
+app with nothing to build on their side. ANS also has private names, which fit the free tier.
+
+Decisions: free tier = a random private `.hewn` name assigned at setup, found by address; paid
+tier = a chosen public name, priced by length, bought once; **no renewal, no expiry** (ANS names
+are permanent, and the usage-credit idea went with renewal); one kind per wallet; our programs
+key on ANS's name hash on mainnet (a fresh deploy). BUILD_PLAN's registrar section is rewritten as
+"Mainnet names"; CLAUDE.md notes mainnet lookup by address. Open: short-name prices, and the
+conversation with the ANS team. Docs only; no code changed.
