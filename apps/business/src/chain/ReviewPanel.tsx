@@ -25,11 +25,14 @@ import { AccountSelect, Money, todayIso } from "@/books/display";
 import { minorToCents } from "@/books/opening";
 import { shortAddress } from "@/books/rail";
 import {
+  type AcceptInput,
   type ReviewItem,
   NETWORK_FEES,
   acceptItem,
   addReviewItems,
   byNewest,
+  changeItem,
+  choicesOf,
   ensureNetworkFees,
   excludeItem,
   knownIds,
@@ -272,16 +275,39 @@ function defaultAccount(books: Books, kind: Kind, direction: ReviewItem["directi
   return fits[0]?.id ?? "";
 }
 
-function ReviewCard({ item, who, knownName }: { item: ReviewItem; who: string | null; knownName?: string }) {
+/** Which "What was this?" choice an earlier posting to `accountId` was. */
+function kindOf(books: Books, accountId: string): Kind {
+  const account = books.accounts.find((a) => a.id === accountId);
+  if (!account) return "other";
+  if (account.name.trim().toLowerCase() === NETWORK_FEES.toLowerCase()) return "swap";
+  const base = baseOf(account);
+  return base === "income" ? "income" : base === "expense" ? "expense" : base === "equity" && !account.system ? "owner" : "other";
+}
+
+function ReviewCard({
+  item,
+  who,
+  knownName,
+  editing,
+  onDone,
+}: {
+  item: ReviewItem;
+  who: string | null;
+  knownName?: string;
+  /** Set when correcting an accepted item: its earlier choices, and what to do when saved or cancelled. */
+  editing?: AcceptInput;
+  onDone?: () => void;
+}) {
   const { books, sales, dimensions, rail, updateCompany } = useOpenBooks();
   const shieldId = findRailAccount(books)?.id;
-  const [kind, setKind] = useState<Kind>(item.direction === "in" ? "income" : "expense");
-  const [accountId, setAccountId] = useState(() => defaultAccount(books, item.direction === "in" ? "income" : "expense", item.direction, shieldId));
+  const startKind: Kind = editing ? kindOf(books, editing.accountId) : item.direction === "in" ? "income" : "expense";
+  const [kind, setKind] = useState<Kind>(startKind);
+  const [accountId, setAccountId] = useState(() => editing?.accountId ?? defaultAccount(books, startKind, item.direction, shieldId));
   const parties = item.direction === "in" ? sales.customers : sales.vendors;
   const linked = rail?.partyLinks?.find((p) => p.address === item.counterparty && p.kind === (item.direction === "in" ? "customer" : "vendor"));
-  const [partyId, setPartyId] = useState(linked?.id ?? "");
-  const [projectId, setProjectId] = useState("");
-  const [memo, setMemo] = useState("");
+  const [partyId, setPartyId] = useState(editing ? (editing.name?.id ?? "") : (linked?.id ?? ""));
+  const [projectId, setProjectId] = useState(editing?.tags?.project ?? "");
+  const [memo, setMemo] = useState(editing?.memo ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -307,13 +333,15 @@ function ReviewCard({ item, who, knownName }: { item: ReviewItem; who: string | 
           target = fees.accountId;
         }
         if (!target) throw new Error("Choose an account");
-        return acceptItem(company, item.id, {
+        const input: AcceptInput = {
           accountId: target,
           ...(partyId && kind !== "swap" ? { name: { kind: item.direction === "in" ? "customer" : "vendor", id: partyId } } : {}),
           ...(projectId ? { tags: { project: projectId } } : {}),
           memo: memo || (kind === "swap" ? (item.direction === "out" ? "Swap to ALEO (fee money)" : "Swap from ALEO") : knownName ? "" : who ? `${item.direction === "in" ? "From" : "To"} ${who}` : ""),
-        });
+        };
+        return editing ? changeItem(company, item.id, input, todayIso()) : acceptItem(company, item.id, input);
       });
+      onDone?.();
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -333,18 +361,22 @@ function ReviewCard({ item, who, knownName }: { item: ReviewItem; who: string | 
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="font-medium">{sentence(item, who)}</p>
-        <span className={cn("text-sm font-semibold tabular-nums", item.direction === "in" ? "text-money-positive" : "text-money-negative")}>
-          {item.direction === "in" ? "+" : "−"}
-          <Money cents={cents} />
-        </span>
-      </div>
-      <p className="-mt-2 text-xs text-muted-foreground">
-        {longDate(item.date)}
-        {item.counterparty && who !== shortAddress(item.counterparty) && <> · {shortAddress(item.counterparty)}</>}
-        {dust && <> · goes in the books as <Money cents={cents} /> (a fraction of a cent isn&apos;t kept)</>}
-      </p>
+      {!editing && (
+        <>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <p className="font-medium">{sentence(item, who)}</p>
+            <span className={cn("text-sm font-semibold tabular-nums", item.direction === "in" ? "text-money-positive" : "text-money-negative")}>
+              {item.direction === "in" ? "+" : "−"}
+              <Money cents={cents} />
+            </span>
+          </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            {longDate(item.date)}
+            {item.counterparty && who !== shortAddress(item.counterparty) && <> · {shortAddress(item.counterparty)}</>}
+            {dust && <> · goes in the books as <Money cents={cents} /> (a fraction of a cent isn&apos;t kept)</>}
+          </p>
+        </>
+      )}
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-medium">What was this?</legend>
@@ -412,19 +444,26 @@ function ReviewCard({ item, who, knownName }: { item: ReviewItem; who: string | 
       <FormError message={error} />
       <div className="flex flex-wrap gap-3">
         <Button className="min-h-11 sm:min-h-9" disabled={busy || (kind !== "swap" && !accountId)} onClick={() => void accept()}>
-          Accept
+          {editing ? "Save change" : "Accept"}
         </Button>
-        <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void exclude()}>
-          Exclude
-        </Button>
+        {editing ? (
+          <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={onDone}>
+            Cancel
+          </Button>
+        ) : (
+          <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void exclude()}>
+            Exclude
+          </Button>
+        )}
       </div>
     </div>
   );
 }
 
 function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string | undefined) => string | null }) {
-  const { books, updateCompany } = useOpenBooks();
+  const { books, review, updateCompany } = useOpenBooks();
   const [error, setError] = useState<string | null>(null);
+  const [changing, setChanging] = useState<string | null>(null);
   const accountName = (entryId: string | undefined) => {
     const entry = books.entries.find((e) => e.id === entryId);
     const shield = findRailAccount(books)?.id;
@@ -454,17 +493,32 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
       <FormError message={error} />
       <ul className="divide-y rounded-lg border bg-card text-sm">
         {items.map((i) => (
-          <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">{sentence(i, nameOf(i.counterparty))}</p>
-              <p className="text-xs text-muted-foreground">
-                {longDate(i.date)} · {status(i)}
-              </p>
+          <li key={i.id} className="flex flex-col gap-3 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{sentence(i, nameOf(i.counterparty))}</p>
+                <p className="text-xs text-muted-foreground">
+                  {longDate(i.date)} · {status(i)}
+                </p>
+              </div>
+              {i.status === "accepted" && changing !== i.id && (
+                <Button variant="link" size="sm" className="h-auto min-h-11 p-0 sm:min-h-0" onClick={() => setChanging(i.id)}>
+                  Change
+                </Button>
+              )}
+              {(i.status === "accepted" || i.status === "excluded") && changing !== i.id && (
+                <Button variant="link" size="sm" className="h-auto min-h-11 p-0 sm:min-h-0" onClick={() => void undo(i.id)}>
+                  {i.status === "accepted" ? "Undo" : "Review again"}
+                </Button>
+              )}
             </div>
-            {(i.status === "accepted" || i.status === "excluded") && (
-              <Button variant="link" size="sm" className="h-auto p-0" onClick={() => void undo(i.id)}>
-                {i.status === "accepted" ? "Undo" : "Review again"}
-              </Button>
+            {changing === i.id && (
+              <ReviewCard
+                item={{ ...i, status: "new" }}
+                who={nameOf(i.counterparty)}
+                editing={choicesOf({ books, review: review ?? undefined }, i.id) ?? { accountId: "" }}
+                onDone={() => setChanging(null)}
+              />
             )}
           </li>
         ))}

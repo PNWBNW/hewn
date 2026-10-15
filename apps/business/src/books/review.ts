@@ -226,3 +226,29 @@ export function ensureNetworkFees(books: Books): { books: Books; accountId: stri
   const r = addAccount(books, { name: NETWORK_FEES, type: "expense" });
   return { books: r.books, accountId: r.account.id };
 }
+
+/**
+ * Corrects an accepted item in one step: its entry is reversed (dated `date`) and the item posted
+ * again with the new choices. The books keep all three entries, as with any correction.
+ */
+export function changeItem(company: Company, id: string, input: AcceptInput, date: IsoDate): Company {
+  const item = itemOf(company, id);
+  if (item.status !== "accepted") throw new ReviewError("Only an accepted transaction can be changed");
+  return acceptItem(undoReview(company, id, date), id, input);
+}
+
+/** What an accepted item was posted as: the other account, the customer or vendor, the project and the memo. */
+export function choicesOf(company: Pick<Company, "books" | "review">, id: string): AcceptInput | null {
+  const item = company.review?.items.find((i) => i.id === id);
+  if (item?.status !== "accepted" || !item.entryId) return null;
+  const entry = company.books.entries.find((e) => e.id === item.entryId);
+  const shield = ensureRailAccount(company.books).accountId;
+  const other = entry?.lines.find((l) => l.accountId !== shield);
+  if (!entry || !other) return null;
+  return {
+    accountId: other.accountId,
+    ...(other.name ? { name: other.name } : {}),
+    ...(other.tags ? { tags: other.tags } : {}),
+    ...(entry.memo ? { memo: entry.memo } : {}),
+  };
+}

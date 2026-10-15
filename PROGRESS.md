@@ -1830,3 +1830,17 @@ Known limits: a fraction of a cent per transfer isn't posted, so the books can t
 dust; invoices and bills aren't matched yet (step 3b).
 
 Tests: `pnpm test` 670/670 (+15). `next build` green.
+## 2026-10-15 — For review: Change
+
+Joshua: a way to correct a transaction reviewed wrongly, in one step. Reviewed lines that were
+accepted now have **Change** beside Undo: it opens the same "What was this?" card inline,
+prefilled with what was posted (the choice, the account, the customer or vendor, the project, the
+memo), and **Save change** reverses the old entry and posts the corrected one in one save (the
+books keep the original, the reversal and the correction). **Cancel** leaves it as it was.
+
+Code: `books/review.ts` `changeItem` and `choicesOf` (+1 test), `chain/ReviewPanel.tsx` (the card's
+edit mode, Change in the reviewed list). Checked in Chromium with a seeded vault: accepted a
+payment as a customer payment, changed it to owner money in; it opened prefilled and the line
+then read "Posted to Owner's Investment". No page errors.
+
+Tests: `pnpm test` 671/671 (+1). `next build` green.
