@@ -42,6 +42,7 @@ import {
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
 import type { Mailbox } from "./mailbox";
 import type { Review } from "./review";
+import type { Funds } from "./funds";
 import type { Rail } from "./rail";
 import { type Role, type Work, emptyWork } from "./work";
 import {
@@ -110,6 +111,8 @@ type BooksContextValue = {
   mailbox: Mailbox | null;
   /** Money that moved in the Shield account, for review; null before anything was found. */
   review: Review | null;
+  /** Set-asides inside the Shield account; null before one was made. */
+  funds: Funds | null;
   /** Whose vault this is; "business" until the books are open. */
   role: Role;
   /** A person's own side (agreements, hours, paystubs), or null on a business's books. */
@@ -479,6 +482,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       rail: company?.rail ?? null,
       mailbox: company?.mailbox ?? null,
       review: company?.review ?? null,
+      funds: company?.funds ?? null,
       role: company ? roleOf(company) : "business",
       work: company?.work ?? null,
       create,

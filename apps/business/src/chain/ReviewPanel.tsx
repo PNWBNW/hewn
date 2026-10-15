@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { ENV } from "@pnw/config/env";
-import { type Account, type Books, baseOf } from "@pnw/ledger";
+import { type Account, type Books, baseOf, formatCents } from "@pnw/ledger";
 import { RAIL_ACCOUNT_NAME, findRailAccount } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
@@ -22,6 +22,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
+import { GENERAL, defaultSource, fundBalances, isShieldFamily } from "@/books/funds";
 import { minorToCents } from "@/books/opening";
 import { shortAddress } from "@/books/rail";
 import {
@@ -298,8 +299,9 @@ function ReviewCard({
   editing?: AcceptInput;
   onDone?: () => void;
 }) {
-  const { books, sales, dimensions, rail, updateCompany } = useOpenBooks();
+  const { books, sales, dimensions, rail, funds, updateCompany } = useOpenBooks();
   const shieldId = findRailAccount(books)?.id;
+  const fundView = fundBalances({ books, funds: funds ?? undefined });
   const startKind: Kind = editing ? kindOf(books, editing.accountId) : item.direction === "in" ? "income" : "expense";
   const [kind, setKind] = useState<Kind>(startKind);
   const [accountId, setAccountId] = useState(() => editing?.accountId ?? defaultAccount(books, startKind, item.direction, shieldId));
@@ -307,6 +309,10 @@ function ReviewCard({
   const linked = rail?.partyLinks?.find((p) => p.address === item.counterparty && p.kind === (item.direction === "in" ? "customer" : "vendor"));
   const [partyId, setPartyId] = useState(editing ? (editing.name?.id ?? "") : (linked?.id ?? ""));
   const [projectId, setProjectId] = useState(editing?.tags?.project ?? "");
+  // Which part of the Shield account: a vendor's payment defaults to the set-aside that pays it.
+  const sourceFor = (vendor: string) => (item.direction === "out" ? defaultSource({ books, funds: funds ?? undefined }, vendor || undefined) : shieldId) ?? "";
+  const [side, setSide] = useState(() => editing?.shieldAccountId ?? (editing ? (shieldId ?? "") : sourceFor(linked?.id ?? "")));
+  const [sidePicked, setSidePicked] = useState(!!editing);
   const [memo, setMemo] = useState(editing?.memo ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -337,6 +343,7 @@ function ReviewCard({
           accountId: target,
           ...(partyId && kind !== "swap" ? { name: { kind: item.direction === "in" ? "customer" : "vendor", id: partyId } } : {}),
           ...(projectId ? { tags: { project: projectId } } : {}),
+          ...(side && side !== shieldId ? { shieldAccountId: side } : {}),
           memo: memo || (kind === "swap" ? (item.direction === "out" ? "Swap to ALEO (fee money)" : "Swap from ALEO") : knownName ? "" : who ? `${item.direction === "in" ? "From" : "To"} ${who}` : ""),
         };
         return editing ? changeItem(company, item.id, input, todayIso()) : acceptItem(company, item.id, input);
@@ -413,7 +420,15 @@ function ReviewCard({
             placeholder={kind === "income" ? "Income account" : kind === "expense" ? "Expense account" : "Account"}
           />
           {(kind === "income" || kind === "expense") && parties.length > 0 && (
-            <select aria-label={item.direction === "in" ? "Customer" : "Vendor"} className={inputClass} value={partyId} onChange={(e) => setPartyId(e.target.value)}>
+            <select
+              aria-label={item.direction === "in" ? "Customer" : "Vendor"}
+              className={inputClass}
+              value={partyId}
+              onChange={(e) => {
+                setPartyId(e.target.value);
+                if (!sidePicked) setSide(sourceFor(e.target.value));
+              }}
+            >
               <option value="">{item.direction === "in" ? "Customer (optional)" : "Vendor (optional)"}</option>
               {parties
                 .filter((p) => p.active || p.id === partyId)
@@ -425,6 +440,32 @@ function ReviewCard({
             </select>
           )}
         </div>
+      )}
+
+      {fundView.funds.length > 0 && (
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">{item.direction === "out" ? "Paid from" : "Went into"}</span>
+          <select
+            className={inputClass}
+            value={side}
+            onChange={(e) => {
+              setSide(e.target.value);
+              setSidePicked(true);
+            }}
+          >
+            <option value={shieldId}>
+              {GENERAL} ({formatCents(fundView.general)})
+            </option>
+            {fundView.funds.map((f) => (
+              <option key={f.accountId} value={f.accountId}>
+                {f.name} ({formatCents(f.cents)})
+              </option>
+            ))}
+          </select>
+          {item.direction === "out" && !editing && cents > (side === shieldId ? fundView.general : (fundView.funds.find((f) => f.accountId === side)?.cents ?? 0n)) && (
+            <span className="text-xs text-money-negative">This takes {side === shieldId ? GENERAL : fundView.funds.find((f) => f.accountId === side)?.name} below zero.</span>
+          )}
+        </label>
       )}
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -466,8 +507,7 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
   const [changing, setChanging] = useState<string | null>(null);
   const accountName = (entryId: string | undefined) => {
     const entry = books.entries.find((e) => e.id === entryId);
-    const shield = findRailAccount(books)?.id;
-    const other = entry?.lines.find((l) => l.accountId !== shield);
+    const other = entry?.lines.find((l) => !isShieldFamily({ books }, l.accountId));
     return books.accounts.find((a) => a.id === other?.accountId)?.name;
   };
   const status = (i: ReviewItem) =>
