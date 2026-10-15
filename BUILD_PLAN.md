@@ -270,8 +270,23 @@ How it works
 4. **The app** resolves names by reading the registry's mappings from the explorer, as it reads our
    registry now, or by running the open-source indexer; it never depends on ANS's hosted API.
 
+**If ANS says no** (Joshua, 2026-10-15): the same plan runs on our own registry. Everything is
+built so either backend works with the same programs and app code
+([`docs/NAME_REGISTRY_MAP.md`](docs/NAME_REGISTRY_MAP.md)):
+
+- Other programs only ask our `hewn_names` program, never a registry directly.
+- The app only asks one name service.
+- A name's id is ANS's name hash in both cases, so records never change if we switch later.
+
+What's lost without ANS: other wallets and explorers won't show `.hewn` names.
+
 Exit criteria
-- [ ] `hewn` registered as an ANS TLD on testnet, with our registrar as its owner
+- [ ] The app reaches names only through one name service (today's registry behind it), with a
+  test that nothing else reads the registry
+- [ ] `hewn_names` built in both modes (ANS and our own registry) from one source, both deployed
+  on testnet, with negative tests; its name id matches the app's `nameId` on a shared test vector
+- [ ] `hewn` registered as an ANS TLD on testnet, with our registrar as its owner (or, if ANS says
+  no, the own-registry build chosen for mainnet)
 - [ ] Registrar deployed on testnet with both tiers, length pricing, reserved names and one kind
   per wallet; negative tests: a short name underpaid, a reserved name, a second kind on one
   wallet, a name already taken, a mint not from the registrar

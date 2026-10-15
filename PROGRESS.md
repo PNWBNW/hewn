@@ -1965,3 +1965,30 @@ March to May); a Cosmos sidechain and wage token sketched in May 2025 and set as
 Aleo-only rebuild (Jan 2026) and the portal (Mar 2026); the first private testnet payroll during
 the Aleo Buildathon (2026-04-10); Hewn (Oct 2026). The section opens with Joshua's own words on
 why he started. Docs only; no code changed.
+
+## 2026-10-15 — Name registry map, with a fallback to our own registry
+
+New `docs/NAME_REGISTRY_MAP.md`: every place the Leo programs and the app depend on the name
+registry.
+
+**On chain:** five live programs check name ownership directly: agreement v4, credential v3/v4,
+worker profiles v2, employer profiles v2, and router v4. Receipts and payroll only carry the
+hashes.
+
+**In the app:** about a dozen name operations, repeated across files.
+
+**Findings:**
+- One kind per wallet isn't enforced on chain.
+- The registrar doesn't tie a name hash to its text.
+- Two different 16-character name rules.
+- Duplicated lookups.
+- A possible caller bug in the router, to check.
+
+**Plan, at Joshua's ask, so the in-house registry stays usable if ANS declines the `hewn` TLD:**
+- Programs ask one program of ours, `hewn_names`.
+- The app asks one name service.
+- A name's id is ANS's name hash in both modes, so switching never changes stored records.
+- One Leo source, two builds, chosen by a constant before deploy.
+
+BUILD_PLAN "Mainnet names" gains the fallback and two exit criteria. Planning only; no code
+changed.
