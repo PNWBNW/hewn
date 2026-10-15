@@ -1945,3 +1945,11 @@ text unchanged. Docs only; no code changed.
 The GitHub repository is now `PNWBNW/hewn`. `BRAND.sourceUrl` (the "source code" link the app
 and the site show, which the AGPL makes us keep) pointed at the old `PNWBNW/pnw`; GitHub
 redirected it, but the link now names the real home. One line in `packages/brand`.
+
+## 2026-10-15 — Free-tier names are public
+
+Joshua's call after #57: the free tier's random `.hewn` name is public, like a paid one (ANS
+`register`, not `register_private`), so it resolves to the address, can be the wallet's primary
+name and shows in every ANS-aware wallet and explorer. The only difference between the tiers is
+whether you choose the name. BUILD_PLAN "Mainnet names" and its Decisions line, and the CLAUDE.md
+registry note, say so now. Docs only; no code changed.
