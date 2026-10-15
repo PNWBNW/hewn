@@ -8,8 +8,13 @@
 // account.ts): the vault id is a hash of the email and the role, and the
 // vault key is wrapped with the email and passphrase together. Every change goes through `update`, which runs a pure ledger
 // operation, then seals the result and saves it to IndexedDB before the
-// screen moves on. Plaintext exists only in this tab's memory; locking (or
-// 15 idle minutes) drops it along with the vault key.
+// screen moves on. Plaintext exists only in this tab's memory.
+//
+// "Stay logged in" (ticked by default): the open vault key is also kept on
+// this device as a non-extractable key for 24 hours from login (@pnw/vault
+// remember / resumeSession), so switching apps on a phone, or a reload, opens
+// the books again without the passphrase. Log out forgets it. Without it, the
+// books lock after 15 idle minutes and on any reload, as before.
 //
 // Receipt files are sealed one by one with the same vault key and kept in
 // their own IndexedDB store; a bill holds only a reference and the file's
@@ -44,7 +49,10 @@ import {
   VaultError,
   createVault,
   exportBackup,
+  forgetSession,
   parseBackup,
+  REMEMBER_MS,
+  resumeSession,
   sha256Hex,
   unlockVault,
 } from "@pnw/vault";
@@ -58,7 +66,7 @@ export type BooksStatus = "loading" | "new" | "locked" | "open";
  * person who works for one gives only their name, and gets blank books with
  * the work part alongside.
  */
-export type SetupInput = Settings & { template: TemplateId | "blank"; email: string; passphrase: string; role: Role };
+export type SetupInput = Settings & { template: TemplateId | "blank"; email: string; passphrase: string; role: Role; stay?: boolean };
 
 /** What a login came to: the books are open, or one email and passphrase opened both kinds and the person picks. */
 export type UnlockOutcome = { opened: true } | { opened: false; choices: Role[] };
@@ -105,14 +113,18 @@ type BooksContextValue = {
   work: Work | null;
   create: (input: SetupInput) => Promise<void>;
   /** Log in with an email and passphrase. Throws a message that never says which of the two was wrong. */
-  unlock: (email: string, passphrase: string) => Promise<UnlockOutcome>;
+  /** `stay` (default true) keeps the books open on this device for 24 hours, until Log out. */
+  unlock: (email: string, passphrase: string, stay?: boolean) => Promise<UnlockOutcome>;
   /** After `unlock` offered a choice: open the business or the worker account. */
   chooseAccount: (role: Role) => Promise<void>;
   /** Drop an offered choice (the dialog closed) and its keys. */
   cancelChoice: () => void;
   /** Open books created before accounts, with the passphrase alone. */
-  unlockLegacy: (passphrase: string) => Promise<void>;
+  unlockLegacy: (passphrase: string, stay?: boolean) => Promise<void>;
+  /** Log out: drops the key and plaintext from memory, and forgets "stay logged in" on this device. */
   lock: () => void;
+  /** When "stay logged in" ends, or null when the books aren't kept open. */
+  stayUntil: Date | null;
   /** Apply a ledger operation; resolves once the result is safely stored. */
   update: (op: (books: Books) => Books) => Promise<Books>;
   /** Same, for operations that change the books with payroll or sales (a pay run, an invoice). */
@@ -122,7 +134,7 @@ type BooksContextValue = {
    * Restore a backup file onto this device, then open it. The backup must belong to this email; a
    * backup from before accounts needs only the passphrase (pass null for the email).
    */
-  restore: (fileText: string, email: string | null, passphrase: string) => Promise<void>;
+  restore: (fileText: string, email: string | null, passphrase: string, stay?: boolean) => Promise<void>;
   /** Seals a photo or PDF into the vault and returns the reference a bill keeps. */
   addAttachment: (file: File) => Promise<AttachmentRef>;
   /** Opens a sealed file, checking it against the fingerprint the bill holds. */
@@ -190,21 +202,10 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const [legacyAvailable, setLegacyAvailable] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [vaultId, setVaultId] = useState<string | null>(null);
+  const [stayUntil, setStayUntil] = useState<Date | null>(null);
+  const stayChoice = useRef(true);
 
-  // Is there anything here to log in to? Books from before accounts, or the flag a created account
-  // leaves. The vault ids of accounts are hashes of emails, so the store can't be asked for them
-  // without one; the login looks for them once the email is typed.
-  useEffect(() => {
-    hasLegacyVault(store).then(
-      (legacy) => {
-        setLegacyAvailable(legacy);
-        setStatus(legacy || readAccountFlag() ? "locked" : "new");
-      },
-      () => setStatus(readAccountFlag() ? "locked" : "new"),
-    );
-  }, [store]);
-
-  const open = useCallback(async (s: VaultSession) => {
+  const show = useCallback(async (s: VaultSession) => {
     const loaded = companyFromJson(await s.read());
     pending.current = [];
     session.current = s;
@@ -214,8 +215,59 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     setStatus("open");
   }, []);
 
+  /** Opens the books, and keeps them open on this device for 24 hours when `stay`. */
+  const open = useCallback(
+    async (s: VaultSession, stay: boolean) => {
+      await show(s);
+      if (stay) {
+        const until = new Date(Date.now() + REMEMBER_MS);
+        // A browser that can't keep the key (storage blocked, say) just doesn't stay logged in.
+        const kept = await s.remember(store, until).then(
+          () => true,
+          () => false,
+        );
+        setStayUntil(kept ? until : null);
+      } else {
+        await forgetSession(store).catch(() => {});
+        setStayUntil(null);
+      }
+    },
+    [show, store],
+  );
+
+  // On load: reopen books kept open on this device, if any. Otherwise, is there anything here to
+  // log in to? Books from before accounts, or the flag a created account leaves. The vault ids of
+  // accounts are hashes of emails, so the store can't be asked for them without one; the login
+  // looks for them once the email is typed.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const resumed = await resumeSession(store).catch(() => null);
+      if (resumed && live) {
+        try {
+          await show(resumed.session);
+          setStayUntil(resumed.expiresAt);
+          return;
+        } catch {
+          await forgetSession(store).catch(() => {});
+        }
+      }
+      if (!live) return;
+      await hasLegacyVault(store).then(
+        (legacy) => {
+          setLegacyAvailable(legacy);
+          setStatus(legacy || readAccountFlag() ? "locked" : "new");
+        },
+        () => setStatus(readAccountFlag() ? "locked" : "new"),
+      );
+    })();
+    return () => {
+      live = false;
+    };
+  }, [store, show]);
+
   const create = useCallback(
-    async ({ template, email: rawEmail, passphrase, role, ...settings }: SetupInput) => {
+    async ({ template, email: rawEmail, passphrase, role, stay = true, ...settings }: SetupInput) => {
       const email = normalizeEmail(rawEmail);
       checkAccountPassphrase(passphrase);
       const id = await vaultIdFor(email, role);
@@ -231,17 +283,18 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       const s = await createVault(accountSecret(email, passphrase), companyToJson({ ...base, email }), { id });
       await store.save(s.record);
       writeAccountFlag();
-      await open(s);
+      await open(s, stay);
     },
     [store, open],
   );
 
   const unlock = useCallback(
-    async (email: string, passphrase: string): Promise<UnlockOutcome> => {
+    async (email: string, passphrase: string, stay = true): Promise<UnlockOutcome> => {
       const found = await findAccounts(store, email, passphrase); // throws the one generic message
       writeAccountFlag();
+      stayChoice.current = stay;
       if (found.length === 1) {
-        await open(found[0]!.session);
+        await open(found[0]!.session, stay);
         return { opened: true };
       }
       pending.current.forEach((p) => p.session.lock());
@@ -256,7 +309,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       const pick = pending.current.find((p) => p.role === role);
       if (!pick) throw new Error("Log in again to choose");
       pending.current.filter((p) => p !== pick).forEach((p) => p.session.lock());
-      await open(pick.session);
+      await open(pick.session, stayChoice.current);
     },
     [open],
   );
@@ -267,13 +320,15 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const unlockLegacy = useCallback(
-    async (passphrase: string) => {
-      await open(await legacyOpen(store, passphrase));
+    async (passphrase: string, stay = true) => {
+      await open(await legacyOpen(store, passphrase), stay);
     },
     [store, open],
   );
 
   const lock = useCallback(() => {
+    void forgetSession(store).catch(() => {});
+    setStayUntil(null);
     session.current?.lock();
     session.current = null;
     pending.current.forEach((p) => p.session.lock());
@@ -282,7 +337,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     setVaultId(null);
     setCompany(null);
     setStatus((s) => (s === "open" ? "locked" : s));
-  }, []);
+  }, [store]);
 
   // Updates run one at a time, each on the result of the last, so two quick
   // edits can never both start from the same stale copy of the books.
@@ -325,7 +380,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, [company, store]);
 
   const restore = useCallback(
-    async (fileText: string, rawEmail: string | null, passphrase: string) => {
+    async (fileText: string, rawEmail: string | null, passphrase: string, stay = true) => {
       const backup = parseBackup(fileText);
       let s: VaultSession;
       if (backup.record.id === LEGACY_VAULT_ID) {
@@ -344,7 +399,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       await store.replace(s.record, backup.attachments);
       writeAccountFlag();
       if (backup.record.id === LEGACY_VAULT_ID) setLegacyAvailable(true);
-      await open(s);
+      await open(s, stay);
     },
     [store, open],
   );
@@ -386,9 +441,15 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store],
   );
 
-  // Auto-lock after inactivity.
+  // Kept open: log out when the 24 hours are up. Not kept: auto-lock after inactivity.
   useEffect(() => {
-    if (status !== "open") return;
+    if (status !== "open" || !stayUntil) return;
+    const timer = setTimeout(lock, Math.max(0, stayUntil.getTime() - Date.now()));
+    return () => clearTimeout(timer);
+  }, [status, stayUntil, lock]);
+
+  useEffect(() => {
+    if (status !== "open" || stayUntil) return;
     let timer = setTimeout(lock, IDLE_LOCK_MS);
     const bump = () => {
       clearTimeout(timer);
@@ -400,7 +461,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       clearTimeout(timer);
       events.forEach((e) => window.removeEventListener(e, bump));
     };
-  }, [status, lock]);
+  }, [status, stayUntil, lock]);
 
   const value = useMemo(
     () => ({
@@ -422,6 +483,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       cancelChoice,
       unlockLegacy,
       lock,
+      stayUntil,
       update,
       updateCompany,
       downloadBackup,
@@ -430,7 +492,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       readAttachment,
       discardAttachment,
     }),
-    [status, legacyAvailable, vaultId, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
+    [status, legacyAvailable, vaultId, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, stayUntil, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
   );
   return <BooksContext.Provider value={value}>{children}</BooksContext.Provider>;
 }

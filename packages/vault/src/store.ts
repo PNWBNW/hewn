@@ -3,12 +3,23 @@
 // IndexedDB in the browser; an in-memory store for tests and previews.
 //
 // Attachments are kept in their own object store, one sealed blob each, so
-// saving the books never rewrites them. Database versions:
+// saving the books never rewrites them.
+//
+// "Stay logged in" keeps one remembered session per device: the vault id, the
+// open data key as the browser's own non-extractable CryptoKey (it can be used
+// to decrypt, never read out or copied), and when it expires. Only vault.ts
+// writes or reads it (remember / resumeSession / forgetSession).
+//
+// Database versions:
 //   1  vaults
 //   2  + attachments (keyed "<vault id>/<attachment id>", indexed by vault)
+//   3  + session (one slot, "current")
 // ---------------------------------------------------------------------------
 
 import type { SealedAttachment, VaultRecord } from "./vault";
+
+/** A session kept for "stay logged in": the open data key (non-extractable) and its expiry. */
+export type RememberedSession = { vaultId: string; key: CryptoKey; expiresAt: string };
 
 export interface VaultStore {
   load(id: string): Promise<VaultRecord | null>;
@@ -21,11 +32,26 @@ export interface VaultStore {
   listAttachments(vaultId: string): Promise<SealedAttachment[]>;
   /** Replaces a vault's record and all of its attachments in one step (restoring a backup). */
   replace(record: VaultRecord, attachments: SealedAttachment[]): Promise<void>;
+  /** The one remembered session on this device, if any. Use resumeSession, not this. */
+  loadRemembered(): Promise<RememberedSession | null>;
+  saveRemembered(remembered: RememberedSession): Promise<void>;
+  clearRemembered(): Promise<void>;
 }
 
 export class MemoryStore implements VaultStore {
   #records = new Map<string, VaultRecord>();
   #attachments = new Map<string, Map<string, SealedAttachment>>();
+  #remembered: RememberedSession | null = null;
+
+  async loadRemembered() {
+    return this.#remembered ? { ...this.#remembered } : null;
+  }
+  async saveRemembered(remembered: RememberedSession) {
+    this.#remembered = { ...remembered };
+  }
+  async clearRemembered() {
+    this.#remembered = null;
+  }
 
   #of(vaultId: string) {
     let m = this.#attachments.get(vaultId);
@@ -63,9 +89,11 @@ export class MemoryStore implements VaultStore {
 }
 
 export const DB_NAME = "pnw_ledger";
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 const VAULTS = "vaults";
 const ATTACHMENTS = "attachments";
+const SESSION = "session";
+const SLOT = "current";
 const BY_VAULT = "by_vault";
 
 type StoredAttachment = SealedAttachment & { key: string; vaultId: string };
@@ -90,6 +118,7 @@ export class IndexedDbStore implements VaultStore {
         if (from < 2 && !db.objectStoreNames.contains(ATTACHMENTS)) {
           db.createObjectStore(ATTACHMENTS, { keyPath: "key" }).createIndex(BY_VAULT, "vaultId");
         }
+        if (from < 3 && !db.objectStoreNames.contains(SESSION)) db.createObjectStore(SESSION, { keyPath: "slot" });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -172,5 +201,20 @@ export class IndexedDbStore implements VaultStore {
       };
       for (const a of attachments) store.put(toStored(record.id, a));
     });
+  }
+
+  async loadRemembered(): Promise<RememberedSession | null> {
+    const found = (await this.#tx([SESSION], "readonly", (tx) => tx.objectStore(SESSION).get(SLOT))) as
+      | (RememberedSession & { slot: string })
+      | undefined;
+    return found ? { vaultId: found.vaultId, key: found.key, expiresAt: found.expiresAt } : null;
+  }
+
+  async saveRemembered(remembered: RememberedSession): Promise<void> {
+    await this.#tx([SESSION], "readwrite", (tx) => tx.objectStore(SESSION).put({ slot: SLOT, ...remembered }));
+  }
+
+  async clearRemembered(): Promise<void> {
+    await this.#tx([SESSION], "readwrite", (tx) => tx.objectStore(SESSION).delete(SLOT));
   }
 }

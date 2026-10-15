@@ -6,10 +6,13 @@ import {
   type SealedAttachment,
   type VaultRecord,
   KDF_ITERATIONS,
+  REMEMBER_MS,
   changePassphrase,
   createVault,
   exportBackup,
+  forgetSession,
   parseBackup,
+  resumeSession,
   sha256Hex,
   unlockVault,
 } from "./vault";
@@ -271,5 +274,78 @@ describe("stores", () => {
     const sealed: SealedAttachment = await s.sealAttachment("att-1", bytes(64));
     await store.saveAttachment("default", sealed);
     expect(await store.loadAttachment("default", "att-1")).toEqual(sealed);
+  });
+});
+
+describe("stay logged in", () => {
+  const HOUR = 60 * 60 * 1000;
+  const t0 = new Date("2026-10-15T12:00:00Z");
+  const later = (ms: number) => new Date(t0.getTime() + ms);
+
+  for (const [name, make] of [
+    ["memory", () => new MemoryStore()],
+    ["indexeddb", () => new IndexedDbStore(new IDBFactory())],
+  ] as const) {
+    it(`${name}: reopens the books without the passphrase until the session expires`, async () => {
+      const store = make();
+      const s = await createVault(PASS, "books", { ...FAST, id: "acct-1" });
+      await store.save(s.record);
+      await s.remember(store, later(REMEMBER_MS));
+      s.lock();
+
+      const resumed = await resumeSession(store, later(23 * HOUR));
+      expect(await resumed!.session.read()).toBe("books");
+      expect(resumed!.expiresAt.toISOString()).toBe(later(REMEMBER_MS).toISOString());
+      // It reads the latest record, not the one remembered with the key.
+      await store.save(await resumed!.session.write("books, edited"));
+      expect(await (await resumeSession(store, later(HOUR)))!.session.read()).toBe("books, edited");
+
+      expect(await resumeSession(store, later(REMEMBER_MS))).toBeNull();
+      expect(await store.loadRemembered()).toBeNull(); // an expired one is cleared
+    });
+
+    it(`${name}: Log out forgets it`, async () => {
+      const store = make();
+      const s = await createVault(PASS, "books", { ...FAST, id: "acct-2" });
+      await store.save(s.record);
+      await s.remember(store, later(HOUR));
+      await forgetSession(store);
+      expect(await resumeSession(store, t0)).toBeNull();
+    });
+  }
+
+  it("keeps a non-extractable key, and refuses to resume a tampered one", async () => {
+    const store = new MemoryStore();
+    const s = await createVault(PASS, "books", { ...FAST, id: "acct-3" });
+    await store.save(s.record);
+    await s.remember(store, later(HOUR));
+    const kept = (await store.loadRemembered())!;
+    expect(kept.key.extractable).toBe(false);
+    await expect(globalThis.crypto.subtle.exportKey("raw", kept.key)).rejects.toThrow();
+
+    // An expiry further out than a day was not written by remember().
+    await store.saveRemembered({ ...kept, expiresAt: later(REMEMBER_MS + HOUR).toISOString() });
+    expect(await resumeSession(store, t0)).toBeNull();
+
+    // An extractable key never resumes.
+    const loose = await globalThis.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+    await store.saveRemembered({ ...kept, key: loose });
+    expect(await resumeSession(store, t0)).toBeNull();
+
+    // Nor does a key that doesn't open the record, or a record that's gone.
+    const other = await createVault(PASS, "other", { ...FAST, id: "acct-4" });
+    await other.remember(store, later(HOUR));
+    await store.saveRemembered({ ...(await store.loadRemembered())!, vaultId: "acct-3" });
+    expect(await resumeSession(store, t0)).toBeNull();
+    await s.remember(store, later(HOUR));
+    await store.remove("acct-3");
+    expect(await resumeSession(store, t0)).toBeNull();
+    expect(await store.loadRemembered()).toBeNull();
+  });
+
+  it("can't remember a locked session", async () => {
+    const s = await createVault(PASS, "books", { ...FAST, id: "acct-5" });
+    s.lock();
+    await expect(s.remember(new MemoryStore(), later(HOUR))).rejects.toThrow(/locked/);
   });
 });

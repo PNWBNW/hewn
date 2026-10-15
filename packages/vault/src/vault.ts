@@ -22,6 +22,8 @@
 // All crypto is the browser's own WebCrypto; nothing here implements a cipher.
 // ---------------------------------------------------------------------------
 
+import type { VaultStore } from "./store";
+
 export const VAULT_FORMAT = "pnw-vault";
 export const KDF_ITERATIONS = 600_000;
 export const MIN_PASSPHRASE = 10;
@@ -211,9 +213,59 @@ export class VaultSession {
     return openBytes(this.#requireKey(), sealed, aad(this.#record.id, attachmentRole(sealed.id)));
   }
 
+  /**
+   * "Stay logged in": keeps this session's data key on this device until `expiresAt`, so the books
+   * reopen without the passphrase (resumeSession). The key is the browser's non-extractable
+   * CryptoKey: whoever holds the device can use it to open the books until it expires or
+   * forgetSession runs, but nobody can read it out or copy it elsewhere.
+   */
+  async remember(store: VaultStore, expiresAt: Date): Promise<void> {
+    const key = this.#requireKey();
+    if (key.extractable) throw new VaultError("CORRUPT", "Only a non-extractable key can be remembered");
+    await store.saveRemembered({ vaultId: this.#record.id, key, expiresAt: expiresAt.toISOString() });
+  }
+
   lock(): void {
     this.#key = null;
   }
+}
+
+/** The longest a remembered session may last. */
+export const REMEMBER_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Reopens the remembered session, if there is one and it hasn't expired. Anything wrong with it
+ * (expired, an expiry further out than REMEMBER_MS, an extractable key, a missing or damaged
+ * record) clears it and returns null.
+ */
+export async function resumeSession(store: VaultStore, now: Date = new Date()): Promise<{ session: VaultSession; expiresAt: Date } | null> {
+  const r = await store.loadRemembered();
+  if (!r) return null;
+  const expires = Date.parse(r.expiresAt);
+  const usable =
+    Number.isFinite(expires) &&
+    expires > now.getTime() &&
+    expires - now.getTime() <= REMEMBER_MS &&
+    typeof r.key === "object" &&
+    r.key !== null &&
+    r.key.extractable === false;
+  const record = usable ? await store.load(r.vaultId) : null;
+  if (record) {
+    try {
+      const session = new VaultSession(r.key, record);
+      await session.read();
+      return { session, expiresAt: new Date(expires) };
+    } catch {
+      // the key doesn't open this record: forget it below
+    }
+  }
+  await store.clearRemembered();
+  return null;
+}
+
+/** Forgets the remembered session on this device (Log out). */
+export async function forgetSession(store: VaultStore): Promise<void> {
+  await store.clearRemembered();
 }
 
 // ---- create / unlock -------------------------------------------------------

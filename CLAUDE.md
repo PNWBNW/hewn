@@ -62,7 +62,10 @@ company and protocol namespace).
   mode (no wallet needed; `apps/business/src/books/account.ts`: the secret is the normalised email
   and the passphrase, the vault id a hash of role + email, so one email can hold a business and a
   worker account), and, later, a Shield wallet signature over a domain-separated message once a
-  wallet is linked. It is never stored in plaintext and never leaves the vault module. There is no
+  wallet is linked. It is never stored in plaintext and never leaves the vault module; the one
+  exception is "stay logged in" (Joshua, 2026-10-15): the open data key, as a non-extractable
+  `CryptoKey`, kept in IndexedDB for at most 24 hours from login, forgotten on Log out
+  (`@pnw/vault` `remember` / `resumeSession` / `forgetSession`). There is no
   server account: no email is sent, nothing is verified remotely, and a lost passphrase is
   unrecoverable until the planned recovery key exists. Scheme (`@pnw/vault`): a random AES-256-GCM
   data key encrypts the books; the unlock secret (PBKDF2-SHA256, 600k rounds) only wraps that key,
