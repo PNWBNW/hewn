@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXPLORER_ORIGIN, LOOKUP_PATHS, RAIL_PATHS, SECURITY_HEADERS, buildCsp, hostsLookup, hostsRail, newNonce } from "./headers";
+import { EXPLORER_ORIGIN, SECURITY_HEADERS, buildCsp, newNonce } from "./headers";
 
 const directives = (csp: string) =>
   Object.fromEntries(
@@ -10,72 +10,37 @@ const directives = (csp: string) =>
   );
 
 describe("content security policy", () => {
-  const books = directives(buildCsp({ nonce: "abc123", path: "/transactions" }));
-  const rail = directives(buildCsp({ nonce: "abc123", path: "/payroll/run" }));
-  const lookup = directives(buildCsp({ nonce: "abc123", path: "/sales" }));
+  const policy = directives(buildCsp({ nonce: "abc123" }));
 
-  it("only runs scripts carrying this request's nonce", () => {
-    expect(books["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
+  it("only runs scripts carrying this request's nonce, and may compile WebAssembly", () => {
+    expect(policy["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
   });
 
   it("never allows inline or eval'd code in production", () => {
-    for (const policy of [books, rail]) {
-      const all = Object.values(policy).flat();
-      expect(all).not.toContain("'unsafe-inline'");
-      expect(all).not.toContain("'unsafe-eval'");
-    }
+    const all = Object.values(policy).flat();
+    expect(all).not.toContain("'unsafe-inline'");
+    expect(all).not.toContain("'unsafe-eval'");
   });
 
   it("allows eval only in dev, for React's debug stacks", () => {
-    expect(directives(buildCsp({ nonce: "n", dev: true, path: "/" }))["script-src"]).toContain("'unsafe-eval'");
+    expect(directives(buildCsp({ nonce: "n", dev: true }))["script-src"]).toContain("'unsafe-eval'");
   });
 
-  it("keeps the books pages on the strict policy: own origin only, no WebAssembly", () => {
-    expect(books["connect-src"]).toEqual(["'self'"]);
-    expect(books["script-src"]).not.toContain("'wasm-unsafe-eval'");
-    expect(buildCsp({ nonce: "n", path: "/transactions/new" }).match(/https?:\/\/[^\s;]+/g)).toBeNull();
+  it("talks to its own origin and the explorer, nothing else", () => {
+    expect(policy["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
+    expect(policy["default-src"]).toEqual(["'self'"]);
   });
 
-  it("lets the dashboard read balances from the explorer, with no WebAssembly", () => {
-    const dashboard = directives(buildCsp({ nonce: "n", path: "/" }));
-    expect(dashboard["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
-    expect(dashboard["script-src"]).not.toContain("'wasm-unsafe-eval'");
-    expect(buildCsp({ nonce: "n", path: "/" }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
-  });
-
-  it("widens exactly the four rail pages: the explorer and WebAssembly compilation", () => {
-    expect(RAIL_PATHS).toEqual(["/settings", "/payroll", "/mailbox", "/work"]);
-    expect(rail["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
-    expect(rail["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'", "'wasm-unsafe-eval'"]);
-    expect(rail["default-src"]).toEqual(["'self'"]);
-  });
-
-  it("lets exactly the dashboard and the customer and vendor pages reach the explorer, and still no WebAssembly", () => {
-    expect(LOOKUP_PATHS).toEqual(["/", "/sales", "/expenses"]);
-    expect(lookup["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
-    expect(lookup["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
-    expect(directives(buildCsp({ nonce: "n", path: "/expenses/bills" }))["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
-    for (const p of ["/", "/sales", "/expenses", "/expenses/new"]) expect(hostsLookup(p)).toBe(true);
-    for (const p of ["/salesperson", "/expense", "/payroll", "/transactions", "/reports/profit", "/banking"]) expect(hostsLookup(p)).toBe(false);
-  });
-
-  it("matches rail pages by path segment, not prefix", () => {
-    for (const p of ["/settings", "/payroll", "/payroll/run", "/settings/", "/mailbox", "/work", "/work/offers"]) expect(hostsRail(p)).toBe(true);
-    for (const p of ["/", "/payrolls", "/settingsx", "/mailboxes", "/sales", "/transactions/new", "/workshop"]) expect(hostsRail(p)).toBe(false);
-  });
-
-  it("blocks plugins, framing and base-tag hijacks everywhere", () => {
-    for (const policy of [books, rail]) {
-      expect(policy["object-src"]).toEqual(["'none'"]);
-      expect(policy["frame-src"]).toEqual(["'none'"]);
-      expect(policy["frame-ancestors"]).toEqual(["'none'"]);
-      expect(policy["base-uri"]).toEqual(["'none'"]);
-    }
+  it("blocks plugins, framing and base-tag hijacks", () => {
+    expect(policy["object-src"]).toEqual(["'none'"]);
+    expect(policy["frame-src"]).toEqual(["'none'"]);
+    expect(policy["frame-ancestors"]).toEqual(["'none'"]);
+    expect(policy["base-uri"]).toEqual(["'none'"]);
   });
 
   it("names the explorer once, in connect-src, and no other host anywhere", () => {
     expect(EXPLORER_ORIGIN).toMatch(/^https:\/\/[a-z.]+$/);
-    for (const path of ["/settings", "/sales"]) expect(buildCsp({ nonce: "n", path }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
+    expect(buildCsp({ nonce: "n" }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
   });
 });
 
