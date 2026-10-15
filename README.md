@@ -105,11 +105,12 @@ and a whitepaper in its first month.
 private payroll records on Aleo and USDC payouts on Stellar, with NFT paystubs. More than a
 thousand commits went in that spring. A sovereign sidechain for governance and a pegged wage token
 were sketched, then set aside. Every cut made the core clearer: private, honest payroll. Then
-work's busy season took over, and the project rested for the second half of the year.
+work's busy season took over: the summer slowed down, and the project rested through the end
+of the year.
 
-**Starting over, on Aleo alone (2026).** Back at it in January, with a clean rebuild: Aleo only, paid in
-USDCx, wages and identities never public, and one adapter as the only path to the chain. A web
-portal for employers and workers followed in March.
+**Starting over, on Aleo alone (2026).** Back at it in January, with a clean rebuild: Aleo only,
+paid in USDCx, wages and identities never public, and one adapter as the only path to the chain.
+A web portal for employers and workers followed in March.
 
 **First private payroll on testnet (April 10, 2026),** during the Aleo Buildathon. A full
 run from the portal: check the agreement, pay in USDCx privately, mint paystub receipts for both
