@@ -1655,3 +1655,26 @@ from a strict page (say `/transactions`) blocks the public read until a reload; 
 still shows. The same is true of the other explorer pages today.
 
 Tests: `pnpm test` 640/640 (+12: balances, dashboard CSP). `next build` green.
+## 2026-10-15 — Shield history check (read-only probe)
+
+Step 1 of the wallet-fed books (Joshua): before building a "For review" list that fills itself from
+the wallet, find out what Shield actually gives us. Settings → Private payments → **Check Shield
+history** (business only) runs a read-only check and shows a report with a Copy button:
+records per program (USDCx, credits) with their field names and spent counts; the wallet's
+transaction history per program; how many USDCx records come from transactions the history
+doesn't list (payments received); and up to three past transfers opened end to end (Shield's
+transition view keys → the explorer's transaction → decrypted with the SDK), reporting how many
+inputs and outputs could be read and whether an amount is readable. The report holds counts, field
+names and function names only: no account, amount or transaction id, so it is safe to paste into a
+chat. Nothing is signed, posted or stored.
+
+Decisions recorded (Joshua): the Shield account is the business's bank account; its balance on the
+start date is the opening balance; wallet movements after it arrive "for review" and are
+categorised (customer payment, vendor payment, job, tax category); ALEO is fee money only, never
+an asset; swaps are noted in review as swaps to or from USDCx (buying ALEO books as Network fees).
+
+Code: `chain/history_probe.ts` (+6 tests), `chain/HistoryProbe.tsx`, a button in Settings.
+`@provablehq/sdk` 0.10.1 is now a direct dependency of the app (already in the lockfile via
+`@pnw/rail`; nothing new downloaded).
+
+Tests: `pnpm test` 646/646. `next build` green.

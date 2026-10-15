@@ -18,6 +18,12 @@ const RailPanel = dynamic(() => import("@/chain/RailPanel"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
+// A read-only check of what Shield can tell the books about past transfers; fetched only when tapped.
+const HistoryProbe = dynamic(() => import("@/chain/HistoryProbe"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function SettingsPage() {
@@ -58,7 +64,7 @@ export default function SettingsPage() {
 function PrivatePayments() {
   const { rail, payroll, role, updateCompany } = useOpenBooks();
   const worker = role === "worker";
-  const [panel, setPanel] = useState<"connect" | "import" | "register" | null>(null);
+  const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +85,9 @@ function PrivatePayments() {
       <CardContent className="flex flex-col gap-4">
         {rail && <LinkedAccount />}
 
-        {panel ? (
+        {panel === "history" ? (
+          <HistoryProbe onClose={() => setPanel(null)} />
+        ) : panel ? (
           <RailPanel mode={panel} onClose={() => setPanel(null)} />
         ) : rail ? (
           <div className="flex flex-wrap gap-3">
@@ -91,6 +99,11 @@ function PrivatePayments() {
             {!worker && !rail.businessNameHash && (
               <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("register")}>
                 Register business name
+              </Button>
+            )}
+            {!worker && (
+              <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setPanel("history")}>
+                Check Shield history
               </Button>
             )}
             <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmUnlink(true)}>
