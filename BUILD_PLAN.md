@@ -249,11 +249,11 @@ How it works
    owner. After that only our registrar can mint under `hewn` (the registry checks
    `caller == nft_owners[parent]`). Ask them before mainnet; it is a conversation, not code.
 2. **Our registrar program** (new Leo, Fable 5.1 at high effort, negative tests) mints under `hewn`:
-   - **Free tier:** a random private name (ANS `register_private`: the name is a record only the
-     owner holds), assigned at setup, no fee beyond the network's. Nothing to choose, nothing to
-     squat. People find each other by Aleo address (or by pasting the random name); private
-     transfers to the name work without exposing the address (ANS's private credit transfer
-     scheme, optional claim password).
+   - **Free tier:** a random public name (ANS `register`), assigned at setup, no fee beyond the
+     network's. Nothing to choose, nothing to squat. It is public like a paid name (Joshua,
+     2026-10-15): it resolves to the address, can be the wallet's primary name, and shows in every
+     ANS-aware wallet and explorer. People find each other by that name or by Aleo address. The
+     only difference from the paid tier is that the name isn't chosen.
    - **Paid tier:** a chosen public name, a one-time purchase priced by length (proposed: 1–3
      characters $100+, 4 characters about $20, 5+ characters 1 USDCx; final numbers Joshua's
      call), paid in USDCx. Reverse resolution (`set_primary_name`) and the name on every
@@ -310,6 +310,6 @@ Exit criteria
 - [ ] Phase 6 before Phase 3, if multi-user is wanted before anything ships to a second person.
 - [ ] Greenlight for Phase 1.
 - [x] One kind of account per Shield account (business or worker); the same email may hold both (2026-10-15). App check now, registrar on mainnet.
-- [x] Mainnet names live under the Aleo Name Service as the `hewn` TLD; free tier a random private name, paid tier a chosen public name priced by length, bought once, no renewal (2026-10-15). See "Mainnet names".
+- [x] Mainnet names live under the Aleo Name Service as the `hewn` TLD; free tier a random public name (changed from private the same day), paid tier a chosen public name priced by length, bought once, no renewal (2026-10-15). See "Mainnet names".
 - [ ] Final prices for the short-name tiers.
 - [ ] Agreement with the ANS team to register `hewn` as a TLD.
