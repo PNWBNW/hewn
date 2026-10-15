@@ -51,19 +51,24 @@ export type RailLink = {
   linkedAt?: string;
 };
 
-export type PartyKind = "customer" | "vendor";
+export type PartyKind = "customer" | "vendor" | "worker";
 
 /**
- * A customer or vendor on the rail. Today only the address can be set (the
- * party stays typed); the agreement fields wait for the party-agreement
- * program, after which a party can be offered to and linked like a team member.
+ * Who a team member, customer or vendor is on the registry: the account and
+ * registered name they were found by when they were added (people are added
+ * only by their registered name since 2026-10-15). For customers and vendors
+ * the agreement fields wait for the party-agreement program, after which a
+ * party can be offered to and linked like a team member; a team member's
+ * agreement lives in `links`, so their entry here only ever holds who they are.
  */
 export type PartyLink = {
   kind: PartyKind;
-  /** The customer's or vendor's id in the books. */
+  /** The team member's, customer's or vendor's id in the books. */
   id: string;
   address?: string;
   nameHash?: string;
+  /** The bare registered name (`ana` for ana.hewn), when found on the registry. */
+  name?: string;
   agreementId?: string;
   partiesKey?: string;
   status: LinkStatus;
@@ -91,7 +96,9 @@ export type Rail = {
 const ADDRESS = /^aleo1[a-z0-9]{58}$/;
 const PARTIES_KEY = /^[0-9a-f]{64}$/;
 const MAX_SEQ = 0xffff_ffff;
-const PARTY_KINDS: readonly PartyKind[] = ["customer", "vendor"];
+const PARTY_KINDS: readonly PartyKind[] = ["customer", "vendor", "worker"];
+const REGISTERED_NAME = /^[a-z0-9_]{1,16}$/;
+const NAME_HASH = /^\d{1,80}$/;
 const LINK_STATUSES: readonly LinkStatus[] = ["typed", "offered", "linked"];
 
 /** Shown wherever an account is typed by hand. */
@@ -170,8 +177,8 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
 export function validatePartyLink(raw: unknown): PartyLink {
   const p = raw as Partial<PartyLink> | null;
   if (!p || typeof p !== "object") throw new RailError("Each party link must be an object");
-  if (!PARTY_KINDS.includes(p.kind as PartyKind)) throw new RailError("Each party link is for a customer or a vendor");
-  if (typeof p.id !== "string" || !p.id) throw new RailError("Each party link needs a customer or vendor");
+  if (!PARTY_KINDS.includes(p.kind as PartyKind)) throw new RailError("Each party link is for a team member, a customer or a vendor");
+  if (typeof p.id !== "string" || !p.id) throw new RailError("Each party link needs a team member, customer or vendor");
   if (!LINK_STATUSES.includes(p.status as LinkStatus)) throw new RailError("Each party link is typed, offered or linked");
   const link: PartyLink = { kind: p.kind as PartyKind, id: p.id, status: p.status as LinkStatus };
   if (p.address !== undefined) {
@@ -181,6 +188,10 @@ export function validatePartyLink(raw: unknown): PartyLink {
   const nameHash = optionalString(p.nameHash, "A party's name hash");
   const agreementId = optionalString(p.agreementId, "A party's agreement id");
   if (nameHash !== undefined) link.nameHash = nameHash;
+  if (p.name !== undefined) {
+    if (typeof p.name !== "string" || !REGISTERED_NAME.test(p.name)) throw new RailError("A registered name is 1 to 16 lower-case letters, digits or underscores");
+    link.name = p.name;
+  }
   if (agreementId !== undefined) link.agreementId = agreementId;
   if (p.partiesKey !== undefined) {
     if (typeof p.partiesKey !== "string" || !PARTIES_KEY.test(p.partiesKey)) throw new RailError("A party's parties key must be 64 hex characters");
@@ -311,6 +322,30 @@ export function setPartyAddress(
   if (nameHash) next.nameHash = nameHash;
   else if (nameHash === null) delete next.nameHash;
   return setPartyLink(rail, next);
+}
+
+/** Who someone is on the registry: their account, name hash and bare registered name. */
+export type Registered = { address: string; nameHash: string; name: string };
+
+/** The registry identity a team member, customer or vendor was added with, if they have one. */
+export function registeredFor(rail: Rail | null | undefined, kind: PartyKind, id: string): Registered | undefined {
+  const p = rail ? partyLinkFor(rail, kind, id) : undefined;
+  return p?.address && p.nameHash && p.name ? { address: p.address, nameHash: p.nameHash, name: p.name } : undefined;
+}
+
+/**
+ * Records who a team member, customer or vendor is on the registry. An
+ * offered or linked customer or vendor keeps its agreement, so its identity
+ * can't move to a different account.
+ */
+export function setRegistered(rail: Rail, kind: PartyKind, id: string, who: Registered): Rail {
+  if (!isRailAddress(who.address)) throw new RailError(ADDRESS_HINT);
+  if (!NAME_HASH.test(who.nameHash)) throw new RailError("A name hash is a whole number");
+  const current = partyLinkFor(rail, kind, id);
+  if (current && current.status !== "typed" && current.address && current.address !== who.address) {
+    throw new RailError("An offered or linked party keeps its account");
+  }
+  return setPartyLink(rail, { ...(current ?? { kind, id, status: "typed" }), address: who.address, nameHash: who.nameHash, name: who.name });
 }
 
 /** The next unused slot of `kind` in this person's mailbox (0 before anything was sent). */

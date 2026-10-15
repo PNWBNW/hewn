@@ -29,7 +29,7 @@ import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
 import { LinkBadge } from "@/books/LinkBadge";
 import { linkStatus } from "@/books/rail";
-import { PartyForm, partyLinkView, withPartyAddress } from "../sales/PartyForm";
+import { PartyForm, partyLinkView, withRegistered } from "../sales/PartyForm";
 import { AgingCard, StatusBadge, voidWithFallback } from "../sales/parts";
 import { PayBillsForm } from "./PayBillsForm";
 import { AttachButton, ReceiptList } from "./Receipts";
@@ -241,10 +241,10 @@ function Vendors() {
           kind="vendor"
           link={partyLinkView(rail, "vendor", undefined)}
           onCancel={() => setEditing(null)}
-          onSave={async (input, address, nameHash) => {
+          onSave={async (input, registered) => {
             await updateCompany((c) => {
               const added = addVendor(c.sales, input);
-              return withPartyAddress({ ...c, sales: added.sales }, "vendor", added.vendor.id, address, nameHash);
+              return withRegistered({ ...c, sales: added.sales }, "vendor", added.vendor.id, registered);
             });
             setEditing(null);
           }}
@@ -261,8 +261,8 @@ function Vendors() {
                   initial={v}
                   link={partyLinkView(rail, "vendor", v.id)}
                   onCancel={() => setEditing(null)}
-                  onSave={async (input, address, nameHash) => {
-                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateVendor(c.sales, v.id, input) }, "vendor", v.id, address, nameHash));
+                  onSave={async (input, registered) => {
+                    await updateCompany((c) => withRegistered({ ...c, sales: updateVendor(c.sales, v.id, input) }, "vendor", v.id, registered));
                     setEditing(null);
                   }}
                 />

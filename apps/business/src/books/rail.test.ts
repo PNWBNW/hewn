@@ -20,6 +20,8 @@ import {
   validateLink,
   validatePartyLink,
   validateRail,
+  registeredFor,
+  setRegistered,
 } from "./rail";
 
 const ADDR = "aleo1" + "q".repeat(58);
@@ -219,8 +221,9 @@ describe("customers and vendors on the rail", () => {
   it("are checked", () => {
     expect(validatePartyLink(typed)).toEqual(typed);
     expect(validatePartyLink(linkedParty)).toEqual(linkedParty);
-    expect(() => validatePartyLink({ ...typed, kind: "worker" })).toThrow(/customer or a vendor/);
-    expect(() => validatePartyLink({ ...typed, id: "" })).toThrow(/needs a customer or vendor/);
+    expect(validatePartyLink({ ...typed, kind: "worker" }).kind).toBe("worker"); // team members carry their registry identity here too
+    expect(() => validatePartyLink({ ...typed, kind: "partner" })).toThrow(/team member, a customer or a vendor/);
+    expect(() => validatePartyLink({ ...typed, id: "" })).toThrow(/needs a team member, customer or vendor/);
     expect(() => validatePartyLink({ ...typed, status: "sent" })).toThrow(/typed, offered or linked/);
     expect(() => validatePartyLink({ ...typed, address: "aleo1short" })).toThrow(/aleo1/);
     expect(() => validatePartyLink({ ...linkedParty, partiesKey: "0x" + KEY })).toThrow(/64 hex/);
@@ -269,5 +272,34 @@ describe("customers and vendors on the rail", () => {
     expect(partyLinkFor(setPartyAddress(found, "vendor", "vend-1", ADDR, null)!, "vendor", "vend-1")).toEqual({ ...typed, address: ADDR });
     // A hash is a whole number.
     expect(() => setPartyAddress(rail, "vendor", "vend-1", ADDR_B, "not a hash")).toThrow(/whole number/);
+  });
+});
+
+describe("registered identities", () => {
+  const base: Rail = { version: 1, network: "testnet", address: "aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n", linkedAt: "2026-10-15T00:00:00.000Z", links: [] };
+  const ANA = { address: "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px", nameHash: "123456789", name: "ana" };
+
+  it("record who a team member, customer or vendor is, and read it back", () => {
+    let r = setRegistered(base, "worker", "wkr-1", ANA);
+    r = setRegistered(r, "vendor", "vend-1", { ...ANA, name: "dayco" });
+    expect(registeredFor(r, "worker", "wkr-1")).toEqual(ANA);
+    expect(registeredFor(r, "vendor", "vend-1")?.name).toBe("dayco");
+    expect(registeredFor(r, "customer", "wkr-1")).toBeUndefined();
+    expect(registeredFor(null, "worker", "wkr-1")).toBeUndefined();
+    expect(linkStatus(r, "worker", "wkr-1")).toBe("typed"); // a team member's agreement lives in links, not here
+    expect(railFromJson(railToJson(r))).toEqual(r);
+  });
+
+  it("refuse a bad account, hash or name", () => {
+    expect(() => setRegistered(base, "worker", "wkr-1", { ...ANA, address: "aleo1short" })).toThrow(/aleo1/);
+    expect(() => setRegistered(base, "worker", "wkr-1", { ...ANA, nameHash: "abc" })).toThrow(/whole number/);
+    expect(() => setRegistered(base, "worker", "wkr-1", { ...ANA, name: "Ana Ruiz" })).toThrow(/registered name/);
+    expect(() => validatePartyLink({ kind: "boss", id: "x", status: "typed" })).toThrow(/team member, a customer or a vendor/);
+  });
+
+  it("don't move an offered or linked party to another account", () => {
+    const linked = setPartyLink(base, { kind: "vendor", id: "vend-1", address: ANA.address, agreementId: "a", partiesKey: "11".repeat(32), status: "linked" });
+    expect(() => setRegistered(linked, "vendor", "vend-1", { ...ANA, address: "aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n" })).toThrow(/keeps its account/);
+    expect(registeredFor(setRegistered(linked, "vendor", "vend-1", ANA), "vendor", "vend-1")).toEqual(ANA);
   });
 });
