@@ -9,6 +9,8 @@ import {
   acceptItem,
   addReviewItems,
   byNewest,
+  changeItem,
+  choicesOf,
   excludeItem,
   knownIds,
   undoReview,
@@ -121,5 +123,24 @@ describe("the review list", () => {
 
   it("lists newest first", () => {
     expect(byNewest([sent, received, { ...sent, id: tx(4), date: "2026-10-18" }]).map((i) => i.id)).toEqual([tx(4), tx(2), tx(1)]);
+  });
+
+  it("changes an accepted item in one step: the old entry reversed, the new one posted", () => {
+    const { c, expense, income } = company();
+    const owner = addAccount(c.books, { name: "Owner's Draw", type: "equity" });
+    let next = acceptItem(addReviewItems({ ...c, books: owner.books }, [sent]), tx(1), { accountId: expense, tags: { project: "p1" }, memo: "Hosting" });
+    expect(choicesOf(next, tx(1))).toEqual({ accountId: expense, tags: { project: "p1" }, memo: "Hosting" });
+    const before = next.books.entries.length;
+    next = changeItem(next, tx(1), { accountId: owner.account.id, memo: "Mine" }, "2026-10-17");
+    expect(next.books.entries).toHaveLength(before + 2); // the reversal and the corrected entry
+    expect(balanceOf(next.books, expense)).toBe(0n);
+    expect(balanceOf(next.books, owner.account.id)).toBe(462n);
+    expect(choicesOf(next, tx(1))).toEqual({ accountId: owner.account.id, memo: "Mine" });
+    expect(next.review?.items[0]?.status).toBe("accepted");
+    // Only accepted items can change, and a bad choice changes nothing.
+    expect(() => changeItem(next, tx(1), { accountId: "acct-nope" }, "2026-10-17")).toThrow(/Choose an account/);
+    const waiting = addReviewItems(next, [received]);
+    expect(() => changeItem(waiting, tx(2), { accountId: income }, "2026-10-17")).toThrow(/Only an accepted/);
+    expect(choicesOf(waiting, tx(2))).toBeNull();
   });
 });
