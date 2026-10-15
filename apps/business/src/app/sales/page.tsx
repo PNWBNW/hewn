@@ -36,7 +36,7 @@ import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
 import { LinkBadge } from "@/books/LinkBadge";
 import { linkStatus } from "@/books/rail";
-import { PartyForm, partyLinkView, withPartyAddress } from "./PartyForm";
+import { PartyForm, partyLinkView, withRegistered } from "./PartyForm";
 import { ReceivePaymentForm } from "./ReceivePaymentForm";
 import { AgingCard, EstimateBadge, StatusBadge, voidWithFallback } from "./parts";
 
@@ -373,10 +373,10 @@ function Customers() {
           kind="customer"
           link={partyLinkView(rail, "customer", undefined)}
           onCancel={() => setEditing(null)}
-          onSave={async (input, address, nameHash) => {
+          onSave={async (input, registered) => {
             await updateCompany((c) => {
               const added = addCustomer(c.sales, input);
-              return withPartyAddress({ ...c, sales: added.sales }, "customer", added.customer.id, address, nameHash);
+              return withRegistered({ ...c, sales: added.sales }, "customer", added.customer.id, registered);
             });
             setEditing(null);
           }}
@@ -393,8 +393,8 @@ function Customers() {
                   initial={cust}
                   link={partyLinkView(rail, "customer", cust.id)}
                   onCancel={() => setEditing(null)}
-                  onSave={async (input, address, nameHash) => {
-                    await updateCompany((c) => withPartyAddress({ ...c, sales: updateCustomer(c.sales, cust.id, input) }, "customer", cust.id, address, nameHash));
+                  onSave={async (input, registered) => {
+                    await updateCompany((c) => withRegistered({ ...c, sales: updateCustomer(c.sales, cust.id, input) }, "customer", cust.id, registered));
                     setEditing(null);
                   }}
                 />

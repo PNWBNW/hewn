@@ -27,7 +27,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
-import { type Rail, addLink, shortAddress } from "@/books/rail";
+import { type Rail, addLink, registeredFor, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import type { Company } from "@/books/company";
 import { RegisterFlow } from "./RegisterBusiness";
@@ -98,7 +98,12 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   const { state, connect, error: shieldError, wallet } = useShield();
   const client = useMemo(() => new MailboxClient(), []);
   const worker = payroll.workers.find((w) => w.id === workerId);
-  const [found, setFound] = useState<ResolvedWorker | null>(null);
+  // Who they are on the registry, from when they were added to the team; Change looks them up again.
+  const [found, setFound] = useState<ResolvedWorker | null>(() => {
+    const who = registeredFor(rail, "worker", workerId);
+    return who ? { address: who.address, nameHash: who.nameHash, name: who.name } : null;
+  });
+  const [changingWho, setChangingWho] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
   const [duties, setDuties] = useState("");
   const [hoursPerWeek, setHoursPerWeek] = useState("");
@@ -376,12 +381,26 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
           }}
         >
           <div className="sm:col-span-2">
-            <NameLookup
-              allow={["worker"]}
-              label="Their name or account"
-              hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account starting aleo1. They set a name up under Profile in their own ${BRAND.name}.`}
-              onChange={(entry: DirectoryEntry | null) => setFound(entry ? { address: entry.address, nameHash: entry.nameHash, ...(entry.name ? { name: entry.name } : {}) } : null)}
-            />
+            {found && !changingWho ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-md border bg-card px-3 py-2 text-sm">
+                <span className="text-xs text-muted-foreground">To</span>
+                <span className="font-medium">{nameOf(found)}</span>
+                <span className="font-mono text-xs text-muted-foreground">{shortAddress(found.address)}</span>
+                <Button type="button" variant="ghost" size="sm" className="ml-auto min-h-11 sm:min-h-8" onClick={() => setChangingWho(true)}>
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <NameLookup
+                allow={["worker"]}
+                label="Their name or account"
+                hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account starting aleo1. They set a name up under Profile in their own ${BRAND.name}.`}
+                onChange={(entry: DirectoryEntry | null) => {
+                  setFound(entry ? { address: entry.address, nameHash: entry.nameHash, ...(entry.name ? { name: entry.name } : {}) } : null);
+                  if (entry) setChangingWho(false);
+                }}
+              />
+            )}
           </div>
           <Field label="Role" hint="Optional. Their job title.">
             <input className={inputClass} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} autoComplete="off" />

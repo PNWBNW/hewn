@@ -24,7 +24,9 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { LinkBadge } from "@/books/LinkBadge";
 import { AccountSelect, Money, todayIso } from "@/books/display";
-import { linkStatus } from "@/books/rail";
+import { RegistryField } from "@/books/RegistryField";
+import { BRAND } from "@/brand";
+import { type Registered, linkStatus, registeredFor, setRegistered } from "@/books/rail";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Paystub } from "./Paystub";
@@ -271,6 +273,8 @@ function Team() {
   const { payroll, rail, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(payroll.workers.length === 0 ? "new" : null);
   const [offering, setOffering] = useState<string | null>(null);
+  // The person found on the registry for the team member being added.
+  const [adding, setAdding] = useState<Registered | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   // The offer panel itself says what is still missing (Shield linked, the business's registered name).
 
@@ -283,21 +287,63 @@ function Team() {
         </Button>
       )}
       {editing === "new" && (
-        <WorkerForm
-          onCancel={() => setEditing(null)}
-          onSave={async (input) => {
-            await updateCompany((c) => ({ ...c, payroll: addWorker(c.payroll, input).payroll }));
-            setEditing(null);
-          }}
-        />
+        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+          <RegistryField
+            allow={["worker"]}
+            value={adding}
+            onChange={setAdding}
+            label="Find them on the registry"
+            hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account. People are added only by their registered name; they set one up when they create their own ${BRAND.name} account.`}
+          />
+          {adding && (
+            <WorkerForm
+              onCancel={() => {
+                setEditing(null);
+                setAdding(undefined);
+              }}
+              onSave={async (input) => {
+                const who = adding;
+                await updateCompany((c) => {
+                  const added = addWorker(c.payroll, input);
+                  return { ...c, payroll: added.payroll, ...(c.rail ? { rail: setRegistered(c.rail, "worker", added.worker.id, who) } : {}) };
+                });
+                setEditing(null);
+                setAdding(undefined);
+              }}
+            />
+          )}
+          {!adding && (
+            <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+          )}
+        </div>
       )}
       <FormError message={error} />
       {payroll.workers.length > 0 && (
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
           {payroll.workers.map((w) => {
             const status = linkStatus(rail, "worker", w.id);
+            const registered = registeredFor(rail, "worker", w.id);
             return editing === w.id ? (
-              <li key={w.id} className="p-2">
+              <li key={w.id} className="flex flex-col gap-3 p-2">
+                {!registered && (
+                  <RegistryField
+                    allow={["worker"]}
+                    value={undefined}
+                    onChange={async (who) => {
+                      if (!who) return;
+                      setError(null);
+                      try {
+                        await updateCompany((c) => (c.rail ? { ...c, rail: setRegistered(c.rail, "worker", w.id, who) } : c));
+                      } catch (e) {
+                        setError(errorMessage(e));
+                      }
+                    }}
+                    label="Link them to their registered name"
+                    hint={`Added before names were required. Find their name.${BRAND.nameSuffix} to send them offers and pay.`}
+                  />
+                )}
                 <WorkerForm
                   initial={w}
                   status={status}
@@ -316,6 +362,11 @@ function Team() {
                       <span className={cn("truncate text-sm font-medium", !w.active && "text-muted-foreground line-through")}>{w.name}</span>
                       <LinkBadge status={status} />
                     </div>
+                    {registered && (
+                      <div className="text-xs text-muted-foreground">
+                        {registered.name}.{BRAND.nameSuffix}
+                      </div>
+                    )}
                     <div className="text-xs text-muted-foreground">
                       {payLabel(w)} · {FILING_STATUSES.find((f) => f.id === w.w4.filingStatus)?.label}
                       {!w.active && " · Inactive"}
@@ -356,9 +407,9 @@ function Team() {
         </ul>
       )}
       <p className="text-xs text-muted-foreground">
-        Names, pay rates and W-4 details are stored only in your encrypted books on this device.{" "}
-        <span className="font-medium">Typed</span>: a name you entered; the books work, nothing else. <span className="font-medium">Linked</span>: an
-        agreement approved by both sides, so they can be paid on the rail and receive paystubs. Tap Send offer to start one.
+        Names, pay rates and W-4 details are stored only in your encrypted books on this device. People are added by their registered name.{" "}
+        <span className="font-medium">Linked</span>: an agreement approved by both sides, so they can be paid on the rail and receive paystubs.
+        Tap Send offer to start one.
       </p>
     </div>
   );

@@ -33,7 +33,7 @@ import { WorkerForm } from "@/app/payroll/WorkerForm";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import type { Company } from "@/books/company";
-import { type Rail, type RailLink, addLink, markLinked, shortAddress, validateRail } from "@/books/rail";
+import { type Rail, type RailLink, addLink, setRegistered, markLinked, shortAddress, validateRail } from "@/books/rail";
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
 import { finalAgreementIds } from "./offer";
@@ -280,7 +280,14 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
                         onSave={async (input) => {
                           await updateCompany((c) => {
                             const added = addWorker(c.payroll, input);
-                            return { ...c, payroll: added.payroll, rail: addLink(railOf(c), toLink(added.worker.id, r, keys.get(r.agreement_id))) };
+                            let rail = addLink(railOf(c), toLink(added.worker.id, r, keys.get(r.agreement_id)));
+                            // Who they are on the registry, for the team list and later offers.
+                            const name = r.display_name?.toLowerCase();
+                            const nameHash = r.worker_name_hash.replace(/field$/, "").trim();
+                            if (name && /^[a-z0-9_]{1,16}$/.test(name) && /^\d+$/.test(nameHash)) {
+                              rail = setRegistered(rail, "worker", added.worker.id, { address: r.worker_addr, nameHash, name });
+                            }
+                            return { ...c, payroll: added.payroll, rail };
                           });
                           setAdding(null);
                         }}

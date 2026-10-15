@@ -1596,3 +1596,22 @@ tokens and committed `.env` files. Only placeholders (`APrivateKey1...`), dummy 
 `.env.example` files were found. Making the repos public is Joshua's step (GitHub Settings).
 
 Tests: `pnpm test` 618/618; both apps typecheck.
+
+## 2026-10-15 — People are added only by their registered name
+
+Team members, customers and vendors are now added only by finding their `name.hewn` (or account) on
+the registry. Team → Add someone opens on "Find them on the registry", and the pay and W-4 form
+appears once they're found; the customer and vendor forms start with the same lookup, and "Add" stays
+off until someone is found (the free-typed rail address field is gone). Who someone is (account,
+name hash, registered name) is kept in the books as a `PartyLink`, which now covers team members too
+(`kind: "worker"`, `name`; `setRegistered` / `registeredFor` in `books/rail.ts`). Team rows show
+their `name.hewn`; Send offer opens already addressed to them (Change looks them up again); Import
+team's "Add to team" keeps who they are. People added before this rule stay, marked "Not linked to
+a registered name yet", with a lookup to link them (editing a team member, or the party form).
+
+Shared piece: `books/RegistryField.tsx` (the found identity, or the lookup; loads it only when
+shown). Browser check: Team → Add someone shows only the lookup; Customers → Add shows the lookup
+first and keeps "Add customer" disabled. (This container can't reach the explorer, so every lookup
+here reads as "no one has registered"; Joshua's testnet run covers real names.)
+
+Tests: `pnpm test` 621/621 (+3 for registered identities).
