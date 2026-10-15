@@ -153,7 +153,10 @@ function Rail({
         <RailButton icon={Lock} label={worker ? "Lock" : "Lock books"} onClick={onLock} />
         <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
           {worker ? "Your hours and paystubs stay on this device, encrypted." : "Your books stay on this device, encrypted."} Nothing is sent to a
-          server.
+          server.{" "}
+          <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-rail-active-foreground">
+            Source code
+          </a>
         </p>
       </div>
     </nav>

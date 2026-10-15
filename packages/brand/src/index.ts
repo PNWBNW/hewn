@@ -37,4 +37,11 @@ export const BRAND = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://app.hewnaccounting.com",
   /** Where the marketing site lives. */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://hewnaccounting.com",
+  /**
+   * The source code. Hewn is AGPL-3.0: anyone who runs a changed copy for others
+   * must offer them its source, so every copy links to where its code lives.
+   * A fork changes this to its own repository.
+   */
+  sourceUrl: "https://github.com/PNWBNW/pnw",
+  licence: "AGPL-3.0",
 } as const;

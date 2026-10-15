@@ -204,4 +204,17 @@ First successful end-to-end private payroll + anchor executed from the portal UI
 
 ## License
 
-Proprietary — PNW Smart Contract License v1.7. See [`LICENSE.md`](./LICENSE.md).
+Copyright (C) 2025-2026 Joshua Daniel Day.
+
+Hewn is free software: you can redistribute it and/or modify it under the terms of the
+**GNU Affero General Public License, version 3** (`AGPL-3.0-only`), as published by the Free
+Software Foundation. See [`LICENSE`](./LICENSE).
+
+In short: anyone may use, study, change and share Hewn. Anyone who runs a changed copy as a
+website or service for other people must offer those people the source of their copy under the
+same licence. That is why the app and the site link to the source code.
+
+It is distributed WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. It is not tax, legal or accounting advice.
+
+The **Hewn** name and logo are not covered by this licence. A fork should use its own name and art.
