@@ -1689,3 +1689,48 @@ lower levels allow). An existing connection keeps its old permission until Hewn 
 Shield and connected again. Threat model T3 notes the wider permission.
 
 Tests: `pnpm test` 646/646. `next build` green.
+## 2026-10-15 — What Shield gives the books (history check results)
+
+Second run of the history check (Joshua, testnet, after reconnecting with the on-chain history
+permission), with some USDCx moved from public to private in Shield first:
+- History works: 2 USDCx and 3 credits transactions, each with `blockNumber`, `blockTimestamp`,
+  `functionId`, `programId`, `transactionId`, `transactionStatus`.
+- Records carry far more than the plaintext: `blockHeight`, `blockTimestamp`, `transactionId`,
+  `functionName`, `sender`, `spent`, `transitionId`, and more.
+- A transfer the account signed opens in full with Shield's transition view key: every input
+  (amount and recipient) and the fee are readable.
+- One USDCx record's transaction was not in the history list, so the feed must merge history and
+  records, deduplicated by transaction id.
+- `transfer_public_to_private` is a move inside the same account (public → private USDCx): the
+  review list should label it itself and post nothing.
+- `test_usdcx_bridge.aleo/mint_public` failed to decrypt in the SDK ("Array exceeds maximum of
+  elements"); harmless, the stablecoin transition beside it carries the amount.
+- Not yet seen: a payment from another account. Joshua is testing sends and receipts made inside
+  Shield (not through the app) to see how they show up.
+
+Verdict: the wallet can feed the books. Next: start the books from the Shield balance (below), then
+the "For review" list.
+
+## 2026-10-15 — Start the books from the Shield balance
+
+The dashboard's balances card gets **Start your books from this balance**: once both USDCx
+balances are read, a confirm step shows today's date and the private + public total in dollars,
+and **Start my books** posts it as the opening balance of the books' **Shield account** (debit),
+against Opening Balance Equity (credit). Nothing typed, nothing to balance. Afterwards the card
+says which date the books follow the account from. A zero balance records the start with no
+entry. Fractions of a cent are dropped, never rounded up. ALEO is fee money and isn't counted.
+
+- The rail's bank account is now named "Shield account"; books holding the old "Rail balance"
+  keep it and it is renamed when the books start (`findRailAccount`, `LEGACY_RAIL_ACCOUNT_NAMES`
+  in `@pnw/payroll`). The pay run picker says "Shield account (private rail)".
+- The start is kept on the link (`rail.start = {date, entryId?}`, validated) so the review list
+  knows where to begin and a second start is refused.
+- Setup checklist: with an account linked, "Enter opening balances" becomes "Start your books from
+  your Shield balance" and points at the card.
+- Start date is today only, for now: a past date can come once the review list can rebuild the
+  balance on that date.
+
+Code: `books/opening.ts` (+6 tests), `chain/AccountBalances.tsx`, `books/rail.ts`, `app/page.tsx`,
+`@pnw/payroll` (`findRailAccount`, +1 test case).
+
+Tests: `pnpm test` 652/652. `next build` green.

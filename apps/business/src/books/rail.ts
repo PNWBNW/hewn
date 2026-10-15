@@ -91,7 +91,12 @@ export type Rail = {
   links: RailLink[];
   /** Customers and vendors with anything on the rail; left out when there are none. */
   partyLinks?: PartyLink[];
+  /** When the books started following this account: the start date, and the opening entry (none when it held nothing). */
+  start?: RailStart;
 };
+
+/** The day the books began following the linked account, and the entry that opened its balance. */
+export type RailStart = { date: string; entryId?: string };
 
 const ADDRESS = /^aleo1[a-z0-9]{58}$/;
 const PARTIES_KEY = /^[0-9a-f]{64}$/;
@@ -230,7 +235,22 @@ export function validateRail(raw: unknown, options: ValidateOptions = {}): Rail 
   if (businessName !== undefined) rail.businessName = businessName;
   if (linkProof) rail.linkProof = linkProof;
   if (byParty.size > 0) rail.partyLinks = [...byParty.values()];
+  if (r.start !== undefined) rail.start = validateStart(r.start);
   return rail;
+}
+
+const START_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function validateStart(raw: unknown): RailStart {
+  const s = raw as Partial<RailStart> | null;
+  if (!s || typeof s !== "object") throw new RailError("The start must be an object");
+  if (typeof s.date !== "string" || !START_DATE.test(s.date) || Number.isNaN(Date.parse(`${s.date}T00:00:00Z`))) {
+    throw new RailError("The start needs a date");
+  }
+  const start: RailStart = { date: s.date };
+  const entryId = optionalString(s.entryId, "Opening entry");
+  if (entryId !== undefined) start.entryId = entryId;
+  return start;
 }
 
 // A saved file may still hold links from before the parties key existed; they

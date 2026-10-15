@@ -7,6 +7,7 @@ import {
   type Payroll,
   type W4,
   RAIL_ACCOUNT_NAME,
+  findRailAccount,
   addWorker,
   checkDoublePay,
   emptyPayroll,
@@ -159,9 +160,14 @@ describe("ensureRailAccount", () => {
     const b = ensureRailAccount(a.books);
     expect(b.accountId).toBe(a.accountId);
     expect(b.books).toBe(a.books);
-    // A user's own "rail balance" account, any case, is reused rather than duplicated.
-    const own = addAccount(books, { name: "rail Balance", type: "bank" });
+    // A user's own account under the name, any case, is reused rather than duplicated.
+    const own = addAccount(books, { name: "shield Account", type: "bank" });
     expect(ensureRailAccount(own.books).accountId).toBe(own.account.id);
+    // So is one under the name it had before.
+    const legacy = addAccount(books, { name: "Rail balance", type: "bank" });
+    expect(ensureRailAccount(legacy.books).accountId).toBe(legacy.account.id);
+    expect(findRailAccount(legacy.books)?.id).toBe(legacy.account.id);
+    expect(findRailAccount(books)).toBeUndefined();
     // A non-bank account with the name doesn't count.
     const wrong = addAccount(books, { name: RAIL_ACCOUNT_NAME, type: "expense" });
     expect(() => ensureRailAccount(wrong.books)).toThrow(/already exists/);
