@@ -81,7 +81,8 @@ company and protocol namespace).
   added only by finding their registered name. This replaces "fiat first": a wallet is now required
   to get in. What stays: the ledger core, vault, reports and payroll never import `wallet`,
   `pnw-adapter`, `rail` or `records`; chain code lives in `src/chain` and loads only on the pages
-  that need it (`fiat_boundary.test.ts`, and the CSP's rail pages). The books keep working offline
+  that need it (`fiat_boundary.test.ts`; the CSP is one policy for the whole app since 2026-10-15,
+  `docs/THREAT_MODEL.md` T3). The books keep working offline
   once an account is set up.
 - Extension modules may never touch posting logic or the vault key.
 - Mode upgrades (fiat → anchored → settled) are one-way, show exactly what goes on-chain, and require

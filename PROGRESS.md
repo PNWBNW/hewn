@@ -1748,3 +1748,17 @@ Content Security Policy directive", and the transfers it tried were the old ones
   reloads is not an option. Open decision for Joshua: one policy for the whole signed-in app.
 
 Tests: `pnpm test` 653/653. `next build` green.
+## 2026-10-15 — One security policy for the whole app
+
+Joshua chose one CSP for the whole business app. Every page now allows the explorer in
+`connect-src` and `'wasm-unsafe-eval'` (WebAssembly compilation only; JS eval stays refused);
+nothing else changed (nonce, `'strict-dynamic'`, no other host, no framing). Before, the policy
+was widened per page, but a page's policy is fixed when the document loads and in-app navigation
+keeps it, so the first page opened decided it for the whole session: opened at the dashboard, the
+history check's decryption was blocked on Settings. A fresh load per page would fix that but lock
+the books (the unlocked session lives in memory only). `RAIL_PATHS`, `LOOKUP_PATHS`, `hostsRail`
+and `hostsLookup` are gone; `buildCsp` no longer takes a path. Threat model T3 and CLAUDE.md
+updated (and a misplaced "verified in a browser" line in T3 put back under connect-src).
+
+Tests: `pnpm test` 649/649 (the per-path tests are replaced by six for the single policy).
+`next build` green.

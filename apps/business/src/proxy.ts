@@ -7,7 +7,6 @@ export function proxy(request: NextRequest) {
   const csp = buildCsp({
     nonce: newNonce(),
     dev: process.env.NODE_ENV === "development",
-    path: request.nextUrl.pathname,
   });
 
   const requestHeaders = new Headers(request.headers);

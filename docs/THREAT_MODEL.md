@@ -54,17 +54,20 @@ No server, no database. ✅ Structural, from the architecture.
 ### T3 — Malicious code in the page (XSS, compromised dependency, compromised host)
 The highest risk for a browser app.
 - Strict CSP, a fresh nonce per request, `'strict-dynamic'`, no `unsafe-inline`/`unsafe-eval`
-  in production. `'wasm-unsafe-eval'` (WASM compilation only; JS eval stays refused) is granted on
-  exactly four pages, `/settings`, `/payroll`, the business's `/mailbox` and the worker's `/work`, the ones that load the
-  opt-in rail code whose hashing library is WebAssembly; every other page keeps the strict policy. ✅
-  `packages/security/src/headers.ts` (shared with the marketing site `apps/site`, whose policy
-  names no host and allows no WebAssembly), `apps/business/src/security/headers.ts` (the per-path
-  widening), each app's `src/proxy.ts`
-- `connect-src 'self'` everywhere, plus the explorer REST origin on the same four pages, on `/sales`
-  and `/expenses` for the registry lookup in the customer and vendor forms, and on the dashboard `/`
-  for the linked account's public ALEO and USDCx balances, with no WebAssembly on those three
-  (read-only lookups, balance reads and transfer confirmations): injected code has nowhere to send
-  data but a public read-only API, and only from those pages.
+  in production. ✅ `packages/security/src/headers.ts` (shared with the marketing site `apps/site`,
+  whose policy names no host and allows no WebAssembly), `apps/business/src/security/headers.ts`,
+  each app's `src/proxy.ts`
+- ⚠️ One policy for the whole business app (Joshua, 2026-10-15): every page may compile
+  WebAssembly (`'wasm-unsafe-eval'`; JS eval stays refused) for the wallet code's hashing and
+  decryption, and may reach the explorer REST origin. Until then the policy was widened per page,
+  but a page's policy is fixed when the document loads and in-app navigation keeps it, so in
+  practice the first page opened set it for the whole session, and wallet code broke when the
+  session began elsewhere. A fresh load per page would apply the right one but lock the books (the
+  unlocked session lives in memory only). Accepted: the widening is two allowances, the same on
+  every page.
+- `connect-src 'self'` plus the explorer REST origin, and nothing else: injected code has nowhere
+  to send data but a public read-only API. Verified in a browser: third-party fetch, framing and
+  inline handlers are all refused. ✅
 - ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
   so the explorer's operator can tie the user's IP to that address. The address is already public
   (it owns a registered name). Private balances come from Shield's own records and touch no server
@@ -74,8 +77,7 @@ The highest risk for a browser app.
   the account's own past transfers. It lets the page read the linked account's history and decrypt
   its own transitions; everything read stays in the browser session and the vault, and nothing is
   sent anywhere but the read-only explorer. The permission is the user's to grant or revoke in
-  Shield. Accepted (Joshua, 2026-10-15). Verified in a browser: third-party fetch, framing and inline handlers are all
-  refused. ✅
+  Shield. Accepted (Joshua, 2026-10-15).
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
 - React escapes all rendered text; `dangerouslySetInnerHTML` is not used. ✅ (add a lint rule 🔜)
