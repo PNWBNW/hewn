@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Sending an employment offer to a typed team member, so they can become
-// linked: the terms go to their mailbox first, then one `create_job_offer`
+// linked: the terms go to their mailbox first, then one `create_offer_open`
 // through Shield, exactly the 16 inputs and encodings the old portal used
 // (docs/INTEGRATION_AUDIT.md §2.1). The link is recorded as `offered`; the
 // Import team flow turns it `linked` once the worker's acceptance shows up
@@ -41,7 +41,8 @@ export const MAILBOX_OFF_MESSAGE = "Offers need the mailbox; it's off on this se
 export const NO_NAME_MESSAGE = "They need to register a name first";
 
 export const OFFER_PROGRAM = PROGRAMS.layer1.employer_agreement;
-export const OFFER_FUNCTION = "create_job_offer";
+/** `create_job_offer` without the license approval (employer_agreement_v4 edition 2); same 16 inputs. */
+export const OFFER_FUNCTION = "create_offer_open";
 /** The terms always go to slot 0 of the `terms` kind: one agreement, one parties key, one document. */
 export const TERMS_SLOT = 0;
 
@@ -131,7 +132,7 @@ export type OfferInputs = {
   epochs: OfferEpochs;
 };
 
-/** `create_job_offer`'s inputs in the portal's order and encodings. */
+/** The offer's 16 inputs (`create_offer_open`, same as `create_job_offer`) in the portal's order and encodings. */
 export function createJobOfferInputs(i: OfferInputs): string[] {
   return [
     bytesToAleoU8Array(i.computed.agreement_id),
@@ -268,7 +269,7 @@ export async function awaitAccepted(wallet: OfferWallet, walletId: string, timin
 
 /**
  * Builds the terms, puts them in the worker's mailbox, then sends
- * `create_job_offer` through the wallet and waits for acceptance. Returns
+ * `create_offer_open` through the wallet and waits for acceptance. Returns
  * the link to record; throws (with nothing sent) on any problem before the
  * transaction, and after it with the transaction's failure.
  */

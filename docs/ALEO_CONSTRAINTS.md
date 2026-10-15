@@ -168,18 +168,23 @@ on testnet first.
 6. Fee read-back: confirm the REST transaction response exposes the fee transition's amount so
    the books post the actual fee.
 
-## 7. Registry gates (read from the Leo source, 2026-10-14)
+## 7. Registry gates — removed 2026-10-15
 
-- `pnw_name_registrar_v5::register_employer_name(name_hash, name_u128, industry_u8)` asserts the
-  signer is `is_verified` in `employer_license_registry`, takes 1 USDCx from the signer's **public**
-  balance (`transfer_public_as_signer`), and allows one name per account (worker or business, never
-  both). It is a four-program call, so Shield must prove it locally (not delegated); the old portal
-  did this successfully in April.
-- `employer_license_registry.set_verified(wallet, license_hash, flag)` is callable only by its
-  `AUTHORITY` (the DAO treasury account) and the program is `@noupgrade`. No licence number is
-  checked on chain; only a commitment is stored. Hewn stores a fixed placeholder.
-- `employer_agreement_v4::create_job_offer` asserts the same approval **and** that the caller owns the
-  employer name hash. So a business can neither register nor send an offer until the authority has
-  approved its account. Removing that gate needs new program versions (registrar v6, agreement v5);
-  a Leo task, not started. Until then the Settings → Register business name flow shows the account
-  to send to the authority, and the authority's own account gets an Approve button.
+Until 2026-10-15, `register_employer_name` and `create_job_offer` asserted that the account was
+approved in `employer_license_registry` (only its `AUTHORITY` can approve, and the program is
+`@noupgrade`), and both register functions took 1 USDCx from the signer's public balance.
+
+Now (pnw_mvp_v2 `docs/migrations/2026-10-14-open-registration.md`): open copies were appended to
+the two `@admin` programs, because an upgrade may not change what an existing finalize takes in.
+`pnw_name_registrar_v5` edition 1 adds `register_worker_free` and `register_employer_free` (free, no
+approval); `employer_agreement_v4` edition 2 adds `create_offer_open`, `pause_employer_open`,
+`terminate_employer_open` and `resume_employer_open` (no approval; the caller must still own the
+business name). Hewn calls only the new functions. The gated originals stay on chain unused, so a
+fee can return on testnet by switching back; mainnet will be deployed fresh with only the version
+wanted. One name per account (worker or business, never both) still holds.
+
+Toolchain lesson from the deploy: testnet is on consensus V22 (V21 at 20,234,000, V22 at 20,415,000,
+snarkVM 4.12.0). Leo 4.4.5 (snarkVM 4.11) only has placeholders for both, so it built fee proofs
+for V20 and the network rejected them ("verify_batch failed") until `--consensus-heights` gave it
+the real table. Leo no longer publishes binaries (built from crates.io), and Leo 4.4 refuses the
+4.0-era syntax our sources use, so upgrades compile with 4.0.0 and send the bytecode with 4.4.5.

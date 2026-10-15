@@ -2,8 +2,7 @@
 // Finding people and businesses on the registry by their name. One lookup
 // for both: type `ana.hewn` or `dayco.hewn` (or just the name, or an account
 // starting aleo1) and get back who it is: a person or a business, the account
-// it points at, and for a business its industry and whether it is approved to
-// send offers. Names are public by design (the registry's reverse resolver),
+// it points at, and for a business its industry. Names are public by design (the registry's reverse resolver),
 // and nothing private is read.
 //
 // Names are held on chain as hashes, so only an exact name can be found:
@@ -18,7 +17,6 @@ import {
   INDUSTRY_SUFFIXES,
   computeNameHash,
   queryEmployerName,
-  queryEmployerVerified,
   queryNameKind,
   queryNameOwner,
   queryNamePlaintext,
@@ -38,8 +36,6 @@ export type DirectoryEntry = {
   /** Businesses only: the industry code and label the name was registered under. */
   industryCode?: number;
   industry?: string;
-  /** Businesses only: approved by the registry's authority, so it can send offers. */
-  approved?: boolean;
 };
 
 export class DirectoryError extends Error {
@@ -56,7 +52,6 @@ export type DirectoryReads = {
   workerName: (address: string) => Promise<string | null>;
   employerName: (address: string) => Promise<string | null>;
   employerSuffix: (nameHash: string) => Promise<number | null>;
-  verified: (address: string) => Promise<boolean>;
 };
 
 /** `employer_suffix_code` in the registry: the industry a business name was registered under. Null on a miss. */
@@ -83,7 +78,6 @@ export const directoryReads: DirectoryReads = {
   workerName: (a) => queryWorkerName(a),
   employerName: (a) => queryEmployerName(a),
   employerSuffix: (h) => queryEmployerSuffix(h),
-  verified: (a) => queryEmployerVerified(a),
 };
 
 const bareField = (f: string) => f.replace(/field$/, "").trim();
@@ -114,7 +108,6 @@ async function describe(nameHash: string, address: string, kind: NameKind, reads
       const label = INDUSTRY_SUFFIXES[code]?.label;
       if (label) entry.industry = label;
     }
-    entry.approved = await reads.verified(address);
   }
   return entry;
 }

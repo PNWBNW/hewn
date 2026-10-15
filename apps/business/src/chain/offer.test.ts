@@ -135,7 +135,12 @@ function input(over: Partial<SendOfferInput> = {}): SendOfferInput {
 }
 
 // ---- Encoding ------------------------------------------------------------------------------
-describe("create_job_offer inputs", () => {
+describe("create_offer_open inputs", () => {
+  it("go to the open copy of create_job_offer (agreement v4 edition 2: no license approval)", () => {
+    expect(OFFER_FUNCTION).toBe("create_offer_open");
+    expect(OFFER_PROGRAM).toBe("employer_agreement_v4.aleo");
+  });
+
   const computed = computeAgreementValues(EMPLOYER, WORKER, '{"version":1,"kind":"terms"}', 1_760_454_245);
 
   it("match the portal's 16 inputs, order and encodings, for the same computed values", () => {
@@ -220,7 +225,7 @@ describe("resolveBusinessName", () => {
 
 // ---- Sending -------------------------------------------------------------------------------
 describe("sendOffer", () => {
-  it("puts the sealed terms in slot 0 of the mailbox, then sends create_job_offer with privateFee false, then returns an offered link", async () => {
+  it("puts the sealed terms in slot 0 of the mailbox, then sends create_offer_open with privateFee false, then returns an offered link", async () => {
     const client = fakeClient(201);
     const wallet = fakeWallet();
     const stages: string[] = [];

@@ -2,8 +2,8 @@
 
 // ---------------------------------------------------------------------------
 // Find someone on the registry by their name: a field, a Find button, and a
-// card that says who it is (a person or a business, its industry, whether a
-// business is approved to send offers) and the account it points at. Reads
+// card that says who it is (a person or a business, and its industry) and the
+// account it points at. Reads
 // public registry data only, so it needs no Shield. Loaded through a dynamic
 // import wherever it is used, so nobody who never looks anyone up downloads it.
 //
@@ -13,7 +13,6 @@
 
 import { useState } from "react";
 import { Button } from "@pnw/ui/button";
-import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
@@ -97,11 +96,6 @@ function Card({ entry }: { entry: DirectoryEntry }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{entryLabel(entry, BRAND.nameSuffix)}</span>
         <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">{business ? "Business" : "Person"}</span>
-        {business && (
-          <span className={cn("text-xs", entry.approved ? "text-money-positive" : "text-muted-foreground")}>
-            {entry.approved ? "Approved to send offers" : "Not yet approved to send offers"}
-          </span>
-        )}
       </div>
       {business && entry.industry && <div className="text-xs text-muted-foreground">{entry.industry}</div>}
       <div className="font-mono text-xs text-muted-foreground" title="The registry's account for this name">

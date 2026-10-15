@@ -17,7 +17,7 @@ const PERSON = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px"
 const DAYCO = computeNameHash("dayco");
 const ANA = computeNameHash("ana");
 
-/** A small registry: dayco is a business (BUILD, approved), ana is a person. */
+/** A small registry: dayco is a business (BUILD), ana is a person. */
 const reads = (over: Partial<DirectoryReads> = {}): DirectoryReads => ({
   nameOwner: async (h) => (h === DAYCO ? BIZ : h === ANA ? PERSON : null),
   nameKind: async (h) => (h === DAYCO ? 2 : h === ANA ? 1 : null),
@@ -25,7 +25,6 @@ const reads = (over: Partial<DirectoryReads> = {}): DirectoryReads => ({
   workerName: async (a) => (a === PERSON ? `${ANA}field` : null),
   employerName: async (a) => (a === BIZ ? DAYCO : null),
   employerSuffix: async (h) => (h === DAYCO ? 9 : null),
-  verified: async (a) => a === BIZ,
   ...over,
 });
 
@@ -41,7 +40,7 @@ describe("typing a name", () => {
 });
 
 describe("lookupName", () => {
-  it("finds a business with its industry and approval", async () => {
+  it("finds a business with its industry", async () => {
     expect(await lookupName("dayco.hewn", "hewn", reads())).toEqual({
       name: "dayco",
       nameHash: DAYCO,
@@ -49,17 +48,11 @@ describe("lookupName", () => {
       kind: "business",
       industryCode: 9,
       industry: "Building & Construction",
-      approved: true,
     });
   });
 
   it("finds a person, with no business fields", async () => {
     expect(await lookupName("Ana", "hewn", reads())).toEqual({ name: "ana", nameHash: ANA, address: PERSON, kind: "worker" });
-  });
-
-  it("says a business that isn't approved yet can't send offers", async () => {
-    const r = reads({ verified: async () => false });
-    expect((await lookupName("dayco", "hewn", r)).approved).toBe(false);
   });
 
   it("says plainly when nobody has the name, and asks for an exact spelling", async () => {

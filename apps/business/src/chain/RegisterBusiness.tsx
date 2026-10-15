@@ -7,18 +7,15 @@
 // rail downloads it.
 //
 //   1. Read the registry for this account: a name already held is kept; a
-//      worker's account can't take one; an account the registry's authority
-//      hasn't approved waits for approval (nothing on chain can skip it).
+//      worker's account can't take one.
 //   2. Pick a name and an industry, check it is free.
-//   3. `register_employer_name` in Shield: 1 USDCx from the public balance
-//      plus the network fee. Done only when Shield reports it accepted.
+//   3. `register_employer_free` in Shield: free, only the network fee. Done
+//      only when Shield reports it accepted.
 //
-// The one account that may approve others (REGISTRY_AUTHORITY) also gets a
-// small approval tool here. No address, key or document is logged from here.
+// No address, key or document is logged from here.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
 import { queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
@@ -28,18 +25,7 @@ import { type Rail, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import type { Company } from "@/books/company";
 import { ShieldStatus } from "./ShieldStatus";
-import {
-  APPROVE_BUSINESS,
-  type AccountStatus,
-  INDUSTRIES,
-  NAME_RULE,
-  REGISTER_BUSINESS,
-  accountStatus,
-  approveInputs,
-  checkName,
-  isRegistryAuthority,
-  registerBusinessInputs,
-} from "./business_registry";
+import { type AccountStatus, INDUSTRIES, NAME_RULE, REGISTER_BUSINESS, accountStatus, checkName, registerBusinessInputs } from "./business_registry";
 import { executeAndWait } from "./work/execute";
 import { useShield } from "./shield";
 
@@ -55,8 +41,8 @@ export default function RegisterBusiness(props: RegisterBusinessProps) {
   );
 }
 
-const FEE_NOTE = "Registering takes 1 USDCx from the account's public balance, plus a little ALEO for the network fee. Shield asks you to approve it.";
-const FAIL_HINT = "If it keeps failing: the account must be approved, hold 1 USDCx in its public balance, and have a little ALEO for the fee.";
+const FEE_NOTE = "Registering is free. Shield asks you to approve it, and the network fee is a little ALEO.";
+const FAIL_HINT = "If it keeps failing: the account needs a little ALEO for the network fee, and the name must still be free.";
 
 function railOf(c: Company): Rail {
   if (!c.rail) throw new Error("Link Shield in Settings first");
@@ -75,7 +61,6 @@ export function RegisterFlow({ onClose, onDone }: RegisterBusinessProps) {
   const [done, setDone] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const readFor = useRef<string | null>(null);
   const keeping = useRef(false);
 
@@ -219,46 +204,6 @@ export function RegisterFlow({ onClose, onDone }: RegisterBusinessProps) {
           </p>
           {close}
         </>
-      ) : status.kind === "needs-approval" ? (
-        <>
-          <p className="text-sm">
-            Before a business can register, the registry&apos;s authority has to approve its account. That is a one-time step, and nothing about your
-            business is shared with it.
-          </p>
-          {isRegistryAuthority(address) ? (
-            <ApproveOne address={address} wallet={wallet} onApproved={() => void read(address)} own />
-          ) : (
-            <div className="flex flex-col gap-2 text-sm">
-              <span>Send this account to the registry authority to approve:</span>
-              <span className="flex items-center gap-2">
-                <span className="break-all font-mono text-xs">{address}</span>
-                <button
-                  type="button"
-                  className="grid size-8 shrink-0 place-items-center rounded-md hover:bg-accent"
-                  aria-label={copied ? "Copied" : "Copy the full account"}
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(address);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 1500);
-                    } catch {
-                      // Clipboard refused (not a secure context); the account is on screen to copy by hand.
-                    }
-                  }}
-                >
-                  {copied ? <Check aria-hidden className="size-4 text-money-positive" /> : <Copy aria-hidden className="size-4" />}
-                </button>
-              </span>
-              <span className="text-xs text-muted-foreground">Once it is approved, tap Check again.</span>
-            </div>
-          )}
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => void read(address)}>
-              Check again
-            </Button>
-            {close}
-          </div>
-        </>
       ) : (
         <>
           <Field label="Business name" hint={NAME_RULE}>
@@ -319,68 +264,7 @@ export function RegisterFlow({ onClose, onDone }: RegisterBusinessProps) {
         </>
       )}
 
-      {address && !mismatch && isRegistryAuthority(address) && status?.kind !== "needs-approval" && (
-        <details className="rounded-md border border-dashed p-3 text-sm">
-          <summary className="cursor-pointer font-medium">Approve another business</summary>
-          <div className="mt-3">
-            <ApproveOne address={address} wallet={wallet} />
-          </div>
-        </details>
-      )}
-      {(status === null || status.kind === "needs-approval") && <FormError message={error ?? shieldError} />}
+      {status === null && <FormError message={error ?? shieldError} />}
     </>
-  );
-}
-
-/** The registry authority approving one account (its own, or one it is given). One transaction in Shield. */
-function ApproveOne({
-  address,
-  wallet,
-  own,
-  onApproved,
-}: {
-  address: string;
-  wallet: Parameters<typeof executeAndWait>[0];
-  own?: boolean;
-  onApproved?: () => void;
-}) {
-  const [target, setTarget] = useState(own ? address : "");
-  const [busy, setBusy] = useState(false);
-  const [approved, setApproved] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function approve() {
-    setBusy(true);
-    setError(null);
-    setApproved(null);
-    try {
-      const account = target.trim();
-      await executeAndWait(wallet, { ...APPROVE_BUSINESS, inputs: approveInputs(account, true) });
-      setApproved(account);
-      onApproved?.();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-xs text-muted-foreground">
-        This account is the registry&apos;s authority, so it can approve {own ? "itself" : "another account"}. It is one transaction; no licence
-        details are recorded.
-      </p>
-      {!own && (
-        <Field label="Account to approve" hint="63 characters starting aleo1.">
-          <input className={inputClass} value={target} onChange={(e) => setTarget(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} />
-        </Field>
-      )}
-      {approved && <p className="text-sm text-money-positive">Approved {shortAddress(approved)}.</p>}
-      <FormError message={error} />
-      <Button className="min-h-11 self-start sm:min-h-9" disabled={busy || !target.trim()} onClick={() => void approve()}>
-        {busy ? "Approving…" : own ? "Approve this account" : "Approve"}
-      </Button>
-    </div>
   );
 }

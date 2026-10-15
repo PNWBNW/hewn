@@ -2,7 +2,7 @@
 // The person's identity on the registry, encoded exactly as the old portal
 // encoded it (RegisterNameStep.tsx, CreateProfileStep.tsx):
 //
-//   pnw_name_registrar_v5::register_worker_name(<hash>field, <name as u128>u128)
+//   pnw_name_registrar_v5::register_worker_free(<hash>field, <name as u128>u128)   (free, edition 1)
 //   pnw_worker_profiles_v2::create_worker_profile(15 inputs, see profileInputs)
 //
 // The name hash is BLAKE3("PNW::NAME", TLV(name)) reduced into the field
@@ -23,7 +23,7 @@ import { toU8Array } from "./agreements";
 export const NAME_PATTERN = /^[a-z0-9_]{3,16}$/;
 export const NAME_RULE = "3 to 16 characters: lower-case letters, digits and underscores";
 
-export const REGISTER = { program: PROGRAMS.layer1.pnw_name_registrar, function: "register_worker_name" } as const;
+export const REGISTER = { program: PROGRAMS.layer1.pnw_name_registrar, function: "register_worker_free" } as const;
 export const CREATE_PROFILE = { program: PROGRAMS.layer1.worker_profiles, function: "create_worker_profile" } as const;
 
 /** The name's bytes as a decimal u128, big-endian, as the registrar's reverse lookup stores it. */
@@ -33,7 +33,7 @@ export function nameToU128(name: string): string {
   return value.toString(10);
 }
 
-/** The two inputs of `register_worker_name`, with the hash the registry will hold. */
+/** The two inputs of `register_worker_free`, with the hash the registry will hold. */
 export function registerNameInputs(name: string): { nameHash: string; inputs: string[] } {
   if (!NAME_PATTERN.test(name)) throw new Error(`A name is ${NAME_RULE}`);
   const nameHash = computeNameHash(name);

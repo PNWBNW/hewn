@@ -7,13 +7,13 @@ import { CREATE_PROFILE, type ProfileForm, REGISTER, ageAt, checkProfileForm, na
 
 const WORKER = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px";
 
-describe("register_worker_name", () => {
+describe("register_worker_free", () => {
   it("encodes the name as the old RegisterNameStep did: <hash>field, <big-endian bytes>u128", () => {
     const { nameHash, inputs } = registerNameInputs("ana_ruiz");
     expect(nameHash).toBe(computeNameHash("ana_ruiz"));
     expect(nameHash).toMatch(/^\d+$/);
     expect(inputs).toEqual([`${nameHash}field`, `${nameToU128("ana_ruiz")}u128`]);
-    expect(REGISTER).toEqual({ program: "pnw_name_registrar_v5.aleo", function: "register_worker_name" });
+    expect(REGISTER).toEqual({ program: "pnw_name_registrar_v5.aleo", function: "register_worker_free" });
   });
 
   it("pins the fixtures", () => {
