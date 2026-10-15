@@ -121,7 +121,7 @@ A web portal for employers and workers followed in March.
 run from the portal: check the agreement, pay in USDCx privately, mint paystub receipts for both
 sides, anchor an audit record, then mint the payroll cycle NFT (transactions below). Shield's
 in-browser prover handles one program per proof best, so payroll runs as a series of small
-transactions, as it still does.
+transactions.
 
 AI tools have come a long way since those first months, and they help a lot now. They don't
 replace knowing how the system works, though: each step past "vibe coding" came from
