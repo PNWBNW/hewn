@@ -144,8 +144,8 @@ Two rules worth knowing before you change code:
 You need Node 22 (what CI uses) and pnpm 10.
 
 ```bash
-git clone https://github.com/PNWBNW/pnw.git
-cd pnw
+git clone https://github.com/PNWBNW/hewn.git
+cd hewn
 pnpm install
 pnpm test            # the whole test suite (vitest)
 pnpm build           # strict typecheck of every package, then the app builds
