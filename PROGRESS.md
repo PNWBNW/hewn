@@ -1634,3 +1634,24 @@ first and keeps "Add customer" disabled. (This container can't reach the explore
 here reads as "no one has registered"; Joshua's testnet run covers real names.)
 
 Tests: `pnpm test` 621/621 (+3 for registered identities).
+## 2026-10-15 — Dashboard shows the linked account's ALEO and USDCx
+
+The dashboard has a "Shield account" card with the linked account's ALEO and USDCx, each split into
+private and public, read automatically instead of entered by hand. Public balances come from the
+explorer (`credits.aleo/account`; the stablecoin's public mapping, tried as `balances` then `account`
+because the deployed name isn't pinned here) as soon as the page opens, with no Shield needed. Private
+balances are the unspent `credits` and `Token` records Shield returns once it is connected to the
+linked account (it reconnects on its own after the first time). A different Shield account gets a
+"switch accounts" note. It only displays balances and posts nothing to the books; "Cash in the bank" is still the books' own bank
+accounts. USAD is left out for now (Joshua).
+
+Code: `chain/balances.ts` (pure: record sums, mapping parse, six-decimal format; no `@pnw/rail`,
+whose index loads the prover's WebAssembly), `chain/AccountBalances.tsx`, loaded dynamically by
+`app/page.tsx` only when an account is linked. CSP: `/` joins `LOOKUP_PATHS` (explorer only, no
+WebAssembly; the Shield adaptor needs none). Threat model T3 updated.
+
+Known limit: the CSP comes from the first page loaded, so opening the dashboard by in-app navigation
+from a strict page (say `/transactions`) blocks the public read until a reload; the private part
+still shows. The same is true of the other explorer pages today.
+
+Tests: `pnpm test` 640/640 (+12: balances, dashboard CSP). `next build` green.

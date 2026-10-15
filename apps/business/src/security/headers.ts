@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // The business app's browser security policy: the shared policy from
-// @pnw/security, widened on exactly four pages (and, for the explorer alone, two more). Settings, Payroll, the
+// @pnw/security, widened on exactly four pages (and, for the explorer alone, three more). Settings, Payroll, the
 // Mailbox and the worker's /work pages are where the opt-in rail code is
 // loaded, so only they may talk to the explorer and compile WebAssembly; every other page
 // keeps the strict policy the site uses. See docs/THREAT_MODEL.md (T3).
@@ -18,11 +18,13 @@ export { SECURITY_HEADERS, newNonce } from "@pnw/security/headers";
 export const EXPLORER_ORIGIN = "https://api.explorer.provable.com";
 
 /**
- * The pages where a registered name can be looked up (a customer's or a vendor's form). The lookup
- * only reads public registry data from the explorer, so these pages may talk to it, and nothing more:
- * no WebAssembly.
+ * The pages that only read public data from the explorer: a registered name looked up on a
+ * customer's or a vendor's form, and the dashboard's balances of the linked account (its public
+ * balances from the explorer; the private ones come through Shield, which needs no allowance).
+ * These pages may talk to the explorer, and nothing more: no WebAssembly. `/` is the dashboard
+ * alone; no other page matches it.
  */
-export const LOOKUP_PATHS = ["/sales", "/expenses"] as const;
+export const LOOKUP_PATHS = ["/", "/sales", "/expenses"] as const;
 
 /** The pages that host the rail panels (Connect Shield, Import team, Pay now, the Mailbox's check for a reply; a worker's offers, hours, paystubs and profile). */
 export const RAIL_PATHS = ["/settings", "/payroll", "/mailbox", "/work"] as const;
