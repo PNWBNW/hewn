@@ -21,10 +21,10 @@
     "@pnw/records": "workspace:*",
     "jspdf": "4.2.1",
     "qrcode": "1.5.4",
-    "react": "19.2.3"
+    "react": "19.3.0"
   },
   "devDependencies": {
     "@types/qrcode": "1.5.6",
-    "@types/react": "19.2.14"
+    "@types/react": "19.3.0"
   }
 }
