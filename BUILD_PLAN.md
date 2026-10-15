@@ -205,7 +205,7 @@ No seat cap; the wallet is the user.
 2. Recurring transactions: templates queued for one-tap confirm (never auto-posted without a signature).
 3. Reminders: overdue invoice, upcoming bill, period not closed, 1099-eligible vendor missing a W-9. Local notifications; optional email via the user's own mail client, never a PNW server.
 4. Excel: export any report or list to `.xlsx`; import chart of accounts, customers, vendors, items, opening balances and bank transactions from `.xlsx` or `.csv`. Two-way live sync deferred.
-5. Bank import: OFX/QFX and CSV with a column mapper and a saved profile per bank. Matching engine suggests existing invoices/bills for each line.
+5. Bank import: OFX/QFX and CSV with a column mapper and a saved profile per bank. Matching engine suggests existing invoices/bills for each line. (2026-10-15, Joshua: may be dropped; the books are wallet-first, and the Shield account feeds Transactions → For review. If kept, imported lines land in the same review list.)
 6. Bank reconciliation: statement balance, cleared items, difference; period lock on reconcile.
 
 **Exit criteria**

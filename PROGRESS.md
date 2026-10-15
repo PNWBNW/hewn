@@ -1787,3 +1787,46 @@ service and extras. Bank feeds need a server-side aggregator (Plaid or similar),
 free app's no-server rule forbids, so it would be a separate opt-in service.
 
 Tests: `pnpm test` 655/655 (+6 vault). `next build` green.
+## 2026-10-15 — Transactions → For review (step 3a)
+
+Money that moves in the Shield account after the books started now comes in for review, in plain
+words, and posts to the books when accepted. Nothing to type, no debits and credits.
+
+- **Where:** Transactions → **For review** (replaces the "Bank activity" placeholder), with To
+  review / Reviewed / Excluded. A count shows on the menu's Transactions item and as "N
+  transactions to review" on the dashboard; `/transactions?tab=review` opens the tab.
+- **Finding it** (`chain/review_feed.ts`): Shield's USDCx history (both directions of public
+  transfers, and what the account sent privately) read back from the explorer, plus the
+  account's USDCx records (a private payment received, with Shield's `sender`), merged by
+  transaction id. Public transfers are read as they are; private ones are opened with Shield's
+  transition view key. Only movements after the start count: the start now keeps its exact
+  time (`rail.start.at`); a start from before that counts from the next day. Rejected
+  transactions are skipped; ones the explorer can't serve yet are counted and retried next check.
+- **Each line:** "Sent 4.625 USDCx to PNW DAO" / "Received 4.25 USDCx from Employer 1", with the
+  date, the dollars that go in the books, and a note when a fraction of a cent is dropped. Names
+  come from the business's customers, vendors and team, then the registry (`name.hewn`), else a
+  short account.
+- **What was this?** Money in: Customer payment (income account, defaults to the first income
+  account), Owner money in (equity, the investment account by name), Swap from ALEO, Other. Money
+  out: Expense or vendor (expense account, no default: the business picks), Owner money out (the
+  draw account), Swap to ALEO, Other. Optional customer/vendor, project and memo. **Accept** posts
+  (in: debit Shield account, credit the account; out: the reverse; source `deposit`/`expense`,
+  ref `review:<tx>`); **Exclude** keeps it out. Swaps post to **Network fees** (created if
+  missing): buying ALEO is buying fee money.
+- **Automatic:** a move between the account's public and private halves is "internal" (nothing to
+  post); a paycheck the app paid itself (its settlement's transaction id) is "recorded".
+- **Undo:** an accepted item goes back to review with its entry reversed; an excluded one simply
+  returns. The register shows "Undo it from For review" instead of Void on those entries.
+- Code: `books/review.ts` (+7 tests), `chain/review_feed.ts` (+8), `chain/ReviewPanel.tsx`,
+  `chain/decrypt.ts` (shared with the history check), `books/company.ts`, `app/transactions`,
+  `shell/AppShell.tsx`, `app/page.tsx`. Threat model: "The review list". BUILD_PLAN phase 7 bank
+  import marked "may be dropped" (Joshua).
+- Checked in Chromium against a production build with a seeded vault: the tab, accept as
+  income and as owner's draw, the reviewed list, the internal move, the entries in the register.
+  No page errors. Not checked here: reading Shield and the explorer (this container can't reach
+  either); that's Joshua's first run.
+
+Known limits: a fraction of a cent per transfer isn't posted, so the books can trail the wallet by
+dust; invoices and bills aren't matched yet (step 3b).
+
+Tests: `pnpm test` 670/670 (+15). `next build` green.

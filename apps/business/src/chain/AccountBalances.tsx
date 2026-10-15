@@ -188,7 +188,7 @@ function StartBooks({ usdcx }: { usdcx: bigint | null }) {
     setBusy(true);
     setError(null);
     try {
-      await updateCompany((c) => startFromShield(c, { date: today, minor: usdcx! }));
+      await updateCompany((c) => startFromShield(c, { date: today, minor: usdcx!, at: new Date().toISOString() }));
       setConfirming(false);
     } catch (e) {
       setError(errorMessage(e));

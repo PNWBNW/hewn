@@ -16,6 +16,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
+import { decryptTransition, fetchExplorerTransaction } from "./decrypt";
 import { type Opened, reportText, runProbe, summariseOpened } from "./history_probe";
 import { useShield } from "./shield";
 
@@ -29,22 +30,11 @@ export default function HistoryProbe({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** The explorer's copy of a transaction; null when it doesn't have it. */
-async function fetchTransaction(id: string): Promise<unknown> {
-  const res = await fetch(`${ENV.ALEO_ENDPOINT.replace(/\/+$/, "")}/transaction/${id}`, {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`The network answered ${res.status}`);
-  return res.json();
-}
+const fetchTransaction = (id: string) => fetchExplorerTransaction(id, ENV.ALEO_ENDPOINT);
 
-/** Decrypts one transition with a transition view key, using the SDK (loaded only here). */
+/** Decrypts one transition with a transition view key and says how much of it could be read. */
 async function openTransition(transition: unknown, tvk: string): Promise<Opened> {
-  const { Field, Transition } = await import("@provablehq/sdk");
-  const opened = Transition.fromString(JSON.stringify(transition)).decryptTransition(Field.fromString(tvk));
-  return summariseOpened(JSON.parse(opened.toString()));
+  return summariseOpened(await decryptTransition(transition, tvk));
 }
 
 function ProbeFlow({ onClose }: { onClose: () => void }) {

@@ -43,14 +43,15 @@ function shieldAccount(books: Books): { books: Books; accountId: string } {
  * Starts the books from the Shield account's balance on `date`. Posts the opening entry when there
  * is anything to post, and records the start on the link either way. Refuses a second start.
  */
-export function startFromShield(company: Company, input: { date: IsoDate; minor: bigint }): Company {
+export function startFromShield(company: Company, input: { date: IsoDate; minor: bigint; at?: string }): Company {
   const rail = company.rail;
   if (!rail) throw new Error("Link Shield in Settings first");
   if (rail.start) throw new Error(`The books already follow this account from ${rail.start.date}`);
   const cents = minorToCents(input.minor);
 
   const { books: withAccount, accountId } = shieldAccount(company.books);
-  if (cents === 0n) return { ...company, books: withAccount, rail: { ...rail, start: { date: input.date } } };
+  const when = input.at ? { at: input.at } : {};
+  if (cents === 0n) return { ...company, books: withAccount, rail: { ...rail, start: { date: input.date, ...when } } };
 
   const { books, entry } = postEntry(withAccount, {
     date: input.date,
@@ -61,5 +62,5 @@ export function startFromShield(company: Company, input: { date: IsoDate; minor:
       { accountId: systemAccount(withAccount, "opening_balance_equity").id, credit: cents },
     ],
   });
-  return { ...company, books, rail: { ...rail, start: { date: input.date, entryId: entry.id } } };
+  return { ...company, books, rail: { ...rail, start: { date: input.date, ...when, entryId: entry.id } } };
 }

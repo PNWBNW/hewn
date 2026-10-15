@@ -96,7 +96,12 @@ export type Rail = {
 };
 
 /** The day the books began following the linked account, and the entry that opened its balance. */
-export type RailStart = { date: string; entryId?: string };
+export type RailStart = {
+  date: string;
+  /** ISO time the books started; movements after it come in for review. Missing on starts from before it was kept. */
+  at?: string;
+  entryId?: string;
+};
 
 const ADDRESS = /^aleo1[a-z0-9]{58}$/;
 const PARTIES_KEY = /^[0-9a-f]{64}$/;
@@ -248,6 +253,10 @@ function validateStart(raw: unknown): RailStart {
     throw new RailError("The start needs a date");
   }
   const start: RailStart = { date: s.date };
+  if (s.at !== undefined) {
+    if (typeof s.at !== "string" || Number.isNaN(Date.parse(s.at))) throw new RailError("The start time must be a date");
+    start.at = s.at;
+  }
   const entryId = optionalString(s.entryId, "Opening entry");
   if (entryId !== undefined) start.entryId = entryId;
   return start;

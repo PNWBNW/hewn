@@ -29,6 +29,7 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { SETUP_PATH, setupRedirect, setupStep } from "@/books/setup";
 import { unreadCount } from "@/books/mailbox";
+import { waitingCount } from "@/books/review";
 import type { Role } from "@/books/work";
 import { BRAND } from "@/brand";
 import { BrandLogo } from "./Brand";
@@ -104,8 +105,9 @@ function Rail({
   onBackup: () => void;
   onLock: () => void;
 }) {
-  const { mailbox } = useOpenBooks();
+  const { mailbox, review } = useOpenBooks();
   const unread = unreadCount(mailbox);
+  const waiting = waitingCount(review);
   const worker = role === "worker";
   const nav = !setupDone ? [{ href: SETUP_PATH, label: "Finish setup", icon: Settings }] : worker ? WORK_NAV : BUSINESS_NAV;
   const home = worker ? "/work" : "/";
@@ -134,6 +136,11 @@ function Rail({
             {href === "/mailbox" && unread > 0 && (
               <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unread} unread`}>
                 {unread}
+              </span>
+            )}
+            {href === "/transactions" && waiting > 0 && (
+              <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${waiting} to review`}>
+                {waiting}
               </span>
             )}
           </Link>
