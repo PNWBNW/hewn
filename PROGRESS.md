@@ -1929,3 +1929,13 @@ are permanent, and the usage-credit idea went with renewal); one kind per wallet
 key on ANS's name hash on mainnet (a fresh deploy). BUILD_PLAN's registrar section is rewritten as
 "Mainnet names"; CLAUDE.md notes mainnet lookup by address. Open: short-name prices, and the
 conversation with the ANS team. Docs only; no code changed.
+
+## 2026-10-15 — README rewritten for Hewn
+
+The top-level README still described the PNW two-repo setup (submodules, the old portal's
+employer flow, five wallets, `.pnw` names). It now leads with Hewn: what it is, what each area
+of the app does today, how the vault, the Shield wallet, payroll and the mailbox fit together, a
+short history (PNW, the first private testnet payroll on 2026-04-10 with its tx hashes, the
+redesign into Hewn, `.hewn` under ANS next), a map of the repo with the retired and legacy
+folders marked, how to run it locally, where to report security problems, and the AGPL licence
+text unchanged. Docs only; no code changed.
