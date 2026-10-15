@@ -84,23 +84,57 @@ than by a long wallet address.
 
 ## Where it came from
 
-Hewn started as **PNW: Proven National Workers**, a privacy-first payroll framework on Aleo.
+Hewn has been built on the side, for free, over a few years, alongside a full-time job. In the
+peak seasons at work, building stopped; when time opened up again, it picked back up where it left
+off. Joshua Day, who started it, tells it best:
 
-- **Through early 2026: PNW.** A set of Leo programs for worker profiles, employer–worker
-  agreements, private USDCx payroll, paystub receipts, audit anchors, credential NFTs and a
-  `.pnw` name registry, plus a Next.js employer portal on top.
-- **April 10, 2026: first private payroll on testnet.** An end-to-end run from the portal:
-  verify the agreement, transfer USDCx privately, mint paystub receipts, anchor the audit event,
-  then mint the payroll cycle NFT (transactions below). We learned that Shield's
-  browser prover handles single-program proofs best, so payroll runs as a series of small
-  transactions.
-- **October 2026: redesigned as Hewn.** Small businesses don't just need payroll, they need their
-  books. The portal's libraries were salvaged into this monorepo and rebuilt into a full
-  bookkeeping app, wallet-first, with an encrypted local vault and an AGPL licence. It reuses
-  PNW's Leo programs, privacy rules and tax engine.
-- **Next: mainnet.** `.hewn` names are planned as a top-level domain in the
-  [Aleo Name Service](https://aleonames.id), so they resolve across the Aleo ecosystem. See
-  [`BUILD_PLAN.md`](BUILD_PLAN.md#mainnet-names-hewn-under-the-aleo-name-service-design-joshua-2026-10-15).
+> It started as "I want to learn more about blockchain." Then I wanted a say in where this
+> technology goes, instead of leaving it to big businesses to decide for us. Then it became
+> "I wonder if I could build something myself." Slowly, it turned into this.
+
+**Learning (late 2023 to 2024).** It began around the time Aleo opened up to builders, with
+months in the developer docs learning how zero-knowledge proofs, Leo and private records
+actually work: transitions, async finalize code, and how Leo compiles down to Aleo's own
+instruction language. No course teaches that; the language was only a few years old. AI
+assistants weren't much help yet either: they had so little to draw on that they kept writing
+Rust instead of Leo.
+
+**Learning by building: Proven National Workers (February 2025).** The best way to really learn
+it was to build something real and figure it out along the way. The first design, PNW, was huge: a
+union-style network for citizen and immigrant workers, with on-chain payroll, worker-run
+local DAOs, farm investment co-ops, family trust funds, a farm-to-table marketplace, and
+bridges to Stellar, Aztec and Ethereum-style chains. Hundreds of commits went into Leo contracts
+and a whitepaper in its first month.
+
+**Narrowing down (2025).** Building it taught what mattered. The second version kept two chains:
+private payroll records on Aleo and USDC payouts on Stellar, with NFT paystubs. More than a
+thousand commits went in that spring. A sovereign sidechain for governance and a pegged wage token
+were sketched, then set aside. Every cut made the core clearer: private, honest payroll. Then
+work's busy season took over: the summer slowed down, and the project rested through the end
+of the year.
+
+**Starting over, on Aleo alone (2026).** Back at it in January, with a clean rebuild: Aleo only,
+paid in USDCx, wages and identities never public, and one adapter as the only path to the chain.
+A web portal for employers and workers followed in March.
+
+**First private payroll on testnet (April 10, 2026),** during the Aleo Buildathon. A full
+run from the portal: check the agreement, pay in USDCx privately, mint paystub receipts for both
+sides, anchor an audit record, then mint the payroll cycle NFT (transactions below). Shield's
+in-browser prover handles one program per proof best, so payroll runs as a series of small
+transactions, as it still does.
+
+AI tools have come a long way since those first months, and they help a lot now. They don't
+replace knowing how the system works, though: each step past "vibe coding" came from
+understanding Aleo well enough to catch what the tools got wrong.
+
+**Hewn (October 2026).** Payroll alone wasn't enough: small businesses need their books.
+The portal's libraries were moved into this repository and rebuilt into a full bookkeeping app:
+wallet-first, kept in an encrypted vault on your device, open source under the AGPL. It keeps
+PNW's privacy rules, its Leo programs and its tax engine.
+
+**Next: mainnet.** `.hewn` names are planned as a top-level domain in the
+[Aleo Name Service](https://aleonames.id), so they resolve across the Aleo ecosystem. See
+[`BUILD_PLAN.md`](BUILD_PLAN.md#mainnet-names-hewn-under-the-aleo-name-service-design-joshua-2026-10-15).
 
 <details>
 <summary>The first private payroll on testnet (April 10, 2026)</summary>
