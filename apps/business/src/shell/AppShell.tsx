@@ -112,7 +112,8 @@ function Rail({
   const nav = !setupDone ? [{ href: SETUP_PATH, label: "Finish setup", icon: Settings }] : worker ? WORK_NAV : BUSINESS_NAV;
   const home = worker ? "/work" : "/";
   return (
-    <nav aria-label="Main" className="flex h-full flex-col gap-1 bg-rail px-3 py-4 text-rail-foreground">
+    // Scrolls when the menu is taller than the screen (a phone with the Shield browser's bars), so Log out is never out of reach.
+    <nav aria-label="Main" className="flex h-full flex-col gap-1 overflow-y-auto overscroll-contain bg-rail px-3 py-4 text-rail-foreground">
       <Link href={home} onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label={`${BRAND.name}, ${worker ? "home" : "dashboard"}`}>
         <BrandLogo tone="onDark" height={30} />
       </Link>

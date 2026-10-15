@@ -1874,3 +1874,13 @@ Not yet: payments the app sends itself (payroll) don't check General's balance b
 that's the next step if wanted. Vendor payments aren't sent from the app at all yet.
 
 Tests: `pnpm test` 676/676 (+5). `next build` green.
+## 2026-10-15 — Log out reachable on a phone
+
+Joshua: no way to log out. The side menu's bottom (Settings, Download a backup, Log out) ran off
+the bottom of a phone screen with the Shield browser's bars, and the menu didn't scroll; at a
+390×640 view, Log out sat at 625–669. The menu now scrolls (`overflow-y-auto`), and Settings has a
+**Log out** button by the account, with when "stay logged in" ends (or that it logs out on close
+and after 15 idle minutes). Checked in Chromium at 390×640: Log out reachable after a scroll;
+Settings → Log out returns to the front page.
+
+Tests: `pnpm test` 676/676. `next build` green.

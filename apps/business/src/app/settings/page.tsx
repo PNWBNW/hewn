@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, LogOut } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
@@ -27,7 +27,7 @@ const HistoryProbe = dynamic(() => import("@/chain/HistoryProbe"), {
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function SettingsPage() {
-  const { books, role, email } = useOpenBooks();
+  const { books, role, email, lock, stayUntil } = useOpenBooks();
   const worker = role === "worker";
   return (
     <div className="flex flex-col gap-6">
@@ -53,6 +53,17 @@ export default function SettingsPage() {
           <p className="mt-4 text-xs text-muted-foreground">
             You can add the other kind later from the front page: New here? → choose the other one.
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
+            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={lock}>
+              <LogOut aria-hidden />
+              Log out
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {stayUntil
+                ? `Staying logged in on this device until ${stayUntil.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}.`
+                : "Logs out when the page is closed or after 15 idle minutes."}
+            </span>
+          </div>
         </CardContent>
       </Card>
 
