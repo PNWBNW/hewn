@@ -1557,3 +1557,26 @@ party-agreement Leo program that doesn't exist yet. That is the next Leo session
 Tests: `pnpm test` 622/622 (+17: name normalisation, business and person results, industry and
 approval, misses, exact-name refusals, kind mismatch, the suffix query, name-hash handling on parties,
 the CSP for the two lookup pages). `next build` clean.
+
+## 2026-10-15 — Open registration live; the app uses it
+
+Deployed from the phone through a new GitHub workflow in pnw_mvp_v2 (`upgrade-admin-program`,
+admin key in the `testnet-staging` environment). Open copies of the gated functions were appended
+(an upgrade can't change an existing function's finalize inputs):
+
+| Program | Edition | Adds | Upgrade tx |
+|---|---|---|---|
+| `pnw_name_registrar_v5` | 1 | `register_worker_free`, `register_employer_free` (free, no approval) | `at1m77eapnjtp4wxk0lf5y9dyp3j0glxm2umsv8rk0j8nt2ny96xg9q6cgtx6` |
+| `employer_agreement_v4` | 2 | `create_offer_open`, `pause/terminate/resume_employer_open` (no approval) | `at17d0f4a442msg92tzgem7s65346s2eway3auvpwalzmnyhngtgqqqe62yjc` |
+
+The app now calls `register_worker_free`, `register_employer_free` and `create_offer_open`. Gone:
+the "needs approval" screen and the authority's Approve tool, the 1 USDCx notes (registration is
+free; only the network fee), and "approved to send offers" on lookup cards.
+
+What it took (in `docs/ALEO_CONSTRAINTS.md` §7): testnet is on consensus V22; Leo 4.4.5 only knew
+up to V20 and its fee proofs were rejected until it got snarkVM 4.12.0's height table; Leo publishes
+no binaries anymore (crates.io build, cached); Leo 4.4 rejects our 4.0-era syntax, so the bytecode is
+compiled with 4.0.0 and sent with 4.4.5. The toolchain update (port sources to 4.4 syntax, bump CI
+pins, SDK and adaptor) is the next task.
+
+Tests: `pnpm test` 618/618, `next build` clean.

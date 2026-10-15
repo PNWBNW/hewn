@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // The person's registered name and profile. Connect Shield; if the registry
 // already has a name for this account, keep it; otherwise register one
-// (availability first, then `register_worker_name`, 1 USDCx paid publicly
-// plus the network fee); then create the profile with the 15-input
+// (availability first, then `register_worker_free`: free, only the network
+// fee); then create the profile with the 15-input
 // `create_worker_profile`. The profile is done only when Shield reports the
 // transaction accepted: there is no skip. Nothing from the profile form is
 // kept in the vault except the name hash, the name and the done flag, and
@@ -34,7 +34,7 @@ export default function ProfilePanel({ onClose }: ProfilePanelProps) {
   );
 }
 
-const REGISTRY_FEE = "Needs 1 USDCx in your public balance and a little ALEO for the fee.";
+const REGISTRY_FEE = "Registering is free; the network fee is a little ALEO.";
 
 function ProfileFlow({ address, onClose }: { address: string; onClose: () => void }) {
   const { work, updateWork } = useWork();
