@@ -243,6 +243,7 @@ No seat cap; the wallet is the user.
 | Priority support, training | Operational | Docs and READMEs |
 | Intuit Intelligence block | Out of scope by decision | Revisit later; a local model over the vault |
 | Open-source licence | Decided 2026-10-15 | AGPL-3.0-only for Hewn and the Leo programs; Hewn name and logo not licensed |
+| Wallet-free ("fiat first") accounts | Replaced 2026-10-15 | Every account links Shield and registers a name.hewn at setup; people are added only by registered name |
 | ETH stablecoin + wallet rails | Back burner until the Aleo rails are much further along (2026-10-13) | Aleo/USDCx settled mode only |
 
 ## Decisions

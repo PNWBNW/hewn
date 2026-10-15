@@ -75,10 +75,14 @@ company and protocol namespace).
   (never hard-coded elsewhere). The CLI adapter / Path B (pasted private key) is legacy: the
   `coordinator` package that carried it is gone (2026-10-14; the pay queue in `rail` is the wallet
   path), and no new code or screen may use `pnw-adapter`'s CLI adapter. Nothing calls `snarkos` or the SDK execute path directly.
-- **Fiat first; chain is optional.** The whole product must work with no wallet, no network and no
-  Aleo package loaded. The ledger core, vault, reports and fiat payroll never import `wallet`,
-  `pnw-adapter`, `rail` or `records`; those are opt-in adapters for anchored/settled modes,
-  loaded only after the user upgrades a business.
+- **Every account is on the registry (Joshua, 2026-10-15).** Setup links a Shield account and
+  registers a `name.hewn` (a worker also creates the profile behind it); the app shell keeps an
+  unfinished account on `/settings/setup` (`books/setup.ts`). Team members, customers and vendors are
+  added only by finding their registered name. This replaces "fiat first": a wallet is now required
+  to get in. What stays: the ledger core, vault, reports and payroll never import `wallet`,
+  `pnw-adapter`, `rail` or `records`; chain code lives in `src/chain` and loads only on the pages
+  that need it (`fiat_boundary.test.ts`, and the CSP's rail pages). The books keep working offline
+  once an account is set up.
 - Extension modules may never touch posting logic or the vault key.
 - Mode upgrades (fiat → anchored → settled) are one-way, show exactly what goes on-chain, and require
   a second wallet signature after a review screen. Never flip a mode as a side effect.
