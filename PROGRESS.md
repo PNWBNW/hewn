@@ -1596,3 +1596,23 @@ tokens and committed `.env` files. Only placeholders (`APrivateKey1...`), dummy 
 `.env.example` files were found. Making the repos public is Joshua's step (GitHub Settings).
 
 Tests: `pnpm test` 618/618; both apps typecheck.
+
+## 2026-10-15 — Setup: every account links Shield and registers its name.hewn
+
+Joshua's decision, replacing "fiat first": every account, business or worker, links a Shield account
+and registers a `name.hewn` before it can use the app; a worker also creates the private profile
+behind the name, as in the MVP. `books/setup.ts` (pure, tested) says where an account stands
+(`link` → `name` → `profile` for workers → `done`). The app shell sends any unfinished account to
+`/settings/setup` (a rail page under the CSP, so Shield works there) and shows only "Finish setup" in
+the sidebar until it's done; existing accounts go through the same page on their next login. The page
+reuses the existing Connect, Register business name and worker Profile panels; their Cancel starts
+the step over. Sign-up now says what comes next, and that each role needs its own Shield account
+(one registered name per account). CLAUDE.md and BUILD_PLAN record the change.
+
+Browser check: a new business account lands on "Finish setting up", step 1 of 2; a new worker
+account on step 1 of 3; the sidebar offers only "Finish setup". The Shield steps themselves need the
+extension or the Shield app (Joshua's testnet run).
+
+Next (separate PR): add team members, customers and vendors only by finding their registered name.
+
+Tests: `pnpm test` 625/625 (+7 for the setup steps and redirect).
