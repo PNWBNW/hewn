@@ -45,7 +45,9 @@ export default function DashboardPage() {
   const setup = [
     { step: "Name your business and pick a fiscal year", href: "/", done: true },
     { step: "Choose a starter chart of accounts", href: "/transactions", done: hasCustomAccounts },
-    { step: "Enter opening balances", href: "/transactions/new", done: hasEntries },
+    rail
+      ? { step: "Start your books from your Shield balance", href: "/#balances", done: hasEntries || !!rail.start }
+      : { step: "Enter opening balances", href: "/transactions/new", done: hasEntries },
     { step: "Add your team and run a first payroll", href: "/payroll", done: payroll.runs.length > 0 },
     { step: "Send your first invoice", href: "/sales", done: sales.invoices.some((i) => i.entryId) },
   ];
@@ -71,7 +73,7 @@ export default function DashboardPage() {
       </section>
 
       {rail && (
-        <section aria-label="Account balances">
+        <section id="balances" aria-label="Account balances" className="scroll-mt-20">
           <AccountBalances address={rail.address} />
         </section>
       )}

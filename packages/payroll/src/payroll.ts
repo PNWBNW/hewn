@@ -28,6 +28,7 @@
 // ---------------------------------------------------------------------------
 
 import {
+  type Account,
   type Books,
   type Cents,
   type Clock,
@@ -332,11 +333,22 @@ export function ensurePayrollAccounts(books: Books): { books: Books; accounts: P
   return { books: next, accounts: { wagesId, employerTaxesId, liabilitiesId: systemAccount(next, "payroll_liabilities").id } };
 }
 
-export const RAIL_ACCOUNT_NAME = "Rail balance";
+/** The bank-type account that holds the linked account's money (its stablecoin, private and public). */
+export const RAIL_ACCOUNT_NAME = "Shield account";
+/** What the same account was called before; books that have it keep using it. */
+export const LEGACY_RAIL_ACCOUNT_NAMES = ["Rail balance"] as const;
+
+const isRailName = (name: string) => [RAIL_ACCOUNT_NAME, ...LEGACY_RAIL_ACCOUNT_NAMES].some((n) => n.toLowerCase() === name.trim().toLowerCase());
+
+/** The active bank-type account the rail posts to, under its current or a former name; undefined when there is none. */
+export function findRailAccount(books: Books): Account | undefined {
+  const bank = books.accounts.filter((a) => a.active && a.type === "bank" && isRailName(a.name));
+  return bank.find((a) => a.name.trim().toLowerCase() === RAIL_ACCOUNT_NAME.toLowerCase()) ?? bank[0];
+}
 
 /** The bank-type account a rail run's net pay is credited from, found by name or created. */
 export function ensureRailAccount(books: Books): { books: Books; accountId: string } {
-  const found = books.accounts.find((a) => a.active && a.type === "bank" && a.name.toLowerCase() === RAIL_ACCOUNT_NAME.toLowerCase());
+  const found = findRailAccount(books);
   if (found) return { books, accountId: found.id };
   const r = addAccount(books, { name: RAIL_ACCOUNT_NAME, type: "bank" });
   return { books: r.books, accountId: r.account.id };

@@ -9,7 +9,9 @@
 // only Shield can read, so it shows once Shield is connected to the linked
 // account (Shield reconnects on its own after the first time).
 //
-// Display only: nothing is posted to the books. No address or record is logged.
+// Reading posts nothing. The one thing the card writes is the start, and only when tapped and
+// confirmed: today's USDCx total becomes the opening balance of the books' Shield account
+// (books/opening.ts). No address or record is logged.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from "react";
@@ -18,8 +20,12 @@ import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
-import { errorMessage } from "@/books/AuthCard";
+import { FormError, errorMessage } from "@/books/AuthCard";
+import { useOpenBooks } from "@/books/BooksProvider";
+import { Money, todayIso } from "@/books/display";
+import { minorToCents, startFromShield } from "@/books/opening";
 import { shortAddress } from "@/books/rail";
+import { longDate } from "./agreement_draft";
 import {
   type CoinBalance,
   CREDITS_PROGRAM,
@@ -130,6 +136,8 @@ function BalancesCard({ address }: AccountBalancesProps) {
         {privError && <p className="text-xs text-money-negative">Couldn&apos;t read the private balances: {privError}</p>}
         {connectError && <p className="text-xs text-money-negative">{connectError}</p>}
 
+        <StartBooks usdcx={privateRead ? totalOf(coins[1]!.balance) : null} />
+
         {mismatch ? (
           <p className="text-xs text-muted-foreground">
             Shield is signed in to a different account ({shortAddress(connected)}). Switch to {shortAddress(address)} in Shield to see the private balances.
@@ -148,6 +156,73 @@ function BalancesCard({ address }: AccountBalancesProps) {
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Starting the books from this account: before, a button (once the USDCx total is fully read) and a
+ * confirm step; after, the date the books follow the account from.
+ */
+function StartBooks({ usdcx }: { usdcx: bigint | null }) {
+  const { rail, updateCompany } = useOpenBooks();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!rail) return null;
+
+  if (rail.start) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Your books follow this account from {longDate(rail.start.date)}. Anything it holds from then on is in the books&apos; Shield account.
+      </p>
+    );
+  }
+  if (usdcx === null) {
+    return <p className="text-xs text-muted-foreground">Once both balances are read, you can start your books from them.</p>;
+  }
+
+  const today = todayIso();
+  const cents = minorToCents(usdcx);
+
+  async function start() {
+    setBusy(true);
+    setError(null);
+    try {
+      await updateCompany((c) => startFromShield(c, { date: today, minor: usdcx! }));
+      setConfirming(false);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <Button className="min-h-11 self-start sm:min-h-9" onClick={() => setConfirming(true)}>
+        Start your books from this balance
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-dashed p-3">
+      <p className="text-sm">
+        Your books start on {longDate(today)} with <Money cents={cents} className="font-semibold" /> in the Shield account (private and public
+        USDCx together). It goes in as the opening balance, so there is nothing to type and nothing to balance.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Money that moves in or out of the account after today comes in for you to review. ALEO is fee money and isn&apos;t counted.
+      </p>
+      <FormError message={error} />
+      <div className="flex flex-wrap gap-3">
+        <Button className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void start()}>
+          {busy ? "Starting…" : "Start my books"}
+        </Button>
+        <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => setConfirming(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }
 

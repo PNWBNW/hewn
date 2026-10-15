@@ -113,7 +113,7 @@ export default function RunPayrollPage() {
     try {
       let runId = "";
       await updateCompany((c) => {
-        // On the rail: net pay comes from the "Rail balance" account and settles per person as each
+        // On the rail: net pay comes from the "Shield account" bank account and settles per person as each
         // payment lands. Otherwise the money moves through the bank and the run is settled as it posts.
         const from = onRail ? ensureRailAccount(c.books) : { books: c.books, accountId: bank };
         const r = postPayRun(from.books, c.payroll, {
@@ -175,7 +175,7 @@ export default function RunPayrollPage() {
               filter={(a) => a.type === "bank" && a.active}
               className={inputClass}
               placeholder="Choose a bank account"
-              leading={rail ? [{ value: RAIL, label: "Rail balance (private rail)" }] : []}
+              leading={rail ? [{ value: RAIL, label: "Shield account (private rail)" }] : []}
             />
           </Field>
           {!onRail && (
