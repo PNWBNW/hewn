@@ -92,10 +92,15 @@ off. Joshua Day, who started it, tells it best:
 > technology goes, instead of leaving it to big businesses to decide for us. Then it became
 > "I wonder if I could build something myself." Slowly, it turned into this.
 
-**Learning (2024).** It began around the time Aleo opened up to builders, with months spent
-learning how zero-knowledge proofs, Leo and private records actually work.
+**Learning (late 2023 to 2024).** It began around the time Aleo opened up to builders, with
+months in the developer docs learning how zero-knowledge proofs, Leo and private records
+actually work: transitions, async finalize code, and how Leo compiles down to Aleo's own
+instruction language. No course teaches that; the language was only a few years old. AI
+assistants weren't much help yet either: they had so little to draw on that they kept writing
+Rust instead of Leo.
 
-**The big idea: Proven National Workers (early 2025).** The first design, PNW, was huge: a
+**Learning by building: Proven National Workers (February 2025).** The best way to really learn
+it was to build something real and figure it out along the way. The first design, PNW, was huge: a
 union-style network for citizen and immigrant workers, with on-chain payroll, worker-run
 local DAOs, farm investment co-ops, family trust funds, a farm-to-table marketplace, and
 bridges to Stellar, Aztec and Ethereum-style chains. Hundreds of commits went into Leo contracts
@@ -117,6 +122,10 @@ run from the portal: check the agreement, pay in USDCx privately, mint paystub r
 sides, anchor an audit record, then mint the payroll cycle NFT (transactions below). Shield's
 in-browser prover handles one program per proof best, so payroll runs as a series of small
 transactions, as it still does.
+
+AI tools have come a long way since those first months, and they help a lot now. They don't
+replace knowing how the system works, though: each step past "vibe coding" came from
+understanding Aleo well enough to catch what the tools got wrong.
 
 **Hewn (October 2026).** Payroll alone wasn't enough: small businesses need their books.
 The portal's libraries were moved into this repository and rebuilt into a full bookkeeping app:
