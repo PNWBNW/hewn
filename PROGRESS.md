@@ -1906,3 +1906,11 @@ email may hold both kinds, each with its own Shield account.
   registered stays on the registry.
 
 Tests: `pnpm test` 680/680 (+4). `next build` green.
+## 2026-10-15 — Mainnet registrar design written down
+
+Joshua's design for the mainnet name registrar is now a section of BUILD_PLAN.md ("Mainnet name
+registrar"): length-priced names, yearly renewal with a grace period, reserved names, one kind
+per wallet on chain, and usage credit toward renewal (0.25 USDCx per paystub received or payroll
+payment sent, private, capped at the renewal price, reset yearly, with opt-in auto-renewal that
+Shield approves). Exit criteria list the negative tests. Building it is a new Leo program, for a
+Fable 5.1 session. Docs only; no code changed.

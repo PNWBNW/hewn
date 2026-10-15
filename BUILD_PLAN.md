@@ -232,6 +232,43 @@ No seat cap; the wallet is the user.
 - [ ] An extension that attempts an unlisted `gl_core` call fails to compile; one that attempts to read the vault key fails at the plugin boundary
 - [ ] A second developer builds the empty template into a working tips module using only the README and the interface doc
 
+## Mainnet name registrar (design, Joshua 2026-10-15)
+
+A new registrar for mainnet (a fresh deploy; testnet names don't carry over). New Leo program:
+built on Fable 5.1 at high effort, with negative tests. Until it ships, the app enforces what it
+can (one kind per wallet, `chain/account_kind.ts`) and testnet registration stays free.
+
+1. **Price by length.** Short names cost more; ordinary names stay cheap. Proposed tiers: 1–3
+   characters $100+, 4 characters about $20, 5+ characters 1 USDCx (final numbers Joshua's call).
+   Paid in USDCx at registration.
+2. **Yearly renewal.** A name is held for a year and renewed for its tier's price; a grace period
+   (about 30 days) before it is released. Abandoned names come back; holding many costs every year.
+3. **Reserved names.** Brand names, offensive terms and common words (`admin`, `support`, `hewn`, …)
+   can't be registered publicly; the DAO releases them.
+4. **One kind per wallet, on chain.** The registrar refuses a business name for a wallet that holds
+   a worker name, and the reverse.
+5. **Usage credit toward renewal** (keeps it "free" for people who use it). Each paystub receipt a
+   worker gets, and each payroll payment a business sends to a linked worker or business, earns
+   0.25 USDCx of renewal credit, up to the name's renewal price (a 1 USDCx name: 4 paychecks; a
+   $25 name: 100). Credit is spent at renewal and starts again from zero each year.
+   - Private: credits are private records only the owner sees and spends, never a public counter
+     (a counter would show how many paychecks someone gets, or how many a business sends).
+   - Anti-farming: a minimum payment amount, and at most one credit per agreement per pay period.
+   - **Auto-renewal** (opt in): once the year's credit covers the price, the app queues the free
+     renewal when it falls due and Shield asks once to approve it (credits are private, so no
+     contract can renew without the owner's signature). The name's new expiry is public, which
+     shows only that it earned renewal (accepted, pending Joshua).
+6. Later: a dispute process for trademark holders, run by the DAO.
+
+Exit criteria
+- [ ] Registrar deployed on testnet with all of 1–5; negative tests: a short name underpaid, a
+  reserved name, a second kind on one wallet, an expired name renewed after the grace period, a
+  credit spent twice, a credit earned below the minimum payment, two credits for one agreement
+  in one pay period
+- [ ] The app registers, renews (paid and credit-earned, with auto-renewal) and shows a name's
+  expiry and earned credit, all through Shield
+- [ ] Mainnet deploy, with `config/mainnet.manifest.json` as its source of truth
+
 ## Deferred
 
 | Advanced feature | Why it waits | What ships instead |
@@ -260,3 +297,6 @@ No seat cap; the wallet is the user.
 - [x] Product name for the bookkeeping surface: **Hewn** (hewnaccounting.com; app at app.hewnaccounting.com) (2026-10-14). The name, tagline, colours and asset paths live in `packages/brand/src/index.ts`; art in `brand/source/`.
 - [ ] Phase 6 before Phase 3, if multi-user is wanted before anything ships to a second person.
 - [ ] Greenlight for Phase 1.
+- [x] One kind of account per Shield account (business or worker); the same email may hold both (2026-10-15). App check now, registrar on mainnet.
+- [x] Mainnet registrar: length-priced names, yearly renewal with a grace period, reserved names, usage credit toward renewal with opt-in auto-renewal (2026-10-15). See "Mainnet name registrar".
+- [ ] Final prices for the short-name tiers.
