@@ -33,7 +33,14 @@ describe("content security policy", () => {
   it("keeps the books pages on the strict policy: own origin only, no WebAssembly", () => {
     expect(books["connect-src"]).toEqual(["'self'"]);
     expect(books["script-src"]).not.toContain("'wasm-unsafe-eval'");
-    expect(buildCsp({ nonce: "n", path: "/" }).match(/https?:\/\/[^\s;]+/g)).toBeNull();
+    expect(buildCsp({ nonce: "n", path: "/transactions/new" }).match(/https?:\/\/[^\s;]+/g)).toBeNull();
+  });
+
+  it("lets the dashboard read balances from the explorer, with no WebAssembly", () => {
+    const dashboard = directives(buildCsp({ nonce: "n", path: "/" }));
+    expect(dashboard["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
+    expect(dashboard["script-src"]).not.toContain("'wasm-unsafe-eval'");
+    expect(buildCsp({ nonce: "n", path: "/" }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
   });
 
   it("widens exactly the four rail pages: the explorer and WebAssembly compilation", () => {
@@ -43,13 +50,13 @@ describe("content security policy", () => {
     expect(rail["default-src"]).toEqual(["'self'"]);
   });
 
-  it("lets exactly the customer and vendor pages reach the explorer, and still no WebAssembly", () => {
-    expect(LOOKUP_PATHS).toEqual(["/sales", "/expenses"]);
+  it("lets exactly the dashboard and the customer and vendor pages reach the explorer, and still no WebAssembly", () => {
+    expect(LOOKUP_PATHS).toEqual(["/", "/sales", "/expenses"]);
     expect(lookup["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
     expect(lookup["script-src"]).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
     expect(directives(buildCsp({ nonce: "n", path: "/expenses/bills" }))["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
-    for (const p of ["/sales", "/expenses", "/expenses/new"]) expect(hostsLookup(p)).toBe(true);
-    for (const p of ["/", "/salesperson", "/expense", "/payroll", "/transactions"]) expect(hostsLookup(p)).toBe(false);
+    for (const p of ["/", "/sales", "/expenses", "/expenses/new"]) expect(hostsLookup(p)).toBe(true);
+    for (const p of ["/salesperson", "/expense", "/payroll", "/transactions", "/reports/profit", "/banking"]) expect(hostsLookup(p)).toBe(false);
   });
 
   it("matches rail pages by path segment, not prefix", () => {

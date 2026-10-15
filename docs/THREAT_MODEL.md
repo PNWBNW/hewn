@@ -60,11 +60,15 @@ The highest risk for a browser app.
   `packages/security/src/headers.ts` (shared with the marketing site `apps/site`, whose policy
   names no host and allows no WebAssembly), `apps/business/src/security/headers.ts` (the per-path
   widening), each app's `src/proxy.ts`
-- `connect-src 'self'` everywhere, plus the explorer REST origin on the same four pages, and on `/sales`
-  and `/expenses` for the registry lookup in the customer and vendor forms, with no WebAssembly there (read-only
-  lookups and transfer confirmations the user starts after linking Shield; the default mode never
-  calls it): injected code has nowhere to send data but a public read-only API, and only from those
-  pages. Verified in a browser: third-party fetch, framing and inline handlers are all
+- `connect-src 'self'` everywhere, plus the explorer REST origin on the same four pages, on `/sales`
+  and `/expenses` for the registry lookup in the customer and vendor forms, and on the dashboard `/`
+  for the linked account's public ALEO and USDCx balances, with no WebAssembly on those three
+  (read-only lookups, balance reads and transfer confirmations): injected code has nowhere to send
+  data but a public read-only API, and only from those pages.
+- ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
+  so the explorer's operator can tie the user's IP to that address. The address is already public
+  (it owns a registered name). Private balances come from Shield's own records and touch no server
+  of ours. Accepted. Verified in a browser: third-party fetch, framing and inline handlers are all
   refused. ✅
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅

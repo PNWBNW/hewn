@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { ArrowRight, CircleCheck, Circle } from "lucide-react";
 import { type Books, ACCOUNT_TYPES, type AccountType, netByAccount, netIncome } from "@pnw/ledger";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
@@ -8,6 +9,9 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
+
+// What the linked account holds, read from the network; loaded only once an account is linked.
+const AccountBalances = dynamic(() => import("@/chain/AccountBalances"), { ssr: false });
 
 /** Sum of balances for accounts of the given types, positive on their normal side. */
 function totalOf(books: Books, types: AccountType[]): bigint {
@@ -22,7 +26,7 @@ function totalOf(books: Books, types: AccountType[]): bigint {
 }
 
 export default function DashboardPage() {
-  const { books, payroll, sales } = useOpenBooks();
+  const { books, payroll, sales, rail } = useOpenBooks();
   const today = todayIso();
   const hasEntries = books.entries.length > 0;
   const hasCustomAccounts = books.accounts.some((a) => !a.system);
@@ -65,6 +69,12 @@ export default function DashboardPage() {
           </Card>
         ))}
       </section>
+
+      {rail && (
+        <section aria-label="Account balances">
+          <AccountBalances address={rail.address} />
+        </section>
+      )}
 
       <section aria-labelledby="setup-heading">
         <Card>
