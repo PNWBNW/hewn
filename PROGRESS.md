@@ -1747,4 +1747,4 @@ Content Security Policy directive", and the transfers it tried were the old ones
   A full load fixes the policy but locks the books (the session is in memory only), so forcing
   reloads is not an option. Open decision for Joshua: one policy for the whole signed-in app.
 
-Tests: `pnpm test` 654/654. `next build` green.
+Tests: `pnpm test` 653/653. `next build` green.
