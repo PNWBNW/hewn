@@ -1734,3 +1734,17 @@ Code: `books/opening.ts` (+6 tests), `chain/AccountBalances.tsx`, `books/rail.ts
 `@pnw/payroll` (`findRailAccount`, +1 test case).
 
 Tests: `pnpm test` 652/652. `next build` green.
+## 2026-10-15 — History check opens the newest transfers; navigation and the security policy
+
+Third run of the history check (Joshua, after sending and receiving inside Shield): USDCx history
+went from 2 to 4 transactions, but every decrypt failed with "WebAssembly … violates the following
+Content Security Policy directive", and the transfers it tried were the old ones.
+- Order: Shield lists history newest first and the check took the last entries, so it reopened the
+  oldest. It now sorts by block height, then time, opens the newest (up to 4), and lists the newest
+  10 history entries per program as `date function (status)`.
+- Policy: each page's CSP is set when the document loads, and in-app navigation keeps it. Opened at
+  `/` (the dashboard: explorer, no WebAssembly) and then tapping to Settings, the SDK can't compile.
+  A full load fixes the policy but locks the books (the session is in memory only), so forcing
+  reloads is not an option. Open decision for Joshua: one policy for the whole signed-in app.
+
+Tests: `pnpm test` 653/653. `next build` green.

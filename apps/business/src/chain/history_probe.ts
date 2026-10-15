@@ -17,7 +17,7 @@ import { CREDITS_PROGRAM, USDCX_PROGRAM } from "./balances";
 
 export const PROBE_PROGRAMS = [USDCX_PROGRAM, CREDITS_PROGRAM] as const;
 /** How many past transfers are opened. */
-export const PROBE_SAMPLES = 3;
+export const PROBE_SAMPLES = 4;
 
 export type ProbeWallet = {
   requestRecords(program: string, includePlaintext?: boolean): Promise<unknown[]>;
@@ -39,7 +39,9 @@ export type ProbeDeps = {
 type Outcome<T> = { ok: true; value: T } | { ok: false; error: string };
 
 export type RecordsCheck = { count: number; spent: number; fields: string[]; withTransactionId: number };
-export type HistoryCheck = { count: number; fields: string[] };
+/** One history entry as the report shows it: when, which function, whether it went through. No id. */
+export type HistoryLine = { date: string; fn: string; status: string };
+export type HistoryCheck = { count: number; fields: string[]; newest: HistoryLine[] };
 export type SampleCheck = {
   /** Where the id came from: the history list, or a record (a payment received, say). */
   from: "history" | "record";
@@ -95,6 +97,44 @@ export function transitionsOf(doc: unknown): Obj[] {
   return [...list, ...fee];
 }
 
+/** How many history entries the report lists, newest first. */
+export const PROBE_HISTORY_LINES = 10;
+
+const num = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+
+/** A block timestamp (seconds or milliseconds since 1970, or an ISO string) as YYYY-MM-DD, or "?". */
+export function dateOf(v: unknown): string {
+  const ms = millis(v);
+  return ms === null ? "?" : new Date(ms).toISOString().slice(0, 10);
+}
+
+/** A timestamp (seconds or milliseconds since 1970, or an ISO string) in milliseconds, or null. */
+function millis(v: unknown): number | null {
+  const n = num(v);
+  const ms = n === null ? (typeof v === "string" ? Date.parse(v) : NaN) : n < 1e12 ? n * 1000 : n;
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** Newest first: by block height, then by timestamp; entries with neither keep their order, last. */
+export function newestFirst<T>(items: readonly T[]): T[] {
+  const NONE = -Infinity;
+  const keyed = items.map((x, i) => {
+    const o: Obj = isObj(x) ? x : {};
+    return { x, i, height: num(o.blockNumber) ?? num(o.blockHeight) ?? NONE, time: millis(o.blockTimestamp) ?? NONE };
+  });
+  keyed.sort((a, b) => (a.height !== b.height ? b.height - a.height : a.time !== b.time ? b.time - a.time : a.i - b.i));
+  return keyed.map((k) => k.x);
+}
+
+function historyLine(e: unknown): HistoryLine {
+  const o: Obj = isObj(e) ? e : {};
+  const str = (v: unknown) => (typeof v === "string" && v ? v : "?");
+  return { date: dateOf(o.blockTimestamp), fn: str(o.functionId), status: str(o.transactionStatus) };
+}
+
 const label = (t: Obj): string => `${typeof t.program === "string" ? t.program : "?"}/${typeof t.function === "string" ? t.function : "?"}`;
 
 /** Opens one transition with each view key until one works. */
@@ -136,7 +176,7 @@ export async function runProbe(deps: ProbeDeps): Promise<ProbeReport> {
     const raw = await attempt(() => deps.wallet.requestRecords(program, true));
     if (raw.ok) {
       const list = Array.isArray(raw.value) ? raw.value : [];
-      const ids = list.map((r) => transactionIdOf(r, ["transactionId", "transaction_id", "txId"])).filter((x): x is string => x !== null);
+      const ids = newestFirst(list).map((r) => transactionIdOf(r, ["transactionId", "transaction_id", "txId"])).filter((x): x is string => x !== null);
       recordIds.set(program, ids);
       records[program] = {
         ok: true,
@@ -146,21 +186,21 @@ export async function runProbe(deps: ProbeDeps): Promise<ProbeReport> {
 
     const h = await attempt(() => deps.wallet.requestTransactionHistory(program));
     if (h.ok) {
-      const list = Array.isArray(h.value?.transactions) ? h.value.transactions : [];
+      const list = newestFirst(Array.isArray(h.value?.transactions) ? h.value.transactions : []);
       historyIds.set(program, list.map((e) => transactionIdOf(e)).filter((x): x is string => x !== null));
-      history[program] = { ok: true, value: { count: list.length, fields: fieldsOf(list) } };
+      history[program] = { ok: true, value: { count: list.length, fields: fieldsOf(list), newest: list.slice(0, PROBE_HISTORY_LINES).map(historyLine) } };
     } else history[program] = h;
   }
 
   const fromHistory = historyIds.get(USDCX_PROGRAM) ?? [];
-  const fromRecords = recordIds.get(USDCX_PROGRAM) ?? [];
+  const fromRecords = recordIds.get(USDCX_PROGRAM) ?? []; // newest first, like the history
   const inHistory = new Set(fromHistory);
   const notInHistory = [...new Set(fromRecords)].filter((id) => !inHistory.has(id));
 
-  // A couple of transfers this account made, and one it only received, if there is one.
-  const received = notInHistory.length > 0 ? [{ id: notInHistory[notInHistory.length - 1]!, from: "record" as const }] : [];
+  // The newest transfers this account made, and the newest it only received, if there is one.
+  const received = notInHistory.length > 0 ? [{ id: notInHistory[0]!, from: "record" as const }] : [];
   const made = [...new Set(fromHistory)];
-  const picks = [...made.slice(Math.max(0, made.length - (PROBE_SAMPLES - received.length))).map((id) => ({ id, from: "history" as const })), ...received];
+  const picks = [...made.slice(0, PROBE_SAMPLES - received.length).map((id) => ({ id, from: "history" as const })), ...received];
 
   const samples: SampleCheck[] = [];
   for (const p of picks) samples.push(await sample(p.id, p.from, deps));
@@ -180,7 +220,10 @@ export function reportText(r: ProbeReport, today: string): string {
     if (rec?.ok) out.push(`  record fields: ${rec.value.fields.join(", ") || "none"}`);
     out.push(`  history: ${line(r.history[p], (v) => `${v.count} transactions`)}`);
     const h = r.history[p];
-    if (h?.ok) out.push(`  history fields: ${h.value.fields.join(", ") || "none"}`);
+    if (h?.ok) {
+      out.push(`  history fields: ${h.value.fields.join(", ") || "none"}`);
+      for (const e of h.value.newest) out.push(`    ${e.date} ${e.fn} (${e.status})`);
+    }
     out.push("");
   }
   out.push(`Received but not in history: ${r.recordsNotInHistory ?? "unknown"}`);
