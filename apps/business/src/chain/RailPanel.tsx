@@ -36,6 +36,7 @@ import type { Company } from "@/books/company";
 import { type Rail, type RailLink, addLink, setRegistered, markLinked, shortAddress, validateRail } from "@/books/rail";
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
+import { assertKindFree } from "./account_kind";
 import { finalAgreementIds } from "./offer";
 import { partiesKeysOf } from "./parties_key";
 import { RegisterFlow } from "./RegisterBusiness";
@@ -71,7 +72,7 @@ async function lookupBusinessName(address: string): Promise<{ businessNameHash?:
 // ---- Connect ---------------------------------------------------------------
 
 function ConnectFlow({ onClose }: { onClose: () => void }) {
-  const { books, vaultId, updateCompany } = useOpenBooks();
+  const { books, vaultId, role, updateCompany } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +82,8 @@ function ConnectFlow({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       if (!vaultId) throw new Error("Log in first");
+      // One kind of account per Shield account: refuse before Shield is asked to sign anything.
+      await assertKindFree(role, address);
       const linkedAt = new Date().toISOString();
       const message = `${BRAND.railLinkDomain}\n${vaultId}\n${address}\n${linkedAt}`;
       const signature = await wallet.signMessage(new TextEncoder().encode(message));

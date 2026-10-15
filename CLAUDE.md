@@ -81,7 +81,11 @@ company and protocol namespace).
 - **Every account is on the registry (Joshua, 2026-10-15).** Setup links a Shield account and
   registers a `name.hewn` (a worker also creates the profile behind it); the app shell keeps an
   unfinished account on `/settings/setup` (`books/setup.ts`). Team members, customers and vendors are
-  added only by finding their registered name. This replaces "fiat first": a wallet is now required
+  added only by finding their registered name. **One kind of account per Shield account** (Joshua,
+  2026-10-15): a wallet holding a business's name can't link to or register a worker account, and
+  the reverse (business and personal money never share a wallet); the same email may hold both
+  kinds, each with its own Shield account (`chain/account_kind.ts`; the mainnet registrar will
+  enforce it on chain). This replaces "fiat first": a wallet is now required
   to get in. What stays: the ledger core, vault, reports and payroll never import `wallet`,
   `pnw-adapter`, `rail` or `records`; chain code lives in `src/chain` and loads only on the pages
   that need it (`fiat_boundary.test.ts`; the CSP is one policy for the whole app since 2026-10-15,

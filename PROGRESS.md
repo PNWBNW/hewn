@@ -1884,3 +1884,25 @@ and after 15 idle minutes). Checked in Chromium at 390×640: Log out reachable a
 Settings → Log out returns to the front page.
 
 Tests: `pnpm test` 676/676. `next build` green.
+## 2026-10-15 — One kind of account per Shield account
+
+Joshua: a business account and a worker account on the same wallet would mix business money with
+a person's pay (incoming wages landing in the business's books, spending that can't be told
+apart, balances that no longer match). Rule: one kind of account per Shield account; the same
+email may hold both kinds, each with its own Shield account.
+
+- `chain/account_kind.ts`: `kindConflict(role, address)` / `assertKindFree` read the registry's
+  other-kind mapping (`worker_primary_name_of` for a business, `employer_primary_name_of` for a
+  worker). Stricter than the older lookups: a 404, `null` or `0field` is "none", but an
+  unreachable or failing registry refuses with "try again" instead of letting it through. (+4
+  tests)
+- Checked before Shield is asked to sign the link (Settings and setup, both kinds of account), and
+  before a worker registers a name. Registering a business name already refused a wallet holding
+  a worker's name.
+- CLAUDE.md "Boundaries" records the rule. The registry itself doesn't enforce it yet: the mainnet
+  registrar will (with the name fees, renewal and reserved names Joshua is designing).
+- Not handled: wallets already linked to both kinds before this (Joshua's test accounts). The fix
+  there is Settings → Unlink on one of them and link another Shield account; a name already
+  registered stays on the registry.
+
+Tests: `pnpm test` 680/680 (+4). `next build` green.
