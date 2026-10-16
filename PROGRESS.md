@@ -2516,3 +2516,34 @@ Test plan (Joshua, testnet):
 4. Next, two payments at once: do two private fees pick different credits records?
 
 Tests: 799/799 (3 new in `fee_mode.test.ts`).
+
+## 2026-10-16: Design for letters on chain (`docs/LETTERS.md`)
+
+Joshua: carry messages on Aleo itself, with no IPFS or Cloudflare; find exactly how. This entry is
+research and design only. Nothing is built or deployed.
+
+The design:
+- `hewn_letters_v1.aleo` has one call, `send(to, lookup, parcel)`. It creates a `Letter` owned
+  by the recipient and a `SentLetter` owned by the sender, with no mapping and no finalize.
+- The parcel is today's sealed envelope, padded to 34 fields (1,054 bytes).
+- The lookup is today's mailbox lookup id, so the thread code stays.
+
+Sources: snarkVM master and Leo 4.4.5 source, plus the SDK 0.10.1 and adaptor type files. Key
+findings:
+- **Fee:** storage only, 1 µc per byte up to 5 KB and quadratic above. That comes to an
+  estimated 4,000–7,200 µc a letter (not measured).
+- **Text per letter:** about 900 characters.
+- **Sender:** the chain already gives the recipient the sender's address, through a sender
+  ciphertext only the owner can open.
+- **Leo:** 4.4 replaced `self.signer` with `std::ctx::signer()`.
+- **Shield:** it has no sign-only or batch API, so fee sponsorship and delegated proving are out.
+- **Files:** too big for chain under the quadratic fee. They need another home.
+
+Open for Joshua:
+- which model writes the Leo;
+- where files go;
+- a fan-out variant for announcements;
+- addresses in the coworker directory;
+- the chat length limit.
+
+Tests: unchanged (docs only).
