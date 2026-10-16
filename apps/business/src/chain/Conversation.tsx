@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Lock, RefreshCw, Send } from "lucide-react";
 import { MailboxClient } from "@pnw/mailbox";
 import { Button } from "@pnw/ui/button";
@@ -22,6 +22,7 @@ import {
   MAX_TEXT_CHARS,
   type Side,
   type Thread,
+  type ThreadBody,
   type ThreadItem,
   addToThread,
   isOfferStep,
@@ -31,7 +32,7 @@ import {
   skipIncoming,
 } from "@/books/thread";
 import { readReceipts } from "./receipts";
-import { awaitingReceipts, postToThread, readThread } from "./thread";
+import { type ThreadKinds, awaitingReceipts, postToThread, readThread } from "./thread";
 
 export type ConversationProps = {
   /** Who is reading. */
@@ -44,12 +45,17 @@ export type ConversationProps = {
   update: (change: (t: Thread) => Thread) => Promise<void>;
   /** Where offers are answered on this side (the Mailbox, or Offers). */
   offersHref: string;
+  /** For a coworker conversation: its own slots, and plain messages only. */
+  kinds?: ThreadKinds;
+  accept?: (body: ThreadBody) => boolean;
+  /** Under the title, instead of "Sealed to the two of you". */
+  subtitle?: ReactNode;
 };
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-export default function Conversation({ side, partiesKey, title, thread, update, offersHref }: ConversationProps) {
+export default function Conversation({ side, partiesKey, title, thread, update, offersHref, kinds, accept, subtitle }: ConversationProps) {
   const client = useMemo(() => new MailboxClient(), []);
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -70,6 +76,8 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
         partiesKey,
         reader: side,
         thread: latest.current,
+        ...(kinds ? { kinds } : {}),
+        ...(accept ? { accept } : {}),
         store: (item) => update((t) => addToThread(t, item)),
         skip: (seq) => update((t) => skipIncoming(t, seq)),
       });
@@ -77,7 +85,7 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
       else if (r.failed) setStatus(`Couldn't check for new messages: ${r.failed}`);
       else if (r.skipped.length > 0) setStatus(`${r.skipped.length} ${r.skipped.length === 1 ? "message" : "messages"} couldn't be read and ${r.skipped.length === 1 ? "was" : "were"} skipped.`);
       if (!r.off && !r.failed) {
-        const waiting = awaitingReceipts(latest.current, partiesKey, side);
+        const waiting = awaitingReceipts(latest.current, partiesKey, side, 20, kinds);
         if (waiting.length > 0) {
           await readReceipts(client, waiting, (heard) => update((t) => heard.reduce((acc, h) => markDelivered(acc, h.target, h.receivedAt), t)));
         }
@@ -88,7 +96,7 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
     } finally {
       setChecking(false);
     }
-  }, [client, partiesKey, side, update]);
+  }, [client, partiesKey, side, update, kinds, accept]);
 
   useEffect(() => {
     if (started.current) return;
@@ -96,7 +104,8 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
     void check();
   }, [check]);
 
-  const items = thread?.items ?? [];
+  // The directory list the business passes on is bookkeeping, not conversation.
+  const items = (thread?.items ?? []).filter((i) => i.body.type !== "directory");
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
   }, [items.length]);
@@ -107,7 +116,7 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
     setSending(true);
     setError(null);
     try {
-      const item = await postToThread({ client, partiesKey, from: side, nextOut: latest.current?.nextOut ?? 0, body: { type: "text", text: body } });
+      const item = await postToThread({ client, partiesKey, from: side, nextOut: latest.current?.nextOut ?? 0, body: { type: "text", text: body }, ...(kinds ? { kinds } : {}) });
       await update((t) => addToThread(t, item));
       setText("");
     } catch (e) {
@@ -124,9 +133,11 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold">{title}</h2>
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Lock aria-hidden className="size-3" /> Sealed to the two of you
-          </p>
+          {subtitle ?? (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Lock aria-hidden className="size-3" /> Sealed to the two of you
+            </p>
+          )}
         </div>
         <Button variant="outline" size="sm" className="min-h-11 shrink-0 sm:min-h-8" disabled={checking} onClick={() => void check()}>
           <RefreshCw aria-hidden className={cn(checking && "animate-spin")} />

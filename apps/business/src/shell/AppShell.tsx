@@ -115,7 +115,7 @@ function Rail({
   // Unread messages: in the business's threads, or the person's.
   const unreadMessages =
     Object.values((role === "worker" ? work?.threads : mailbox?.threads) ?? {}).reduce((n, t) => n + unreadIn(t), 0) +
-    (role === "worker" ? (work?.channels ?? []).reduce((n, c) => n + unreadPosts(c), 0) : 0);
+    (role === "worker" ? (work?.channels ?? []).reduce((n, c) => n + unreadPosts(c), 0) + Object.values(work?.coworkers ?? {}).reduce((n, t) => n + unreadIn(t), 0) : 0);
   const waiting = waitingCount(review);
   const worker = role === "worker";
   const nav = !setupDone ? [{ href: SETUP_PATH, label: "Finish setup", icon: Settings }] : worker ? WORK_NAV : BUSINESS_NAV;

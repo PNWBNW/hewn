@@ -17,6 +17,7 @@
 import type { AttachmentRef } from "@pnw/sales";
 import { type Thread, emptyThread, validateThread } from "./thread";
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
+import { type CoworkerThread, type Identity, validateCoworkerThread, validateIdentity } from "./directory";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 
 export type Role = "business" | "worker";
@@ -103,6 +104,10 @@ export type Work = {
   threads?: Record<string, Thread>;
   /** Announcement channels businesses added this person to (books/channels.ts). */
   channels?: WorkChannel[];
+  /** A key pair per business's coworker directory, by that business's parties key (books/directory.ts). */
+  identities?: Record<string, Identity>;
+  /** Conversations with coworkers, by their public key. */
+  coworkers?: Record<string, CoworkerThread>;
 };
 
 export class WorkError extends Error {
@@ -330,6 +335,28 @@ export function validateWork(raw: unknown): Work {
     }
     if (Object.keys(threads).length > 0) work.threads = threads;
   }
+  try {
+    if (raw.identities !== undefined) {
+      if (!isObject(raw.identities)) throw new WorkError("The identities must be an object");
+      const ids: Record<string, Identity> = {};
+      for (const [key, id] of Object.entries(raw.identities)) {
+        if (!PARTIES_KEY.test(key)) throw new WorkError("An identity is filed under a business's parties key");
+        ids[key] = validateIdentity(id);
+      }
+      if (Object.keys(ids).length > 0) work.identities = ids;
+    }
+    if (raw.coworkers !== undefined) {
+      if (!isObject(raw.coworkers)) throw new WorkError("The coworkers must be an object");
+      const cw: Record<string, CoworkerThread> = {};
+      for (const [key, t] of Object.entries(raw.coworkers)) {
+        if (!/^04[0-9a-f]{128}$/.test(key)) throw new WorkError("A coworker thread is filed under their public key");
+        cw[key] = validateCoworkerThread(t);
+      }
+      if (Object.keys(cw).length > 0) work.coworkers = cw;
+    }
+  } catch (e) {
+    throw e instanceof WorkError ? e : new WorkError(e instanceof Error ? e.message : "The coworker data couldn't be read");
+  }
   if (raw.channels !== undefined) {
     if (!Array.isArray(raw.channels)) throw new WorkError("The channels must be a list");
     try {
@@ -419,6 +446,15 @@ export function updateWorkThread(work: Work, partiesKey: string, change: (t: Thr
     if (!item.mine && (item.body.type === "channel" || item.body.type === "channel_left")) channels = applyChannelMessage(channels, partiesKey, item.body);
   }
   return validateWork({ ...work, threads: { ...work.threads, [partiesKey]: thread }, ...(channels.length > 0 ? { channels } : {}) });
+}
+
+/** Sets the person's key pair for one business's directory. */
+export const setIdentity = (work: Work, businessKey: string, id: Identity): Work => validateWork({ ...work, identities: { ...work.identities, [businessKey]: id } });
+
+/** Applies `change` to the conversation with one coworker (a new one if there was none). */
+export function updateCoworker(work: Work, publicKey: string, base: Omit<CoworkerThread, keyof Thread>, change: (t: CoworkerThread) => CoworkerThread): Work {
+  const before: CoworkerThread = work.coworkers?.[publicKey] ?? { ...emptyThread(), ...base };
+  return validateWork({ ...work, coworkers: { ...work.coworkers, [publicKey]: change(before) } });
 }
 
 /** Applies `change` to the person's channels. */

@@ -13,6 +13,8 @@ import {
   openPunch,
   punch,
   markTimesheetReceived,
+  setIdentity,
+  updateCoworker,
   updateWorkThread,
   workThread,
   recordTimesheet,
@@ -241,5 +243,20 @@ describe("threads in the person's vault", () => {
     expect(workThread(w, key)?.nextIn).toBe(1);
     expect(workFromJson(workToJson(w))).toEqual(w);
     expect(() => updateWorkThread(w, "nope", (t) => t)).toThrow(/parties key/);
+  });
+});
+
+describe("coworkers in the person's vault", () => {
+  it("keep a key pair per business and a conversation per coworker, through a save", async () => {
+    const { addToThread } = await import("./thread");
+    const biz = "ab".repeat(32);
+    const theirs = "04" + "c".repeat(128);
+    const id = { publicKey: "04" + "a".repeat(128), privateKey: { kty: "EC", crv: "P-256", x: "x", y: "y", d: "d" }, createdAt: "2026-10-16T10:00:00.000Z", listed: true, name: "Ana" };
+    const item = { version: 1 as const, id: "5".repeat(32), from: "worker" as const, sentAt: "2026-10-16T18:00:00.000Z", body: { type: "text" as const, text: "Lunch?" }, mine: true, seq: 0 };
+    let w = setIdentity(withAgreement(), biz, id);
+    w = updateCoworker(w, theirs, { businessKey: biz, name: "Bo" }, (t) => ({ ...t, ...addToThread(t, item) }));
+    expect(w.coworkers?.[theirs]).toMatchObject({ businessKey: biz, name: "Bo", nextOut: 1 });
+    expect(workFromJson(workToJson(w))).toEqual(w);
+    expect(() => setIdentity(w, "nope", id)).toThrow();
   });
 });

@@ -1,9 +1,10 @@
 "use client";
 
 // Checking every conversation and channel at once, for the Messages list (the
-// person's side): each business's new messages (thread.ts; channel keys
-// arrive this way too), then each channel's new posts (channels.ts), with a
-// receipt back for each. Runs once when it mounts and reports back; it draws
+// person's side): each business's new messages (thread.ts; channel keys and
+// the coworker directory arrive this way too), then each channel's new posts
+// (channels.ts), then each coworker's messages (coworkers.ts), with a receipt
+// back for each. Runs once when it mounts and reports back; it draws
 // nothing itself. Needs no Shield. Nothing here logs a key, a lookup or a message.
 
 import { useEffect, useMemo, useRef } from "react";
@@ -11,7 +12,9 @@ import { MailboxClient } from "@pnw/mailbox";
 import { useWork } from "@/books/BooksProvider";
 import { addReceivedPost, skipPost } from "@/books/channels";
 import { addToThread, skipIncoming } from "@/books/thread";
-import { type Work, updateWorkChannels, updateWorkThread, workThread } from "@/books/work";
+import { type Work, updateCoworker, updateWorkChannels, updateWorkThread, workThread } from "@/books/work";
+import { coworkersFrom } from "@/books/directory";
+import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey } from "../coworkers";
 import { readChannel } from "../channels";
 import { readThread } from "../thread";
 
@@ -52,6 +55,26 @@ export default function WorkMessagesCheck({ onFinished }: WorkMessagesCheckProps
         });
         if (r.off) return onFinished("Messages are off on this server.");
         if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
+      }
+      // Coworkers: each one in each directory this person is listed in.
+      for (const [businessKey, identity] of Object.entries(latest.identities ?? {})) {
+        if (!identity.listed) continue;
+        for (const c of coworkersFrom(workThread(latest, businessKey))) {
+          if (c.publicKey === identity.publicKey) continue;
+          const key = await pairKey(identity, c.publicKey);
+          const r = await readThread({
+            client,
+            partiesKey: key,
+            reader: mySide(identity.publicKey, c.publicKey),
+            thread: latest.coworkers?.[c.publicKey],
+            kinds: COWORKER_KINDS,
+            accept: coworkerAccepts,
+            store: (item) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...addToThread(t, item) }))),
+            skip: (seq) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...skipIncoming(t, seq) }))),
+          });
+          if (r.off) return onFinished("Messages are off on this server.");
+          if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
+        }
       }
       onFinished(null);
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
