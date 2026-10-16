@@ -27,6 +27,7 @@ import {
   addToThread,
   isOfferStep,
   markDelivered,
+  markItemsRead,
   markThreadRead,
   preview,
   skipIncoming,
@@ -50,12 +51,14 @@ export type ConversationProps = {
   accept?: (body: ThreadBody) => boolean;
   /** Under the title, instead of "Sealed to the two of you". */
   subtitle?: ReactNode;
+  /** Which messages this screen shows (a coworker's group messages live in the group). */
+  show?: (item: ThreadItem) => boolean;
 };
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-export default function Conversation({ side, partiesKey, title, thread, update, offersHref, kinds, accept, subtitle }: ConversationProps) {
+export default function Conversation({ side, partiesKey, title, thread, update, offersHref, kinds, accept, subtitle, show }: ConversationProps) {
   const client = useMemo(() => new MailboxClient(), []);
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -90,13 +93,13 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
           await readReceipts(client, waiting, (heard) => update((t) => heard.reduce((acc, h) => markDelivered(acc, h.target, h.receivedAt), t)));
         }
       }
-      await update(markThreadRead);
+      await update((t) => (show ? markItemsRead(t, new Set(t.items.filter(show).map((i) => i.id))) : markThreadRead(t)));
     } catch (e) {
       setStatus(errorMessage(e));
     } finally {
       setChecking(false);
     }
-  }, [client, partiesKey, side, update, kinds, accept]);
+  }, [client, partiesKey, side, update, kinds, accept, show]);
 
   useEffect(() => {
     if (started.current) return;
@@ -105,7 +108,7 @@ export default function Conversation({ side, partiesKey, title, thread, update, 
   }, [check]);
 
   // The directory list the business passes on is bookkeeping, not conversation.
-  const items = (thread?.items ?? []).filter((i) => i.body.type !== "directory");
+  const items = (thread?.items ?? []).filter((i) => i.body.type !== "directory" && (!show || show(i)));
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
   }, [items.length]);

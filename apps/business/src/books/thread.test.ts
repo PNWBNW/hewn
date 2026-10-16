@@ -201,3 +201,17 @@ describe("directory messages in a thread", () => {
     expect(() => validateMessage(msg(7, "worker", { type: "directory", entries: [] }), "worker")).toThrow(/can't send/);
   });
 });
+
+describe("group messages in a thread", () => {
+  const a = "04" + "a".repeat(128);
+  const b = "04" + "b".repeat(128);
+  it("need an admin who is in the group, 2 to 25 people, and a real group id", () => {
+    const ok = { type: "group", groupId: "1".repeat(16), name: "Lunch", admin: a, members: [{ name: "A", publicKey: a }, { name: "B", publicKey: b }] };
+    expect(validateMessage(msg(1, "worker", ok), "worker").body.type).toBe("group");
+    expect(() => validateMessage(msg(2, "worker", { ...ok, admin: "04" + "c".repeat(128) }), "worker")).toThrow(/admin/);
+    expect(() => validateMessage(msg(3, "worker", { ...ok, members: [{ name: "A", publicKey: a }] }), "worker")).toThrow(/2 to 25/);
+    expect(() => validateMessage(msg(4, "worker", { ...ok, members: [{ name: "A", publicKey: a }, { name: "A again", publicKey: a }] }), "worker")).toThrow(/twice/);
+    expect(validateMessage(msg(5, "business", { type: "group_text", groupId: "1".repeat(16), text: "hi" }), "business").body.type).toBe("group_text");
+    expect(() => validateMessage(msg(6, "worker", { type: "group_text", groupId: "x", text: "hi" }), "worker")).toThrow(/group/);
+  });
+});

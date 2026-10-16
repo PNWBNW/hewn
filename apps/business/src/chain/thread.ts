@@ -13,7 +13,7 @@
 
 import { MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import { sendReceipt } from "./receipts";
-import { type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, newMessageId, validateMessage } from "../books/thread";
+import { GROUP_TYPES, type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, newMessageId, validateMessage } from "../books/thread";
 
 export const THREAD_KINDS: Record<Side, string> = { business: "thread_b", worker: "thread_w" };
 
@@ -30,6 +30,8 @@ export type PostInput = {
   partiesKey: string;
   from: Side;
   kinds?: ThreadKinds;
+  /** A fixed id, so one group message sent to each member is the same message everywhere. */
+  id?: string;
   /** The sender's next unused slot (Thread.nextOut). */
   nextOut: number;
   body: ThreadBody;
@@ -41,8 +43,8 @@ export type PostInput = {
  * is stepped over (the receiver keeps a message id once). Returns the
  * message as the sender's vault keeps it; throws on any other failure.
  */
-export async function postToThread({ client, partiesKey, from, nextOut, body, now, kinds }: PostInput): Promise<ThreadItem> {
-  const message: ThreadMessage = validateMessage({ version: 1, id: newMessageId(), from, sentAt: (now ?? (() => new Date()))().toISOString(), body }, from);
+export async function postToThread({ client, partiesKey, from, nextOut, body, now, kinds, id }: PostInput): Promise<ThreadItem> {
+  const message: ThreadMessage = validateMessage({ version: 1, id: id ?? newMessageId(), from, sentAt: (now ?? (() => new Date()))().toISOString(), body }, from);
   const bytes = new TextEncoder().encode(JSON.stringify(message));
   if (bytes.length > MAX_PAYLOAD_BYTES) throw new ThreadError("That message is too long to send");
   const kind = (kinds ?? THREAD_KINDS)[from];
@@ -114,7 +116,9 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
       let item: ThreadItem;
       try {
         const message = validateMessage(JSON.parse(new TextDecoder().decode(await open(key, kind, seq, bytes))), from);
-        if (accept && !accept(message.body)) throw new ThreadError("That kind of message doesn't belong in this conversation");
+        // Group chat kinds only travel between coworkers, under their own filter.
+        const allowed = accept ?? ((b: ThreadMessage["body"]) => !GROUP_TYPES.includes(b.type));
+        if (!allowed(message.body)) throw new ThreadError("That kind of message doesn't belong in this conversation");
         item = { ...message, mine: false, seq, receivedAt: stamp() };
       } catch (e) {
         result.skipped.push({ seq, message: e instanceof Error ? e.message : "The message couldn't be read" });

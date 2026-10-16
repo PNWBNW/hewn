@@ -23,6 +23,7 @@ import { employerLabel } from "../shared";
 const Conversation = dynamic(() => import("@/chain/Conversation"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const MessagesCheck = dynamic(() => import("@/chain/work/MessagesCheck"), { ssr: false });
 const Directory = dynamic(() => import("@/chain/work/Directory"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
+const GroupChat = dynamic(() => import("@/chain/work/GroupChat"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const CoworkerChat = dynamic(() => import("@/chain/work/CoworkerChat"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -41,6 +42,7 @@ function Messages() {
   const selected = params.get("with");
   const channelId = params.get("channel");
   const coworker = params.get("coworker");
+  const groupId = params.get("group");
   const at = params.get("at");
   const [check, setCheck] = useState<{ run: number } | { done: string | null }>({ run: 0 });
   const finished = useCallback((message: string | null) => setCheck({ done: message }), []);
@@ -77,6 +79,17 @@ function Messages() {
   // A coworker conversation: named by the coworker's tag and the agreement it's under, never by a key.
   const atBusiness = people.find((p) => p.ref === at);
   const mate = atBusiness && coworker ? coworkersFrom(workThread(work, atBusiness.partiesKey)).find((c) => coworkerTag(c.publicKey) === coworker) : undefined;
+  if (atBusiness && groupId) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+          <ChevronLeft aria-hidden className="size-4" /> All messages
+        </Link>
+        <GroupChat key={groupId} businessKey={atBusiness.partiesKey} groupId={groupId} />
+      </div>
+    );
+  }
+
   if (atBusiness && mate) {
     return (
       <div className="flex flex-col gap-4">

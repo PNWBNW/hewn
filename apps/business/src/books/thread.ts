@@ -58,7 +58,13 @@ export type ThreadBody =
   /** The person stops being findable. */
   | { type: "directory_leave" }
   /** The business passes on everyone who opted in: names and public keys, nothing else. */
-  | { type: "directory"; entries: { name: string; publicKey: string }[] };
+  | { type: "directory"; entries: { name: string; publicKey: string }[] }
+  /** Between coworkers: a group chat as its admin set it up (books/groups.ts). Sent to each member. */
+  | { type: "group"; groupId: string; name: string; admin: string; members: { name: string; publicKey: string }[] }
+  /** Between coworkers: one message in a group chat, sent to each member with the same id. */
+  | { type: "group_text"; groupId: string; text: string }
+  /** Between coworkers: leaving a group chat. */
+  | { type: "group_leave"; groupId: string };
 
 /** The messages that negotiate an offer. */
 export type OfferStep = Extract<ThreadBody, { type: "counter" | "stands" | "revised" }>;
@@ -93,7 +99,14 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   directory_join: "worker",
   directory_leave: "worker",
   directory: "business",
+  group: "either",
+  group_text: "either",
+  group_leave: "either",
 };
+
+/** The kinds that only travel between coworkers. */
+export const GROUP_TYPES: readonly ThreadBody["type"][] = ["group", "group_text", "group_leave"];
+export const MAX_GROUP = 25;
 
 /** A coworker's public key: an uncompressed P-256 point, hex. */
 export const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
@@ -194,6 +207,31 @@ function validateBody(raw: unknown): ThreadBody {
       });
       return { type: "directory", entries };
     }
+    case "group": {
+      const { groupId, name, admin, members } = raw;
+      if (typeof groupId !== "string" || !/^[0-9a-f]{16}$/.test(groupId)) throw new ThreadError("A group needs its id");
+      if (!Array.isArray(members) || members.length < 2 || members.length > MAX_GROUP) throw new ThreadError(`A group has 2 to ${MAX_GROUP} people`);
+      const seen = new Set<string>();
+      const list = members.map((m) => {
+        if (!isObject(m)) throw new ThreadError("Each group member must be an object");
+        const entry = { name: directoryName(m.name), publicKey: publicKey(m.publicKey) };
+        if (seen.has(entry.publicKey)) throw new ThreadError("Someone is in the group twice");
+        seen.add(entry.publicKey);
+        return entry;
+      });
+      const adminKey = publicKey(admin);
+      if (!seen.has(adminKey)) throw new ThreadError("A group's admin must be in it");
+      return { type: "group", groupId, name: directoryName(name), admin: adminKey, members: list };
+    }
+    case "group_text": {
+      if (typeof raw.groupId !== "string" || !/^[0-9a-f]{16}$/.test(raw.groupId)) throw new ThreadError("A group message needs its group");
+      if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
+      if ([...raw.text].length > MAX_TEXT_CHARS) throw new ThreadError(`A message can be at most ${MAX_TEXT_CHARS.toLocaleString("en-US")} characters`);
+      return { type: "group_text", groupId: raw.groupId, text: raw.text };
+    }
+    case "group_leave":
+      if (typeof raw.groupId !== "string" || !/^[0-9a-f]{16}$/.test(raw.groupId)) throw new ThreadError("Leaving needs the group");
+      return { type: "group_leave", groupId: raw.groupId };
     case "text": {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
       if ([...raw.text].length > MAX_TEXT_CHARS) throw new ThreadError(`A message can be at most ${MAX_TEXT_CHARS.toLocaleString("en-US")} characters`);
@@ -308,8 +346,15 @@ export function revisionOf(thread: Thread | undefined, newAgreementId: string): 
 
 // ---- Reading and receipts ----------------------------------------------------
 
-/** How many of their messages haven't been seen here. */
-export const unreadIn = (thread: Thread | undefined): number => thread?.items.filter((i) => !i.mine && !i.read).length ?? 0;
+/** How many of their messages haven't been seen here (only those `only` picks, when given). */
+export const unreadIn = (thread: Thread | undefined, only?: (item: ThreadItem) => boolean): number =>
+  thread?.items.filter((i) => !i.mine && !i.read && (!only || only(i))).length ?? 0;
+
+/** Marks some of their messages as seen. The same thread back when there was nothing to mark. */
+export function markItemsRead(thread: Thread, ids: ReadonlySet<string>): Thread {
+  if (!thread.items.some((i) => !i.mine && !i.read && ids.has(i.id))) return thread;
+  return { ...thread, items: thread.items.map((i) => (i.mine || i.read || !ids.has(i.id) ? i : { ...i, read: true as const })) };
+}
 
 /** Marks every one of their messages as seen. The same thread back when there was nothing to mark. */
 export function markThreadRead(thread: Thread): Thread {
@@ -335,6 +380,9 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "directory_join") return item.mine ? "You let coworkers find you" : "Joined the coworker directory";
   if (b.type === "directory_leave") return item.mine ? "You left the coworker directory" : "Left the coworker directory";
   if (b.type === "directory") return item.mine ? "You updated the coworker directory" : "Updated the coworker directory";
+  if (b.type === "group") return `Group: ${b.name}`;
+  if (b.type === "group_text") return (item.mine ? "You: " : "") + b.text.slice(0, 80);
+  if (b.type === "group_leave") return "Left a group";
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";
   return item.mine ? "You sent a revised offer" : "Sent a revised offer";

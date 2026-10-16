@@ -112,3 +112,14 @@ describe("messages and their receipts", () => {
     expect((await openReceipt(key, THREAD_KINDS.worker, 0, receipt!)).version).toBe(1);
   });
 });
+
+describe("group chat kinds", () => {
+  it("are refused in a business-and-person thread", async () => {
+    const box = fakeMailbox();
+    await postToThread({ client: box, partiesKey: KEY, from: "business", nextOut: 0, body: { type: "group_text", groupId: "1".repeat(16), text: "sneaky" } });
+    const s = side();
+    const r = await readThread({ client: box, partiesKey: KEY, reader: "worker", thread: s.thread, store: s.store, skip: s.skip });
+    expect(r.received).toEqual([]);
+    expect(r.skipped).toEqual([{ seq: 0, message: expect.stringMatching(/doesn't belong/) }]);
+  });
+});

@@ -2397,3 +2397,48 @@ THREAT_MODEL covers coworkers. Tests 791/791 (app 403, +10). Covered:
 
 **Next:** group chats (everyone can post): a group key handed out through the coworker or
 business threads, each member posting in their own slots.
+
+## 2026-10-16: Group chats between coworkers (messaging suite complete)
+
+Part 5, the last of the messaging suite.
+
+- **No group key.** Each group message goes to every member separately, through the private
+  coworker conversation the two already share, with the same message id everywhere
+  (`chain/groups.ts` `fanOut`). So:
+  - a member can't pass as someone else;
+  - the business can't read any of it;
+  - taking someone out means they simply get nothing new.
+
+  Groups hold at most 25 people (one send per member per message).
+- **New thread kinds**, between coworkers only:
+  - `group`: the admin's setup (name, members), sent to everyone before and after a change;
+  - `group_text`: a message;
+  - `group_leave`: someone leaving.
+
+  Business-and-person threads refuse all three; coworker threads accept them along with plain
+  messages.
+- **Rebuilding groups** (`books/groups.ts` `groupsFor`) from the coworker conversations:
+  - the latest setup that came from the admin themselves (a member can't fake one);
+  - messages deduped by id;
+  - who left, and nothing from a member after they leave.
+  - Unread counts per group.
+- **Screens.** Under Messages → Coworkers:
+  - **Group chats** with **New group** (name, pick coworkers).
+  - The group view shows who said what, a Send box, **People** for the admin, and **Leave the
+    group** for anyone.
+  - One-to-one coworker chats show only their own messages; group messages live in the group.
+  - `markItemsRead` marks a group's messages read in every conversation they came through.
+
+THREAT_MODEL covers group chats. Tests 796/796 (app 408, +5). End to end through a fake mailbox:
+- three coworkers; the group reaches all;
+- one message id for every copy;
+- a removed member sees they're out and gets nothing new;
+- a member's fake setup is ignored;
+- leaving works;
+- business threads refuse group messages.
+
+The messaging suite is complete: counter-offers, business ↔ team messages, announcement channels,
+the opt-in coworker directory with private coworker messages, and group chats.
+
+**Next:** the scale and hardening PR (Joshua to pick how the mailbox finds a pin: a hash-only
+index, or batching and caching within the no-database rule).

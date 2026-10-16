@@ -12,10 +12,13 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import type { Thread } from "@/books/thread";
+import type { Thread, ThreadItem } from "@/books/thread";
 import { updateCoworker } from "@/books/work";
 import Conversation from "../Conversation";
 import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey, safetyCode } from "../coworkers";
+
+/** Their one-to-one messages; group messages show in the group. */
+const onlyText = (i: ThreadItem) => i.body.type === "text";
 
 export type CoworkerChatProps = { businessKey: string; publicKey: string; name: string };
 
@@ -63,6 +66,7 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
         offersHref="/work/offers"
         kinds={COWORKER_KINDS}
         accept={coworkerAccepts}
+        show={onlyText}
         subtitle={
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             {verified ? <ShieldCheck aria-hidden className="size-3" /> : <Lock aria-hidden className="size-3" />}
