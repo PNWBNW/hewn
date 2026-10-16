@@ -2290,3 +2290,34 @@ Tests 766/766 (+4, in `offer.test.ts`):
 - the key goes on the chain, seals the terms and lands on the link;
 - a revision keeps it;
 - an old key is replaced and a malformed one refused.
+
+## 2026-10-16: Messages between a business and its team
+
+Joshua: the full messaging suite, starting with business ↔ team. The premium-tier line is to be
+drawn later.
+
+- **Plain messages on the existing thread** (`books/thread.ts`): a `text` message type, from
+  either side, up to 4,000 characters.
+  - Their messages carry a `read` mark; mine carry `receivedAt` from the other side's receipt
+    (`markDelivered`).
+  - Helpers for the screens: `unreadIn`, `markThreadRead`, `preview`, `revisionOf`.
+- **Receipts:** reading any thread message sends a receipt back (`chain/thread.ts`).
+  `awaitingReceipts` lists my latest 20 messages not yet heard back about.
+- **Conversation screen** (`chain/Conversation.tsx`, the same on both sides):
+  - Opening it reads their new messages, looks for receipts for mine, and marks theirs read.
+  - Bubbles for messages; a short card for each negotiation step, with "See the offer".
+  - A composer with Send. Under the last one of mine: "Sent" or "Received <time>".
+  - No Shield needed.
+- **Pages:**
+  - `/messages` (business): one conversation per team member, linked or with an offer out.
+  - `/work/messages` (person): one per business.
+  - Both lists show the latest message and an unread count. "Messages" is in both navs with an
+    unread badge.
+  - The address bar names a conversation by team member id or agreement id, never by its key.
+- **Mailbox feed:** keeps only offer and negotiation events; plain messages live in Messages.
+
+THREAT_MODEL covers messages. Tests 772/772 (app 384, +10). Screens are checked by typecheck and build;
+two accounts on two devices is the real test.
+
+**Next:** group messages and announcements (a group key per business, sent to each member
+through their own thread, replaced when someone leaves).

@@ -12,6 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { sendReceipt } from "./receipts";
 import { type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, newMessageId, validateMessage } from "../books/thread";
 
 export const THREAD_KINDS: Record<Side, string> = { business: "thread_b", worker: "thread_w" };
@@ -59,7 +60,8 @@ export async function postToThread({ client, partiesKey, from, nextOut, body, no
 }
 
 export type ReadInput = {
-  client: Pick<MailboxClient, "get" | "drop">;
+  /** With `put`, a receipt goes back for each message kept (receipts.ts). */
+  client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">>;
   partiesKey: string;
   /** Who is reading: their thread's incoming side is the other one. */
   reader: Side;
@@ -114,9 +116,18 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
       await store(item); // in the vault first…
       result.received.push(item);
       await client.drop(lookup).catch(() => {}); // …then the pin goes
+      if (client.put) await sendReceipt({ put: client.put.bind(client) }, partiesKey, kind, seq); // the sender learns it arrived
     }
   } finally {
     key.fill(0);
   }
   return result;
+}
+
+/** My messages the other side hasn't been heard to receive yet, as receipts to look for (receipts.ts). The latest `most`. */
+export function awaitingReceipts(thread: Thread | undefined, partiesKey: string, me: Side, most = 20): { partiesKey: string; kind: string; seq: number; target: number }[] {
+  return (thread?.items ?? [])
+    .filter((i) => i.mine && !i.receivedAt)
+    .slice(-most)
+    .map((i) => ({ partiesKey, kind: THREAD_KINDS[me], seq: i.seq, target: i.seq }));
 }

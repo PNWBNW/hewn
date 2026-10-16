@@ -93,6 +93,10 @@ describe("the mailbox feed", () => {
     const mailbox = { ...emptyMailbox(), threads: { ["11".repeat(32)]: { items: [item], nextIn: 1, nextOut: 0, workerId: "wkr-2" } } };
     const feed = buildFeed({ rail: rail(link({ linkedAt: "2026-10-03T08:00:00.000Z" })), payroll: payroll(), mailbox });
     expect(feed[0]).toMatchObject({ kind: "thread", workerName: "Bo Lind", partiesKey: "11".repeat(32), at: item.sentAt, item });
+    // Plain messages live in Messages, not here.
+    const text = { ...item, id: "4".repeat(32), sentAt: "2026-10-05T08:00:00.000Z", body: { type: "text" as const, text: "Hi" } };
+    const withText = { ...mailbox, threads: { ["11".repeat(32)]: { ...mailbox.threads["11".repeat(32)]!, items: [item, text] } } };
+    expect(buildFeed({ rail: null, payroll: payroll(), mailbox: withText }).filter((i) => i.kind === "thread")).toHaveLength(1);
   });
 
   it("leaves out offers and links it has no date for, and names a team member who's gone", () => {

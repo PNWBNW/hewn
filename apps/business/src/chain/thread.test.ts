@@ -1,9 +1,9 @@
 // The thread through a fake mailbox: each side writes its own slots, reads the
 // other's, keeps before it drops, and refuses what the other side may not send.
 import { describe, expect, it } from "vitest";
-import { MailboxError, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { MailboxError, lookupId, openReceipt, partiesKeyFromHex, receiptLookup, seal } from "@pnw/mailbox";
 import { type Proposal, type Thread, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
-import { THREAD_KINDS, postToThread, readThread } from "./thread";
+import { THREAD_KINDS, awaitingReceipts, postToThread, readThread } from "./thread";
 
 const KEY = "ab".repeat(32);
 const A = "aa".repeat(32);
@@ -95,5 +95,20 @@ describe("the thread through the mailbox", () => {
     expect(await readThread({ client: down, partiesKey: KEY, reader: "business", thread: undefined, store: s.store, skip: s.skip })).toMatchObject({ failed: "failed (502)" });
     const full = { put: async () => { throw new MailboxError("CONFLICT", "taken"); } };
     await expect(postToThread({ client: full, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "counter", agreementId: A, proposal: PROPOSAL, note: "" } })).rejects.toThrow(/free slot/);
+  });
+});
+
+describe("messages and their receipts", () => {
+  it("a message read here sends a receipt back, and the sender knows which to look for", async () => {
+    const box = fakeMailbox();
+    const worker = side();
+    worker.keep(await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "Running late" }, now: NOW }));
+    expect(awaitingReceipts(worker.thread, KEY, "worker")).toEqual([{ partiesKey: KEY, kind: THREAD_KINDS.worker, seq: 0, target: 0 }]);
+    const business = side();
+    await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip });
+    const key = partiesKeyFromHex(KEY);
+    const receipt = box.slots.get(receiptLookup(key, THREAD_KINDS.worker, 0));
+    expect(receipt).toBeDefined();
+    expect((await openReceipt(key, THREAD_KINDS.worker, 0, receipt!)).version).toBe(1);
   });
 });
