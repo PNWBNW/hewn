@@ -18,7 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import { formatCents, parseCents } from "@pnw/ledger";
-import { type Letter, LETTER_SECTIONS, validateLetter } from "./offer_letter";
+import { LETTER_LABEL, type Letter, letterText, validateLetter } from "./offer_letter";
 import { longDate, payLine } from "./terms_words";
 
 export type Side = "business" | "worker";
@@ -390,7 +390,7 @@ export function preview(item: ThreadItem | undefined): string {
 
 // ---- What changed ----------------------------------------------------------
 
-export type Change = { field: keyof Proposal | `letter.${keyof Letter}`; label: string; was: string; wants: string };
+export type Change = { field: keyof Proposal; label: string; was: string; wants: string };
 
 const FREQUENCY_LABEL: Record<Frequency, string> = { weekly: "Every week", biweekly: "Every two weeks", semimonthly: "Twice a month", monthly: "Every month" };
 
@@ -404,9 +404,10 @@ export function proposalChanges(from: Proposal, to: Proposal): Change[] {
   if (from.frequency !== to.frequency) out.push({ field: "frequency", label: "Paid", was: FREQUENCY_LABEL[from.frequency], wants: FREQUENCY_LABEL[to.frequency] });
   if (from.startDate !== to.startDate) out.push({ field: "startDate", label: "Start date", was: from.startDate, wants: to.startDate });
   if (from.termsText !== to.termsText) out.push({ field: "termsText", label: "Terms", was: from.termsText, wants: to.termsText });
-  for (const s of LETTER_SECTIONS) {
-    if (from.letter[s.key] !== to.letter[s.key]) out.push({ field: `letter.${s.key}`, label: s.label, was: from.letter[s.key], wants: to.letter[s.key] });
-  }
+  // The letter as one text, as the single box shows it.
+  const was = letterText(from.letter);
+  const wants = letterText(to.letter);
+  if (was !== wants) out.push({ field: "letter", label: LETTER_LABEL, was, wants });
   return out;
 }
 

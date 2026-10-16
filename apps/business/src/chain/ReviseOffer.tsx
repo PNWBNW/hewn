@@ -5,8 +5,8 @@
 // accept their changes as they asked, or counter back with your own. The
 // offer on the chain can't be edited, so a revision is the old offer
 // withdrawn (`terminate_employer_open`, one Shield approval) and a new one
-// sent in its place (`create_offer_open`, a second), with the same letter
-// files. Then a note in the thread tells the person which offer replaced
+// sent in its place (`create_offer_open`, a second). It carries no files
+// (offers no longer do). Then a note in the thread tells the person which offer replaced
 // which, and the team member's pay in these books follows the offer.
 //
 // Loaded only when tapped. Nothing here logs a key, an address or a term.
@@ -28,7 +28,6 @@ import { addLink, linkFor, removeLink, shortAddress } from "@/books/rail";
 import { MAX_NOTE_CHARS, type Proposal, addToThread, proposalChanges, proposalOf } from "@/books/thread";
 import { ShieldStatus } from "./ShieldStatus";
 import { type OfferStage, fetchLatestHeight, sendOffer, withdrawOffer } from "./offer";
-import { type PickedFile, pickFile } from "./offer_files";
 import { useShield } from "./shield";
 import { postToThread } from "./thread";
 
@@ -70,7 +69,7 @@ const addDays = (date: string, days: number) => {
 };
 
 function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOfferProps) {
-  const { books, payroll, rail, mailbox, updateCompany, readAttachment, discardAttachment } = useOpenBooks();
+  const { books, payroll, rail, mailbox, updateCompany, discardAttachment } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
   const client = useMemo(() => new MailboxClient(), []);
   const link = rail ? linkFor(rail, workerId) : undefined;
@@ -117,8 +116,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
   const parsed = mode === "accept" ? { proposal } : proposalFromDraft(draft);
   const revised = "proposal" in parsed ? parsed.proposal : null;
   const changes = revised ? proposalChanges(current, revised) : [];
-  const files = link.terms.version === 2 ? link.terms.files : [];
-  const filesKept = files.length === 0 || (link.offerFiles?.length ?? 0) === files.length;
+  const hadFiles = link.terms.version === 2 && link.terms.files.length > 0;
 
   async function send() {
     if (!revised || !rail?.businessNameHash || !link?.terms || !worker || !address) return;
@@ -132,25 +130,13 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
       },
       transactionStatus: (id: string) => wallet.transactionStatus(id),
     };
-    // The letter's files go with the revision: the same bytes, from these books.
-    const picked: PickedFile[] = [];
-    try {
-      if (filesKept) {
-        for (const ref of old.offerFiles ?? []) {
-          const bytes = new Uint8Array(await (await readAttachment(ref)).arrayBuffer());
-          picked.push(await pickFile(ref.name, ref.type, bytes));
-        }
-      }
-    } catch (e) {
-      setError(`The offer's files couldn't be read from these books: ${errorMessage(e)}`);
-      return;
-    }
-
     // 1. The current offer comes off the chain.
     setStage("withdrawing");
     try {
       await withdrawOffer({ link: old, employerNameHash: rail.businessNameHash, wallet: shield, client });
       await updateCompany((c) => (c.rail ? { ...c, rail: removeLink(c.rail, workerId) } : c));
+      // Its files (from before offers stopped carrying them) go with it.
+      for (const ref of old.offerFiles ?? []) await discardAttachment(ref.attachmentId).catch(() => {});
     } catch (e) {
       setError(errorMessage(e));
       setStage(null);
@@ -170,7 +156,6 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         industryCode,
         termsText: revised.termsText,
         letter: revised.letter,
-        files: picked,
         expiresInDays,
         // The same secret key as before, so the conversation carries on (a key from before keys were random is replaced).
         ...(old.partiesKey ? { partiesKey: old.partiesKey } : {}),
@@ -182,12 +167,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         wallet: shield,
         onProgress: setStage,
       });
-      const fresh = {
-        ...sent.link,
-        terms: sent.terms,
-        offerInputs: { industryCode, reviewDate, endDate },
-        ...(picked.length > 0 && old.offerFiles ? { offerFiles: old.offerFiles } : {}),
-      };
+      const fresh = { ...sent.link, terms: sent.terms, offerInputs: { industryCode, reviewDate, endDate } };
+
       await updateCompany((c) => ({
         ...c,
         rail: c.rail ? addLink(c.rail, fresh) : c.rail,
@@ -213,7 +194,6 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
       }
     } catch (e) {
       // The old offer is gone; without the new one the person is simply typed again.
-      for (const ref of old.offerFiles ?? []) await discardAttachment(ref.attachmentId).catch(() => {});
       setError(`The current offer was withdrawn, but the revised one didn't go out: ${errorMessage(e)} Send a new offer from Team.`);
     } finally {
       setStage(null);
@@ -263,7 +243,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
       <Field label="A note to them (optional)">
         <textarea className={`${inputClass} h-auto min-h-20 py-2`} rows={3} maxLength={MAX_NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
-      {!filesKept && <p className="text-xs text-muted-foreground">The current offer&apos;s files aren&apos;t saved in these books, so the revised offer goes without them.</p>}
+      {hadFiles && <p className="text-xs text-muted-foreground">Offers no longer carry files, so the revised offer goes without the current one&apos;s. Paste anything they need into the offer letter.</p>}
       <p className="text-xs text-muted-foreground">
         Shield asks twice: first to withdraw the current offer, then to send the revised one. Their pay in Payroll changes to match. The business pays both
         network fees.

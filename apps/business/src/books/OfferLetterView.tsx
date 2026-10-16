@@ -3,9 +3,10 @@
 // ---------------------------------------------------------------------------
 // The offer letter on screen, the same on every page that shows one: the
 // business's review before sending, its saved copy on the team list, and the
-// person's offer and agreement. Sections the business left empty don't show.
-// Files are opened on this device only: the bytes come from the vault (or
-// the business's own picked file, before sending) into a temporary link that
+// person's offer and agreement. A letter written in the single box shows as
+// "Offer letter"; an older one shows each section it has under its heading.
+// Files (only on offers sent before files were dropped) are opened on this
+// device only: the bytes come from the vault into a temporary link that
 // saves the file; nothing is framed or uploaded.
 // ---------------------------------------------------------------------------
 
@@ -13,18 +14,19 @@ import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "./AuthCard";
-import { LETTER_SECTIONS, type Letter, type OfferFile, fileLabel } from "./offer_letter";
+import { LETTER_LABEL, LETTER_SECTIONS, type Letter, type OfferFile, fileLabel } from "./offer_letter";
 
-/** The letter's sections the business wrote, each under its heading. */
+/** The letter the business wrote: the single box as "Offer letter", or an older letter's sections, each under its heading. */
 export function LetterSections({ letter }: { letter: Letter | undefined }) {
   if (!letter) return null;
   const written = LETTER_SECTIONS.filter((s) => letter[s.key].trim() !== "");
   if (written.length === 0) return null;
+  const single = written.length === 1 && written[0]!.key === "description";
   return (
     <div className="flex flex-col gap-3">
       {written.map((s) => (
         <section key={s.key} className="flex flex-col gap-1">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{s.label}</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{single ? LETTER_LABEL : s.label}</h4>
           <p className="whitespace-pre-wrap text-sm">{letter[s.key]}</p>
         </section>
       ))}

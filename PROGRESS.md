@@ -2547,3 +2547,29 @@ Open for Joshua:
 - the chat length limit.
 
 Tests: unchanged (docs only).
+
+## 2026-10-16: Offers without files, one big letter box
+
+Joshua: remove PDFs, and give the offer a bigger text box so a business can paste everything in
+the simplest way. Files are also too big for letters on chain (`docs/LETTERS.md`).
+
+- **Offer form:** the four letter sections and the file picker are gone. In their place is one
+  "Offer letter" box: 14 rows, resizable, up to 20,000 characters, with a counter. Its text is
+  written into the letter's `description`.
+- **Letter format:** unchanged (terms version 2, four sections, `files: []`), so offers already
+  sent and accepted read as before. A letter written in the one box shows as "Offer letter"; an
+  older one shows each of its sections under its heading (`LetterSections`).
+- **Counter-offers:** the editor's four section boxes are one "Offer letter" box.
+  `proposalChanges` compares the letter as one text (`letterText`: an older letter's sections
+  joined under their headings), with the field `letter` and the label "Offer letter".
+- **Revised offers:** these carry no files. An older offer's saved files are discarded once it is
+  withdrawn, and the screen says the revision goes without them.
+- **Older offers:** a person can still fetch and check an older offer's files, and withdrawing one
+  still clears its pieces (`chain/offer_files.ts`, now marked legacy).
+- **Docs:** THREAT_MODEL (files only on older offers), LETTERS (decided: no files; the long-letter
+  size on chain), BUILD_PLAN decision.
+
+Next (separate PR): specific boxes in the offer for pay, pay period, employment type and hours,
+each negotiable in a counter-offer.
+
+Tests: app 409 (offer tests rewritten without files; 2 new for the single box).
