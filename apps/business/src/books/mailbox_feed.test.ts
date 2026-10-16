@@ -88,6 +88,13 @@ describe("the mailbox feed", () => {
     expect(feed.find((i) => i.kind === "paystub")).toMatchObject({ receivedAt: "2026-10-10T07:00:00.000Z" });
   });
 
+  it("lists the conversation with each person, by when each message was sent", () => {
+    const item = { version: 1 as const, id: "3".repeat(32), from: "worker" as const, sentAt: "2026-10-04T08:00:00.000Z", body: { type: "stands" as const, agreementId: "ab".repeat(32), note: "" }, mine: false, seq: 0 };
+    const mailbox = { ...emptyMailbox(), threads: { ["11".repeat(32)]: { items: [item], nextIn: 1, nextOut: 0, workerId: "wkr-2" } } };
+    const feed = buildFeed({ rail: rail(link({ linkedAt: "2026-10-03T08:00:00.000Z" })), payroll: payroll(), mailbox });
+    expect(feed[0]).toMatchObject({ kind: "thread", workerName: "Bo Lind", partiesKey: "11".repeat(32), at: item.sentAt, item });
+  });
+
   it("leaves out offers and links it has no date for, and names a team member who's gone", () => {
     const feed = buildFeed({
       rail: rail(link({ status: "offered" }), link({ workerId: "wkr-9", agreementId: "99".repeat(32) })),

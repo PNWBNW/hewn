@@ -27,7 +27,7 @@ import { type RailLink, isRailAddress } from "../books/rail";
 import { bareDirectoryName } from "./directory";
 import { byteArrayHex } from "./parties_key";
 import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
-import { type PickedFile, offerFileLookups, sendOfferFiles } from "./offer_files";
+import { type PickedFile, offerFileLookups, offerTermsKind, sendOfferFiles } from "./offer_files";
 import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
 
 export class OfferError extends Error {
@@ -345,7 +345,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   const key = partiesKeyFromHex(partiesKey);
   let sealed;
   try {
-    sealed = await seal(key, KINDS.terms, TERMS_SLOT, new TextEncoder().encode(canonical));
+    sealed = await seal(key, offerTermsKind(bareHex(computed.agreement_id)), TERMS_SLOT, new TextEncoder().encode(canonical));
   } finally {
     key.fill(0);
   }
@@ -432,15 +432,16 @@ export async function withdrawOffer(input: WithdrawInput): Promise<string> {
 }
 
 /** Every mailbox slot an offer uses: its terms, and its files' pieces. */
-export function offerLookups(link: Pick<RailLink, "partiesKey" | "terms">): string[] {
+export function offerLookups(link: Pick<RailLink, "partiesKey" | "terms" | "agreementId">): string[] {
   if (!link.partiesKey) return [];
   const key = partiesKeyFromHex(link.partiesKey);
-  let terms: string;
+  let terms: string[];
   try {
-    terms = lookupId(key, KINDS.terms, TERMS_SLOT);
+    // Its own slot, and the shared slot 0 offers used before (only ever this person's older offer from this business).
+    terms = [lookupId(key, offerTermsKind(link.agreementId), TERMS_SLOT), lookupId(key, KINDS.terms, TERMS_SLOT)];
   } finally {
     key.fill(0);
   }
   const t = link.terms;
-  return t?.version === 2 && t.files.length > 0 ? [terms, ...offerFileLookups(link.partiesKey, t.agreementId, t.files)] : [terms];
+  return t?.version === 2 && t.files.length > 0 ? [...terms, ...offerFileLookups(link.partiesKey, t.agreementId, t.files)] : terms;
 }

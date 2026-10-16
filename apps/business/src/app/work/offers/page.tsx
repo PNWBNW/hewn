@@ -14,8 +14,10 @@ import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { PageHeader } from "@/shell/SectionView";
 import type { AttachmentRef } from "@pnw/sales";
 import { type OfferFile, isExpired } from "@/books/offer_letter";
-import type { WorkAgreement } from "@/books/work";
-import { RailNeeded, STATUS_LABEL, employerLabel, payLine, registeredLabel, when } from "../shared";
+import { type WorkAgreement, workThread } from "@/books/work";
+import { QuotedNote } from "@/books/NegotiationView";
+import { type Thread, answerFor, openCounter } from "@/books/thread";
+import { RailNeeded, employerLabel, payLine, registeredLabel, statusLabel, when } from "../shared";
 
 const OffersPanel = dynamic(() => import("@/chain/work/Offers"), {
   ssr: false,
@@ -58,7 +60,7 @@ export default function OffersPage() {
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="font-medium">{employerLabel(a)}</span>
                     <span className={cn("shrink-0 text-xs", a.status === "pending" && !lapsed(a) ? "text-primary" : "text-muted-foreground")}>
-                      {lapsed(a) ? "Expired" : STATUS_LABEL[a.status]}
+                      {lapsed(a) ? "Expired" : statusLabel(a)}
                     </span>
                   </div>
                   {a.terms?.businessName && <div className="text-xs text-muted-foreground">{registeredLabel(a)}</div>}
@@ -78,6 +80,7 @@ export default function OffersPage() {
                   ) : (
                     <div className="text-xs text-muted-foreground">{a.status === "pending" ? "Tap Check for offers to read the terms." : "Terms not on this device."}</div>
                   )}
+                  <Negotiation agreement={a} thread={workThread(work, a.partiesKey)} />
                   {a.acceptedAt && <div className="text-xs text-muted-foreground">Accepted {when(a.acceptedAt)}</div>}
                 </li>
               ))}
@@ -86,6 +89,31 @@ export default function OffersPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** Where asking for changes stands on this offer, from the thread with the business. */
+function Negotiation({ agreement: a, thread }: { agreement: WorkAgreement; thread: Thread | undefined }) {
+  const who = employerLabel(a);
+  const counter = openCounter(thread, a.agreementId);
+  const answer = answerFor(thread, a.agreementId);
+  const revised = thread?.items.find((i) => i.body.type === "revised" && i.body.newAgreementId === a.agreementId);
+  return (
+    <>
+      {revised && (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs font-medium">Revised offer, in answer to the changes you asked for.</p>
+          <QuotedNote who={who} text={revised.body.note} />
+        </div>
+      )}
+      {answer?.body.type === "stands" && (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs">They kept this offer as it is.</p>
+          <QuotedNote who={who} text={answer.body.note} />
+        </div>
+      )}
+      {a.status === "pending" && counter && <p className="text-xs text-muted-foreground">You asked for changes on {counter.sentAt.slice(0, 10)}. Waiting for their answer.</p>}
+    </>
   );
 }
 

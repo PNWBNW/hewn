@@ -1,0 +1,122 @@
+// ---------------------------------------------------------------------------
+// The thread between a business and one person, through the mailbox. Each
+// side writes its own numbered slots (kind `thread_b` for the business,
+// `thread_w` for the person), sealed with the pair's parties key, and reads
+// the other side's from its next unread slot up to the first empty one.
+// Two sequences, not one shared: neither side ever writes where the other
+// might, and a receiver dropping what it has read never leaves a hole in a
+// sequence it still scans.
+//
+// The messages themselves, and what each side may send, are books/thread.ts.
+// Nothing here logs a key, a lookup or a message.
+// ---------------------------------------------------------------------------
+
+import { MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, newMessageId, validateMessage } from "../books/thread";
+
+export const THREAD_KINDS: Record<Side, string> = { business: "thread_b", worker: "thread_w" };
+
+const other = (side: Side): Side => (side === "business" ? "worker" : "business");
+
+/** How many taken slots a send steps over before giving up (another device of the same side, or an earlier try). */
+const MAX_TAKEN = 8;
+
+export type PostInput = {
+  client: Pick<MailboxClient, "put">;
+  partiesKey: string;
+  from: Side;
+  /** The sender's next unused slot (Thread.nextOut). */
+  nextOut: number;
+  body: ThreadBody;
+  now?: () => Date;
+};
+
+/**
+ * Seals one message into the sender's next free slot. A slot already taken
+ * is stepped over (the receiver keeps a message id once). Returns the
+ * message as the sender's vault keeps it; throws on any other failure.
+ */
+export async function postToThread({ client, partiesKey, from, nextOut, body, now }: PostInput): Promise<ThreadItem> {
+  const message: ThreadMessage = validateMessage({ version: 1, id: newMessageId(), from, sentAt: (now ?? (() => new Date()))().toISOString(), body }, from);
+  const bytes = new TextEncoder().encode(JSON.stringify(message));
+  if (bytes.length > MAX_PAYLOAD_BYTES) throw new ThreadError("That message is too long to send");
+  const kind = THREAD_KINDS[from];
+  const key = partiesKeyFromHex(partiesKey);
+  try {
+    for (let seq = nextOut; seq < nextOut + MAX_TAKEN; seq++) {
+      const sealed = await seal(key, kind, seq, bytes);
+      try {
+        await client.put(sealed.lookup, sealed.envelope);
+        return { ...message, mine: true, seq };
+      } catch (e) {
+        if (!(e instanceof MailboxError && e.code === "CONFLICT")) throw e;
+      }
+    }
+  } finally {
+    key.fill(0);
+  }
+  throw new ThreadError("Couldn't find a free slot for the message; try again");
+}
+
+export type ReadInput = {
+  client: Pick<MailboxClient, "get" | "drop">;
+  partiesKey: string;
+  /** Who is reading: their thread's incoming side is the other one. */
+  reader: Side;
+  thread: Thread | undefined;
+  /** Keeps one message in the vault (and moves the slot on). Called before its pin is dropped. */
+  store: (item: ThreadItem) => Promise<void>;
+  /** Moves past a slot that couldn't be read. */
+  skip: (seq: number) => Promise<void>;
+  now?: () => string;
+  /** The most slots read in one go. */
+  limit?: number;
+};
+
+export type ReadResult = {
+  received: ThreadItem[];
+  skipped: { seq: number; message: string }[];
+  /** The host has no mailbox (503): nothing was read. */
+  off: boolean;
+  /** A read failed for another reason; it stopped there. */
+  failed?: string;
+};
+
+/** Reads every new message from the other side. Never throws; the result says what happened. */
+export async function readThread({ client, partiesKey, reader, thread, store, skip, now, limit }: ReadInput): Promise<ReadResult> {
+  const from = other(reader);
+  const kind = THREAD_KINDS[from];
+  const stamp = now ?? (() => new Date().toISOString());
+  const result: ReadResult = { received: [], skipped: [], off: false };
+  const key = partiesKeyFromHex(partiesKey);
+  try {
+    let seq = thread?.nextIn ?? 0;
+    for (let read = 0; read < (limit ?? 100); read++, seq++) {
+      const lookup = lookupId(key, kind, seq);
+      let bytes: Uint8Array | null;
+      try {
+        bytes = await client.get(lookup);
+      } catch (e) {
+        if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") result.off = true;
+        else result.failed = e instanceof Error ? e.message : "The mailbox couldn't be read";
+        return result;
+      }
+      if (!bytes) break; // the end of their side
+      let item: ThreadItem;
+      try {
+        const message = validateMessage(JSON.parse(new TextDecoder().decode(await open(key, kind, seq, bytes))), from);
+        item = { ...message, mine: false, seq, receivedAt: stamp() };
+      } catch (e) {
+        result.skipped.push({ seq, message: e instanceof Error ? e.message : "The message couldn't be read" });
+        await skip(seq);
+        continue; // the pin stays: nothing of it is in the vault
+      }
+      await store(item); // in the vault first…
+      result.received.push(item);
+      await client.drop(lookup).catch(() => {}); // …then the pin goes
+    }
+  } finally {
+    key.fill(0);
+  }
+  return result;
+}

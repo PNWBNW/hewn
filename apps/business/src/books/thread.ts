@@ -1,0 +1,293 @@
+// ---------------------------------------------------------------------------
+// The conversation between a business and one person (Joshua, 2026-10-16),
+// starting with negotiating an offer. One thread per pair, kept in each
+// side's vault; it carries typed messages so later kinds (plain messages)
+// join the same thread.
+//
+// Negotiating, in short: the offer on the chain is always the business's
+// current position. The person can ask for changes (`counter`: the terms as
+// they'd like them, plus a note). The business answers by keeping the
+// original (`stands`) or by sending a revised offer (`revised`: the old one
+// withdrawn, a new one in its place, which the person accepts or counters in
+// turn). Nothing in the thread signs anything: only accepting an offer on
+// the chain does.
+//
+// Everything that arrives came from the other person's device, so it is
+// checked field by field before it is kept, and each side may only send its
+// own kinds of message. Pure: no I/O, no React.
+// ---------------------------------------------------------------------------
+
+import { formatCents, parseCents } from "@pnw/ledger";
+import { type Letter, LETTER_SECTIONS, validateLetter } from "./offer_letter";
+import { longDate, payLine } from "./terms_words";
+
+export type Side = "business" | "worker";
+
+const PAY_TYPES = ["hourly", "salary"] as const;
+const FREQUENCIES = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
+type PayType = (typeof PAY_TYPES)[number];
+type Frequency = (typeof FREQUENCIES)[number];
+
+/** An offer's terms as the person would like them: what a counter-offer carries. */
+export type Proposal = {
+  payType: PayType;
+  /** Cents, as a decimal string: per hour when hourly, per year when salaried. */
+  rate: string;
+  frequency: Frequency;
+  /** YYYY-MM-DD */
+  startDate: string;
+  termsText: string;
+  letter: Letter;
+};
+
+export type ThreadBody =
+  /** The person asks for changes to the offer `agreementId`. */
+  | { type: "counter"; agreementId: string; proposal: Proposal; note: string }
+  /** The business keeps the offer `agreementId` as it is. */
+  | { type: "stands"; agreementId: string; note: string }
+  /** The business withdrew the offer `agreementId` and sent `newAgreementId` in its place. */
+  | { type: "revised"; agreementId: string; newAgreementId: string; note: string };
+
+export type ThreadMessage = { version: 1; id: string; from: Side; sentAt: string; body: ThreadBody };
+
+/** A message as a vault keeps it: whose it is, and the slot it travelled in. */
+export type ThreadItem = ThreadMessage & { mine: boolean; seq: number; receivedAt?: string };
+
+export type Thread = {
+  items: ThreadItem[];
+  /** The other side's next unread slot. */
+  nextIn: number;
+  /** This side's next unused slot. */
+  nextOut: number;
+};
+
+/** Who may send what. */
+export const SENDS: Record<ThreadBody["type"], Side> = { counter: "worker", stands: "business", revised: "business" };
+
+export const MAX_NOTE_CHARS = 2_000;
+const MAX_TERMS_CHARS = 20_000;
+const MAX_SEQ = 0xffff_ffff;
+const HEX = /^[0-9a-f]{16,64}$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export class ThreadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ThreadError";
+  }
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isStamp = (v: unknown): v is string => typeof v === "string" && v.length <= 40 && !Number.isNaN(Date.parse(v));
+const isSeq = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= MAX_SEQ;
+
+function note(v: unknown): string {
+  if (typeof v !== "string") throw new ThreadError("A note must be text");
+  if ([...v].length > MAX_NOTE_CHARS) throw new ThreadError(`A note can be at most ${MAX_NOTE_CHARS.toLocaleString("en-US")} characters`);
+  return v;
+}
+
+function agreementId(v: unknown): string {
+  if (typeof v !== "string" || !HEX.test(v)) throw new ThreadError("A message must name its offer");
+  return v;
+}
+
+/** Checks a proposal and returns a clean copy, keys in a fixed order. */
+export function validateProposal(raw: unknown): Proposal {
+  if (!isObject(raw)) throw new ThreadError("The proposed terms must be an object");
+  const { payType, rate, frequency, startDate, termsText, letter } = raw;
+  if (!PAY_TYPES.includes(payType as PayType)) throw new ThreadError("The proposed pay type isn't hourly or salary");
+  if (typeof rate !== "string" || !/^\d{1,12}$/.test(rate) || BigInt(rate) <= 0n) throw new ThreadError("The proposed pay must be a positive amount");
+  if (!FREQUENCIES.includes(frequency as Frequency)) throw new ThreadError("The proposed pay frequency isn't one this app knows");
+  if (typeof startDate !== "string" || !DATE.test(startDate) || Number.isNaN(Date.parse(`${startDate}T00:00:00Z`))) throw new ThreadError("The proposed start date isn't a date");
+  if (typeof termsText !== "string" || !termsText.trim()) throw new ThreadError("The proposed terms are empty");
+  if ([...termsText].length > MAX_TERMS_CHARS) throw new ThreadError("The proposed terms are too long");
+  let cleanLetter: Letter;
+  try {
+    cleanLetter = validateLetter(letter);
+  } catch (e) {
+    throw new ThreadError(e instanceof Error ? e.message : "The proposed letter isn't valid");
+  }
+  return { payType: payType as PayType, rate, frequency: frequency as Frequency, startDate, termsText, letter: cleanLetter };
+}
+
+function validateBody(raw: unknown): ThreadBody {
+  if (!isObject(raw)) throw new ThreadError("A message must have a body");
+  switch (raw.type) {
+    case "counter":
+      return { type: "counter", agreementId: agreementId(raw.agreementId), proposal: validateProposal(raw.proposal), note: note(raw.note) };
+    case "stands":
+      return { type: "stands", agreementId: agreementId(raw.agreementId), note: note(raw.note) };
+    case "revised":
+      return { type: "revised", agreementId: agreementId(raw.agreementId), newAgreementId: agreementId(raw.newAgreementId), note: note(raw.note) };
+    default:
+      throw new ThreadError("That kind of message isn't one this app knows");
+  }
+}
+
+/** Checks a message that arrived from `from`: a known kind, one that side may send, every field in shape. */
+export function validateMessage(raw: unknown, from: Side): ThreadMessage {
+  if (!isObject(raw)) throw new ThreadError("A message must be an object");
+  if (raw.version !== 1) throw new ThreadError("Unknown message version");
+  if (raw.from !== from) throw new ThreadError("The message says it's from the wrong side");
+  if (typeof raw.id !== "string" || !/^[0-9a-f]{32}$/.test(raw.id)) throw new ThreadError("A message needs an id");
+  if (!isStamp(raw.sentAt)) throw new ThreadError("A message needs the time it was sent");
+  const body = validateBody(raw.body);
+  if (SENDS[body.type] !== from) throw new ThreadError("That side can't send that kind of message");
+  return { version: 1, id: raw.id, from, sentAt: raw.sentAt, body };
+}
+
+function validateItem(raw: unknown): ThreadItem {
+  if (!isObject(raw)) throw new ThreadError("Each message must be an object");
+  const from = raw.from === "business" || raw.from === "worker" ? raw.from : null;
+  if (!from) throw new ThreadError("Each message needs its side");
+  const m = validateMessage(raw, from);
+  if (typeof raw.mine !== "boolean") throw new ThreadError("Each message must say whose it is");
+  if (!isSeq(raw.seq)) throw new ThreadError("A slot must be a whole number");
+  const item: ThreadItem = { ...m, mine: raw.mine, seq: raw.seq };
+  if (raw.receivedAt !== undefined) {
+    if (!isStamp(raw.receivedAt)) throw new ThreadError("A message's arrival time isn't a time");
+    item.receivedAt = raw.receivedAt;
+  }
+  return item;
+}
+
+export const emptyThread = (): Thread => ({ items: [], nextIn: 0, nextOut: 0 });
+
+/** Checks a thread from the vault: every message, and both slots. */
+export function validateThread(raw: unknown): Thread {
+  if (!isObject(raw)) throw new ThreadError("A thread must be an object");
+  if (!Array.isArray(raw.items)) throw new ThreadError("A thread's messages must be a list");
+  if (!isSeq(raw.nextIn) || !isSeq(raw.nextOut)) throw new ThreadError("A thread's slots must be whole numbers");
+  const byId = new Map<string, ThreadItem>();
+  for (const item of raw.items.map(validateItem)) byId.set(item.id, item);
+  return { items: [...byId.values()].sort(byTime), nextIn: raw.nextIn, nextOut: raw.nextOut };
+}
+
+const byTime = (a: ThreadItem, b: ThreadItem) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.id < b.id ? -1 : 1);
+
+/** Keeps one message (the same id twice is kept once) and moves the right slot past it. */
+export function addToThread(thread: Thread, item: ThreadItem): Thread {
+  const fresh = validateItem(item);
+  const items = [...thread.items.filter((i) => i.id !== fresh.id), fresh].sort(byTime);
+  return fresh.mine
+    ? { ...thread, items, nextOut: Math.max(thread.nextOut, fresh.seq + 1) }
+    : { ...thread, items, nextIn: Math.max(thread.nextIn, fresh.seq + 1) };
+}
+
+/** Moves past an incoming slot that couldn't be read. */
+export function skipIncoming(thread: Thread, seq: number): Thread {
+  if (!isSeq(seq)) throw new ThreadError("A slot must be a whole number");
+  return { ...thread, nextIn: Math.max(thread.nextIn, seq + 1) };
+}
+
+/** A fresh message id: 16 random bytes, hex. */
+export function newMessageId(): string {
+  const b = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+// ---- Reading a thread ------------------------------------------------------
+
+type Counter = ThreadItem & { body: Extract<ThreadBody, { type: "counter" }> };
+
+/** The person's latest request for changes to `agreementId` that the business hasn't answered, if any. */
+export function openCounter(thread: Thread | undefined, agreementId: string): Counter | undefined {
+  if (!thread) return undefined;
+  let open: Counter | undefined;
+  for (const item of thread.items) {
+    const b = item.body;
+    if (b.agreementId !== agreementId) continue;
+    if (b.type === "counter") open = item as Counter;
+    else open = undefined; // answered
+  }
+  return open;
+}
+
+/** The business's answer to `agreementId`, if it gave one. */
+export function answerFor(thread: Thread | undefined, agreementId: string): (ThreadItem & { body: Exclude<ThreadBody, { type: "counter" }> }) | undefined {
+  return thread?.items.filter((i) => i.body.agreementId === agreementId && i.body.type !== "counter").at(-1) as
+    | (ThreadItem & { body: Exclude<ThreadBody, { type: "counter" }> })
+    | undefined;
+}
+
+/** The offer `newAgreementId` replaced, if the thread says it was a revision. */
+export function revisedFrom(thread: Thread | undefined, newAgreementId: string): string | undefined {
+  const item = thread?.items.find((i) => i.body.type === "revised" && i.body.newAgreementId === newAgreementId);
+  return item?.body.agreementId;
+}
+
+// ---- What changed ----------------------------------------------------------
+
+export type Change = { field: keyof Proposal | `letter.${keyof Letter}`; label: string; was: string; wants: string };
+
+const FREQUENCY_LABEL: Record<Frequency, string> = { weekly: "Every week", biweekly: "Every two weeks", semimonthly: "Twice a month", monthly: "Every month" };
+
+/** Pay as people say it: "$30.00 an hour", "$52,000.00 a year". */
+export const payLabel = (payType: PayType, rate: string): string => `$${formatCents(BigInt(rate))} ${payType === "hourly" ? "an hour" : "a year"}`;
+
+/** Every field the proposal changes from `from`, as "was → wants", in the order the offer shows them. */
+export function proposalChanges(from: Proposal, to: Proposal): Change[] {
+  const out: Change[] = [];
+  if (from.payType !== to.payType || from.rate !== to.rate) out.push({ field: "rate", label: "Pay", was: payLabel(from.payType, from.rate), wants: payLabel(to.payType, to.rate) });
+  if (from.frequency !== to.frequency) out.push({ field: "frequency", label: "Paid", was: FREQUENCY_LABEL[from.frequency], wants: FREQUENCY_LABEL[to.frequency] });
+  if (from.startDate !== to.startDate) out.push({ field: "startDate", label: "Start date", was: from.startDate, wants: to.startDate });
+  if (from.termsText !== to.termsText) out.push({ field: "termsText", label: "Terms", was: from.termsText, wants: to.termsText });
+  for (const s of LETTER_SECTIONS) {
+    if (from.letter[s.key] !== to.letter[s.key]) out.push({ field: `letter.${s.key}`, label: s.label, was: from.letter[s.key], wants: to.letter[s.key] });
+  }
+  return out;
+}
+
+/** An offer's terms as a proposal: the starting point the person edits. */
+export function proposalOf(t: { payType: PayType; rate: string; frequency: Frequency; startDate: string; termsText: string; letter?: Letter }): Proposal {
+  return {
+    payType: t.payType,
+    rate: t.rate,
+    frequency: t.frequency,
+    startDate: t.startDate,
+    termsText: t.termsText,
+    letter: t.letter ?? { description: "", requirements: "", handbook: "", other: "" },
+  };
+}
+
+/**
+ * The written terms with the pay and the start date brought in step with
+ * `to`, wherever they still say what `from` said (the draft writes both in
+ * these exact words). Anything else in the text is left as it is.
+ */
+export function syncTermsText(text: string, from: Proposal, to: Proposal): string {
+  let out = text;
+  const payWas = payLine(from.payType, BigInt(from.rate), from.frequency);
+  const payNow = payLine(to.payType, BigInt(to.rate), to.frequency);
+  if (payWas !== payNow) out = out.split(payWas).join(payNow);
+  const startWas = longDate(from.startDate);
+  const startNow = longDate(to.startDate);
+  if (startWas !== startNow) out = out.split(startWas).join(startNow);
+  return out;
+}
+
+// ---- The form ----------------------------------------------------------------
+
+/** A proposal as a form holds it: the rate as typed, in dollars. */
+export type ProposalDraft = Omit<Proposal, "rate"> & { rateText: string };
+
+export const draftOf = (p: Proposal): ProposalDraft => {
+  const { rate, ...rest } = p;
+  return { ...rest, rateText: formatCents(BigInt(rate)).replace(/,/g, "") };
+};
+
+/** The proposal a form holds, or why it can't be one yet. */
+export function proposalFromDraft(d: ProposalDraft): { proposal: Proposal } | { problem: string } {
+  let cents: bigint;
+  try {
+    cents = parseCents(d.rateText);
+  } catch {
+    return { problem: "Pay must be an amount, like 32.50" };
+  }
+  if (cents <= 0n) return { problem: "Pay must be more than zero" };
+  if (!d.termsText.trim()) return { problem: "The written terms can't be empty" };
+  if (!DATE.test(d.startDate)) return { problem: "Pick a start date" };
+  const { rateText: _rateText, ...rest } = d;
+  return { proposal: { ...rest, rate: cents.toString() } };
+}

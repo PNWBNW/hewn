@@ -2216,3 +2216,53 @@ within the same business) could be a premium feature on mainnet. Not gated now. 
 - the directory is opt-in.
 
 The tier itself is an open decision. Docs only; no tests changed.
+
+## 2026-10-16: Counter-offers, as a conversation thread
+
+Joshua: the person can reply with what they'd like changed; the business sees exactly what, and
+accepts or counters back; either side can go again.
+
+**The thread** (`books/thread.ts`, `chain/thread.ts`).
+- One conversation per business and person, filed by the pair's parties key (the same for every
+  offer between them). The business keeps it in its mailbox (`Mailbox.threads`), the person in
+  `Work.threads`.
+- Each side writes its own slots (`thread_b` / `thread_w`) and reads the other's. Typed messages:
+  - `counter`: from the person, the terms as they'd like them, plus a note;
+  - `stands`: from the business, keeping the offer as it is, plus a note;
+  - `revised`: from the business, saying which new offer replaced which.
+- Incoming messages are checked field by field, and a side can't send the other side's kinds.
+  Plain messages join the same thread in the next PR.
+
+**Person.**
+- On Check for offers, a pending offer has **Ask for changes**: edit a copy of the terms (pay,
+  frequency, start date, written terms, letter sections; changing pay or start updates the
+  written terms too), review "was → wants", add a note, send. No Shield.
+- The offer then shows "You asked for changes…", "They kept this offer as it is" with their note,
+  or, on the new offer, "Revised offer" with what changed from the old one.
+- A withdrawn offer now shows as Withdrawn (or "Replaced by a revised offer"): pending records
+  are checked on chain too.
+
+**Business.**
+- The Mailbox check reads each person's thread. The feed shows "Ana asked for changes to your
+  offer" with the changes as was → wants, and three answers:
+  - **Accept their changes** or **Counter back** (edit first) send a revised offer: withdraw
+    (Shield 1 of 2), then send the new one with the same letter files (Shield 2 of 2), then a
+    `revised` note in the thread. The team member's pay in Payroll follows the offer.
+  - **Keep the offer as it is** sends a `stands` note. No Shield.
+- The Team row shows "Asked for changes: answer in Mailbox".
+- Links now keep the offer's industry, review and end dates (`RailLink.offerInputs`) so a
+  revision starts from them.
+
+**Per-offer terms slot.** An offer's terms now live at kind `terms_<first 24 hex of agreement id>`,
+slot 0, so a revision never collides with the old offer's terms. The person's app falls back to
+the shared slot 0 for offers sent before; withdrawing clears both. `payLine` and `longDate` moved
+to `books/terms_words.ts` (`agreement_draft` re-exports them).
+
+THREAT_MODEL covers the thread. Tests 762/762 (app 374, +16): message rules (wrong side,
+malformed fields), the thread through a fake mailbox (each side's slots, keep-then-drop, a taken
+slot stepped over, a forged message skipped), open requests and answers, was → wants,
+keeping the written terms in step, the form, the vault fields, the per-offer terms slot with its
+fallback. Screens checked by typecheck and build; a real negotiation needs two accounts and
+Shield, so Joshua's test run is the real check.
+
+**Next:** business ↔ team messages on the same thread (a Messages screen on both sides).

@@ -31,6 +31,7 @@ import {
   withdrawOffer,
   withdrawOfferInputs,
 } from "./offer";
+import { offerTermsKind } from "./offer_files";
 import { canonicalTerms, parseTerms } from "./terms";
 
 const EMPLOYER = "aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n";
@@ -239,7 +240,8 @@ describe("sendOffer", () => {
     const stages: string[] = [];
     const letter = { description: "Framing crew lead.", requirements: "", handbook: "Steel toes on site.", other: "" };
     const sent = await sendOffer(input({ client, wallet, letter, files: [pdf], onProgress: (s) => stages.push(s) }));
-    expect(offerLookups({ ...sent.link, terms: sent.terms }).sort()).toEqual(client.puts.map((p) => p.lookup).sort());
+    const legacySlot = lookupId(partiesKeyFromHex(sent.link.partiesKey!), KINDS.terms, TERMS_SLOT);
+    expect(offerLookups({ ...sent.link, terms: sent.terms }).sort()).toEqual([...client.puts.map((p) => p.lookup), legacySlot].sort());
     expect(stages).toEqual(["files", "sealing", "mailbox", "approving", "sent", "accepted"]);
     expect(client.puts).toHaveLength(3); // two pieces, then the terms
     // Every piece and the terms may be swept the day after the offer expires (7 days on).
@@ -334,12 +336,14 @@ describe("sendOffer", () => {
     expect(computeTermsDocHash(canonical)).toBe(computed.terms_doc_hash);
     expect(call.inputs[13]).toBe(bytesToAleoU8Array(computed.terms_doc_hash));
 
-    // The envelope opens with the parties key, kind terms, slot 0, and holds exactly the canonical terms.
+    // The envelope opens with the parties key, the offer's own terms kind, slot 0, and holds exactly the canonical terms.
     const key = partiesKeyFromHex(sent.link.partiesKey!);
     const put = client.puts[0]!;
-    expect(put.lookup).toBe(lookupId(key, KINDS.terms, TERMS_SLOT));
+    const own = offerTermsKind(sent.link.agreementId);
+    expect(put.lookup).toBe(lookupId(key, own, TERMS_SLOT));
+    expect(put.lookup).not.toBe(lookupId(key, KINDS.terms, TERMS_SLOT));
     expect(put.envelope[0]).toBe(0x01);
-    const opened = new TextDecoder().decode(await open(key, KINDS.terms, 0, put.envelope));
+    const opened = new TextDecoder().decode(await open(key, own, 0, put.envelope));
     expect(opened).toBe(canonical);
     expect(parseTerms(opened)).toEqual(sent.terms);
     await expect(open(key, KINDS.paystub, 0, put.envelope)).rejects.toThrow();
@@ -457,8 +461,10 @@ describe("withdrawing an offer", () => {
     const tx = await withdrawOffer({ link: { ...sent.link, terms: sent.terms }, employerNameHash: EMPLOYER_HASH, wallet, client: { drop: async (l) => void dropped.push(l) }, ...instant });
     expect(tx).toBe(TX);
     expect(wallet.calls).toEqual([{ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(sent.link, EMPLOYER_HASH), privateFee: false }]);
-    expect(dropped.sort()).toEqual(client.puts.map((p) => p.lookup).sort()); // two file pieces and the terms
-    expect(dropped).toHaveLength(3);
+    // Two file pieces, the terms, and the shared slot 0 older offers used.
+    const legacySlot = lookupId(partiesKeyFromHex(sent.link.partiesKey!), KINDS.terms, TERMS_SLOT);
+    expect(dropped.sort()).toEqual([...client.puts.map((p) => p.lookup), legacySlot].sort());
+    expect(dropped).toHaveLength(4);
   });
 
   it("clears nothing when the withdrawal isn't accepted, and shrugs off a slot already gone", async () => {

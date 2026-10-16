@@ -35,6 +35,18 @@ export function offerFileKind(offerTimeHash: string): string {
   return `offer_${hex.slice(0, 24)}`;
 }
 
+/**
+ * The mailbox kind an offer's terms live under (slot 0): unique per offer,
+ * from the start of its agreement id, which both sides know before reading
+ * the terms. Offers sent before this existed used kind `terms`, slot 0,
+ * shared by every offer between the two; readers fall back to it.
+ */
+export function offerTermsKind(agreementId: string): string {
+  const hex = agreementId.replace(/^0x/i, "").toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(hex)) throw new OfferFileError("The agreement id must be 64 hex characters");
+  return `terms_${hex.slice(0, 24)}`;
+}
+
 /** A file picked for an offer: its bytes, and how the terms will describe it. */
 export type PickedFile = { file: OfferFile; bytes: Uint8Array<ArrayBuffer> };
 
