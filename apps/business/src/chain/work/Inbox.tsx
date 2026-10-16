@@ -1,10 +1,10 @@
 "use client";
 
-// Checking for new paystubs: runs the mailbox scan (inbox.ts) for every
-// accepted agreement the moment it opens, writing each paystub to the vault
-// before its pin is dropped, then reads the receipts for weeks of hours this
-// person sent (receipts.ts). Needs no Shield: the parties keys are in the
-// vault. Nothing here logs a key, a lookup or a document.
+// Checking for new paystubs: connects Shield, then runs the scan (inbox.ts)
+// over this account's letters (then the old mailbox) for every accepted
+// agreement, writing each paystub to the vault. Letters need no receipts; a
+// receipt read for weeks of hours sent through the old mailbox still runs
+// when the mailbox is on. Nothing here logs a key, a lookup or a document.
 
 import { useEffect, useRef, useState } from "react";
 import { MailboxClient } from "@pnw/mailbox";
@@ -12,24 +12,36 @@ import { Button } from "@pnw/ui/button";
 import { FormError } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { addPaystub, bumpWorkSeq } from "@/books/work";
+import { LetterBox, lettersThenMailbox } from "../letters";
 import { readReceipts, recordWorkReceipts, workAwaiting } from "../receipts";
-import { INBOX_OFF_MESSAGE, type ScanResult, scanPaystubs } from "./inbox";
+import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
+import { type ScanResult, scanPaystubs } from "./inbox";
 
 export type InboxPanelProps = { onClose: () => void };
 
 export default function InboxPanel({ onClose }: InboxPanelProps) {
+  return (
+    <WorkShieldProvider>
+      <ShieldGate onClose={onClose}>{() => <InboxFlow onClose={onClose} />}</ShieldGate>
+    </WorkShieldProvider>
+  );
+}
+
+function InboxFlow({ onClose }: InboxPanelProps) {
   const { work, updateWork } = useWork();
+  const { wallet } = useWorkShield();
   const [result, setResult] = useState<ScanResult | null>(null);
   const started = useRef(false);
 
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    const client = new MailboxClient();
+    const mailbox = new MailboxClient();
+    const letters = lettersThenMailbox(new LetterBox({ wallet }), mailbox);
     const awaiting = workAwaiting(work);
     void scanPaystubs({
       work,
-      client,
+      client: { get: letters.get, drop: (lookup) => mailbox.drop(lookup).catch(() => {}) },
       store: async (p) => {
         await updateWork((w) => addPaystub(w, p));
       },
@@ -37,23 +49,22 @@ export default function InboxPanel({ onClose }: InboxPanelProps) {
         await updateWork((w) => bumpWorkSeq(w, agreementId, "paystub", seq));
       },
     }).then(async (r) => {
-      if (!r.off && !r.failed && awaiting.length > 0) {
-        await readReceipts(client, awaiting, async (heard) => {
+      if (!r.failed && awaiting.length > 0) {
+        // Weeks of hours sent through the old mailbox; a mailbox that's off has none to report.
+        await readReceipts(mailbox, awaiting, async (heard) => {
           await updateWork((w) => recordWorkReceipts(w, heard));
-        });
+        }).catch(() => {});
       }
       setResult(r);
     });
-  }, [work, updateWork]);
+  }, [work, updateWork, wallet]);
 
   const scanned = work.agreements.filter((a) => a.status !== "pending").length;
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-4">
+    <>
       {result === null ? (
         <p className="text-sm text-muted-foreground">{scanned === 0 ? "No agreements to check yet. Accept an offer first." : "Checking for new paystubs…"}</p>
-      ) : result.off ? (
-        <p className="text-sm text-muted-foreground">{INBOX_OFF_MESSAGE}</p>
       ) : (
         <>
           <p className="text-sm">
@@ -68,6 +79,6 @@ export default function InboxPanel({ onClose }: InboxPanelProps) {
       <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
         Done
       </Button>
-    </div>
+    </>
   );
 }

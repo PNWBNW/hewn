@@ -1,20 +1,21 @@
 // ---------------------------------------------------------------------------
-// Collecting what the team has sent to the business's mailbox (today: a
-// week of hours, kind `timesheet`). For each linked agreement with a parties
+// Collecting what the team has sent the business (today: a week of hours,
+// kind `timesheet`): letters on chain (chain/letters.ts), then the old
+// mailbox for any sent before. For each linked agreement with a parties
 // key, the slots are read from the next unread one upward until a miss; each
 // envelope is opened with the agreement's key, checked field by field, kept in
 // the vault through `store`, and only then dropped from the mailbox. One that
 // won't open or won't check is skipped (its slot moves on through `skip`) and
 // reported, so a bad document never blocks the ones behind it.
 //
-// Needs no Shield: the parties keys are in the vault. Pure apart from the
-// injected client and vault writes. Nothing here logs a key, a lookup or an hour.
+// Pure apart from the injected reader and vault writes. Nothing here logs a key, a lookup or an hour.
 // ---------------------------------------------------------------------------
 
 import { MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { type Mailbox, type ReceivedHours, nextHoursSeq, validateTimesheetPayload } from "../books/mailbox";
 import { mailboxLinks } from "../books/mailbox_feed";
 import type { Rail } from "../books/rail";
+import { unpackPayload } from "./compress";
 import { sendReceipt } from "./receipts";
 import { TIMESHEET_KIND } from "./work/timesheet";
 
@@ -45,8 +46,6 @@ export type ScanHoursResult = {
   checked: number;
 };
 
-export const MAILBOX_OFF_MESSAGE = "The mailbox is off on this server";
-
 /** Reads every new week of hours for every linked agreement. Never throws; the result says what happened. */
 export async function scanHours({ rail, mailbox, client, store, skip, now, limit }: ScanHoursInput): Promise<ScanHoursResult> {
   const stamp = now ?? (() => new Date().toISOString());
@@ -74,7 +73,7 @@ export async function scanHours({ rail, mailbox, client, store, skip, now, limit
         if (!bytes) break; // the end of this agreement's mailbox
         let item: ReceivedHours;
         try {
-          const opened = await open(key, TIMESHEET_KIND, seq, bytes);
+          const opened = await unpackPayload(await open(key, TIMESHEET_KIND, seq, bytes));
           const payload = validateTimesheetPayload(JSON.parse(new TextDecoder().decode(opened)), link.agreementId);
           item = {
             agreementId: link.agreementId,

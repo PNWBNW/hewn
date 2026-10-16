@@ -3,7 +3,9 @@ process.env.TZ = "America/Los_Angeles";
 import { MailboxError, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { describe, expect, it } from "vitest";
 import { type Work, emptyWork, punch, recordTimesheet, upsertAgreement } from "../../books/work";
-import { TIMESHEET_KIND, isMailboxOff, sendTimesheet } from "./timesheet";
+import { unpackPayload } from "../compress";
+import { LETTER_BYTES } from "../letters";
+import { TIMESHEET_KIND, sendTimesheet } from "./timesheet";
 
 const AID = "01".repeat(32);
 const KEY_HEX = "ab".repeat(32);
@@ -41,7 +43,8 @@ describe("sendTimesheet", () => {
     expect(puts[0]!.lookup).toBe(lookupId(key, TIMESHEET_KIND, 0));
     expect(puts[0]!.envelope[0]).toBe(0x01);
     expect(sent).toEqual({ agreementId: AID, weekStart: "2026-10-12", seq: 0, lookup: puts[0]!.lookup, totalMinutes: 510, sentAt: now().toISOString() });
-    const opened = JSON.parse(new TextDecoder().decode(await open(key, TIMESHEET_KIND, 0, puts[0]!.envelope)));
+    expect(puts[0]!.envelope.length).toBeLessThanOrEqual(LETTER_BYTES); // one letter, not a page
+    const opened = JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, TIMESHEET_KIND, 0, puts[0]!.envelope))));
     expect(opened).toEqual(payload);
     expect(opened).toMatchObject({ version: 1, kind: "timesheet", agreementId: AID, weekStart: "2026-10-12", totalMinutes: 510 });
     await expect(open(partiesKeyFromHex("cd".repeat(32)), TIMESHEET_KIND, 0, puts[0]!.envelope)).rejects.toThrow();
@@ -62,7 +65,6 @@ describe("sendTimesheet", () => {
     expect(taken.slotTaken).toBe(true);
     const off = sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-12", client: fakeClient(new MailboxError("NOT_CONFIGURED", "off")).client, now });
     await expect(off).rejects.toMatchObject({ code: "NOT_CONFIGURED" });
-    await off.catch((e: unknown) => expect(isMailboxOff(e)).toBe(true));
     await expect(sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-12", client: fakeClient(new MailboxError("REQUEST_FAILED", "502")).client, now })).rejects.toThrow(/502/);
   });
 

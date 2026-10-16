@@ -39,9 +39,8 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { Money } from "@/books/display";
 import { shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
-import { isMailboxOff } from "./deliver";
 import { useShield } from "./shield";
-import { MAILBOX_OFF_MESSAGE, usePaystubDelivery } from "./usePaystubDelivery";
+import { usePaystubDelivery } from "./usePaystubDelivery";
 
 export type PayPanelProps = { runId: string; onClose: () => void };
 
@@ -125,7 +124,7 @@ type Delivery = { kind: "sending" } | { kind: "sent" } | { kind: "failed"; messa
 function PayFlow({ runId, onClose }: PayPanelProps) {
   const { rail, payroll, updateCompany } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
-  const { send: sendPaystub, off: mailboxOff } = usePaystubDelivery();
+  const sendPaystub = usePaystubDelivery(wallet);
   const run = payroll.runs.find((r) => r.id === runId);
   const names = useMemo(() => new Map(payroll.workers.map((w) => [w.id, w.name])), [payroll.workers]);
   const [records, setRecords] = useState<TokenRecord[] | null>(null);
@@ -143,7 +142,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       await sendPaystub(runId, workerId);
       setDeliveries((all) => ({ ...all, [workerId]: { kind: "sent" } }));
     } catch (e) {
-      setDeliveries((all) => ({ ...all, [workerId]: { kind: "failed", message: isMailboxOff(e) ? "" : errorMessage(e) } }));
+      setDeliveries((all) => ({ ...all, [workerId]: { kind: "failed", message: errorMessage(e) } }));
     }
   }
 
@@ -157,7 +156,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       <span className="basis-full text-xs text-muted-foreground sm:basis-auto">
         Paystub not sent
         {d?.kind === "failed" && d.message && ` · ${d.message}`}
-        {!mailboxOff && (
+        {!running && (
           <Button type="button" variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={() => void deliver(p.workerId)}>
             Send
           </Button>
@@ -198,6 +197,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
     const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
+    const settled: Promise<string | null>[] = [];
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
@@ -221,16 +221,22 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "settled":
           setStage(e.workerId, { kind: "settled", transactionId: e.transactionId, ...(e.feeMicrocredits !== undefined ? { feeMicrocredits: e.feeMicrocredits } : {}) });
-          // The paystub goes out once the settlement is in the vault; a failed send never touches it.
-          void write(e.workerId, {
-            status: "settled",
-            reference: e.transactionId,
-            settledAt: new Date().toISOString(),
-            ...(e.height !== undefined ? { height: e.height } : {}),
-            ...(e.feeMicrocredits !== undefined ? { feeMicrocredits: e.feeMicrocredits } : {}),
-          }).then(
-            () => deliver(e.workerId),
-            (err: unknown) => setError(errorMessage(err)),
+          // The paystub goes out once everyone is paid (a letter is its own Shield approval, so
+          // it never races the payments); a failed send never touches the settlement.
+          settled.push(
+            write(e.workerId, {
+              status: "settled",
+              reference: e.transactionId,
+              settledAt: new Date().toISOString(),
+              ...(e.height !== undefined ? { height: e.height } : {}),
+              ...(e.feeMicrocredits !== undefined ? { feeMicrocredits: e.feeMicrocredits } : {}),
+            }).then(
+              () => e.workerId,
+              (err: unknown) => {
+                setError(errorMessage(err));
+                return null;
+              },
+            ),
           );
           break;
         case "failed":
@@ -247,9 +253,10 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
     } catch (e) {
       setError(errorMessage(e));
-    } finally {
-      setRunning(false);
     }
+    // Then each paystub settled this time, one letter (one approval) at a time; `deliver` never throws.
+    for (const workerId of await Promise.all(settled)) if (workerId) await deliver(workerId);
+    setRunning(false);
   }
 
   return (
@@ -273,7 +280,6 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
               </li>
             ))}
           </ul>
-          {mailboxOff && <p className="text-xs text-muted-foreground">{MAILBOX_OFF_MESSAGE}</p>}
           <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onClose}>
             Done
           </Button>
@@ -337,7 +343,6 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
               );
             })}
           </ul>
-          {mailboxOff && <p className="text-xs text-muted-foreground">{MAILBOX_OFF_MESSAGE}</p>}
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           <p className="text-xs text-muted-foreground">
             Shield asks you to approve each payment; they all go out together and settle on their own. The employer pays the network fee on each
