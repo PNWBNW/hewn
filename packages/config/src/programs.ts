@@ -30,6 +30,10 @@ export const PROGRAMS = {
     credential_nft: "credential_nft_v3.aleo",
     audit_nft: "audit_nft.aleo",
   },
+  // Private letters as records (docs/LETTERS.md in this repo): the chain is the mailbox.
+  letters: {
+    hewn_letters: "hewn_letters_v1.aleo",
+  },
   external: {
     usdcx: "test_usdcx_stablecoin.aleo", // testnet only
     usdcx_freezelist: "test_usdcx_freezelist.aleo", // testnet only

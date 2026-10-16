@@ -1,6 +1,9 @@
 # Letters on chain (`hewn_letters_v1.aleo`): design
 
-Status: **design, not built** (2026-10-16). Joshua asked for an exact plan to carry messages on
+Status: **being built** (2026-10-16). The program and its tests are in PNWBNW/pnw_mvp_v2
+(`src/layer1/hewn_letters_v1.aleo`, PR #202; not deployed yet). The app's codec and `LetterBox`
+are in `apps/business/src/chain/letters.ts`, not wired in yet. Offers and messages still use the
+mailbox until the program is live and a test letter has gone through on testnet. Joshua asked for an exact plan to carry messages on
 Aleo itself, with no IPFS and no Cloudflare. Nothing here is deployed; the Leo program needs his
 go-ahead on the model rule (CLAUDE.md, "Leo programs").
 
@@ -36,6 +39,11 @@ program hewn_letters_v1.aleo {
 ```
 
 Why each piece:
+
+- **`send_page` (as built).** A second call carries a long document, such as an offer's terms
+  (up to 20,000 characters), as one `Page` of 256 fields (7,936 bytes) to the recipient only; the
+  sender keeps its copy in its books. The app picks `send` or `send_page` by size. Both refuse the
+  zero address and an all-zero lookup.
 
 - **`@noupgrade` constructor.** Every program deployed after consensus V9 must have a constructor.
   `@noupgrade` makes it immutable, which is right for something this small: a change ships as
