@@ -56,7 +56,7 @@ export type LetterCheckDeps = {
   randomHex?: (bytes: number) => string;
   /** What the letter says; the default line when left out. */
   message?: string;
-  /** How this device asked Shield to pay the fee (the dashboard's switch), for the report. */
+  /** How to pay this send's fee (the person's choice next to the button; the device's switch when left out). Also goes in the report. */
   feeAsked?: "public" | "private";
 };
 
@@ -98,7 +98,8 @@ export async function runLetterCheck(deps: LetterCheckDeps): Promise<LetterCheck
 
   const sealed = await seal(partiesKeyFromHex(key), TEST_KIND, 0, new TextEncoder().encode(message));
   const started = now();
-  const { transactionId } = await executeAndWait(deps.wallet, letterCall(deps.address, sealed.lookup, sealed.envelope), { sleep, now });
+  const call = { ...letterCall(deps.address, sealed.lookup, sealed.envelope), ...(deps.feeAsked ? { feeMode: deps.feeAsked } : {}) };
+  const { transactionId } = await executeAndWait(deps.wallet, call, { sleep, now });
   const accepted = now();
   const result: LetterCheckResult = { ...(deps.feeAsked ? { feeAsked: deps.feeAsked } : {}), transactionId, sentAs: fit.as, sentMs: accepted - started, letterFound: false, copyFound: false, senderShown: false, opened: false };
 
@@ -249,7 +250,7 @@ export function letterCheckReport(r: LetterCheckResult, date: string): string {
     `Sent as: ${r.sentAs === "page" ? "a page (send_page, the long-document call; the sender keeps no copy on chain)" : "a letter (send)"}`,
     `Tap to accepted (approving included): ${seconds(r.sentMs)}`,
     `Fee: ${r.feeMicrocredits === undefined ? "not read" : `${credits(r.feeMicrocredits)} ALEO (${r.feeMicrocredits.toLocaleString("en-US")} microcredits)`}`,
-    `Fee asked for: ${r.feeAsked === "private" ? "private (the dashboard's switch is on)" : r.feeAsked === "public" ? "public (the dashboard's switch is off)" : "not recorded"}`,
+    `Fee asked for: ${r.feeAsked === "private" ? "private" : r.feeAsked === "public" ? "public" : "not recorded"}`,
     `Fee paid: ${r.feeKind === "private" ? "privately (no account shown)" : r.feeKind === "public" ? "publicly (shows this account)" : "not read"}`,
     `Shield found the letter: ${r.letterFound ? "yes" : "no"}`,
     ...(r.sentAs === "letter" ? [`Shield found the sender's copy: ${r.copyFound ? "yes" : "no"}`] : []),

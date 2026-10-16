@@ -139,7 +139,8 @@ describe("the test letter", () => {
     const text = letterCheckReport(r1, "2026-10-16");
     expect(text).not.toContain("Hello from Morgan"); // the words stay on screen, not in the report
     expect(text).toContain("Message: 22 bytes");
-    expect(text).toContain("Fee asked for: private (the dashboard's switch is on)");
+    expect(text).toContain("Fee asked for: private");
+    expect(short.sent[0]).toMatchObject({ feeMode: "private" }); // the choice travels with the call
 
     const long = "x".repeat(LETTER_TEXT_BYTES + 1);
     const paged = setup({ listAfter: 1 });

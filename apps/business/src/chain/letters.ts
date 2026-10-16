@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import { PROGRAMS } from "@pnw/config/programs";
+import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type ExecuteOptions, type WorkWallet, executeAndWait } from "./work/execute";
 
 export const LETTERS_PROGRAM = PROGRAMS.letters.hewn_letters;
@@ -176,9 +177,10 @@ export class LetterBox {
   }
 
   /** Sends one envelope as a letter (one Shield approval) and waits until the network has it. */
-  async put(lookup: string, envelope: Uint8Array, _options?: { keepUntil?: string }): Promise<void> {
+  async put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: FeeMode }): Promise<void> {
     if (!this.to) throw new LetterError("This letter box only reads");
-    await executeAndWait(this.wallet, letterCall(this.to, lookup, envelope), this.execute);
+    const call = letterCall(this.to, lookup, envelope);
+    await executeAndWait(this.wallet, { ...call, ...(options?.feeMode ? { feeMode: options.feeMode } : {}) }, this.execute);
   }
 
   /** The envelope received under `lookup`, or null when no letter has it (yet). */

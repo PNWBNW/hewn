@@ -2739,3 +2739,19 @@ So Shield ignored `privateFee: true`, or fell back to a public fee. Not yet know
 
 The report now says which fee mode the app asked for ("Fee asked for"), and whether a public fee's
 payer is this account or another, without printing either account.
+
+Joshua then: let the person choose, right before each send, whether its fee is paid privately or
+publicly.
+- **`chain/FeeChoice.tsx`:** a Private / Public choice next to the send button. It starts from the
+  device's switch and changes only that send. The test letter uses it now, and the message send
+  box gets it when messages move onto letters.
+- **How the choice travels:** as `feeMode` with the call (`Call.feeMode` in
+  `chain/work/execute.ts`, `LetterBox.put` options). `chain/shield.ts` turns it into
+  `privateFee`, falling back to the device's switch when there is none.
+
+Joshua's Shield shows 5.072712 ALEO private (shielded before the three test letters), yet all
+three paid `fee_public`. Shield seems to ignore `privateFee: true` for dApp calls, or pay publicly
+anyway. The next test, with "Private" chosen and "Fee asked for" in the report, settles whether
+the request reached Shield.
+
+Tests: 835/835.

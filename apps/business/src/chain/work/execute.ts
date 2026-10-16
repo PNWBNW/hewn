@@ -8,15 +8,17 @@
 // says accepted or rejected. Nothing here logs an input, an id or an error.
 // ---------------------------------------------------------------------------
 
+import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type WalletExecuteFn, executeAleoTransaction } from "@pnw/wallet/wallet-executor";
 
 /** The slice of the adaptor this needs; a fake with the two methods does for tests. */
 export type WorkWallet = {
-  executeTransaction(opts: { program: string; function: string; inputs: string[]; fee?: number; privateFee: false }): Promise<{ transactionId: string } | null | undefined>;
+  executeTransaction(opts: { program: string; function: string; inputs: string[]; fee?: number; privateFee: false; feeMode?: FeeMode }): Promise<{ transactionId: string } | null | undefined>;
   transactionStatus(id: string): Promise<{ status: string; transactionId?: string; error?: string }>;
 };
 
-export type Call = { program: string; function: string; inputs: string[] };
+/** One transition; `feeMode`, when the person chose it for this send, overrides the device's fee switch (chain/shield.ts). */
+export type Call = { program: string; function: string; inputs: string[]; feeMode?: FeeMode };
 
 export type ExecuteOptions = {
   /** How long to wait for Shield to say accepted. Default 5 minutes. */
@@ -51,7 +53,7 @@ export async function executeAndWait(wallet: WorkWallet, call: Call, options: Ex
   const now = options.now ?? (() => Date.now());
 
   const execute: WalletExecuteFn = async (p) => {
-    const r = await wallet.executeTransaction({ program: p.program, function: p.function, inputs: p.inputs, privateFee: false });
+    const r = await wallet.executeTransaction({ program: p.program, function: p.function, inputs: p.inputs, privateFee: false, ...(call.feeMode ? { feeMode: call.feeMode } : {}) });
     if (!r?.transactionId) throw new ExecuteError("Shield didn't take the request");
     return r.transactionId;
   };
