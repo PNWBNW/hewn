@@ -344,3 +344,36 @@ describe("the terms a business offered", () => {
     expect(linkFor(addLink(sent, another), "wkr-1")).not.toHaveProperty("terms");
   });
 });
+
+describe("an offer letter's files, saved by the business", () => {
+  const sha = "b".repeat(64);
+  const terms = {
+    version: 2 as const,
+    kind: "terms" as const,
+    agreementId: "ef".repeat(32),
+    termsText: "Carpenter.",
+    payType: "hourly" as const,
+    rate: "3000",
+    frequency: "biweekly" as const,
+    startDate: "2026-11-02",
+    businessName: "Brothers Building",
+    offeredAt: "2026-10-16T18:00:00.000Z",
+    letter: { description: "Framing.", requirements: "", handbook: "", other: "" },
+    files: [{ name: "contract.pdf", type: "application/pdf", size: 300_000, sha256: sha, chunks: 2 }],
+  };
+  const ref = { attachmentId: "att-1", sha256: sha, type: "application/pdf", size: 300_000, name: "contract.pdf" };
+  const offered: RailLink = { ...link, status: "offered", offeredAt: terms.offeredAt, terms, offerFiles: [ref] };
+
+  it("are kept with the letter they belong to, through a save and an import of the same agreement", () => {
+    expect(validateLink(offered).offerFiles).toEqual([ref]);
+    expect(linkFor(railFromJson(railToJson({ ...rail, links: [offered] })), "wkr-1")!.offerFiles).toEqual([ref]);
+    const { terms: _t, offerFiles: _f, ...imported } = { ...offered, status: "linked" as const };
+    expect(linkFor(addLink(addLink({ ...rail, links: [] }, offered), imported), "wkr-1")!.offerFiles).toEqual([ref]);
+  });
+
+  it("must match the letter's files, and need the letter", () => {
+    expect(() => validateLink({ ...offered, offerFiles: [{ ...ref, sha256: "c".repeat(64) }] })).toThrow(/isn't one of the offer's files/);
+    const { terms: _t, ...noTerms } = offered;
+    expect(() => validateLink(noTerms)).toThrow(/need the offer letter/);
+  });
+});

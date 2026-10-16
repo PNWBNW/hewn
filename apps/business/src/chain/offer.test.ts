@@ -225,6 +225,48 @@ describe("resolveBusinessName", () => {
 
 // ---- Sending -------------------------------------------------------------------------------
 describe("sendOffer", () => {
+  it("with an offer letter: the files' pieces first, then the terms, then Shield; the terms carry the letter and each file's fingerprint", async () => {
+    const { pickFile, fetchOfferFile } = await import("./offer_files");
+    const { OFFER_CHUNK_BYTES } = await import("../books/offer_letter");
+    const pdf = await pickFile("contract.pdf", "application/pdf", new Uint8Array(OFFER_CHUNK_BYTES + 5).map((_, i) => i & 0xff));
+    const client = fakeClient();
+    const wallet = fakeWallet();
+    const stages: string[] = [];
+    const letter = { description: "Framing crew lead.", requirements: "", handbook: "Steel toes on site.", other: "" };
+    const sent = await sendOffer(input({ client, wallet, letter, files: [pdf], onProgress: (s) => stages.push(s) }));
+    expect(stages).toEqual(["files", "sealing", "mailbox", "approving", "sent", "accepted"]);
+    expect(client.puts).toHaveLength(3); // two pieces, then the terms
+    expect(sent.terms.version).toBe(2);
+    if (sent.terms.version !== 2) throw new Error("unreachable");
+    expect(sent.terms.letter).toEqual(letter);
+    expect(sent.terms.files).toEqual([pdf.file]);
+    // The record's terms hash is over these terms, files and all.
+    const computed = computeAgreementValues(EMPLOYER, WORKER, canonicalTerms(sent.terms), Math.floor(NOW.getTime() / 1000));
+    expect(wallet.calls[0]!.inputs).toContain(bytesToAleoU8Array(computed.terms_doc_hash));
+    // What the worker gets back from those pieces is the file, byte for byte.
+    const slots = new Map(client.puts.map((p) => [p.lookup, p.envelope]));
+    const back = await fetchOfferFile({ get: async (l) => { const v = slots.get(l); return v ? new Uint8Array(v) : null; } }, sent.link.partiesKey!, sent.terms.agreementId, sent.terms.files, 0);
+    expect(back.bytes).toEqual(pdf.bytes);
+  });
+
+  it("refuses a letter over its limits before anything is sent", async () => {
+    const client = fakeClient();
+    const wallet = fakeWallet();
+    const letter = { description: "x".repeat(20_001), requirements: "", handbook: "", other: "" };
+    await expect(sendOffer(input({ client, wallet, letter }))).rejects.toThrow(/at most/);
+    expect(client.puts).toHaveLength(0);
+    expect(wallet.calls).toHaveLength(0);
+  });
+
+  it("sends nothing to Shield when a file piece can't be delivered", async () => {
+    const { pickFile } = await import("./offer_files");
+    const pdf = await pickFile("contract.pdf", "application/pdf", new Uint8Array(10));
+    const off = fakeClient(503);
+    const wallet = fakeWallet();
+    await expect(sendOffer(input({ client: off, wallet, files: [pdf] }))).rejects.toThrow(MAILBOX_OFF_MESSAGE);
+    expect(wallet.calls).toHaveLength(0);
+  });
+
   it("puts the sealed terms in slot 0 of the mailbox, then sends create_offer_open with privateFee false, then returns an offered link", async () => {
     const client = fakeClient(201);
     const wallet = fakeWallet();
@@ -264,7 +306,21 @@ describe("sendOffer", () => {
     );
 
     // The terms: pay from the worker record, the offer time hash in agreementId, and the hash on the record.
-    expect(sent.terms).toEqual({ version: 1, kind: "terms", agreementId: bareHex(computed.offer_time_hash), termsText: "Carpenter, 40 hours a week.", payType: "hourly", rate: "3000", frequency: "biweekly", startDate: "2026-11-02", businessName: "dayco", offeredAt: NOW.toISOString() });
+    // Every new offer is version 2 (the offer letter); with nothing written and nothing attached, the letter is empty.
+    expect(sent.terms).toEqual({
+      version: 2,
+      kind: "terms",
+      agreementId: bareHex(computed.offer_time_hash),
+      termsText: "Carpenter, 40 hours a week.",
+      payType: "hourly",
+      rate: "3000",
+      frequency: "biweekly",
+      startDate: "2026-11-02",
+      businessName: "dayco",
+      offeredAt: NOW.toISOString(),
+      letter: { description: "", requirements: "", handbook: "", other: "" },
+      files: [],
+    });
     expect(computeTermsDocHash(canonical)).toBe(computed.terms_doc_hash);
     expect(call.inputs[13]).toBe(bytesToAleoU8Array(computed.terms_doc_hash));
 

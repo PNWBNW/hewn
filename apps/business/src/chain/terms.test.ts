@@ -49,7 +49,8 @@ describe("terms document", () => {
   });
 
   it("refuses a malformed document", () => {
-    expect(() => validateTerms({ ...TERMS, version: 2 })).toThrow(/version/);
+    expect(() => validateTerms({ ...TERMS, version: 3 })).toThrow(/version/);
+    expect(() => validateTerms({ ...TERMS, version: 2 })).toThrow(/offer letter/); // version 2 needs its letter and files
     expect(() => validateTerms({ ...TERMS, kind: "paystub" })).toThrow(/terms document/);
     expect(() => validateTerms({ ...TERMS, agreementId: "0x" + OFFER_TIME_HASH })).toThrow(/64 hex/);
     expect(() => validateTerms({ ...TERMS, termsText: "  " })).toThrow(/Write the terms/);

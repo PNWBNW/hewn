@@ -34,3 +34,37 @@ describe("terms contract", () => {
     expect(Object.keys(JSON.parse(employerCanonical(shuffled as EmployerTerms)))).toEqual(Object.keys(terms));
   });
 });
+
+describe("terms contract, version 2 (the offer letter)", () => {
+  const v2 = {
+    ...terms,
+    version: 2 as const,
+    letter: { description: "Framing crew lead.", requirements: "Own truck.", handbook: "Steel toes on site.", other: "" },
+    files: [{ name: "contract.pdf", type: "application/pdf", size: 300_000, sha256: "b".repeat(64), chunks: 2 }],
+  };
+
+  it("both sides produce the same bytes, letter and files at the end in their own fixed order", () => {
+    const shuffled = {
+      files: [{ chunks: 2, sha256: "b".repeat(64), size: 300_000, type: "application/pdf", name: "contract.pdf" }],
+      letter: { other: "", handbook: "Steel toes on site.", requirements: "Own truck.", description: "Framing crew lead." },
+      ...terms,
+      version: 2 as const,
+    };
+    const employer = employerCanonical(v2 as EmployerTerms);
+    expect(workerCanonical(v2 as WorkerTerms)).toBe(employer);
+    expect(employerCanonical(shuffled as EmployerTerms)).toBe(employer);
+    expect(workerCanonical(shuffled as WorkerTerms)).toBe(employer);
+    expect(Object.keys(JSON.parse(employer))).toEqual([...Object.keys(terms), "letter", "files"]);
+  });
+
+  it("the worker's check covers every word and every file: change one and the terms no longer match the record", async () => {
+    const { termsDocHash, termsMatchRecord } = await import("./work/terms");
+    const record = termsDocHash(v2 as WorkerTerms);
+    expect(termsMatchRecord(v2 as WorkerTerms, record)).toBe(true);
+    const otherFile = { ...v2, files: [{ ...v2.files[0]!, sha256: "c".repeat(64) }] };
+    const otherWords = { ...v2, letter: { ...v2.letter, handbook: "Sandals fine." } };
+    expect(termsMatchRecord(otherFile as WorkerTerms, record)).toBe(false);
+    expect(termsMatchRecord(otherWords as WorkerTerms, record)).toBe(false);
+    expect(termsMatchRecord({ ...terms } as WorkerTerms, record)).toBe(false); // the same offer as version 1
+  });
+});

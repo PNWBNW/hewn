@@ -7,10 +7,14 @@
 // Accept, which signs `accept_job_offer` in Shield. Every agreement found is
 // written to the vault so the Offers page lists it without Shield; terms are
 // kept only once they verify, and the pin is dropped once the acceptance is
-// on the chain. Nothing here logs a record, a key or an address.
+// on the chain. An offer letter's files are collected with the terms, each
+// checked against the fingerprint inside them and saved in the vault; Accept
+// waits until every file is in and the person says they've read it all.
+// Nothing here logs a record, a key or an address.
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
+import type { AttachmentRef } from "@pnw/sales";
 import { MailboxClient } from "@pnw/mailbox";
 import { checkAgreementStatus } from "@pnw/records/agreement_reader";
 import { queryNamePlaintext } from "@pnw/records/registry/name_registry";
@@ -20,6 +24,9 @@ import { useWork } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
 import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, upsertAgreement } from "@/books/work";
 import { BRAND } from "@/brand";
+import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
+import { hasLetter } from "@/books/offer_letter";
+import { fetchOfferFile, offerFileLookups } from "../offer_files";
 import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
 import { executeAndWait } from "./execute";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
@@ -42,6 +49,10 @@ type Row = {
   terms: TermsFetch;
   /** The terms hash to what the record commits to. */
   verified: boolean;
+  /** The offer letter's files saved in the vault, one per file in the terms (empty when there are none). */
+  files: AttachmentRef[];
+  /** Why the files aren't all here yet, if they aren't. */
+  filesProblem?: string;
 };
 
 const STATUS_OF: Record<string, AgreementStatus> = { active: "active", paused: "paused", terminated: "terminated" };
@@ -56,6 +67,7 @@ function toAgreement(row: Row, previous: WorkAgreement | undefined, acceptedAt?:
     status: row.status,
   };
   if (row.employerName) a.employerName = row.employerName;
+  if (row.files.length > 0) a.files = row.files;
   if (row.verified && row.terms.terms) a.terms = row.terms.terms;
   if (acceptedAt) a.acceptedAt = acceptedAt;
   else if (previous?.acceptedAt) a.acceptedAt = previous.acceptedAt;
@@ -63,7 +75,7 @@ function toAgreement(row: Row, previous: WorkAgreement | undefined, acceptedAt?:
 }
 
 function OffersFlow({ address, onClose }: { address: string; onClose: () => void }) {
-  const { work, updateWork } = useWork();
+  const { work, updateWork, addAttachment, readAttachment } = useWork();
   const { wallet } = useWorkShield();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +100,25 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           const kept: Terms | undefined = previous?.terms && termsMatchRecord(previous.terms, record.termsDocHash) ? previous.terms : undefined;
           const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, client.current);
           const verified = !!terms.terms && termsMatchRecord(terms.terms, record.termsDocHash);
-          const row: Row = { record, status, terms, verified };
+          const row: Row = { record, status, terms, verified, files: [] };
+          // The letter's files: kept copies first, the mailbox for the rest, each checked against the terms.
+          if (verified && terms.terms?.version === 2 && terms.terms.files.length > 0) {
+            const offered = terms.terms.files;
+            const kept = new Map((previous?.files ?? []).map((f) => [f.sha256, f]));
+            try {
+              for (const [i, f] of offered.entries()) {
+                const have = kept.get(f.sha256);
+                if (have) {
+                  row.files.push(have);
+                  continue;
+                }
+                const { bytes } = await fetchOfferFile(client.current, record.partiesKey, terms.terms.agreementId, offered, i);
+                row.files.push(await addAttachment(new File([bytes], f.name, { type: f.type })));
+              }
+            } catch (e) {
+              row.filesProblem = errorMessage(e);
+            }
+          }
           if (employerName) row.employerName = employerName;
           found.push(row);
         }
@@ -112,6 +142,11 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
       const accepted: Row = { ...row, status: "active", record: { ...row.record, kind: "final" } };
       await updateWork((w) => upsertAgreement(w, toAgreement(accepted, agreementFor(w, row.record.agreementId), new Date(seconds * 1000).toISOString())));
       if (row.terms.lookup) await client.current.drop(row.terms.lookup).catch(() => {}); // the vault has the terms now
+      const t = row.terms.terms;
+      if (t?.version === 2 && t.files.length > 0) {
+        // The vault has every file too: the pieces can go.
+        for (const lookup of offerFileLookups(row.record.partiesKey, t.agreementId, t.files)) await client.current.drop(lookup).catch(() => {});
+      }
       setRows((all) => (all ?? []).map((r) => (r.record.agreementId === row.record.agreementId ? accepted : r)));
       setNote("Accepted. You can clock in from Home.");
     } catch (e) {
@@ -134,7 +169,14 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
       {rows.length > 0 && (
         <ul className="divide-y rounded-md border bg-card">
           {rows.map((row) => (
-            <OfferRow key={row.record.agreementId} row={row} busy={busy === row.record.agreementId} disabled={busy !== null} onAccept={() => void accept(row)} />
+            <OfferRow
+              key={row.record.agreementId}
+              row={row}
+              busy={busy === row.record.agreementId}
+              disabled={busy !== null}
+              onAccept={() => void accept(row)}
+              read={readAttachment}
+            />
           ))}
         </ul>
       )}
@@ -152,8 +194,26 @@ const FREQUENCY: Record<Terms["frequency"], string> = { weekly: "weekly", biweek
 
 const dollars = (cents: string) => `$${(Number(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-function OfferRow({ row, busy, disabled, onAccept }: { row: Row; busy: boolean; disabled: boolean; onAccept: () => void }) {
+function OfferRow({
+  row,
+  busy,
+  disabled,
+  onAccept,
+  read,
+}: {
+  row: Row;
+  busy: boolean;
+  disabled: boolean;
+  onAccept: () => void;
+  read: (ref: AttachmentRef) => Promise<Blob>;
+}) {
   const { record, status, terms, verified } = row;
+  const [readIt, setReadIt] = useState(false);
+  const letter = terms.terms?.version === 2 ? terms.terms : null;
+  const offeredFiles = letter?.files ?? [];
+  const filesIn = offeredFiles.length === row.files.length;
+  const needsReading = !!letter && (hasLetter(letter.letter) || offeredFiles.length > 0);
+  const ready = verified && filesIn && !row.filesProblem && (!needsReading || readIt);
   const employer = row.employerName ? `${row.employerName}.${BRAND.nameSuffix}` : shortAddress(record.employerAddress);
   const t = terms.terms;
   return (
@@ -175,17 +235,34 @@ function OfferRow({ row, busy, disabled, onAccept }: { row: Row; busy: boolean; 
           <dt className="text-muted-foreground">Terms</dt>
           <dd className="whitespace-pre-wrap">{t.termsText}</dd>
         </dl>
-      ) : t ? (
+      ) : null}
+      {t && verified && letter ? (
+        <>
+          <LetterSections letter={letter.letter} />
+          <OfferFileList
+            files={offeredFiles}
+            {...(filesIn && !row.filesProblem ? { read: (i: number) => read(row.files[i]!) } : {})}
+            missing={row.filesProblem ?? "The files haven't arrived yet."}
+          />
+        </>
+      ) : t && verified ? null : t ? (
         <p className="text-xs text-destructive">{TERMS_MISMATCH}. Ask the employer to send the offer again.</p>
       ) : (
         <p className="text-xs text-muted-foreground">{terms.terms === null ? terms.message : ""}</p>
       )}
       {status === "pending" && (
         <div className="flex flex-wrap items-center gap-3">
-          <Button className="min-h-11 sm:min-h-9" disabled={disabled || !verified} onClick={onAccept}>
+          {verified && filesIn && !row.filesProblem && needsReading && (
+            <label className="flex min-h-11 w-full items-center gap-3 text-sm sm:min-h-8">
+              <input type="checkbox" className="size-5 accent-primary" checked={readIt} onChange={(e) => setReadIt(e.target.checked)} />
+              I&apos;ve read the offer letter{offeredFiles.length > 0 ? " and the attached files" : ""}.
+            </label>
+          )}
+          <Button className="min-h-11 sm:min-h-9" disabled={disabled || !ready} onClick={onAccept}>
             {busy ? "Accepting…" : "Accept"}
           </Button>
           {!verified && <span className="text-xs text-muted-foreground">You can accept once the terms arrive and match.</span>}
+          {verified && (!filesIn || row.filesProblem) && <span className="text-xs text-muted-foreground">You can accept once every file has arrived.</span>}
         </div>
       )}
     </li>
