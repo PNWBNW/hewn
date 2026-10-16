@@ -7,10 +7,13 @@
 //   0. A short checklist of what the offer needs (Shield linked, the
 //      business's registered name) that fills in as each piece is done.
 //   1. Find them on the registry by name or account (NameLookup; public data).
-//   2. Dates, industry and a few plain fields (role, duties, hours, notice)
-//      that draft the terms; pay type, rate and frequency come from the team
-//      member's record, so the offer says what the books say. The draft is
-//      only text and can be edited freely.
+//   2. Pay (type, rate, how often), employment type, hours, dates, industry
+//      and a few plain fields (role, duties, notice) that draft the terms.
+//      Pay starts from the team member's record and can be changed here; once
+//      the offer is sent, the books pay what it says. Pay, employment type,
+//      hours and start date are fields of their own in the terms, so a
+//      counter-offer names exactly what it changes (Joshua, 2026-10-16). The
+//      draft is only text and can be edited freely.
 //   2b. The offer letter (Joshua, 2026-10-16): one big box to write or paste
 //      everything they should read (the job, requirements, handbook,
 //      benefits). No files: paste the text instead. Its words go inside the
@@ -25,7 +28,9 @@
 
 import Link from "next/link";
 import { type ReactNode, useMemo, useState } from "react";
+import { formatCents, parseCents } from "@pnw/ledger";
 import { MailboxClient } from "@pnw/mailbox";
+import { PAY_FREQUENCIES, type PayFrequency, type Worker, updateWorker } from "@pnw/payroll";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
@@ -33,6 +38,8 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { LetterSections } from "@/books/OfferLetterView";
+import { JobBoxes } from "@/books/ProposalEditor";
+import { type EmploymentType, cleanHours, employmentLabel, hoursLine } from "@/books/terms_words";
 import { DEFAULT_EXPIRY_DAYS, EXPIRY_DAYS, type ExpiryDays, LETTER_LABEL, MAX_SECTION_CHARS, letterFromText } from "@/books/offer_letter";
 import { type Rail, addLink, registeredFor, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
@@ -112,6 +119,10 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   });
   const [changingWho, setChangingWho] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
+  const [payType, setPayType] = useState<Worker["payType"]>(worker?.payType ?? "hourly");
+  const [rateText, setRateText] = useState(() => (worker ? formatCents(worker.rate).replace(/,/g, "") : ""));
+  const [frequency, setFrequency] = useState<PayFrequency>(worker?.frequency ?? "biweekly");
+  const [employmentType, setEmploymentType] = useState<EmploymentType | "">("");
   const [duties, setDuties] = useState("");
   const [hoursPerWeek, setHoursPerWeek] = useState("");
   const [noticeDays, setNoticeDays] = useState("14");
@@ -137,24 +148,34 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   const mismatch = address !== null && rail !== null && address !== rail.address;
   const businessName = rail?.businessName ?? books.settings.businessName;
 
-  const fieldProblem = draftProblem({ hoursPerWeek, noticeDays });
+  const rate = useMemo(() => {
+    try {
+      const cents = parseCents(rateText);
+      return cents > 0n ? cents : null;
+    } catch {
+      return null;
+    }
+  }, [rateText]);
+  const fieldProblem = rate === null ? "Pay must be an amount more than zero, like 32.50" : draftProblem({ hoursPerWeek, noticeDays });
+  const hours = hoursPerWeek.trim() ? (cleanHours(hoursPerWeek) ?? undefined) : undefined;
   const draft = useMemo(() => {
-    if (!worker || fieldProblem) return "";
+    if (!worker || fieldProblem || rate === null) return "";
     return draftTerms({
       businessName,
       workerName: worker.name,
-      payType: worker.payType,
-      rate: worker.rate,
-      frequency: worker.frequency,
+      payType,
+      rate,
+      frequency,
       startDate,
       reviewDate,
       endDate,
       jobTitle,
+      ...(employmentType ? { employmentType } : {}),
       duties,
       hoursPerWeek,
       noticeDays,
     });
-  }, [worker, fieldProblem, businessName, startDate, reviewDate, endDate, jobTitle, duties, hoursPerWeek, noticeDays]);
+  }, [worker, fieldProblem, rate, payType, frequency, employmentType, businessName, startDate, reviewDate, endDate, jobTitle, duties, hoursPerWeek, noticeDays]);
   const terms = termsEdited ? termsText : draft;
   const letter = letterFromText(letterText);
 
@@ -177,7 +198,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   }
 
   async function send(current: string) {
-    if (!found || !worker || !rail?.businessNameHash) return;
+    if (!found || !worker || !rail?.businessNameHash || rate === null) return;
     setError(null);
     setStage("sealing");
     try {
@@ -186,12 +207,14 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
         employerAddress: current,
         employerNameHash: rail.businessNameHash,
         businessName,
-        worker,
+        worker: { id: worker.id, payType, rate, frequency },
         workerAddress: found.address,
         workerNameHash: found.nameHash,
         industryCode,
         termsText: terms,
         letter,
+        ...(employmentType ? { employmentType } : {}),
+        ...(hours ? { hoursPerWeek: hours } : {}),
         expiresInDays,
         startDate,
         reviewDate,
@@ -209,7 +232,8 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
         onProgress: setStage,
       });
       const link = { ...sent.link, terms: sent.terms, offerInputs: { industryCode, reviewDate, endDate } };
-      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), link) }));
+      // The books pay what the offer says.
+      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), link), payroll: updateWorker(c.payroll, worker.id, { payType, rate, frequency }) }));
       setSentTo(nameOf(found));
     } catch (e) {
       if (isMailboxOff(e)) setMailboxOff(true);
@@ -313,7 +337,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
     );
   }
 
-  const pay = payLine(worker.payType, worker.rate, worker.frequency);
+  const pay = rate === null ? "" : payLine(payType, rate, frequency);
 
   // 3. The agreement as they will read it.
   if (reviewing && found && address && !mismatch) {
@@ -332,6 +356,18 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
             <dt className="text-xs text-muted-foreground">Pay</dt>
             <dd>{pay}</dd>
           </div>
+          {employmentType && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Employment</dt>
+              <dd>{employmentLabel(employmentType)}</dd>
+            </div>
+          )}
+          {hours && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Hours</dt>
+              <dd>{hoursLine(hours)}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs text-muted-foreground">Starts</dt>
             <dd>{longDate(startDate)}</dd>
@@ -423,9 +459,25 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
           <Field label="Role" hint="Optional. Their job title.">
             <input className={inputClass} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} autoComplete="off" />
           </Field>
-          <Field label="Hours a week" hint="Optional. Leave blank to leave it out.">
-            <input className={inputClass} inputMode="decimal" value={hoursPerWeek} onChange={(e) => setHoursPerWeek(e.target.value)} autoComplete="off" />
+          <Field label="Paid by">
+            <select className={inputClass} value={payType} onChange={(e) => setPayType(e.target.value as Worker["payType"])}>
+              <option value="hourly">The hour</option>
+              <option value="salary">The year (salary)</option>
+            </select>
           </Field>
+          <Field label={payType === "hourly" ? "Pay an hour ($)" : "Pay a year ($)"} hint="From their team record; change it here if the offer differs.">
+            <input className={inputClass} inputMode="decimal" value={rateText} onChange={(e) => setRateText(e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label="Paid">
+            <select className={inputClass} value={frequency} onChange={(e) => setFrequency(e.target.value as PayFrequency)}>
+              {PAY_FREQUENCIES.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <JobBoxes employmentType={employmentType} hoursText={hoursPerWeek} onEmploymentType={setEmploymentType} onHours={setHoursPerWeek} />
           <div className="sm:col-span-2">
             <Field label="Duties" hint="Optional. A sentence or two on what the job is.">
               <textarea className={`${inputClass} min-h-20`} value={duties} onChange={(e) => setDuties(e.target.value)} />

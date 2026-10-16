@@ -215,3 +215,44 @@ describe("group messages in a thread", () => {
     expect(() => validateMessage(msg(6, "worker", { type: "group_text", groupId: "x", text: "hi" }), "worker")).toThrow(/group/);
   });
 });
+
+describe("counter-offers on employment type and hours", () => {
+  const WITH_JOB: Proposal = { ...OFFERED, termsText: "Employment: Full-time.\n\nHours: about 40 a week.", employmentType: "full_time", hoursPerWeek: "40" };
+
+  it("carries them through a counter-offer, and refuses ones this app doesn't know", () => {
+    const asked = { ...WITH_JOB, employmentType: "part_time" as const, hoursPerWeek: "25" };
+    expect(validateProposal(asked)).toEqual(asked);
+    expect(validateProposal(OFFERED)).not.toHaveProperty("employmentType"); // an older offer's counter stays as it was
+    expect(() => validateProposal({ ...asked, employmentType: "gig" })).toThrow(/employment type/);
+    expect(() => validateProposal({ ...asked, hoursPerWeek: "200" })).toThrow(/Hours a week/);
+  });
+
+  it("lists each as was → wants, after pay and before the start date", () => {
+    const asked = { ...WITH_JOB, employmentType: "part_time" as const, hoursPerWeek: "25", startDate: "2026-11-09" };
+    expect(proposalChanges(WITH_JOB, asked).map((c) => [c.field, c.was, c.wants])).toEqual([
+      ["employmentType", "Full-time", "Part-time"],
+      ["hoursPerWeek", "about 40 a week", "about 25 a week"],
+      ["startDate", "2026-11-02", "2026-11-09"],
+    ]);
+    expect(proposalChanges(OFFERED, WITH_JOB).filter((c) => c.field === "employmentType" || c.field === "hoursPerWeek").map((c) => c.was)).toEqual(["Not stated", "Not stated"]);
+  });
+
+  it("keeps the written terms in step with the boxes", () => {
+    const asked = { ...WITH_JOB, employmentType: "seasonal" as const, hoursPerWeek: "30" };
+    expect(syncTermsText(WITH_JOB.termsText, WITH_JOB, asked)).toBe("Employment: Seasonal.\n\nHours: about 30 a week.");
+  });
+
+  it("goes through the form and back, and names a bad hours box", () => {
+    const d = draftOf(WITH_JOB);
+    expect(d.employmentType).toBe("full_time");
+    expect(d.hoursText).toBe("40");
+    expect(proposalFromDraft(d)).toEqual({ proposal: WITH_JOB });
+    expect(proposalFromDraft({ ...d, employmentType: "", hoursText: " " })).toEqual({ proposal: { ...OFFERED, termsText: WITH_JOB.termsText } });
+    expect(proposalFromDraft({ ...d, hoursText: "lots" })).toEqual({ problem: expect.stringMatching(/up to 168/) });
+  });
+
+  it("starts from an offer's terms, job fields included", () => {
+    expect(proposalOf({ ...WITH_JOB })).toEqual(WITH_JOB);
+    expect(proposalOf({ ...OFFERED })).not.toHaveProperty("hoursPerWeek");
+  });
+});

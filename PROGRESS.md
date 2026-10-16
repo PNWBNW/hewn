@@ -2573,3 +2573,34 @@ Next (separate PR): specific boxes in the offer for pay, pay period, employment 
 each negotiable in a counter-offer.
 
 Tests: app 409 (offer tests rewritten without files; 2 new for the single box).
+
+## 2026-10-16: Offer boxes for pay, employment type and hours
+
+Joshua: give the offer specific boxes for rate of pay, pay period, employment type and so on, so
+a counter-offer can work field by field.
+
+- **Offer form:** it has its own boxes for "Paid by" (hour or salary), rate, "Paid" (how often),
+  employment type and hours a week, beside the start date. Pay starts from the team member's
+  record. Once the offer is sent, the books pay what it says (`updateWorker`, as revisions
+  already did).
+  - Employment types: Full-time, Part-time, Seasonal, Temporary, Contract (fixed term), or "Not
+    stated".
+  - Hours are written one way ("40", "37.5"; more than 0 and at most 168, two decimals).
+- **Terms (version 2):** `employmentType` and `hoursPerWeek` come after `files`, each only when
+  given. An offer without them keeps its exact bytes and hash. Both sides of the contract
+  (`chain/terms.ts`, `books/work.ts` + `chain/work/terms.ts`) share `validateJobFields`
+  (`books/terms_words.ts`).
+- **Drafted terms:** a new "Employment: Part-time." line after the role. Hours are worded through
+  `hoursLine`.
+- **Counter-offers:**
+  - `Proposal` carries the two fields, and the editor has the same boxes (`JobBoxes`).
+  - `proposalChanges` lists "Employment" and "Hours" between pay and start date ("Not stated"
+    when absent).
+  - `syncTermsText` keeps the written lines in step.
+  - Revised offers send the fields on.
+- **The person's offer view** shows Employment and Hours when the offer has them.
+- **Design:** letters on chain rotate to a new random key at least every 24 hours, and old keys
+  stay in the vault (`docs/LETTERS.md`, BUILD_PLAN decision).
+
+Tests: app 422; new tests for job fields, the terms contract, counter-offers, the draft and
+sendOffer.

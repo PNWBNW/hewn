@@ -68,3 +68,16 @@ describe("agreement draft", () => {
     expect(longDate("soon")).toBe("soon");
   });
 });
+
+describe("agreement draft: employment type and hours", () => {
+  it("states the employment type after the role, and hours the one way", () => {
+    const text = draftTerms({ ...BASE, jobTitle: "Carpenter", employmentType: "part_time", hoursPerWeek: "37.50" });
+    expect(text).toContain("Role: Carpenter.\n\nEmployment: Part-time.");
+    expect(text).toContain("Hours: about 37.5 a week.");
+  });
+
+  it("refuses hours that aren't a plain number up to 168", () => {
+    for (const bad of ["0", "169", "1e2", "40.125", "forty"]) expect(draftProblem({ hoursPerWeek: bad })).toMatch(/up to 168/);
+    expect(draftProblem({ hoursPerWeek: "168" })).toBeNull();
+  });
+});
