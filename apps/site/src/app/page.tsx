@@ -63,7 +63,7 @@ export default function Home() {
             <a href={BRAND.appUrl} className={buttonClass}>
               Open the app
             </a>
-            <span className="text-sm text-muted-foreground">Free. No sign-up. Works offline.</span>
+            <span className="text-sm text-muted-foreground">No monthly subscription. Works offline.</span>
           </div>
         </section>
 
@@ -101,14 +101,21 @@ export default function Home() {
             <p>This is a choice you make later, per business. Nothing depends on it.</p>
           </Section>
 
-          <Section icon={<BadgeDollarSign className="size-5" />} title="Free">
+          <Section icon={<BadgeDollarSign className="size-5" />} title="No monthly subscription">
             <p>
-              No subscription, no per-employee fee, no tiers. The app is free to use for as many
-              businesses, people and years as you like.
+              The books are free to use for as many businesses, people and years as you like. No
+              subscription, no tiers to unlock your own records. There are two ways to run it:
             </p>
             <p>
-              If you choose private payments, the payment network charges a small fee per payment,
-              which the employer pays. That is the only cost, and it never goes to us.
+              <span className="font-medium text-foreground">Run your own.</span> {BRAND.name} is open
+              source. Host your own copy and its mailbox, and you pay only your own hosting and the
+              payment network&apos;s small fee per payment. Nothing goes to us.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Join the {BRAND.name} network.</span> We
+              run it for you: we carry and store your sealed documents and connect you with the other
+              businesses and workers on it. Once it runs on the main network, a small flat fee per
+              paycheck paid through the app covers that, never a percentage of anyone&apos;s pay.
             </p>
           </Section>
         </div>

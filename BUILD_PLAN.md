@@ -323,12 +323,17 @@ real traffic before mainnet.
   so no fee applies; they contribute through names or the premium tier.
 - **Names**: 50% of each paid `.hewn` name's price goes to working capital (Joshua, 2026-10-16).
 
-**Hosted or self-hosted**: both, because the code is AGPL.
-- **Hosted** (the default): our mailbox, covered by the fee.
-- **Self-hosted**: a business can run its own mailbox (its own R2 bucket and copy of the mailbox
-  function) and owes us nothing. The app already runs on the device; the mailbox address becomes
-  a setting (built with "Scaling the mailbox"), and both parties to a conversation must use the
-  same mailbox for it.
+**Two ways to run it, offered as a feature** (Joshua, 2026-10-16), possible because the code is AGPL:
+- **Run your own** (lowest cost): a business hosts its own copy of the app and its own mailbox
+  (its own R2 bucket and copy of the mailbox function). It pays only its own hosting and the
+  network's per-transaction fees, and owes Hewn nothing.
+- **Join the Hewn network** (the default): we host it. The small flat fee per paycheck covers
+  the heavy data movement (carrying and storing sealed documents) and being part of a larger
+  network of businesses and workers.
+- The design must let the two meet: a person can work for a self-hosted business and a hosted
+  one at the same time. So the mailbox address travels with each agreement (the business names
+  it in the offer) rather than being one global setting; the person's app reads each agreement's
+  mailbox where the business keeps it. Built with "Scaling the mailbox".
 
 **Scaling the mailbox** (next PR)
 - Today every mailbox read searches Pinata's pin list by name, and that call is limited (about 30
