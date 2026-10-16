@@ -9,6 +9,7 @@ import {
   linkFor,
   linkStatus,
   markLinked,
+  markOfferReceived,
   nextSeq,
   partyLinkFor,
   railFromJson,
@@ -388,5 +389,26 @@ describe("removing a team member's link", () => {
     expect(linkStatus(after, "worker", "wkr-2")).toBe("typed");
     expect(linkFor(after, "wkr-1")).toEqual(link);
     expect(removeLink(after, "wkr-9")).toBe(after);
+  });
+});
+
+describe("an offer's receipt", () => {
+  const offered: RailLink = { ...link, status: "offered", offeredAt: "2026-10-16T18:00:00.000Z" };
+  const sent = { ...rail, links: [offered] };
+
+  it("is kept once, for the offer it answers, through a save and an import of the same agreement", () => {
+    const got = markOfferReceived(sent, "wkr-1", offered.agreementId, "2026-10-16T20:00:00.000Z");
+    expect(linkFor(got, "wkr-1")!.offerReceivedAt).toBe("2026-10-16T20:00:00.000Z");
+    expect(markOfferReceived(got, "wkr-1", offered.agreementId, "2026-10-17T20:00:00.000Z")).toBe(got);
+    expect(linkFor(railFromJson(railToJson(got)), "wkr-1")!.offerReceivedAt).toBe("2026-10-16T20:00:00.000Z");
+    expect(linkFor(addLink(got, { ...link }), "wkr-1")!.offerReceivedAt).toBe("2026-10-16T20:00:00.000Z");
+  });
+
+  it("is ignored for another offer, and goes with a new agreement", () => {
+    expect(markOfferReceived(sent, "wkr-1", "02".repeat(32), "2026-10-16T20:00:00.000Z")).toBe(sent);
+    expect(markOfferReceived(sent, "wkr-9", offered.agreementId, "2026-10-16T20:00:00.000Z")).toBe(sent);
+    const got = markOfferReceived(sent, "wkr-1", offered.agreementId, "2026-10-16T20:00:00.000Z");
+    expect(linkFor(addLink(got, { ...offered, agreementId: "02".repeat(32), partiesKey: KEY_B }), "wkr-1")).not.toHaveProperty("offerReceivedAt");
+    expect(() => validateLink({ ...offered, offerReceivedAt: "soon" })).toThrow();
   });
 });

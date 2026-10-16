@@ -38,6 +38,35 @@ describe("pinata store", () => {
     expect(url).not.toContain("jwt-secret");
   });
 
+  it("keeps a keep-until day in the pin's keyvalues", async () => {
+    const { calls, fetch } = fakeFetch(() => Response.json({ IpfsHash: CID }));
+    await pinataStore({ jwt: "j", fetch }).pin(NAME, new Uint8Array([1]), "2026-11-15");
+    const form = calls[0]!.init.body as FormData;
+    expect(JSON.parse(form.get("pinataMetadata") as string)).toEqual({ name: NAME, keyvalues: { keepUntil: "2026-11-15" } });
+  });
+
+  it("lists only mailbox pins whose keep-until day is before the day asked, whatever the filter returns", async () => {
+    const { calls, fetch } = fakeFetch(() =>
+      Response.json({
+        rows: [
+          { ipfs_pin_hash: "gone-1", metadata: { name: NAME, keyvalues: { keepUntil: "2026-10-15" } } },
+          { ipfs_pin_hash: "today", metadata: { name: NAME, keyvalues: { keepUntil: "2026-10-16" } } },
+          { ipfs_pin_hash: "no-day", metadata: { name: NAME, keyvalues: null } },
+          { ipfs_pin_hash: "not-mailbox", metadata: { name: "w4-terms.json", keyvalues: { keepUntil: "2026-01-01" } } },
+          { ipfs_pin_hash: "odd-day", metadata: { name: NAME, keyvalues: { keepUntil: "soon" } } },
+          { ipfs_pin_hash: "gone-2", metadata: { name: NAME.replace("8a", "9b"), keyvalues: { keepUntil: "2026-09-01" } } },
+        ],
+      }),
+    );
+    const store = pinataStore({ jwt: "j", fetch });
+    expect(await store.expired("2026-10-16", 500)).toEqual(["gone-1", "gone-2"]);
+    expect(await store.expired("2026-10-16", 1)).toEqual(["gone-1"]);
+    const url = new URL(calls[0]!.url);
+    expect(url.searchParams.get("status")).toBe("pinned");
+    expect(url.searchParams.get("pageLimit")).toBe("500");
+    expect(JSON.parse(url.searchParams.get("metadata[keyvalues]")!)).toEqual({ keepUntil: { value: "2026-10-16", op: "lt" } });
+  });
+
   it("finds a pin by exact name, ignoring near matches", async () => {
     const { calls, fetch } = fakeFetch(() =>
       Response.json({
@@ -94,5 +123,6 @@ describe("pinata store", () => {
     await expect(store.pin(NAME, new Uint8Array(1))).rejects.toBeInstanceOf(PinStoreError);
     await expect(store.fetch(CID)).rejects.toBeInstanceOf(PinStoreError);
     await expect(store.unpin(CID)).rejects.toBeInstanceOf(PinStoreError);
+    await expect(store.expired("2026-10-16", 10)).rejects.toBeInstanceOf(PinStoreError);
   });
 });

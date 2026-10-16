@@ -11,9 +11,9 @@ import type { Mailbox, ReceivedHours } from "./mailbox";
 import type { Rail } from "./rail";
 
 export type FeedItem =
-  | { kind: "offer"; key: string; at: string; workerId: string; workerName: string }
+  | { kind: "offer"; key: string; at: string; workerId: string; workerName: string; receivedAt?: string; expiresAt?: string }
   | { kind: "accepted"; key: string; at: string; workerId: string; workerName: string }
-  | { kind: "paystub"; key: string; at: string; workerId: string; workerName: string; payDate: string; runId: string }
+  | { kind: "paystub"; key: string; at: string; workerId: string; workerName: string; payDate: string; runId: string; receivedAt?: string }
   | { kind: "hours"; key: string; at: string; workerId: string; workerName: string; hours: ReceivedHours };
 
 const FALLBACK_NAME = "A team member";
@@ -32,7 +32,15 @@ export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox:
 
   for (const link of rail?.links ?? []) {
     if (link.status === "offered" && link.offeredAt) {
-      items.push({ kind: "offer", key: `offer:${link.agreementId}`, at: link.offeredAt, workerId: link.workerId, workerName: nameOf(link.workerId) });
+      items.push({
+        kind: "offer",
+        key: `offer:${link.agreementId}`,
+        at: link.offeredAt,
+        workerId: link.workerId,
+        workerName: nameOf(link.workerId),
+        ...(link.offerReceivedAt ? { receivedAt: link.offerReceivedAt } : {}),
+        ...(link.terms?.version === 2 ? { expiresAt: link.terms.expiresAt } : {}),
+      });
     }
     if (link.status === "linked" && link.linkedAt) {
       items.push({ kind: "accepted", key: `accepted:${link.agreementId}`, at: link.linkedAt, workerId: link.workerId, workerName: nameOf(link.workerId) });
@@ -50,6 +58,7 @@ export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox:
         workerName: nameOf(check.workerId),
         payDate: run.payDate,
         runId: run.id,
+        ...(check.delivery.receivedAt ? { receivedAt: check.delivery.receivedAt } : {}),
       });
     }
   }

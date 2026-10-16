@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MailboxError, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { MailboxError, lookupId, openReceipt, partiesKeyFromHex, receiptLookup, seal } from "@pnw/mailbox";
 import { addHours, emptyMailbox } from "../books/mailbox";
 import type { Rail, RailLink } from "../books/rail";
 import { scanHours } from "./mailbox_scan";
@@ -67,6 +67,17 @@ describe("scanHours", () => {
     expect(r.received.map((x) => x.seq)).toEqual([0, 1]);
     expect(order).toEqual(["store:0", `drop:${l0}`, "store:1", `drop:${l1}`]);
     expect(r.received[0]).toMatchObject({ workerId: "wkr-1", agreementId: AGREEMENT, totalMinutes: 510, weekStart: "2026-10-05" });
+  });
+
+  it("sends the person a receipt for each week it keeps", async () => {
+    const store = new Map<string, Uint8Array<ArrayBuffer>>();
+    await put(store, 0, PAYLOAD);
+    const client = fakeClient(store);
+    const puts: { lookup: string; envelope: Uint8Array }[] = [];
+    await scanHours({ rail: rail(link()), mailbox: emptyMailbox(), client: { ...client, put: async (lookup, envelope) => void puts.push({ lookup, envelope }) }, store: async () => {}, skip: async () => {} });
+    const key = partiesKeyFromHex(KEY_HEX);
+    expect(puts.map((p) => p.lookup)).toEqual([receiptLookup(key, TIMESHEET_KIND, 0)]);
+    expect((await openReceipt(key, TIMESHEET_KIND, 0, puts[0]!.envelope)).version).toBe(1);
   });
 
   it("starts at the slot after the ones it already has", async () => {

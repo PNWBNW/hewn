@@ -16,6 +16,7 @@
 import { KINDS, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { receivedPaystubHash } from "../../books/paystub_document";
 import { type ReceivedPaystub, type Work, WorkError, nextWorkSeq } from "../../books/work";
+import { sendReceipt } from "../receipts";
 
 /** What the employer's app seals (src/chain/deliver.ts), read back. */
 export type PaystubEnvelope = {
@@ -28,7 +29,8 @@ export type PaystubEnvelope = {
 
 export type ScanInput = {
   work: Work;
-  client: Pick<MailboxClient, "get" | "drop">;
+  /** With `put`, a receipt goes back for each document kept (chain/receipts.ts). */
+  client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">>;
   /** Keeps one paystub in the vault (and moves its slot on). Called before the pin is dropped. */
   store: (paystub: ReceivedPaystub) => Promise<void>;
   /** Moves an agreement's slot past an envelope that couldn't be kept. */
@@ -127,6 +129,7 @@ export async function scanPaystubs({ work, client, store, skip, now, limit }: Sc
         await store(paystub); // in the vault first…
         result.received.push(paystub);
         await client.drop(lookup).catch(() => {}); // …then the pin goes; a pin that lingers is harmless
+        if (client.put) await sendReceipt({ put: client.put.bind(client) }, agreement.partiesKey, KINDS.paystub, seq); // the sender learns it arrived
       }
     } finally {
       key.fill(0);

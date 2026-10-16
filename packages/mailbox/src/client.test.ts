@@ -34,6 +34,15 @@ describe("MailboxClient", () => {
     expect(calls[0]!.init.credentials).toBe("same-origin");
   });
 
+  it("sends a keep-until day in its header, and refuses a malformed one before any request", async () => {
+    const { calls, fetch } = fakeFetch(() => new Response(null, { status: 204 }));
+    const client = new MailboxClient({ fetch });
+    await client.put(LOOKUP, new Uint8Array([1]), { keepUntil: "2026-11-15" });
+    expect(calls[0]!.init.headers).toEqual({ "Content-Type": "application/octet-stream", "X-Mailbox-Keep-Until": "2026-11-15" });
+    await failsWith(client.put(LOOKUP, new Uint8Array([1]), { keepUntil: "soon" }), "BAD_KEEP_UNTIL");
+    expect(calls).toHaveLength(1);
+  });
+
   it("honours a custom base url, with or without a trailing slash", async () => {
     const { calls, fetch } = fakeFetch(() => new Response(null, { status: 204 }));
     await new MailboxClient({ fetch, baseUrl: "https://books.example/api/mailbox/" }).drop(LOOKUP);

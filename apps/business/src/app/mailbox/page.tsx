@@ -15,6 +15,7 @@ import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { formatMinutes } from "@/books/hours";
+import { isExpired } from "@/books/offer_letter";
 import { markHoursRead, unreadCount } from "@/books/mailbox";
 import { type FeedItem, buildFeed, hasWaitingOffer, mailboxLinks } from "@/books/mailbox_feed";
 import { PageHeader } from "@/shell/SectionView";
@@ -32,7 +33,8 @@ type Checking = { state: "idle" } | { state: "running"; run: number } | { state:
 
 export default function MailboxPage() {
   const { rail, payroll, mailbox, updateCompany } = useOpenBooks();
-  const canCheck = mailboxLinks(rail).length > 0;
+  // Hours come from linked team members; receipts can also come back for a waiting offer.
+  const canCheck = mailboxLinks(rail).length > 0 || hasWaitingOffer(rail);
   const [check, setCheck] = useState<Checking>(canCheck ? { state: "running", run: 0 } : { state: "idle" });
   const [replying, setReplying] = useState(false);
   const feed = useMemo(() => buildFeed({ rail, payroll, mailbox }), [rail, payroll, mailbox]);
@@ -47,7 +49,7 @@ export default function MailboxPage() {
 
   const status =
     check.state === "running"
-      ? "Checking for new hours…"
+      ? "Checking for new hours and receipts…"
       : check.state === "done"
         ? (check.message ??
           (check.received > 0 ? `${check.received} new ${check.received === 1 ? "week" : "weeks"} of hours arrived.` : "Nothing new.") +
@@ -113,6 +115,13 @@ export default function MailboxPage() {
   );
 }
 
+/** Where a waiting offer stands, from its receipt and its expiry. */
+function offerDetail(item: Extract<FeedItem, { kind: "offer" }>): string {
+  const expired = item.expiresAt !== undefined && isExpired(item.expiresAt);
+  if (item.receivedAt) return `Opened ${when(item.receivedAt)}. ${expired ? "It expired without an answer." : "Waiting for them to accept."}`;
+  return expired ? "It expired before they opened it." : "Not opened yet. Waiting for them to accept.";
+}
+
 function Row({ item, onRead }: { item: FeedItem; onRead: (hours: Extract<FeedItem, { kind: "hours" }>["hours"]) => void }) {
   if (item.kind === "hours") {
     const h = item.hours;
@@ -148,10 +157,13 @@ function Row({ item, onRead }: { item: FeedItem; onRead: (hours: Extract<FeedIte
   }
   const text =
     item.kind === "offer"
-      ? { title: `Offer sent to ${item.workerName}`, detail: "Waiting for them to accept." }
+      ? { title: `Offer sent to ${item.workerName}`, detail: offerDetail(item) }
       : item.kind === "accepted"
         ? { title: `${item.workerName} accepted your offer`, detail: "They're linked: you can pay them on the rail and send paystubs." }
-        : { title: `Paystub sent to ${item.workerName}`, detail: `Pay date ${dayLabel(item.payDate)}.` };
+        : {
+            title: `Paystub sent to ${item.workerName}`,
+            detail: `Pay date ${dayLabel(item.payDate)}. ${item.receivedAt ? `Received ${when(item.receivedAt)}.` : "Waiting for their app to pick it up."}`,
+          };
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex items-baseline justify-between gap-3">

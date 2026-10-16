@@ -1,4 +1,4 @@
-import { KINDS, MailboxError, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { KINDS, MailboxError, lookupId, openReceipt, partiesKeyFromHex, receiptLookup, seal } from "@pnw/mailbox";
 import { type PaystubDocument, canonicalPaystub, paystubDocument, paystubHash } from "@pnw/payroll";
 import { describe, expect, it } from "vitest";
 import { type ReceivedPaystub, type Work, addPaystub, bumpWorkSeq, emptyWork, upsertAgreement } from "../../books/work";
@@ -112,6 +112,19 @@ describe("scanPaystubs", () => {
     expect(v.order).toEqual(["store:0", "store:1"]);
     expect(v.work.paystubs).toHaveLength(2);
     expect(v.work.mailboxSeq[AID]?.paystub).toBe(2);
+  });
+
+  it("sends a receipt back for each paystub it keeps, when the client can put", async () => {
+    const s0 = await seal(key, KINDS.paystub, 0, bytes(envelope()));
+    const box = fakeMailbox({ [s0.lookup]: s0.envelope });
+    const puts: { lookup: string; envelope: Uint8Array; keepUntil?: string }[] = [];
+    const client = { ...box.client, put: async (lookup: string, envelope: Uint8Array, o?: { keepUntil?: string }) => void puts.push({ lookup, envelope, keepUntil: o?.keepUntil }) };
+    const v = vault(base());
+    await scanPaystubs({ work: v.work, client, store: v.store, skip: v.skip });
+    expect(puts).toHaveLength(1);
+    expect(puts[0]!.lookup).toBe(receiptLookup(key, KINDS.paystub, 0));
+    expect(puts[0]!.keepUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect((await openReceipt(key, KINDS.paystub, 0, puts[0]!.envelope)).version).toBe(1);
   });
 
   it("starts from the slot the vault remembers and never re-reads earlier ones", async () => {

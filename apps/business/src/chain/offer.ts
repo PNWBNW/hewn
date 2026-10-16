@@ -19,7 +19,7 @@ import { ENV } from "@pnw/config/env";
 import { PROGRAMS, VERSIONS } from "@pnw/config/programs";
 import { computeAgreementValues, computeOfferTimeHash } from "@pnw/handshake/engine";
 import { PAY_FREQUENCY_CODES, type ComputedAgreementValues } from "@pnw/handshake/types";
-import { KINDS, MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { KINDS, MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, keepUntilAfter, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
@@ -47,6 +47,13 @@ export const OFFER_PROGRAM = PROGRAMS.layer1.employer_agreement;
 export const OFFER_FUNCTION = "create_offer_open";
 /** The terms always go to slot 0 of the `terms` kind: one agreement, one parties key, one document. */
 export const TERMS_SLOT = 0;
+
+/**
+ * The day an offer's documents may be swept from the mailbox if nobody
+ * collects them: the day after it expires (@pnw/mailbox retention.ts). The
+ * person's app clears them sooner, on accepting or on finding it expired.
+ */
+export const offerKeepUntil = (expiresAt: string): string => keepUntilAfter(new Date(expiresAt), 1);
 
 // ---- Encodings, as the portal did them -------------------------------------------------
 
@@ -295,6 +302,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   const epochs = offerEpochs(input, input.currentHeight, now.getTime());
   const offerTimeUtc = Math.floor(now.getTime() / 1000);
   const picked = input.files ?? [];
+  const expiresAt = expiryFor(now.toISOString(), input.expiresInDays ?? DEFAULT_EXPIRY_DAYS);
   let terms: Terms;
   try {
     // Version 2, the offer letter: the sections and each file's fingerprint sit inside the terms,
@@ -310,7 +318,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
       startDate: input.startDate,
       businessName: input.businessName,
       offeredAt: now.toISOString(),
-      expiresAt: expiryFor(now.toISOString(), input.expiresInDays ?? DEFAULT_EXPIRY_DAYS),
+      expiresAt,
       letter: validateLetter(input.letter ?? emptyLetter()),
       files: picked.map((p) => p.file),
     });
@@ -318,6 +326,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
     throw e instanceof TermsError || e instanceof LetterError ? new OfferError(e.message) : e;
   }
   const canonical = canonicalTerms(terms);
+  const keepUntil = offerKeepUntil(expiresAt);
   if (new TextEncoder().encode(canonical).length > MAX_PAYLOAD_BYTES) throw new OfferError("The offer letter is too long to send; shorten it or attach the long parts as a PDF");
   const computed = computeAgreementValues(input.employerAddress, input.workerAddress, canonical, offerTimeUtc, VERSIONS.schema_v, VERSIONS.policy_v);
   const partiesKey = bareHex(computed.parties_key);
@@ -326,7 +335,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   if (picked.length > 0) {
     onProgress?.("files");
     try {
-      await sendOfferFiles(client, partiesKey, terms.agreementId, picked, input.onFilePiece);
+      await sendOfferFiles(client, partiesKey, terms.agreementId, picked, input.onFilePiece, keepUntil);
     } catch (e) {
       if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") throw new OfferError(MAILBOX_OFF_MESSAGE);
       throw e;
@@ -343,7 +352,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   onProgress?.("mailbox");
   let slotTaken = false;
   try {
-    await client.put(sealed.lookup, sealed.envelope);
+    await client.put(sealed.lookup, sealed.envelope, { keepUntil });
   } catch (e) {
     if (e instanceof MailboxError && e.code === "CONFLICT") slotTaken = true;
     else if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") throw new OfferError(MAILBOX_OFF_MESSAGE);

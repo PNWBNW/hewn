@@ -37,6 +37,7 @@ export function SendWeek({ agreementId, weekStart, now }: { agreementId: string;
           {sent ? (
             <span className="text-xs text-muted-foreground">
               Sent {when(sent.sentAt)} · {formatMinutes(sent.totalMinutes)}
+              {sent.receivedAt ? ` · Received ${when(sent.receivedAt)}` : " · Not picked up yet"}
             </span>
           ) : (
             minutes === 0 && <span className="text-xs text-muted-foreground">Nothing to send yet this week.</span>

@@ -158,7 +158,27 @@ byte, 256 KiB cap) and logs neither bodies nor lookups. Same origin only, no COR
 
 **Pinata holds ciphertext in flight only.** The receiver's vault keeps its copy the moment the
 document is opened and the pin is then dropped; the sender's vault kept one from the start.
-Nothing on a pin but the lookup as its name: no addresses, kinds or dates in metadata. ✅
+Nothing on a pin but the lookup as its name and, for some, a keep-until day (below): no
+addresses or kinds in metadata. ✅
+
+**Keep-until days** (`@pnw/mailbox` `retention.ts`; Joshua, 2026-10-16). Records people depend on
+(paystubs, W-4s, weeks of hours, payment notes) carry no day and stay pinned until collected:
+nothing deletes them on its own. Documents that only matter for a while carry one: an offer's
+terms and file pieces (the day after it expires), receipts (60 days). The function checks the day
+(a real date, today to 60 days on) and keeps it beside the pin; a daily sweep
+(`/api/mailbox/sweep`, the host's scheduler with `CRON_SECRET`) unpins mailbox pins whose day has
+passed, and only those (named by a lookup, with a valid day). The host learns a calendar day per
+pin: roughly how long the sender wants it kept, which hints at whether it is an offer. Without
+`CRON_SECRET` the sweep does nothing and expired pins wait for the receiver's app, which clears an
+expired offer when it finds one. ⚠️ Accepted.
+
+**Receipts** (`@pnw/mailbox` `sealReceipt`, `chain/receipts.ts`). When a person's app collects an
+offer or a paystub, or the business's app collects a week of hours, it seals a small receipt
+("received at") back to the sender, at an address in its own domain
+(`BLAKE3("PNW::MAILBOX::RECEIPT::v1" ‖ 0x00 ‖ parties_key ‖ kind ‖ seq)`) under its own key, and the
+sender drops it once its vault has the time. The host sees one more small envelope; by timing it
+can guess that a document was collected and answered, not by whom or what. A missing receipt only
+means "not known yet". ✅
 
 **Offer letter files** (PDFs and photos attached to an offer, 5 MB together) travel the same way,
 cut into 256 KB pieces, each sealed like any other document under a kind unique to the offer. The

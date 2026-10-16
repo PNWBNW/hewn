@@ -51,6 +51,8 @@ export type RailLink = {
   status: Exclude<LinkStatus, "typed">;
   /** ISO timestamp of the offer, when this app sent it. */
   offeredAt?: string;
+  /** When the person's app picked the offer up, from their receipt. Absent until one arrives. */
+  offerReceivedAt?: string;
   /** ISO timestamp of the approval, when this app saw it. */
   linkedAt?: string;
   /**
@@ -191,7 +193,9 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
   }
   const offeredAt = optionalDate(l.offeredAt, "The offer date");
   const linkedAt = optionalDate(l.linkedAt, "The link date");
+  const offerReceivedAt = optionalDate(l.offerReceivedAt, "The offer's receipt date");
   if (offeredAt !== undefined) link.offeredAt = offeredAt;
+  if (offerReceivedAt !== undefined) link.offerReceivedAt = offerReceivedAt;
   if (linkedAt !== undefined) link.linkedAt = linkedAt;
   if (l.terms !== undefined) {
     try {
@@ -313,11 +317,19 @@ export function addLink(rail: Rail, link: RailLink): Rail {
   const previous = linkFor(rail, fresh.workerId);
   if (previous?.mailboxSeq && previous.partiesKey === fresh.partiesKey && fresh.mailboxSeq === undefined) fresh.mailboxSeq = previous.mailboxSeq;
   if (previous?.offeredAt && previous.agreementId === fresh.agreementId && fresh.offeredAt === undefined) fresh.offeredAt = previous.offeredAt;
+  if (previous?.offerReceivedAt && previous.agreementId === fresh.agreementId && fresh.offerReceivedAt === undefined) fresh.offerReceivedAt = previous.offerReceivedAt;
   if (previous?.terms && previous.agreementId === fresh.agreementId && fresh.terms === undefined) {
     fresh.terms = previous.terms;
     if (previous.offerFiles) fresh.offerFiles = previous.offerFiles;
   }
   return validateRail({ ...rail, links: [...rail.links.filter((l) => l.workerId !== fresh.workerId), fresh] }, LEGACY);
+}
+
+/** Records when the person's app picked up the offer (their receipt). The first time sticks. */
+export function markOfferReceived(rail: Rail, workerId: string, agreementId: string, at: string): Rail {
+  const link = linkFor(rail, workerId);
+  if (!link || link.agreementId !== agreementId || link.offerReceivedAt) return rail;
+  return validateRail({ ...rail, links: rail.links.map((l) => (l.workerId === workerId ? { ...l, offerReceivedAt: at } : l)) }, LEGACY);
 }
 
 /** Drops a team member's link (a withdrawn or expired offer): they're typed again, ready for a new offer. */

@@ -1,7 +1,7 @@
 // The outbox record on a paycheck: which mailbox slot its paystub went to, and when.
 import { describe, expect, it } from "vitest";
 import { type Books, applyTemplate, createBooks } from "@pnw/ledger";
-import { type Payroll, type W4, addWorker, emptyPayroll, markPaycheckDelivery, markPaycheckSettlement, postPayRun } from "./payroll";
+import { type Payroll, type W4, addWorker, emptyPayroll, markPaycheckDelivery, markPaycheckSettlement, markPaystubReceived, postPayRun } from "./payroll";
 import { payrollFromJson, payrollToJson } from "./serialize";
 
 const W4_SINGLE: W4 = { filingStatus: "single", dependentCredit: 0n, otherIncome: 0n, extraDeductions: 0n, extraWithholding: 0n };
@@ -83,5 +83,29 @@ describe("markPaycheckDelivery", () => {
     expect(() => markPaycheckDelivery(s.payroll, s.runId, s.ana.id, { ...delivery, lookup: LOOKUP.toUpperCase() })).toThrow(/64 hex/);
     expect(() => markPaycheckDelivery(s.payroll, s.runId, s.ana.id, { ...delivery, sentAt: "later" })).toThrow(/time it was sent/);
     expect(() => markPaycheckDelivery(s.payroll, s.runId, s.ana.id, null as never)).toThrow(/which slot/);
+  });
+});
+
+describe("markPaystubReceived", () => {
+  it("records the person's receipt for the slot that was sent, once, and survives a save", () => {
+    const { payroll, runId, ana } = setup();
+    const sent = markPaycheckDelivery(payroll, runId, ana.id, delivery);
+    const got = markPaystubReceived(sent, runId, ana.id, 0, "2026-10-16T13:00:00.000Z");
+    const check = () => got.runs[0]!.paychecks.find((p) => p.workerId === ana.id)!;
+    expect(check().delivery).toEqual({ ...delivery, receivedAt: "2026-10-16T13:00:00.000Z" });
+    expect(markPaystubReceived(got, runId, ana.id, 0, "2026-10-17T13:00:00.000Z")).toBe(got);
+    expect(payrollFromJson(payrollToJson(got)).runs[0]!.paychecks.find((p) => p.workerId === ana.id)!.delivery!.receivedAt).toBe("2026-10-16T13:00:00.000Z");
+  });
+
+  it("ignores a receipt for another slot or an unsent paystub, and a re-send waits for its own", () => {
+    const { payroll, runId, ana, ben } = setup();
+    const sent = markPaycheckDelivery(payroll, runId, ana.id, delivery);
+    expect(markPaystubReceived(sent, runId, ana.id, 1, "2026-10-16T13:00:00.000Z")).toBe(sent);
+    expect(markPaystubReceived(sent, runId, ben.id, 0, "2026-10-16T13:00:00.000Z")).toBe(sent);
+    expect(markPaystubReceived(sent, "nope", ana.id, 0, "2026-10-16T13:00:00.000Z")).toBe(sent);
+    expect(() => markPaystubReceived(sent, runId, ana.id, 0, "soon")).toThrow(/time it was received/);
+    const got = markPaystubReceived(sent, runId, ana.id, 0, "2026-10-16T13:00:00.000Z");
+    const resent = markPaycheckDelivery(got, runId, ana.id, { ...delivery, seq: 1 });
+    expect(resent.runs[0]!.paychecks.find((p) => p.workerId === ana.id)!.delivery).toEqual({ ...delivery, seq: 1 });
   });
 });

@@ -152,7 +152,13 @@ export type Paycheck = {
  * is kept; a resend takes a new slot and replaces it. What was sent is
  * rebuilt from the vault, so nothing else needs keeping.
  */
-export type PaycheckDelivery = { seq: number; lookup: string; sentAt: string };
+export type PaycheckDelivery = {
+  seq: number;
+  lookup: string;
+  sentAt: string;
+  /** When the person's app picked it up, from their receipt. Absent until one arrives. */
+  receivedAt?: string;
+};
 
 /** A paycheck as computed for review, before a run commits to it and pays it. */
 export type PaycheckDraft = Omit<Paycheck, "paystubHash" | "settlement" | "delivery">;
@@ -557,6 +563,17 @@ export function markPaycheckDelivery(payroll: Payroll, runId: string, workerId: 
   if (paycheck.delivery && delivery.seq < paycheck.delivery.seq) throw new PayrollError("A paystub can't be re-sent to an earlier slot");
   const clean: PaycheckDelivery = { seq: delivery.seq, lookup: delivery.lookup, sentAt: delivery.sentAt };
   const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, delivery: clean } : p));
+  return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };
+}
+
+/** Records when the person's app picked up the paystub in slot `seq` (their receipt). A re-send to a later slot waits for its own. */
+export function markPaystubReceived(payroll: Payroll, runId: string, workerId: string, seq: number, receivedAt: string): Payroll {
+  if (typeof receivedAt !== "string" || Number.isNaN(Date.parse(receivedAt))) throw new PayrollError("A receipt needs the time it was received");
+  const run = payroll.runs.find((r) => r.id === runId);
+  const paycheck = run?.paychecks.find((p) => p.workerId === workerId);
+  if (!run || !paycheck?.delivery || paycheck.delivery.seq !== seq || paycheck.delivery.receivedAt) return payroll;
+  const delivery: PaycheckDelivery = { ...paycheck.delivery, receivedAt };
+  const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, delivery } : p));
   return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };
 }
 

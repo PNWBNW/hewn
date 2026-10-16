@@ -68,6 +68,8 @@ export async function sendOfferFiles(
   offerTimeHash: string,
   picked: readonly PickedFile[],
   onPiece?: (done: number, total: number) => void,
+  /** The offer's keep-until day, so pieces nobody collects are swept with it. */
+  keepUntil?: string,
 ): Promise<void> {
   const kind = offerFileKind(offerTimeHash);
   const total = picked.reduce((n, p) => n + p.file.chunks, 0);
@@ -81,7 +83,7 @@ export async function sendOfferFiles(
         const piece = bytes.subarray(c * OFFER_CHUNK_BYTES, Math.min(bytes.length, (c + 1) * OFFER_CHUNK_BYTES));
         const sealed = await seal(key, kind, starts[i]! + c, piece);
         try {
-          await client.put(sealed.lookup, sealed.envelope);
+          await client.put(sealed.lookup, sealed.envelope, keepUntil === undefined ? undefined : { keepUntil });
         } catch (e) {
           // The slots are this offer's own: a taken one can only be a retry of the same piece.
           if (!(e instanceof MailboxError && e.code === "CONFLICT")) throw e;

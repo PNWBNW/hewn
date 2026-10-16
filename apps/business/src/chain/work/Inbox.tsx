@@ -2,7 +2,8 @@
 
 // Checking for new paystubs: runs the mailbox scan (inbox.ts) for every
 // accepted agreement the moment it opens, writing each paystub to the vault
-// before its pin is dropped. Needs no Shield: the parties keys are in the
+// before its pin is dropped, then reads the receipts for weeks of hours this
+// person sent (receipts.ts). Needs no Shield: the parties keys are in the
 // vault. Nothing here logs a key, a lookup or a document.
 
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +12,7 @@ import { Button } from "@pnw/ui/button";
 import { FormError } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { addPaystub, bumpWorkSeq } from "@/books/work";
+import { readReceipts, recordWorkReceipts, workAwaiting } from "../receipts";
 import { INBOX_OFF_MESSAGE, type ScanResult, scanPaystubs } from "./inbox";
 
 export type InboxPanelProps = { onClose: () => void };
@@ -23,16 +25,25 @@ export default function InboxPanel({ onClose }: InboxPanelProps) {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
+    const client = new MailboxClient();
+    const awaiting = workAwaiting(work);
     void scanPaystubs({
       work,
-      client: new MailboxClient(),
+      client,
       store: async (p) => {
         await updateWork((w) => addPaystub(w, p));
       },
       skip: async (agreementId, seq) => {
         await updateWork((w) => bumpWorkSeq(w, agreementId, "paystub", seq));
       },
-    }).then(setResult);
+    }).then(async (r) => {
+      if (!r.off && !r.failed && awaiting.length > 0) {
+        await readReceipts(client, awaiting, async (heard) => {
+          await updateWork((w) => recordWorkReceipts(w, heard));
+        });
+      }
+      setResult(r);
+    });
   }, [work, updateWork]);
 
   const scanned = work.agreements.filter((a) => a.status !== "pending").length;
