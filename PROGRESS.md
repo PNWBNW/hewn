@@ -2661,8 +2661,9 @@ included.
     `leo run`.
   - `LetterBox` has the mailbox's put/get/drop shape: put = one approval, then a wait for the
     network; get = one read of the wallet's letters; drop does nothing; no receipts.
-  - The program joins `PROGRAMS.letters` and `WALLET_PROGRAMS`. People reconnect Hewn in Shield
-    once so it knows the new program.
+  - The program joins `PROGRAMS.letters`. It joins `WALLET_PROGRAMS` only once it is deployed
+    (asking Shield for a program that doesn't exist yet could break connecting); then people
+    reconnect Hewn in Shield once.
 - **Next:**
   1. Deploy: Joshua taps broadcast.
   2. A test letter to yourself on testnet: fee, proving time, and whether Shield finds it.
