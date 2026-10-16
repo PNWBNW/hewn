@@ -2,7 +2,7 @@
 import { cn } from "@pnw/ui/utils";
 import { BRAND } from "@pnw/brand";
 
-/** The pine-cone mark on its green tile (the app icon). */
+/** The H mark on its green tile (the app icon). */
 export function BrandMark({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <img
