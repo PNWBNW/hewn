@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confirmTransaction, parseFeeMicrocredits, parseHeight, parseRejected } from "./confirm";
+import { confirmTransaction, parseFeeKind, parseFeeMicrocredits, parseHeight, parseRejected } from "./confirm";
 import fixture from "./fixtures/transaction.json";
 import { type RailNetwork, RailNetworkError } from "./types";
 
@@ -40,6 +40,13 @@ describe("fee parsing", () => {
       fee: { transition: { program: "credits.aleo", function: "fee_private", inputs: [{ type: "record", id: "x", tag: "y" }, { type: "public", value: "40000u64" }, { type: "public", value: "0u64" }, { type: "public", value: "1field" }] } },
     };
     expect(parseFeeMicrocredits(doc)).toBe(40_000n);
+  });
+
+  it("tells a private fee from a public one", () => {
+    expect(parseFeeKind({ id: ID, fee: { transition: { program: "credits.aleo", function: "fee_private", inputs: [] } } })).toBe("private");
+    expect(parseFeeKind({ transaction: fixture })).toBe("public");
+    expect(parseFeeKind({ id: ID })).toBeUndefined();
+    expect(parseFeeKind({ id: ID, fee: { transition: { program: "credits.aleo", function: "split", inputs: [] } } })).toBeUndefined();
   });
 
   it("is undefined when there is no fee transition or no amounts in it", () => {

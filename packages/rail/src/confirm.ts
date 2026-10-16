@@ -53,6 +53,21 @@ export function parseFeeMicrocredits(doc: unknown): bigint | undefined {
   return found ? total : undefined;
 }
 
+/**
+ * How the fee was paid: `private` (credits.aleo/fee_private, from a record:
+ * the payer isn't shown) or `public` (fee_public, which names the payer's
+ * address); undefined when the transaction carries no fee transition.
+ */
+export function parseFeeKind(doc: unknown): "public" | "private" | undefined {
+  const tx = transactionOf(doc);
+  const fee = tx && isObj(tx.fee) ? tx.fee : null;
+  const transition = fee && isObj(fee.transition) ? fee.transition : null;
+  if (!transition) return undefined;
+  if (transition.function === "fee_private") return "private";
+  if (transition.function === "fee_public") return "public";
+  return undefined;
+}
+
 const asHeight = (v: unknown): number | undefined => {
   const n = typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN;
   return Number.isInteger(n) && n >= 0 ? n : undefined;
