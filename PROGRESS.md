@@ -2636,3 +2636,36 @@ each device's encrypted vault, not on a server. So the app gained a Remove inste
   `markLinked`).
 
 Tests: 820/820 (7 new in `hiring.test.ts`).
+
+## 2026-10-16: Letters on chain, the program and the app's codec (not wired in yet)
+
+Joshua: no stopgap mailbox key; build letters on chain as intended. He approved writing the Leo
+with Opus, because Fable was at its limit. The rule's flag was given and negative tests are
+included.
+
+- **`hewn_letters_v1.aleo`** (PNWBNW/pnw_mvp_v2 #202):
+  - `send(to, lookup, parcel[field; 34])` creates a `Letter` for the recipient and a
+    `SentLetter` for the signer.
+  - `send_page(to, lookup, page[field; 256])` creates a `Page` for the recipient.
+  - No mappings, no finalize, `@noupgrade`. It refuses the zero address and an all-zero lookup.
+    The bytecode is 1.3 KB.
+  - Seven Leo tests (four must fail), checked by mutation: removing `send`'s checks turns exactly
+    its two must-fail tests red. They run in that repo's CI.
+  - A new workflow, deploy-new-program, is check-only by default and refuses an id that is
+    already deployed.
+- **App: `chain/letters.ts`:**
+  - Bytes become field elements (31 bytes each, little-endian), each parcel padded to its call's
+    fixed size behind a 2-byte length.
+  - The lookup becomes two u128 halves. `letterCall` picks `send` or `send_page` by size.
+  - `parseLetterRecord` reads Shield's records, checked against the real plaintext format from
+    `leo run`.
+  - `LetterBox` has the mailbox's put/get/drop shape: put = one approval, then a wait for the
+    network; get = one read of the wallet's letters; drop does nothing; no receipts.
+  - The program joins `PROGRAMS.letters` and `WALLET_PROGRAMS`. People reconnect Hewn in Shield
+    once so it knows the new program.
+- **Next:**
+  1. Deploy: Joshua taps broadcast.
+  2. A test letter to yourself on testnet: fee, proving time, and whether Shield finds it.
+  3. Offers' terms as a page, and threads as letters.
+
+Tests: app 9 new (letters); Leo 7/7.
