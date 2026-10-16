@@ -12,6 +12,9 @@
 // Reading posts nothing. The one thing the card writes is the start, and only when tapped and
 // confirmed: today's USDCx total becomes the opening balance of the books' Shield account
 // (books/opening.ts). No address or record is logged.
+//
+// It also holds this device's fee switch (@pnw/wallet/fee-mode), next to the private ALEO that
+// pays a private fee: while private fees are tested, they are chosen here.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from "react";
@@ -19,6 +22,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
+import { type FeeMode, readFeeMode, writeFeeMode } from "@pnw/wallet/fee-mode";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
@@ -132,6 +136,8 @@ function BalancesCard({ address }: AccountBalancesProps) {
           })}
         </dl>
 
+        <PrivateFees privateAleo={privateRead ? (priv?.aleo ?? null) : null} />
+
         {pubError && <p className="text-xs text-money-negative">Couldn&apos;t read the public balances: {pubError}</p>}
         {privError && <p className="text-xs text-money-negative">Couldn&apos;t read the private balances: {privError}</p>}
         {connectError && <p className="text-xs text-money-negative">{connectError}</p>}
@@ -156,6 +162,42 @@ function BalancesCard({ address }: AccountBalancesProps) {
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * This device's fee switch. On, every transaction's network fee comes from private ALEO, so the
+ * network can't see which account sent it; it never falls back to a public fee on its own.
+ */
+function PrivateFees({ privateAleo }: { privateAleo: bigint | null }) {
+  const [mode, setMode] = useState<FeeMode>(() => readFeeMode());
+  const [error, setError] = useState<string | null>(null);
+  const on = mode === "private";
+
+  function choose(next: FeeMode) {
+    setError(null);
+    if (writeFeeMode(next)) setMode(next);
+    else setError("This browser won't keep the setting; allow site data and try again.");
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border p-3">
+      <label className="flex min-h-11 cursor-pointer items-start gap-3">
+        <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary" checked={on} onChange={(e) => choose(e.target.checked ? "private" : "public")} />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">
+            Pay network fees privately <span className="font-normal text-muted-foreground">(testing, this device)</span>
+          </span>
+          <span className="text-xs text-muted-foreground">
+            Fees come from your private ALEO, so the network can&apos;t see which account sent a payment, an offer or anything else. Move some ALEO from Public to Private in Shield first.
+          </span>
+        </span>
+      </label>
+      {on && privateAleo === 0n && (
+        <p className="text-xs text-money-negative">You have no private ALEO, so a fee can&apos;t be paid privately. Move some from Public in Shield, or turn this off.</p>
+      )}
+      <FormError message={error} />
+    </div>
   );
 }
 

@@ -409,5 +409,9 @@ handling); likely a Fable session for the key agreement.
   custody). A fee wallet holds only fees, never anyone's pay; confirm it as an exception.
 - [ ] Where the other 50% of each paid `.hewn` name goes (50% is working capital).
 - [x] Marketing says "no monthly subscription" rather than "free" (2026-10-16).
+- [x] Network fees are paid privately by default, for payments, offers, messages and everything
+  else; only `.hewn` names and job postings are public (2026-10-16). Never a silent fallback to a
+  public fee: short of private ALEO, the app stops and offers to move some. Being tested behind a
+  per-device switch first.
 - [x] Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
   an option (2026-10-16).

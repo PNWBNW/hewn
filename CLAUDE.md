@@ -126,10 +126,12 @@ company and protocol namespace).
 - Security baseline: `docs/THREAT_MODEL.md`. CI blocks on tests, build and `pnpm audit` (moderate+).
   New dependencies must be at least 7 days old (`minimumReleaseAge`).
 - Leo programs (Leo v4 syntax) live in `pnw_mvp_v2/src/layer1`, `src/layer2`, `src/stubs`.
-- Shield wallet: `privateFee: false` is required on every `executeTransaction` or proof generation
-  silently fails. Its browser WASM prover drops multi-program proofs, so payroll runs as four
-  sequential transactions (verify → transfer → receipts → audit) rather than the monolithic
-  `payroll_core_v2::execute_payroll`.
+- Shield wallet: `privateFee: false` was required on every `executeTransaction` (proof generation
+  silently failed without it, most likely because the test accounts held no private ALEO to pay
+  with). Private fees by default is the goal (Joshua, 2026-10-16); being tested behind the
+  dashboard's per-device switch, which `chain/shield.ts` applies to every call. Its browser WASM
+  prover drops multi-program proofs, so payroll runs as four sequential transactions (verify →
+  transfer → receipts → audit) rather than the monolithic `payroll_core_v2::execute_payroll`.
 - USDCx `transfer_private` needs a Sealance Poseidon4 Merkle exclusion proof, tree depth 16, built
   client-side via `SealanceMerkleTree`.
 - Explorer REST base is `https://api.explorer.provable.com/v2`; `snarkos developer execute/deploy`
