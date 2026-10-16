@@ -99,21 +99,23 @@ def main():
     for f in os.listdir(PUB):
         os.remove(os.path.join(PUB, f))
 
-    tile = rounded_tile(os.path.join(SRC, "hewn-icon.png"), 1024)
+    # The icon source is a full green square with the H in its middle half (drawn as
+    # hewn-icon.svg, rendered to hewn-icon.png at 1024 px). Square uses take it as is; the
+    # rest get rounded corners.
+    square = Image.open(os.path.join(SRC, "hewn-icon.png")).convert("RGB").resize((1024, 1024), Image.LANCZOS)
+    tile = square.convert("RGBA")
+    tile.putalpha(rounded_mask(1024, radius=round(1024 * 0.2)))
 
     # Next.js file conventions: src/app/icon.png, apple-icon.png, favicon.ico
     save_png(tile, "icon.png", 512, APP)
-    apple = Image.new("RGBA", (180, 180), (*GREEN, 255))  # iOS wants a full square; it rounds itself
-    apple.alpha_composite(tile.resize((180, 180), Image.LANCZOS))
-    apple.convert("RGB").save(os.path.join(APP, "apple-icon.png"), optimize=True)
+    square.resize((180, 180), Image.LANCZOS).save(os.path.join(APP, "apple-icon.png"), optimize=True)  # iOS rounds it itself
     tile.resize((64, 64), Image.LANCZOS).save(os.path.join(APP, "favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
 
     # Web app manifest icons
     for s in (192, 512):
         save_png(tile, f"hewn-icon-{s}.png", s)
-    maskable = Image.new("RGBA", (512, 512), (*GREEN, 255))  # safe zone: art inside the middle 80%
-    maskable.alpha_composite(tile.resize((410, 410), Image.LANCZOS), (51, 51))
-    maskable.convert("RGB").save(os.path.join(PUB, "hewn-icon-maskable-512.png"), optimize=True)
+    # Maskable: the H already sits inside the middle 80% safe zone, so the full square works.
+    square.resize((512, 512), Image.LANCZOS).save(os.path.join(PUB, "hewn-icon-maskable-512.png"), optimize=True)
 
     # In-app mark and lettering
     save_png(tile, "hewn-mark.png", 128)
