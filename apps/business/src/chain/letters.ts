@@ -213,3 +213,26 @@ export class LetterBox {
     return map;
   }
 }
+
+/**
+ * A reader that looks among the wallet's letters first and then in the old
+ * mailbox (for anything sent before letters, or a host that still runs one).
+ * A mailbox that's off reads as "nothing there".
+ */
+export function lettersThenMailbox(
+  letters: Pick<LetterBox, "get">,
+  mailbox: { get(lookup: string): Promise<Uint8Array<ArrayBuffer> | null> },
+): { get(lookup: string): Promise<Uint8Array<ArrayBuffer> | null> } {
+  return {
+    async get(lookup) {
+      const letter = await letters.get(lookup);
+      if (letter) return letter;
+      try {
+        return await mailbox.get(lookup);
+      } catch (e) {
+        if (e instanceof Error && "code" in e && (e as { code?: string }).code === "NOT_CONFIGURED") return null;
+        throw e;
+      }
+    },
+  };
+}

@@ -3,8 +3,15 @@
 Status: **deployed on testnet** (2026-10-16): `hewn_letters_v1.aleo`, deploy transaction
 `at1pxclare6clej0feuzcncngmwvma44g0hg2ngsh763gltk0rz6qpqgtfqnt` (PNWBNW/pnw_mvp_v2 #202,
 recorded in #203). The app's codec and `LetterBox` are in `apps/business/src/chain/letters.ts`;
-Settings has "Send a test letter" to measure a real one. Offers and messages still use the
-mailbox until that test has gone through.
+Settings has "Send a test letter" to measure a real one; it went through on Joshua's phone
+(below). **Offers now go as letters:** their terms are packed (deflated) and sealed into one
+page to the person, and the person's app reads offers from letters first, then the old mailbox.
+Messages, counter-offers, timesheets and paystubs still use the mailbox; they move next.
+
+**Measured on testnet (2026-10-16, Joshua's phone, Shield):** a letter took 13.6–73.7 s from tap
+to accepted (approving and Shield's sponsor step included), cost 0.006578 ALEO, and was listed by
+Shield in 0.7–1.0 s, with a sender, and read back word for word. Shield had a **sponsor** pay the
+fee publicly, so the fee names Provable's account, not the sender's, and the sender paid nothing.
 
 **Measured at deploy** (Leo's cost summary under consensus V22): `send` costs **0.006578 ALEO**
 (6,578 microcredits), `send_page` **0.086886 ALEO**. Deploying cost 14.955 credits (synthesis

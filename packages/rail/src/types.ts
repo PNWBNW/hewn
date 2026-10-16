@@ -16,7 +16,15 @@ export type RailWallet = {
    * estimates the fee when `fee` is left out. Returns the wallet's own id
    * for the request, which `transactionStatus` maps to the on-chain id.
    */
-  executeTransaction(opts: { program: string; function: string; inputs: string[]; fee?: number; privateFee: false }): Promise<{ transactionId: string }>;
+  executeTransaction(opts: {
+    program: string;
+    function: string;
+    inputs: string[];
+    fee?: number;
+    privateFee: false;
+    /** The person's fee choice for this send; the app's Shield wrapper turns it into privateFee. */
+    feeMode?: "public" | "private";
+  }): Promise<{ transactionId: string }>;
   transactionStatus(id: string): Promise<{ status: string; transactionId?: string; error?: string }>;
 };
 

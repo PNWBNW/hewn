@@ -124,6 +124,11 @@ The highest risk for a browser app.
   Private by default is the decision (Joshua, 2026-10-16); 🔜 testing: a per-device switch on the
   dashboard (`@pnw/wallet/fee-mode`, applied to every call in `chain/shield.ts`). It never falls
   back to a public fee on its own.
+- **Measured 2026-10-16 (test letters through Shield):** Shield doesn't spend the account's private
+  ALEO for a dApp call. It has a sponsor pay a public fee instead: the `fee_public` names *another*
+  account (Provable, which says it covers Shield's fees), not the sender. The public can't tie the
+  transaction to the sender. Provable, which sponsored it, can. Sponsorship is Provable's policy and
+  may change (limits, mainnet); the per-send fee choice stays for when it does.
 
 ### T7 — Unauthorized access by another member (multi-user)
 - Roles enforced by key wrapping and in-circuit allow-lists, not by hiding buttons. 🔜 P6

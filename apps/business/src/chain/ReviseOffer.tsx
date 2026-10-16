@@ -29,6 +29,7 @@ import { addLink, linkFor, removeLink, shortAddress } from "@/books/rail";
 import { MAX_NOTE_CHARS, type Proposal, addToThread, proposalChanges, proposalOf } from "@/books/thread";
 import { ShieldStatus } from "./ShieldStatus";
 import { type OfferStage, fetchLatestHeight, sendOffer, withdrawOffer } from "./offer";
+import { LetterBox } from "./letters";
 import { useShield } from "./shield";
 import { postToThread } from "./thread";
 
@@ -54,11 +55,11 @@ export default function ReviseOffer(props: ReviseOfferProps) {
 type Stage = "withdrawing" | "files" | OfferStage | "noting";
 
 const STAGE_COPY: Record<Stage, string> = {
-  withdrawing: "Approve withdrawing the current offer in Shield (1 of 2)…",
+  withdrawing: "Approve withdrawing the current offer in Shield (1 of 3)…",
   files: "Putting the files in their mailbox…",
   sealing: "Sealing the revised terms…",
-  mailbox: "Putting the revised terms in their mailbox…",
-  approving: "Approve the revised offer in Shield (2 of 2)…",
+  mailbox: "Approve the revised terms in Shield (2 of 3): they go as a sealed page on the network…",
+  approving: "Approve the revised offer in Shield (3 of 3)…",
   sent: "Sent. Waiting for the network…",
   accepted: "Saving…",
   noting: "Telling them it's a revision…",
@@ -166,7 +167,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         reviewDate,
         endDate,
         currentHeight,
-        client,
+        // The revised terms go to them as a sealed page on the network.
+        client: new LetterBox({ wallet, to: old.address }),
         wallet: shield,
         onProgress: setStage,
       });
@@ -250,8 +252,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
       </Field>
       {hadFiles && <p className="text-xs text-muted-foreground">Offers no longer carry files, so the revised offer goes without the current one&apos;s. Paste anything they need into the offer letter.</p>}
       <p className="text-xs text-muted-foreground">
-        Shield asks twice: first to withdraw the current offer, then to send the revised one. Their pay in Payroll changes to match. The business pays both
-        network fees.
+        Shield asks three times: to withdraw the current offer, to send the revised terms as a sealed page, then to send the revised offer. Their pay
+        in Payroll changes to match.
       </p>
       {stage && <p className="text-sm text-muted-foreground">{STAGE_COPY[stage]}</p>}
       <FormError message={error ?? shieldError ?? ("problem" in parsed ? parsed.problem : null)} />

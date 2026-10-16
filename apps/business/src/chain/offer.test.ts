@@ -85,13 +85,13 @@ function portalInputs(computed: ReturnType<typeof computeAgreementValues>, e: { 
 }
 
 // ---- Fakes -------------------------------------------------------------------------------
-type Put = { lookup: string; envelope: Uint8Array; keepUntil?: string };
+type Put = { lookup: string; envelope: Uint8Array; keepUntil?: string; feeMode?: "public" | "private" };
 function fakeClient(...answers: (number | Error)[]) {
   const puts: Put[] = [];
   return {
     puts,
-    async put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string }) {
-      puts.push({ lookup, envelope: new Uint8Array(envelope), ...(options?.keepUntil ? { keepUntil: options.keepUntil } : {}) });
+    async put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: "public" | "private" }) {
+      puts.push({ lookup, envelope: new Uint8Array(envelope), ...(options?.keepUntil ? { keepUntil: options.keepUntil } : {}), ...(options?.feeMode ? { feeMode: options.feeMode } : {}) });
       const a = answers.shift() ?? 201;
       if (a instanceof Error) throw a;
       if (a === 409) throw new MailboxError("CONFLICT", "taken");
@@ -101,12 +101,12 @@ function fakeClient(...answers: (number | Error)[]) {
   };
 }
 function fakeWallet({ polls = 2, outcome = "accepted" as "accepted" | "rejected" } = {}) {
-  const calls: { program: string; function: string; inputs: string[]; privateFee: false }[] = [];
+  const calls: { program: string; function: string; inputs: string[]; privateFee: false; feeMode?: "public" | "private" }[] = [];
   let asked = 0;
   return {
     calls,
-    async executeTransaction(opts: { program: string; function: string; inputs: string[]; fee?: number; privateFee: false }) {
-      calls.push({ program: opts.program, function: opts.function, inputs: opts.inputs, privateFee: opts.privateFee });
+    async executeTransaction(opts: { program: string; function: string; inputs: string[]; fee?: number; privateFee: false; feeMode?: "public" | "private" }) {
+      calls.push({ program: opts.program, function: opts.function, inputs: opts.inputs, privateFee: opts.privateFee, ...(opts.feeMode ? { feeMode: opts.feeMode } : {}) });
       return { transactionId: WALLET_ID };
     },
     async transactionStatus(id: string) {
@@ -346,12 +346,33 @@ describe("sendOffer", () => {
     expect(put.lookup).toBe(lookupId(key, own, TERMS_SLOT));
     expect(put.lookup).not.toBe(lookupId(key, KINDS.terms, TERMS_SLOT));
     expect(put.envelope[0]).toBe(0x01);
-    const opened = new TextDecoder().decode(await open(key, own, 0, put.envelope));
+    // Packed (deflated) before sealing, so a long offer fits one page on the network; it unpacks to exactly the canonical terms.
+    const { unpackPayload } = await import("./compress");
+    const opened = new TextDecoder().decode(await unpackPayload(await open(key, own, 0, put.envelope)));
     expect(opened).toBe(canonical);
     expect(parseTerms(opened)).toEqual(sent.terms);
     await expect(open(key, KINDS.paystub, 0, put.envelope)).rejects.toThrow();
     const wire = new TextDecoder("utf-8", { fatal: false }).decode(put.envelope);
     expect(wire).not.toMatch(/Carpenter|dayco|3000/);
+  });
+
+  it("sends the terms with the person's fee choice, and refuses an offer too long for one page before Shield is asked", async () => {
+    const client = fakeClient();
+    const wallet = fakeWallet();
+    await sendOffer(input({ client, wallet, feeMode: "private" }));
+    expect(client.puts[0]).toMatchObject({ feeMode: "private" });
+    expect(wallet.calls[0]).toMatchObject({ feeMode: "private" });
+    // Random text won't deflate: 20,000 characters of it can't fit a page.
+    let x = 12345;
+    const noise = Array.from({ length: 20_000 }, () => {
+      x = (x * 1103515245 + 12345) & 0x7fffffff;
+      return String.fromCharCode(33 + ((x >> 16) % 90));
+    }).join("");
+    const big = fakeClient();
+    const quiet = fakeWallet();
+    await expect(sendOffer(input({ client: big, wallet: quiet, letter: { description: noise, requirements: "", handbook: "", other: "" } }))).rejects.toThrow(/too long to send on the network/);
+    expect(big.puts).toHaveLength(0);
+    expect(quiet.calls).toHaveLength(0);
   });
 
   it("stops before any transaction when the mailbox is off (503)", async () => {

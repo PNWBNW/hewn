@@ -36,6 +36,7 @@ import { readThread } from "../thread";
 import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
 import { executeAndWait } from "./execute";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
+import { LetterBox, lettersThenMailbox } from "../letters";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
 
 export type OffersPanelProps = { onClose: () => void };
@@ -90,6 +91,8 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
   const [busy, setBusy] = useState<string | null>(null); // agreement id being accepted
   const [note, setNote] = useState<string | null>(null);
   const client = useRef(new MailboxClient());
+  // Offers' terms come as sealed pages on the network; older offers' from the mailbox.
+  const letters = useRef(new LetterBox({ wallet }));
   const started = useRef(false);
 
   useEffect(() => {
@@ -123,7 +126,7 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           const employerName = previous?.employerName ?? ((await queryNamePlaintext(record.employerNameHash).catch(() => null)) || undefined);
           // Terms already in the vault are used as long as they still hash to the record; otherwise the mailbox.
           const kept: Terms | undefined = previous?.terms && termsMatchRecord(previous.terms, record.termsDocHash) ? previous.terms : undefined;
-          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, client.current);
+          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, lettersThenMailbox(letters.current, client.current));
           const verified = !!terms.terms && termsMatchRecord(terms.terms, record.termsDocHash);
           const row: Row = { record, status, terms, verified, files: [] };
           const t = terms.terms;

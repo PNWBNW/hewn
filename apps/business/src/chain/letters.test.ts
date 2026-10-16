@@ -141,3 +141,20 @@ describe("the letter box", () => {
     await expect(new LetterBox({ wallet: w }).put(LOOKUP, bytes(10))).rejects.toThrow(/only reads/);
   });
 });
+
+describe("reading letters first, then the old mailbox", () => {
+  it("prefers a letter, falls back to the mailbox, and treats a mailbox that's off as empty", async () => {
+    const { lettersThenMailbox } = await import("./letters");
+    const { MailboxError } = await import("@pnw/mailbox");
+    const fromLetters = { get: async (l: string) => (l === "a" ? Uint8Array.of(1) : null) };
+    const mailbox = { get: async (l: string) => (l === "b" ? Uint8Array.of(2) : null) };
+    const reader = lettersThenMailbox(fromLetters, mailbox);
+    expect(await reader.get("a")).toEqual(Uint8Array.of(1));
+    expect(await reader.get("b")).toEqual(Uint8Array.of(2));
+    expect(await reader.get("c")).toBeNull();
+    const off = lettersThenMailbox(fromLetters, { get: async () => { throw new MailboxError("NOT_CONFIGURED", "off"); } });
+    expect(await off.get("c")).toBeNull();
+    const broken = lettersThenMailbox(fromLetters, { get: async () => { throw new MailboxError("REQUEST_FAILED", "502"); } });
+    await expect(broken.get("c")).rejects.toThrow("502");
+  });
+});
