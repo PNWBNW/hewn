@@ -56,6 +56,8 @@ export type LetterCheckDeps = {
   randomHex?: (bytes: number) => string;
   /** What the letter says; the default line when left out. */
   message?: string;
+  /** How to pay this send's fee (the person's choice next to the button; the device's switch when left out). Also goes in the report. */
+  feeAsked?: "public" | "private";
 };
 
 export type LetterCheckResult = {
@@ -77,6 +79,8 @@ export type LetterCheckResult = {
   opened: boolean;
   /** What the public transaction shows, line by line (describeBroadcast). */
   broadcast?: string[];
+  /** How the app asked Shield to pay the fee. */
+  feeAsked?: "public" | "private";
 };
 
 const hex = (bytes: number) => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -94,9 +98,10 @@ export async function runLetterCheck(deps: LetterCheckDeps): Promise<LetterCheck
 
   const sealed = await seal(partiesKeyFromHex(key), TEST_KIND, 0, new TextEncoder().encode(message));
   const started = now();
-  const { transactionId } = await executeAndWait(deps.wallet, letterCall(deps.address, sealed.lookup, sealed.envelope), { sleep, now });
+  const call = { ...letterCall(deps.address, sealed.lookup, sealed.envelope), ...(deps.feeAsked ? { feeMode: deps.feeAsked } : {}) };
+  const { transactionId } = await executeAndWait(deps.wallet, call, { sleep, now });
   const accepted = now();
-  const result: LetterCheckResult = { transactionId, sentAs: fit.as, sentMs: accepted - started, letterFound: false, copyFound: false, senderShown: false, opened: false };
+  const result: LetterCheckResult = { ...(deps.feeAsked ? { feeAsked: deps.feeAsked } : {}), transactionId, sentAs: fit.as, sentMs: accepted - started, letterFound: false, copyFound: false, senderShown: false, opened: false };
 
   // The fee, from the transaction as the network has it.
   if (transactionId.startsWith("at1")) {
@@ -108,7 +113,7 @@ export async function runLetterCheck(deps: LetterCheckDeps): Promise<LetterCheck
           const kind = parseFeeKind(doc);
           if (fee !== undefined) result.feeMicrocredits = fee;
           if (kind) result.feeKind = kind;
-          result.broadcast = describeBroadcast(doc);
+          result.broadcast = describeBroadcast(doc, deps.address);
           break;
         }
       } catch {
@@ -162,15 +167,26 @@ function byKind(list: unknown): { counts: Map<string, number>; items: Obj[] } {
   return { counts, items };
 }
 
-const KIND_WORDS: Record<string, string> = {
-  private: "private (encrypted, unreadable)",
-  public: "public (readable by anyone)",
-  record: "record (encrypted to its owner)",
-  external_record: "record of another program",
-  future: "future (public work done on chain)",
-  constant: "constant (public)",
+const KIND_WORDS: Record<string, [string, string]> = {
+  private: ["private (encrypted, unreadable)", "private (encrypted, unreadable)"],
+  public: ["public (readable by anyone)", "public (readable by anyone)"],
+  record: ["record (encrypted to its owner)", "records (each encrypted to its owner)"],
+  external_record: ["record of another program", "records of another program"],
+  future: ["future (public work done on chain)", "futures (public work done on chain)"],
+  constant: ["constant (public)", "constants (public)"],
 };
-const kinds = (counts: Map<string, number>) => [...counts].map(([k, n]) => `${n} ${KIND_WORDS[k] ?? k}`).join(", ") || "none";
+const kinds = (counts: Map<string, number>) =>
+  [...counts].map(([k, n]) => `${n} ${KIND_WORDS[k]?.[n === 1 ? 0 : 1] ?? k}`).join(", ") || "none";
+
+/** The account a fee_public names (the first argument of its future), or null. */
+function publicFeePayer(fee: Obj): string | null {
+  const outs = Array.isArray(fee.outputs) ? fee.outputs.filter(isObj) : [];
+  for (const o of outs) {
+    const m = typeof o.value === "string" ? /aleo1[0-9a-z]{58}/.exec(o.value) : null;
+    if (m) return m[0];
+  }
+  return null;
+}
 
 /**
  * The public transaction, the way anyone fetching it from the explorer sees
@@ -178,7 +194,7 @@ const kinds = (counts: Map<string, number>) => [...counts].map(([k, n]) => `${n}
  * fee transition, and the size. No account is printed: where the fee names
  * the payer, it says so instead.
  */
-export function describeBroadcast(doc: unknown): string[] {
+export function describeBroadcast(doc: unknown, self?: string): string[] {
   const tx = isObj(doc) && isObj(doc.transaction) ? doc.transaction : isObj(doc) ? doc : null;
   if (!tx) return ["The explorer's copy couldn't be read"];
   const lines: string[] = [];
@@ -206,7 +222,11 @@ export function describeBroadcast(doc: unknown): string[] {
     lines.push(`  Inputs: ${kinds(ins.counts)}`);
     lines.push(
       fee.function === "fee_public"
-        ? "  Who paid: shown (fee_public names the paying account)"
+        ? `  Who paid: shown (fee_public names the paying account)${(() => {
+            const payer = publicFeePayer(fee);
+            if (!payer || !self) return "";
+            return payer === self ? ": this account" : ": another account, not this one (a sponsor paid)";
+          })()}`
         : fee.function === "fee_private"
           ? "  Who paid: not shown (fee_private spends a record; only its serial number is public)"
           : "  Who paid: unknown",
@@ -230,6 +250,7 @@ export function letterCheckReport(r: LetterCheckResult, date: string): string {
     `Sent as: ${r.sentAs === "page" ? "a page (send_page, the long-document call; the sender keeps no copy on chain)" : "a letter (send)"}`,
     `Tap to accepted (approving included): ${seconds(r.sentMs)}`,
     `Fee: ${r.feeMicrocredits === undefined ? "not read" : `${credits(r.feeMicrocredits)} ALEO (${r.feeMicrocredits.toLocaleString("en-US")} microcredits)`}`,
+    `Fee asked for: ${r.feeAsked === "private" ? "private" : r.feeAsked === "public" ? "public" : "not recorded"}`,
     `Fee paid: ${r.feeKind === "private" ? "privately (no account shown)" : r.feeKind === "public" ? "publicly (shows this account)" : "not read"}`,
     `Shield found the letter: ${r.letterFound ? "yes" : "no"}`,
     ...(r.sentAs === "letter" ? [`Shield found the sender's copy: ${r.copyFound ? "yes" : "no"}`] : []),

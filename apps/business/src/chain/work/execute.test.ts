@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type WorkWallet, executeAndWait } from "./execute";
 
-type Sent = { program: string; function: string; inputs: string[]; fee?: number; privateFee: false };
+type Sent = { program: string; function: string; inputs: string[]; fee?: number; privateFee: false; feeMode?: "public" | "private" };
 
 function fakeWallet(statuses: ({ status: string; transactionId?: string; error?: string } | Error)[], result: { transactionId: string } | null = { transactionId: "shield_1" }) {
   const sent: Sent[] = [];
@@ -54,5 +54,14 @@ describe("executeAndWait", () => {
     const { wallet, asked } = fakeWallet([new Error("unknown"), new Error("unknown"), { status: "completed" }]);
     await executeAndWait(wallet, CALL, fast);
     expect(asked).toHaveLength(3);
+  });
+
+  it("passes the person's fee choice for this send along with the call", async () => {
+    const { wallet, sent } = fakeWallet([{ status: "accepted", transactionId: "at1" + "x".repeat(58) }]);
+    await executeAndWait(wallet, { ...CALL, feeMode: "private" }, fast);
+    expect(sent[0]).toMatchObject({ privateFee: false, feeMode: "private" }); // chain/shield.ts turns it into privateFee
+    const plain = fakeWallet([{ status: "accepted" }]);
+    await executeAndWait(plain.wallet, CALL, fast);
+    expect(plain.sent[0]).not.toHaveProperty("feeMode"); // no choice: the device's switch decides
   });
 });

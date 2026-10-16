@@ -13,11 +13,13 @@ import { Check, Copy } from "lucide-react";
 import { ENV } from "@pnw/config/env";
 import { Button } from "@pnw/ui/button";
 import { inputClass } from "@/books/AuthCard";
+import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { shortAddress } from "@/books/rail";
+import { FeeChoice } from "./FeeChoice";
 import { ShieldStatus } from "./ShieldStatus";
 import { fetchExplorerTransaction } from "./decrypt";
 import { LETTER_TEXT_BYTES, PAGE_TEXT_BYTES, TEST_LINE, letterCheckReport, messageFit, runLetterCheck } from "./letter_check";
@@ -42,6 +44,8 @@ function CheckFlow({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState(TEST_LINE);
   const [readBack, setReadBack] = useState<string | null>(null);
+  // This send's fee, starting from the device's switch.
+  const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const fit = messageFit(message);
 
   const address = state.kind === "connected" ? state.address : null;
@@ -54,7 +58,7 @@ function CheckFlow({ onClose }: { onClose: () => void }) {
     setReport(null);
     setReadBack(null);
     try {
-      const r = await runLetterCheck({ wallet, address, message, fetchTransaction: (id) => fetchExplorerTransaction(id, ENV.ALEO_ENDPOINT) });
+      const r = await runLetterCheck({ wallet, address, message, feeAsked: feeMode, fetchTransaction: (id) => fetchExplorerTransaction(id, ENV.ALEO_ENDPOINT) });
       setReport(letterCheckReport(r, todayIso()));
       setReadBack(r.readBack ?? null);
     } catch (e) {
@@ -82,7 +86,7 @@ function CheckFlow({ onClose }: { onClose: () => void }) {
         <p className="text-xs text-muted-foreground">
           Sends one sealed letter, saying whatever you write below, to this account itself on the network, and reports what it cost, how long it
           took, whether Shield found it and exactly what the network sees.
-          Shield asks you to approve once; the fee is paid the way the dashboard&apos;s fee switch says. If Shield says it doesn&apos;t know the
+          Shield asks you to approve once; you choose below whether its fee is paid privately or publicly. If Shield says it doesn&apos;t know the
           letters program, disconnect this app in Shield and connect again.
         </p>
       </div>
@@ -123,6 +127,7 @@ function CheckFlow({ onClose }: { onClose: () => void }) {
                     : "Write something for it to say."}
             </span>
           </div>
+          <FeeChoice value={feeMode} onChange={setFeeMode} disabled={running} />
           {readBack !== null && (
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-muted-foreground">Read back from the network</span>

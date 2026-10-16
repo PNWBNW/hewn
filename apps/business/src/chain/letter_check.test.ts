@@ -105,7 +105,7 @@ describe("the test letter", () => {
     // What anyone can see: the call, its kinds of inputs and outputs, nothing readable, and a private fee.
     expect(text).toContain(`Call: ${LETTERS_PROGRAM}/send`);
     expect(text).toContain("Inputs: 3 private (encrypted, unreadable)");
-    expect(text).toContain("Outputs: 2 record (encrypted to its owner)");
+    expect(text).toContain("Outputs: 2 records (each encrypted to its owner)");
     expect(text).toContain("Record ciphertext: 311 + 311 characters");
     expect(text).toContain("Sender ciphertext (only the owner can open it): on 1 record");
     expect(text).toContain("Readable values in this call: none");
@@ -117,6 +117,15 @@ describe("the test letter", () => {
     const { describeBroadcast } = await import("./letter_check");
     const lines = describeBroadcast(letterTx("fee_public"));
     expect(lines.join("\n")).toContain("Who paid: shown (fee_public names the paying account)");
+    // Whether the payer is this account or a sponsor, without printing either.
+    const paidBy = (payer: string) => {
+      const tx = letterTx("fee_public");
+      (tx.fee.transition as Record<string, unknown>).outputs = [{ type: "future", value: `{\n  program_id: credits.aleo,\n  function_name: fee_public,\n  arguments: [\n    ${payer},\n    6578u64\n  ]\n}` }];
+      return describeBroadcast(tx, ME).join("\n");
+    };
+    expect(paidBy(ME)).toContain("names the paying account): this account");
+    expect(paidBy("aleo1" + "s".repeat(58))).toContain("another account, not this one (a sponsor paid)");
+    expect(paidBy(ME)).not.toContain(ME);
     const leaky = { execution: { transitions: [{ program: "x.aleo", function: "f", inputs: [{ type: "public", value: ME }], outputs: [] }] } };
     expect(describeBroadcast(leaky).join("\n")).toContain("Readable values in this call: an account");
     expect(describeBroadcast(null)).toEqual(["The explorer's copy couldn't be read"]);
@@ -125,11 +134,13 @@ describe("the test letter", () => {
   it("carries a message of your own, and a long one as a page", async () => {
     const { messageFit, LETTER_TEXT_BYTES, PAGE_TEXT_BYTES } = await import("./letter_check");
     const short = setup({ listAfter: 1 });
-    const r1 = await runLetterCheck({ ...short.deps, message: "Hello from Morgan 👋" });
+    const r1 = await runLetterCheck({ ...short.deps, message: "Hello from Morgan 👋", feeAsked: "private" });
     expect([r1.sentAs, r1.opened, r1.readBack]).toEqual(["letter", true, "Hello from Morgan 👋"]);
     const text = letterCheckReport(r1, "2026-10-16");
     expect(text).not.toContain("Hello from Morgan"); // the words stay on screen, not in the report
     expect(text).toContain("Message: 22 bytes");
+    expect(text).toContain("Fee asked for: private");
+    expect(short.sent[0]).toMatchObject({ feeMode: "private" }); // the choice travels with the call
 
     const long = "x".repeat(LETTER_TEXT_BYTES + 1);
     const paged = setup({ listAfter: 1 });

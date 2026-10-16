@@ -5,11 +5,12 @@
 //
 // Every transaction the app sends goes through the wallet this returns, so
 // this is where the fee mode applies (@pnw/wallet/fee-mode): each call's fee
-// is paid from public or private ALEO as this device's switch says at the
-// moment of sending, whatever the caller passed.
+// is paid from public or private ALEO as the person chose for that send
+// (`feeMode` on the call, from a choice next to its send button), or else as
+// this device's switch says at the moment of sending.
 
 import { useEffect, useState } from "react";
-import { readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
+import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { Network, WalletReadyState, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
 
@@ -17,7 +18,13 @@ export type ShieldState = { kind: "missing" } | { kind: "ready" } | { kind: "con
 
 export function useShield() {
   const adaptor = useWallet();
-  const wallet = { ...adaptor, executeTransaction: (opts: Parameters<typeof adaptor.executeTransaction>[0]) => adaptor.executeTransaction(withFeeMode(opts, readFeeMode())) };
+  const wallet = {
+    ...adaptor,
+    executeTransaction: (opts: Parameters<typeof adaptor.executeTransaction>[0] & { feeMode?: FeeMode }) => {
+      const { feeMode, ...call } = opts;
+      return adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()));
+    },
+  };
   const shield = wallet.wallets[0]; // Shield is the only adapter registered
   const [asked, setAsked] = useState(false);
   const [error, setError] = useState<string | null>(null);
