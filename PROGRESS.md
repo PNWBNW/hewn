@@ -2266,3 +2266,27 @@ fallback. Screens checked by typecheck and build; a real negotiation needs two a
 Shield, so Joshua's test run is the real check.
 
 **Next:** business ↔ team messages on the same thread (a Messages screen on both sides).
+
+## 2026-10-16: The parties key is random (security fix)
+
+Found while fact-checking the messaging post. Every mailbox key and lookup comes from the
+agreement's `parties_key`. The old portal computed it as BLAKE3("PNW::PARTIES", employer address,
+worker address), so anyone who knew (or guessed) both addresses could compute it, derive the
+mailbox keys and read what was pinned: offers, paystubs, W-4s, hours, threads. Business
+addresses are visible on chain (public fees), and worker addresses are on the name registry.
+
+`employer_agreement_v4` takes `parties_key` as an input and never checks how it was made, and
+both sides already read it from their private records. So the fix needs no Leo change:
+- `sendOffer` draws 32 random bytes for each new pair (`newPartiesKey`);
+- a revised offer keeps the pair's key (`partiesKey` input), so the conversation carries on;
+- an address-derived key passed in is replaced (`isDerivedPartiesKey`).
+
+Pairs linked before the fix (testnet only) keep their old key until they get a new offer. The
+unused `@pnw/w4-crypto` package (the portal's IPFS W-4 sharing, same derived key) is marked
+legacy and do-not-use. THREAT_MODEL updated.
+
+Tests 766/766 (+4, in `offer.test.ts`):
+- every pair gets a fresh key, never the address-derived one;
+- the key goes on the chain, seals the terms and lands on the link;
+- a revision keeps it;
+- an old key is replaced and a malformed one refused.

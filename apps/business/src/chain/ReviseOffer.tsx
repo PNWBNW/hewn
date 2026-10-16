@@ -172,6 +172,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         letter: revised.letter,
         files: picked,
         expiresInDays,
+        // The same secret key as before, so the conversation carries on (a key from before keys were random is replaced).
+        ...(old.partiesKey ? { partiesKey: old.partiesKey } : {}),
         startDate: revised.startDate,
         reviewDate,
         endDate,

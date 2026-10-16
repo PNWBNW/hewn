@@ -21,6 +21,8 @@ import {
   createJobOfferInputs,
   dateToHeight,
   fetchLatestHeight,
+  isDerivedPartiesKey,
+  newPartiesKey,
   finalAgreementIds,
   isMailboxOff,
   offerEpochs,
@@ -298,7 +300,9 @@ describe("sendOffer", () => {
 
     // The link: offered, with the values the record will carry.
     const canonical = canonicalTerms(sent.terms);
-    const computed = computeAgreementValues(EMPLOYER, WORKER, canonical, Math.floor(NOW.getTime() / 1000));
+    // Everything but the parties key comes from the portal's formulas; the key is random, never from the addresses.
+    const computed = { ...computeAgreementValues(EMPLOYER, WORKER, canonical, Math.floor(NOW.getTime() / 1000)), parties_key: `0x${sent.link.partiesKey}` };
+    expect(isDerivedPartiesKey(sent.link.partiesKey!, EMPLOYER, WORKER)).toBe(false);
     expect(sent.link).toEqual({
       workerId: "wkr-1",
       address: WORKER,
@@ -475,5 +479,43 @@ describe("withdrawing an offer", () => {
     expect(dropped).toEqual([]);
     const gone = async () => { throw new MailboxError("REQUEST_FAILED", "gone"); };
     expect(await withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet: fakeWallet(), client: { drop: gone }, ...instant })).toBe(TX);
+  });
+});
+
+// ---- The parties key ----------------------------------------------------------------------
+describe("the parties key", () => {
+  it("is random for every new pair, never the one anyone could compute from the two addresses", async () => {
+    const { computePartiesKey } = await import("@pnw/handshake/engine");
+    const one = await sendOffer(input());
+    const two = await sendOffer(input());
+    expect(one.link.partiesKey).toMatch(/^[0-9a-f]{64}$/);
+    expect(one.link.partiesKey).not.toBe(two.link.partiesKey);
+    expect(one.link.partiesKey).not.toBe(bareHex(computePartiesKey(EMPLOYER, WORKER)));
+    expect(isDerivedPartiesKey(bareHex(computePartiesKey(EMPLOYER, WORKER)), EMPLOYER, WORKER)).toBe(true);
+    expect(newPartiesKey()).not.toBe(newPartiesKey());
+  });
+
+  it("goes on the chain, seals the terms and lands on the link", async () => {
+    const client = fakeClient();
+    const wallet = fakeWallet();
+    const sent = await sendOffer(input({ client, wallet }));
+    expect(wallet.calls[0]!.inputs[1]).toBe(bytesToAleoU8Array(sent.link.partiesKey!));
+    const key = partiesKeyFromHex(sent.link.partiesKey!);
+    expect(client.puts[0]!.lookup).toBe(lookupId(key, offerTermsKind(sent.link.agreementId), TERMS_SLOT));
+  });
+
+  it("is kept for a revision to the same person, so the conversation carries on", async () => {
+    const own = newPartiesKey();
+    const sent = await sendOffer(input({ partiesKey: own }));
+    expect(sent.link.partiesKey).toBe(own);
+    expect((await sendOffer(input({ partiesKey: `0x${own.toUpperCase()}` }))).link.partiesKey).toBe(own);
+  });
+
+  it("replaces an old address-derived key, and refuses one that isn't a key", async () => {
+    const { computePartiesKey } = await import("@pnw/handshake/engine");
+    const derived = bareHex(computePartiesKey(EMPLOYER, WORKER));
+    const sent = await sendOffer(input({ partiesKey: derived }));
+    expect(sent.link.partiesKey).not.toBe(derived);
+    await expect(sendOffer(input({ partiesKey: "abc" }))).rejects.toThrow(/64 hex/);
   });
 });
