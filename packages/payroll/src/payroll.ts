@@ -234,6 +234,19 @@ export function updateWorker(payroll: Payroll, id: string, changes: Partial<Work
   return { ...payroll, workers: payroll.workers.map((w) => (w.id === id ? next : w)) };
 }
 
+/** True when any posted run has a paycheck for this team member. */
+export const hasBeenPaid = (payroll: Payroll, id: string): boolean => payroll.runs.some((r) => r.paychecks.some((p) => p.workerId === id));
+
+/**
+ * Takes a team member out of the books entirely: only someone never paid (a
+ * paycheck keeps the person it paid, so a paid one is deactivated instead).
+ */
+export function removeWorker(payroll: Payroll, id: string): Payroll {
+  if (!payroll.workers.some((w) => w.id === id)) throw new PayrollError("Team member not found");
+  if (hasBeenPaid(payroll, id)) throw new PayrollError("They've been paid, so they stay in the books; deactivate them instead");
+  return { ...payroll, workers: payroll.workers.filter((w) => w.id !== id) };
+}
+
 // ---- Paychecks -------------------------------------------------------------
 
 /** Gross, SS and total withholding already paid to a worker this calendar year, before a given check. */

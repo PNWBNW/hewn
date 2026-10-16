@@ -419,5 +419,7 @@ handling); likely a Fable session for the key agreement.
   own in an offer, each negotiable in a counter-offer (2026-10-16).
 - [x] Letters on chain rotate to a new random key at least every 24 hours; old keys stay in the
   vault so people keep their history (2026-10-16). Built with the letters (`docs/LETTERS.md`).
+- [x] Hiring starts with the offer: a business sends a job offer to anyone by their registered name,
+  and they join the team when they accept (2026-10-16). Team members never paid can be removed.
 - [x] Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
   an option (2026-10-16).

@@ -23,6 +23,7 @@ import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { LinkBadge } from "@/books/LinkBadge";
+import { isOfferOut, removeFromTeam, removeProblem } from "@/books/hiring";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { RegistryField } from "@/books/RegistryField";
 import { BRAND } from "@/brand";
@@ -281,7 +282,11 @@ function payLabel(w: Worker): string {
 
 function Team() {
   const { payroll, rail, mailbox, updateCompany } = useOpenBooks();
-  const [editing, setEditing] = useState<string | "new" | null>(payroll.workers.length === 0 ? "new" : null);
+  const [editing, setEditing] = useState<string | "new" | null>(null);
+  // Sending a job offer to someone not on the team yet: open, and who was found (books/hiring.ts).
+  const [hiring, setHiring] = useState(payroll.workers.length === 0);
+  const [hiringWho, setHiringWho] = useState<Registered | undefined>(undefined);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [offering, setOffering] = useState<string | null>(null);
   const [offerShown, setOfferShown] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
@@ -292,11 +297,42 @@ function Team() {
 
   return (
     <div className="flex flex-col gap-4">
-      {editing !== "new" && (
-        <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={() => setEditing("new")}>
-          <Plus aria-hidden />
-          Add someone
-        </Button>
+      {editing !== "new" && !hiring && (
+        <div className="flex flex-wrap gap-3">
+          <Button className="min-h-11 sm:min-h-9" onClick={() => setHiring(true)}>
+            <Plus aria-hidden />
+            Send a job offer
+          </Button>
+          <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setEditing("new")}>
+            Add someone already working here
+          </Button>
+        </div>
+      )}
+      {hiring && (
+        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+          {!hiringWho ? (
+            <>
+              <RegistryField
+                allow={["worker"]}
+                value={undefined}
+                onChange={setHiringWho}
+                label="Who's the offer for?"
+                hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account. They join your team when they accept the offer.`}
+              />
+              <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={() => setHiring(false)}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <OfferPanel
+              hire={hiringWho}
+              onClose={() => {
+                setHiring(false);
+                setHiringWho(undefined);
+              }}
+            />
+          )}
+        </div>
       )}
       {editing === "new" && (
         <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
@@ -343,6 +379,9 @@ function Team() {
             // They asked for changes and it's waiting on this business (answered from the Mailbox).
             const askedForChanges = status === "offered" && sentLink?.partiesKey ? !!openCounter(threadFor(mailbox, sentLink.partiesKey), sentLink.agreementId) : false;
             const registered = registeredFor(rail, "worker", w.id);
+            // An offer out to someone not on the team yet: they join when they accept.
+            const offerOut = isOfferOut({ rail }, w.id);
+            const cantRemove = removeProblem({ payroll, rail }, w.id);
             return editing === w.id ? (
               <li key={w.id} className="flex flex-col gap-3 p-2">
                 {!registered && (
@@ -377,7 +416,7 @@ function Team() {
                 <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className={cn("truncate text-sm font-medium", !w.active && "text-muted-foreground line-through")}>{w.name}</span>
+                      <span className={cn("truncate text-sm font-medium", !w.active && !offerOut && "text-muted-foreground line-through")}>{w.name}</span>
                       <LinkBadge status={status} />
                     </div>
                     {registered && (
@@ -387,8 +426,9 @@ function Team() {
                     )}
                     <div className="text-xs text-muted-foreground">
                       {payLabel(w)} · {FILING_STATUSES.find((f) => f.id === w.w4.filingStatus)?.label}
-                      {!w.active && " · Inactive"}
+                      {!w.active && !offerOut && " · Inactive"}
                     </div>
+                    {offerOut && <div className="text-xs text-muted-foreground">Offer out: they join the team when they accept</div>}
                     {expiresAt && (
                       <div className={cn("text-xs", isExpired(expiresAt) ? "text-destructive" : "text-muted-foreground")}>
                         {isExpired(expiresAt) ? "Offer expired without an answer" : `Offer ${expiryLabel(expiresAt).toLowerCase()}`}
@@ -429,22 +469,56 @@ function Team() {
                   <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEditing(w.id)}>
                     Edit
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="min-h-11 text-muted-foreground sm:min-h-8"
-                    onClick={async () => {
-                      setError(null);
-                      try {
-                        await updateCompany((c) => ({ ...c, payroll: updateWorker(c.payroll, w.id, { active: !w.active }) }));
-                      } catch (e) {
-                        setError(errorMessage(e));
-                      }
-                    }}
-                  >
-                    {w.active ? "Deactivate" : "Reactivate"}
-                  </Button>
+                  {!offerOut && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-11 text-muted-foreground sm:min-h-8"
+                      onClick={async () => {
+                        setError(null);
+                        try {
+                          await updateCompany((c) => ({ ...c, payroll: updateWorker(c.payroll, w.id, { active: !w.active }) }));
+                        } catch (e) {
+                          setError(errorMessage(e));
+                        }
+                      }}
+                    >
+                      {w.active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                  )}
+                  {!cantRemove && removing !== w.id && (
+                    <Button variant="ghost" size="sm" className="min-h-11 text-muted-foreground sm:min-h-8" onClick={() => setRemoving(w.id)}>
+                      Remove
+                    </Button>
+                  )}
                 </div>
+                {removing === w.id && (
+                  <div className="flex flex-wrap items-center gap-3 border-t px-4 py-3 text-sm">
+                    <span className="flex-1">
+                      Remove {w.name} from your books? They&apos;ve never been paid, so nothing else changes.
+                      {linkStatus(rail, "worker", w.id) === "linked" && " Their accepted agreement stays on the network; only these books forget it."}
+                    </span>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="min-h-11 sm:min-h-8"
+                      onClick={async () => {
+                        setError(null);
+                        try {
+                          await updateCompany((c) => removeFromTeam(c, w.id));
+                          setRemoving(null);
+                        } catch (e) {
+                          setError(errorMessage(e));
+                        }
+                      }}
+                    >
+                      Remove
+                    </Button>
+                    <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setRemoving(null)}>
+                      Keep
+                    </Button>
+                  </div>
+                )}
                 {offering === w.id && (
                   <div className="border-t p-3">
                     <OfferPanel workerId={w.id} onClose={() => setOffering(null)} />
@@ -468,7 +542,7 @@ function Team() {
       <p className="text-xs text-muted-foreground">
         Names, pay rates and W-4 details are stored only in your encrypted books on this device. People are added by their registered name.{" "}
         <span className="font-medium">Linked</span>: an agreement approved by both sides, so they can be paid on the rail and receive paystubs.
-        Tap Send offer to start one.
+        Tap Send a job offer to hire someone: they join the team when they accept. Someone never paid can be removed.
       </p>
     </div>
   );

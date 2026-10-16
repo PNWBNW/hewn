@@ -66,6 +66,12 @@ export type RailLink = {
   offerFiles?: AttachmentRef[];
   /** What else the offer said on the chain (industry, review and end dates), so a revised offer can start from it. */
   offerInputs?: OfferInputs;
+  /**
+   * The offer went to someone not yet on the team (books/hiring.ts): they
+   * join, as an active team member, when they accept, and leave the books if
+   * the offer is withdrawn. Cleared once they accept.
+   */
+  joinsOnAccept?: true;
 };
 
 /** An offer's inputs that its terms don't carry. */
@@ -225,6 +231,10 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
     if (!day(o.reviewDate) || !(o.endDate === "" || day(o.endDate))) throw new RailError("The offer's dates aren't valid");
     link.offerInputs = { industryCode: o.industryCode, reviewDate: o.reviewDate as string, endDate: o.endDate as string };
   }
+  if (l.joinsOnAccept !== undefined) {
+    if (l.joinsOnAccept !== true) throw new RailError("Joining on acceptance is true or left out");
+    if (link.status === "offered") link.joinsOnAccept = true; // an accepted offer has nothing left to join
+  }
   return link;
 }
 
@@ -371,7 +381,17 @@ export function markLinked(rail: Rail, workerId: string, linkedAt: string): Rail
   const link = linkFor(rail, workerId);
   if (!link) throw new RailError("That team member has no agreement on the rail");
   if (link.status === "linked") return rail;
-  return validateRail({ ...rail, links: rail.links.map((l) => (l.workerId === workerId ? { ...l, status: "linked", linkedAt } : l)) }, LEGACY);
+  return validateRail(
+    {
+      ...rail,
+      links: rail.links.map((l) => {
+        if (l.workerId !== workerId) return l;
+        const { joinsOnAccept: _joined, ...rest } = l;
+        return { ...rest, status: "linked", linkedAt };
+      }),
+    },
+    LEGACY,
+  );
 }
 
 /** Adds or replaces the link for one customer or vendor, in place. */
