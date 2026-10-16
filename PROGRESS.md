@@ -2460,3 +2460,18 @@ Docs only. BUILD_PLAN gains "Operating costs, fees and hosting":
 New open decisions: the fee amount and cap, the operating-wallet exception to "no protocol
 treasury", and where the other half of each name sale goes. Recorded: "no monthly subscription"
 wording, and the R2 move.
+
+## 2026-10-16: Site says "No monthly subscription"
+
+Joshua: say "no monthly subscription" rather than "free".
+- The hero now reads "No monthly subscription. Works offline." "No sign-up" is gone: setup now
+  links Shield and registers a name.
+- The "Free" section is now "No monthly subscription". The books stay free; private payments
+  carry the network's fee; and once on the main network, a small flat fee per paycheck paid this
+  way goes toward running the service. It is never a percentage of pay, and a business that runs
+  its own copy pays nothing.
+- The meta description matches.
+
+Still out of date on the site, for a wider copy refresh (needs Joshua's go-ahead): "no account to
+create", "nothing is uploaded" and "no server". They predate the required Shield link and name,
+and the mailbox, which carries sealed documents. Site tests 7/7; site build green.

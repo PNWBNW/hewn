@@ -63,7 +63,7 @@ export default function Home() {
             <a href={BRAND.appUrl} className={buttonClass}>
               Open the app
             </a>
-            <span className="text-sm text-muted-foreground">Free. No sign-up. Works offline.</span>
+            <span className="text-sm text-muted-foreground">No monthly subscription. Works offline.</span>
           </div>
         </section>
 
@@ -101,14 +101,16 @@ export default function Home() {
             <p>This is a choice you make later, per business. Nothing depends on it.</p>
           </Section>
 
-          <Section icon={<BadgeDollarSign className="size-5" />} title="Free">
+          <Section icon={<BadgeDollarSign className="size-5" />} title="No monthly subscription">
             <p>
-              No subscription, no per-employee fee, no tiers. The app is free to use for as many
-              businesses, people and years as you like.
+              The books are free to use for as many businesses, people and years as you like. No
+              subscription, no tiers to unlock your own records.
             </p>
             <p>
               If you choose private payments, the payment network charges a small fee per payment,
-              which the employer pays. That is the only cost, and it never goes to us.
+              which the employer pays. Once {BRAND.name} runs on the main network, a small flat fee
+              per paycheck paid this way will go toward running the service: never a percentage of
+              anyone&apos;s pay, and nothing at all for a business that runs its own copy.
             </p>
           </Section>
         </div>
