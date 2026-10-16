@@ -2321,3 +2321,39 @@ two accounts on two devices is the real test.
 
 **Next:** group messages and announcements (a group key per business, sent to each member
 through their own thread, replaced when someone leaves).
+
+## 2026-10-16: Announcement channels
+
+Part 3 of the messaging suite: the business posts once, and everyone in the channel reads it.
+
+- **Model** (`books/channels.ts`):
+  - A channel has a random 32-byte key, numbered (`epoch`), and a member list.
+  - New thread messages (from the business only):
+    - `channel`: sends the key, or a new one;
+    - `channel_left`: tells a member they were taken out.
+  - Posts are sealed once with the channel key (kind `ann_<epoch>`), in slots only the business
+    writes.
+  - Taking someone out moves the channel to a new key that only those who stay get.
+  - The person's channels are rebuilt from their thread, in order, every time it changes
+    (`updateWorkThread`), so the keys and "left" always match what the business sent.
+- **Transport** (`chain/channels.ts`):
+  - `sendChannelKey`, `postToChannel`, `readChannel`.
+  - Readers send a receipt through their own thread (kind `ch_<channel>_<epoch>`).
+  - `awaitingSeen` / `readSeen` give "Seen by 3 of 5" for the latest 5 posts.
+- **Business** (`/messages`, `chain/Channel.tsx`):
+  - An Announcements section with **New channel** (name, pick linked team members).
+  - Each channel has posts with "Seen by n of m" (tap to see names), **Who's seen it**,
+    **People** (add or take out), and a Post box.
+  - The list page checks every conversation when it opens (`chain/MessagesCheck.tsx`).
+- **Person** (`/work/messages`):
+  - An Announcements section with unread counts. Opening a channel marks its posts read.
+  - **Reply privately** goes to that business's conversation.
+  - The list page checks every conversation and channel when it opens
+    (`chain/work/MessagesCheck.tsx`). The nav badge counts unread posts too.
+
+THREAT_MODEL covers channels. Tests 781/781 (app 393, +9), including end to end through a fake
+mailbox: the key reaches two members, a post reaches both, both show as seen, then one is taken
+out and can't read the next post while the other can. A forged post under another key is skipped.
+
+**Next:** the opt-in coworker directory, coworker ↔ coworker messages (keys only the two coworkers
+hold) and group chats.

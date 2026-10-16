@@ -48,7 +48,15 @@ export type ThreadBody =
   /** The business withdrew the offer `agreementId` and sent `newAgreementId` in its place. */
   | { type: "revised"; agreementId: string; newAgreementId: string; note: string }
   /** A plain message, from either side. */
-  | { type: "text"; text: string };
+  | { type: "text"; text: string }
+  /** The business added the person to an announcement channel, or gave it a new key (books/channels.ts). */
+  | { type: "channel"; channelId: string; name: string; epoch: number; key: string }
+  /** The business took the person out of a channel. */
+  | { type: "channel_left"; channelId: string; name: string };
+
+/** The messages that negotiate an offer. */
+export type OfferStep = Extract<ThreadBody, { type: "counter" | "stands" | "revised" }>;
+export const isOfferStep = (b: ThreadBody): b is OfferStep => b.type === "counter" || b.type === "stands" || b.type === "revised";
 
 export type ThreadMessage = { version: 1; id: string; from: Side; sentAt: string; body: ThreadBody };
 
@@ -69,7 +77,14 @@ export type Thread = {
 };
 
 /** Who may send what. */
-export const SENDS: Record<ThreadBody["type"], Side | "either"> = { counter: "worker", stands: "business", revised: "business", text: "either" };
+export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
+  counter: "worker",
+  stands: "business",
+  revised: "business",
+  text: "either",
+  channel: "business",
+  channel_left: "business",
+};
 
 export const MAX_NOTE_CHARS = 2_000;
 export const MAX_TEXT_CHARS = 4_000;
@@ -128,6 +143,20 @@ function validateBody(raw: unknown): ThreadBody {
       return { type: "stands", agreementId: agreementId(raw.agreementId), note: note(raw.note) };
     case "revised":
       return { type: "revised", agreementId: agreementId(raw.agreementId), newAgreementId: agreementId(raw.newAgreementId), note: note(raw.note) };
+    case "channel": {
+      const { channelId, name, epoch, key } = raw;
+      if (typeof channelId !== "string" || !/^[0-9a-f]{16}$/.test(channelId)) throw new ThreadError("A channel needs its id");
+      if (typeof name !== "string" || !name.trim() || [...name].length > 60) throw new ThreadError("A channel needs a name of at most 60 characters");
+      if (typeof epoch !== "number" || !Number.isInteger(epoch) || epoch < 0 || epoch > 999_999) throw new ThreadError("A channel's key number must be a whole number");
+      if (typeof key !== "string" || !/^[0-9a-f]{64}$/.test(key)) throw new ThreadError("A channel's key must be 64 hex characters");
+      return { type: "channel", channelId, name, epoch, key };
+    }
+    case "channel_left": {
+      const { channelId, name } = raw;
+      if (typeof channelId !== "string" || !/^[0-9a-f]{16}$/.test(channelId)) throw new ThreadError("A channel needs its id");
+      if (typeof name !== "string" || [...name].length > 60) throw new ThreadError("A channel's name is at most 60 characters");
+      return { type: "channel_left", channelId, name };
+    }
     case "text": {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
       if ([...raw.text].length > MAX_TEXT_CHARS) throw new ThreadError(`A message can be at most ${MAX_TEXT_CHARS.toLocaleString("en-US")} characters`);
@@ -215,7 +244,7 @@ export function openCounter(thread: Thread | undefined, agreementId: string): Co
   let open: Counter | undefined;
   for (const item of thread.items) {
     const b = item.body;
-    if (b.type === "text" || b.agreementId !== agreementId) continue;
+    if (!("agreementId" in b) || b.agreementId !== agreementId) continue;
     if (b.type === "counter") open = item as Counter;
     else open = undefined; // answered
   }
@@ -264,6 +293,8 @@ export function preview(item: ThreadItem | undefined): string {
   const b = item.body;
   const who = item.mine ? "You: " : "";
   if (b.type === "text") return who + (b.text.length > 80 ? `${b.text.slice(0, 79)}…` : b.text);
+  if (b.type === "channel") return item.mine ? `You gave them the key to “${b.name}”` : `Added you to “${b.name}”`;
+  if (b.type === "channel_left") return item.mine ? `You took them out of “${b.name}”` : `Took you out of “${b.name}”`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";
   return item.mine ? "You sent a revised offer" : "Sent a revised offer";

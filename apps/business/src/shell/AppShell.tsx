@@ -31,6 +31,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { SETUP_PATH, setupRedirect, setupStep } from "@/books/setup";
 import { unreadCount } from "@/books/mailbox";
 import { unreadIn } from "@/books/thread";
+import { unreadPosts } from "@/books/channels";
 import { waitingCount } from "@/books/review";
 import type { Role } from "@/books/work";
 import { BRAND } from "@/brand";
@@ -112,7 +113,9 @@ function Rail({
   const { mailbox, review, work } = useOpenBooks();
   const unread = unreadCount(mailbox);
   // Unread messages: in the business's threads, or the person's.
-  const unreadMessages = Object.values((role === "worker" ? work?.threads : mailbox?.threads) ?? {}).reduce((n, t) => n + unreadIn(t), 0);
+  const unreadMessages =
+    Object.values((role === "worker" ? work?.threads : mailbox?.threads) ?? {}).reduce((n, t) => n + unreadIn(t), 0) +
+    (role === "worker" ? (work?.channels ?? []).reduce((n, c) => n + unreadPosts(c), 0) : 0);
   const waiting = waitingCount(review);
   const worker = role === "worker";
   const nav = !setupDone ? [{ href: SETUP_PATH, label: "Finish setup", icon: Settings }] : worker ? WORK_NAV : BUSINESS_NAV;

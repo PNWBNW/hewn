@@ -16,6 +16,7 @@
 
 import type { AttachmentRef } from "@pnw/sales";
 import { type Thread, emptyThread, validateThread } from "./thread";
+import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 
 export type Role = "business" | "worker";
@@ -100,6 +101,8 @@ export type Work = {
   mailboxSeq: Record<string, MailboxSeq>;
   /** One thread per employer, by the pair's parties key (books/thread.ts). */
   threads?: Record<string, Thread>;
+  /** Announcement channels businesses added this person to (books/channels.ts). */
+  channels?: WorkChannel[];
 };
 
 export class WorkError extends Error {
@@ -327,6 +330,15 @@ export function validateWork(raw: unknown): Work {
     }
     if (Object.keys(threads).length > 0) work.threads = threads;
   }
+  if (raw.channels !== undefined) {
+    if (!Array.isArray(raw.channels)) throw new WorkError("The channels must be a list");
+    try {
+      const channels = raw.channels.map(validateWorkChannel);
+      if (channels.length > 0) work.channels = channels;
+    } catch (e) {
+      throw new WorkError(e instanceof Error ? e.message : "A channel couldn't be read");
+    }
+  }
   return work;
 }
 
@@ -400,8 +412,17 @@ export const workThread = (work: Work, partiesKey: string): Thread | undefined =
 /** Applies `change` to the thread with one employer (a new one if there was none). */
 export function updateWorkThread(work: Work, partiesKey: string, change: (t: Thread) => Thread): Work {
   if (!PARTIES_KEY.test(partiesKey)) throw new WorkError("A thread is filed under a parties key");
-  return validateWork({ ...work, threads: { ...work.threads, [partiesKey]: change(workThread(work, partiesKey) ?? emptyThread()) } });
+  const thread = change(workThread(work, partiesKey) ?? emptyThread());
+  // Channel keys and removals arrive in the thread; the channels follow them, in order (replaying is harmless).
+  let channels = work.channels ?? [];
+  for (const item of thread.items) {
+    if (!item.mine && (item.body.type === "channel" || item.body.type === "channel_left")) channels = applyChannelMessage(channels, partiesKey, item.body);
+  }
+  return validateWork({ ...work, threads: { ...work.threads, [partiesKey]: thread }, ...(channels.length > 0 ? { channels } : {}) });
 }
+
+/** Applies `change` to the person's channels. */
+export const updateWorkChannels = (work: Work, change: (channels: WorkChannel[]) => WorkChannel[]): Work => validateWork({ ...work, channels: change(work.channels ?? []) });
 
 export const sentWeek = (work: Work, agreementId: string, weekStart: string): SentTimesheet | undefined =>
   work.timesheets.find((t) => t.agreementId === agreementId && t.weekStart === weekStart);

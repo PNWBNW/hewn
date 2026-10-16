@@ -175,3 +175,16 @@ describe("plain messages", () => {
     expect(revisionOf(t, B)?.body.note).toBe("Here you go");
   });
 });
+
+describe("channel messages in a thread", () => {
+  it("only the business sends them, with a real key", () => {
+    const ok = { type: "channel", channelId: "c".repeat(16), name: "Everyone", epoch: 0, key: "1".repeat(64) };
+    expect(validateMessage(msg(1, "business", ok), "business").body).toEqual(ok);
+    expect(() => validateMessage(msg(2, "worker", ok), "worker")).toThrow(/can't send/);
+    expect(() => validateMessage(msg(3, "business", { ...ok, key: "short" }), "business")).toThrow(/64 hex/);
+    expect(() => validateMessage(msg(4, "business", { ...ok, channelId: "x" }), "business")).toThrow(/id/);
+    expect(() => validateMessage(msg(5, "business", { ...ok, name: "" }), "business")).toThrow(/name/);
+    expect(validateMessage(msg(6, "business", { type: "channel_left", channelId: "c".repeat(16), name: "Everyone" }), "business").body.type).toBe("channel_left");
+    expect(preview(item(7, "business", ok, false, 0))).toBe("Added you to “Everyone”");
+  });
+});

@@ -4,20 +4,25 @@
 // they have an offer or an agreement with, sealed to the two of them. The list
 // comes from the vault; a conversation loads its code only when opened.
 
-import { Suspense, useCallback } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Megaphone, RefreshCw } from "lucide-react";
+import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useWork } from "@/books/BooksProvider";
+import { markPostsRead, unreadPosts } from "@/books/channels";
 import { type Thread, preview, unreadIn } from "@/books/thread";
-import { updateWorkThread, workThread } from "@/books/work";
+import { updateWorkChannels, updateWorkThread, workThread } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { employerLabel } from "../shared";
 
 const Conversation = dynamic(() => import("@/chain/Conversation"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
+const MessagesCheck = dynamic(() => import("@/chain/work/MessagesCheck"), { ssr: false });
+
+const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 export default function WorkMessagesPage() {
   return (
@@ -31,6 +36,9 @@ function Messages() {
   const { work, updateWork } = useWork();
   const params = useSearchParams();
   const selected = params.get("with");
+  const channelId = params.get("channel");
+  const [check, setCheck] = useState<{ run: number } | { done: string | null }>({ run: 0 });
+  const finished = useCallback((message: string | null) => setCheck({ done: message }), []);
   // One conversation per business: its agreements share a key. Offers withdrawn before acceptance don't count.
   // The address bar names a conversation by one of its agreement ids, never by its key.
   const byKey = new Map<string, { partiesKey: string; name: string; ref: string }>();
@@ -51,6 +59,46 @@ function Messages() {
     [open, updateWork],
   );
 
+  const channels = work.channels ?? [];
+  const channel = channels.find((c) => c.id === channelId);
+  // Opening a channel marks its posts read.
+  useEffect(() => {
+    if (!channel || !channel.posts.some((p) => !p.read)) return;
+    void updateWork((w) => updateWorkChannels(w, (all) => all.map((c) => (c === channel || (c.id === channel.id && c.partiesKey === channel.partiesKey) ? markPostsRead(c) : c))));
+  }, [channel, updateWork]);
+
+  if (channel) {
+    const from = people.find((p) => p.partiesKey === channel.partiesKey);
+    return (
+      <div className="flex flex-col gap-4">
+        <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+          <ChevronLeft aria-hidden className="size-4" /> All messages
+        </Link>
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold">
+            <Megaphone aria-hidden className="size-4" /> {channel.name}
+          </h2>
+          <p className="text-xs text-muted-foreground">Announcements from {from?.name ?? "the business"}</p>
+        </div>
+        {channel.left && <p className="text-xs text-muted-foreground">You&apos;re no longer in this channel; what&apos;s here stays on your device.</p>}
+        <ol className="flex flex-col gap-3">
+          {channel.posts.length === 0 && <li className="text-sm text-muted-foreground">Nothing posted yet. Tap Check on Messages to look for new posts.</li>}
+          {[...channel.posts].reverse().map((p) => (
+            <li key={p.id} className="flex flex-col gap-1 rounded-md border bg-card p-3">
+              <p className="whitespace-pre-wrap text-sm">{p.text}</p>
+              <span className="text-xs text-muted-foreground">{stamp(p.sentAt)}</span>
+            </li>
+          ))}
+        </ol>
+        {from && (
+          <Link href={`/work/messages?with=${from.ref}`} className="text-sm font-medium text-primary underline underline-offset-4">
+            Reply privately to {from.name}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
   if (open) {
     return (
       <div className="flex flex-col gap-4">
@@ -64,7 +112,51 @@ function Messages() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Messages" summary="Private conversations with the businesses you work with. Only the two of you can read each one." />
+      <PageHeader
+        title="Messages"
+        summary="Announcements and private conversations with the businesses you work with."
+        action={
+          "done" in check ? (
+            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setCheck({ run: Date.now() })}>
+              <RefreshCw aria-hidden /> Check
+            </Button>
+          ) : undefined
+        }
+      />
+      {"run" in check && people.length > 0 && <MessagesCheck key={check.run} onFinished={finished} />}
+      {"run" in check && people.length > 0 && <p className="text-xs text-muted-foreground">Checking for new messages…</p>}
+      {"done" in check && check.done && <p className="text-xs text-muted-foreground">{check.done}</p>}
+
+      {channels.length > 0 && (
+        <Card>
+          <CardContent className="flex flex-col gap-2 pt-6">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Megaphone aria-hidden className="size-4" /> Announcements
+            </h2>
+            <ul className="divide-y">
+              {channels.map((c) => {
+                const unread = unreadPosts(c);
+                return (
+                  <li key={`${c.partiesKey.slice(0, 8)}:${c.id}`}>
+                    <Link href={`/work/messages?channel=${c.id}`} className="flex min-h-14 items-center gap-3 py-3">
+                      <span className="min-w-0 flex-1">
+                        <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>{c.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{c.posts.at(-1)?.text ?? (c.left ? "You left this channel" : "Nothing posted yet")}</span>
+                      </span>
+                      {unread > 0 && (
+                        <span className="rounded-full bg-primary px-2 text-xs font-medium text-primary-foreground" aria-label={`${unread} unread`}>
+                          {unread}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="pt-6">
           {people.length === 0 ? (
