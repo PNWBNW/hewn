@@ -2788,3 +2788,29 @@ private"):
 Both accounts need to reconnect Hewn in Shield once, so Shield knows the letters program.
 
 Tests: 841/841.
+
+**Messages go as letters** (business ↔ person; Joshua: messages need an accepted offer to link the
+accounts, then they should work without the mailbox):
+- **The conversation** (`chain/Conversation.tsx`, both sides) now takes the other side's account.
+  - It connects Shield (`chain/letter_reader.ts` `useLetters`), sends each message as a letter to
+    that account (one approval) and reads the account's letters, then the old mailbox.
+  - A compact Private/Public fee choice sits under the send box. A message too long for a letter
+    goes as a page.
+  - No receipts: the last message of yours reads "On the network". Coworker chat still uses the
+    mailbox, with receipts.
+- **Counter-offers** ("Ask for changes"): a letter (a page when the offer letter is long), with
+  the fee choice.
+- **"Keep the offer as it is"**: a letter, behind Shield now.
+- **Revised offers:** the "this replaces that" note is a letter, a fourth approval. The fee choice
+  now covers the revised terms, the offer and the note.
+- **The checks** behind the Messages lists, the Mailbox page and Offers read letters once Shield
+  has reconnected (they wait up to 4 s), else the mailbox alone. A mailbox that's off no longer
+  stops letters being read.
+- **`chain/thread.ts`:** every thread message is deflated before sealing when that's smaller
+  (older, uncompressed messages still read).
+- **`LetterBox.put`:** refuses a slot this account already sent a letter under (another device or
+  an earlier try) as CONFLICT, so the thread steps over it without paying for a transaction.
+- **Still on the mailbox:** channels (announcements), the coworker directory, coworker and group
+  chat, timesheets, paystubs, offer receipts.
+
+Tests: 846/846 (5 new: `chain/thread_letters.test.ts`).

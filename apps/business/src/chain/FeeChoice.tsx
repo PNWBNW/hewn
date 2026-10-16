@@ -11,7 +11,8 @@
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { cn } from "@pnw/ui/utils";
 
-export function FeeChoice({ value, onChange, disabled }: { value: FeeMode; onChange: (mode: FeeMode) => void; disabled?: boolean }) {
+/** `compact`: one line, for a chat's send box (the hint shows as the buttons' title). */
+export function FeeChoice({ value, onChange, disabled, compact }: { value: FeeMode; onChange: (mode: FeeMode) => void; disabled?: boolean; compact?: boolean }) {
   const option = (mode: FeeMode, label: string) => (
     <button
       type="button"
@@ -19,14 +20,26 @@ export function FeeChoice({ value, onChange, disabled }: { value: FeeMode; onCha
       aria-checked={value === mode}
       disabled={disabled}
       onClick={() => onChange(mode)}
+      title={compact ? HINTS[mode] : undefined}
       className={cn(
-        "min-h-11 flex-1 rounded-md px-3 text-sm font-medium sm:min-h-9",
+        compact ? "min-h-9 rounded-md px-2.5 text-xs font-medium sm:min-h-7" : "min-h-11 flex-1 rounded-md px-3 text-sm font-medium sm:min-h-9",
         value === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent",
       )}
     >
       {label}
     </button>
   );
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">Network fee</span>
+        <div role="radiogroup" aria-label="How to pay the network fee" className="flex gap-0.5 rounded-lg border bg-card p-0.5">
+          {option("private", "Private")}
+          {option("public", "Public")}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium">Network fee</span>
@@ -34,11 +47,12 @@ export function FeeChoice({ value, onChange, disabled }: { value: FeeMode; onCha
         {option("private", "Private")}
         {option("public", "Public")}
       </div>
-      <span className="text-xs text-muted-foreground">
-        {value === "private"
-          ? "Paid from your private ALEO: the network can't see which account sent it. Needs some private ALEO in Shield."
-          : "Paid from your public ALEO: the fee shows which account sent it (never what it says or who it's to)."}
-      </span>
+      <span className="text-xs text-muted-foreground">{HINTS[value]}</span>
     </div>
   );
 }
+
+const HINTS: Record<FeeMode, string> = {
+  private: "Paid from your private ALEO: the network can't see which account sent it. Needs some private ALEO in Shield.",
+  public: "Paid from your public ALEO: the fee shows which account sent it (never what it says or who it's to).",
+};

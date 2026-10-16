@@ -6,7 +6,9 @@ recorded in #203). The app's codec and `LetterBox` are in `apps/business/src/cha
 Settings has "Send a test letter" to measure a real one; it went through on Joshua's phone
 (below). **Offers now go as letters:** their terms are packed (deflated) and sealed into one
 page to the person, and the person's app reads offers from letters first, then the old mailbox.
-Messages, counter-offers, timesheets and paystubs still use the mailbox; they move next.
+**Messages between a business and a person go as letters too** (chat, counter-offers, "keep the
+offer", the revised-offer note): one approval each, no receipts. Channels, the coworker directory,
+coworker chat, timesheets and paystubs still use the mailbox; they move next.
 
 **Measured on testnet (2026-10-16, Joshua's phone, Shield):** a letter took 13.6–73.7 s from tap
 to accepted (approving and Shield's sponsor step included), cost 0.006578 ALEO, and was listed by

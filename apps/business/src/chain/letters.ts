@@ -17,12 +17,16 @@
 // `LetterBox` has the mailbox client's shape: `put` sends a letter (one
 // Shield approval, then waits for the network), `get` finds a received one
 // among the wallet's records, `drop` does nothing (a record can't be
-// unsent). It never sends receipts: a letter in a block has arrived.
+// unsent). It never sends receipts: a letter in a block has arrived. A slot
+// this account already sent a letter under (from another device, or an
+// earlier try) is refused as taken, as the mailbox did, so a thread steps
+// over it instead of sending two letters under one lookup.
 //
 // Nothing here logs a key, a lookup, an address or a letter.
 // ---------------------------------------------------------------------------
 
 import { PROGRAMS } from "@pnw/config/programs";
+import { MailboxClient, MailboxError } from "@pnw/mailbox";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type ExecuteOptions, type WorkWallet, executeAndWait } from "./work/execute";
 
@@ -168,7 +172,7 @@ export class LetterBox {
   private readonly wallet: LetterWallet;
   private readonly to: string | undefined;
   private readonly execute: ExecuteOptions;
-  private letters: Promise<Map<string, LetterRecord>> | null = null;
+  private letters: Promise<Letters> | null = null;
 
   constructor({ wallet, to, execute }: LetterBoxOptions) {
     this.wallet = wallet;
@@ -176,22 +180,23 @@ export class LetterBox {
     this.execute = execute ?? {};
   }
 
-  /** Sends one envelope as a letter (one Shield approval) and waits until the network has it. */
+  /**
+   * Sends one envelope as a letter (one Shield approval) and waits until the
+   * network has it. Throws the mailbox's CONFLICT when this account already
+   * sent a letter under `lookup`.
+   */
   async put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: FeeMode }): Promise<void> {
     if (!this.to) throw new LetterError("This letter box only reads");
     const call = letterCall(this.to, lookup, envelope);
+    this.refresh(); // what this account has sent, as of now
+    if ((await this.read()).sent.has(lookup)) throw new MailboxError("CONFLICT", "That slot is taken");
     await executeAndWait(this.wallet, { ...call, ...(options?.feeMode ? { feeMode: options.feeMode } : {}) }, this.execute);
+    (await this.read()).sent.add(lookup);
   }
 
   /** The envelope received under `lookup`, or null when no letter has it (yet). */
   async get(lookup: string): Promise<Uint8Array<ArrayBuffer> | null> {
-    if (!this.letters) this.letters = this.load();
-    try {
-      return (await this.letters).get(lookup)?.envelope ?? null;
-    } catch (e) {
-      this.letters = null; // try again next time
-      throw e;
-    }
+    return (await this.read()).received.get(lookup)?.envelope ?? null;
   }
 
   /** A record can't be unsent or deleted; reading it is enough. */
@@ -202,17 +207,30 @@ export class LetterBox {
     this.letters = null;
   }
 
-  private async load(): Promise<Map<string, LetterRecord>> {
+  private async read(): Promise<Letters> {
+    if (!this.letters) this.letters = this.load();
+    try {
+      return await this.letters;
+    } catch (e) {
+      this.letters = null; // try again next time
+      throw e;
+    }
+  }
+
+  private async load(): Promise<Letters> {
     const raw = await this.wallet.requestRecords(LETTERS_PROGRAM, true);
-    const map = new Map<string, LetterRecord>();
+    const out: Letters = { received: new Map(), sent: new Set() };
     for (const r of Array.isArray(raw) ? raw : []) {
       const letter = parseLetterRecord(r);
-      // Only what came in: this account's own copies live under its own lookups anyway.
-      if (letter && letter.kind !== "sent" && !map.has(letter.lookup)) map.set(letter.lookup, letter);
+      if (!letter) continue;
+      if (letter.kind === "sent") out.sent.add(letter.lookup);
+      else if (!out.received.has(letter.lookup)) out.received.set(letter.lookup, letter);
     }
-    return map;
+    return out;
   }
 }
+
+type Letters = { received: Map<string, LetterRecord>; sent: Set<string> };
 
 /**
  * A reader that looks among the wallet's letters first and then in the old
@@ -235,4 +253,25 @@ export function lettersThenMailbox(
       }
     },
   };
+}
+
+/**
+ * A conversation between a business and one person, over letters (chain/thread.ts
+ * takes these two): `writer` sends each message as a letter to `to`; `reader`
+ * finds the other side's letters (and anything still in the old mailbox). The
+ * reader has no `put`, so no receipts go out: a letter in a block has arrived.
+ * Pass one `letters` box for every thread on a screen, so the wallet is read once.
+ */
+export function letterThread(
+  wallet: LetterWallet,
+  to: string,
+  {
+    letters = new LetterBox({ wallet }),
+    mailbox = new MailboxClient(),
+    execute,
+  }: { letters?: LetterBox; mailbox?: Pick<MailboxClient, "get" | "drop">; execute?: ExecuteOptions } = {},
+) {
+  const writer = new LetterBox({ wallet, to, ...(execute ? { execute } : {}) });
+  const reader = { get: lettersThenMailbox(letters, mailbox).get, drop: (lookup: string) => mailbox.drop(lookup).catch(() => {}) };
+  return { writer, reader, refresh: () => letters.refresh() };
 }
