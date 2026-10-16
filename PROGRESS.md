@@ -2694,3 +2694,18 @@ Next: Joshua runs the test, ideally with the private-fee switch on (it tests bot
 offers' terms go out as a page and threads as letters.
 
 Tests: all green (2 new for the check, 1 for the fee kind).
+
+## 2026-10-16: The test letter shows what the network sees
+
+Joshua: the test letter's report should show what exactly is broadcast, not only the transaction
+id. `describeBroadcast` breaks the public transaction down from the explorer's own copy (the view
+anyone has). For each call it gives:
+- inputs and outputs by kind (private, public, record, future);
+- each record's ciphertext length;
+- whether a sender ciphertext is attached;
+- any value left readable (an account in one is printed as "an account").
+
+For the fee transition it says whether the payer is shown (`fee_public`) or not (`fee_private`).
+It also gives the JSON size and an explorer link.
+
+Tests: all green (1 new).

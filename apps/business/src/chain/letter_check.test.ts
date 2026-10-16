@@ -16,6 +16,42 @@ function recordsFrom(inputs: string[], sender?: string) {
   ];
 }
 
+/** A letter's transaction as the explorer returns it (the shape of packages/rail's fixture). */
+function letterTx(fee: "fee_private" | "fee_public") {
+  return {
+    type: "execute",
+    id: TX,
+    execution: {
+      transitions: [
+        {
+          id: "au1x",
+          program: LETTERS_PROGRAM,
+          function: "send",
+          inputs: [
+            { type: "private", id: "1field", value: "ciphertext1" },
+            { type: "private", id: "2field", value: "ciphertext2" },
+            { type: "private", id: "3field", value: "ciphertext3" },
+          ],
+          outputs: [
+            { type: "record", id: "4field", checksum: "5field", value: "record1qyqs" + "a".repeat(300), sender_ciphertext: "6field" },
+            { type: "record", id: "7field", checksum: "8field", value: "record1qyqs" + "b".repeat(300) },
+          ],
+        },
+      ],
+    },
+    fee: {
+      transition: {
+        program: "credits.aleo",
+        function: fee,
+        inputs:
+          fee === "fee_private"
+            ? [{ type: "record", id: "9field", tag: "10field" }, { type: "public", value: "6578u64" }, { type: "public", value: "0u64" }]
+            : [{ type: "public", value: "6578u64" }, { type: "public", value: "0u64" }, { type: "public", value: "11field" }],
+      },
+    },
+  };
+}
+
 function setup(opts: { listAfter?: number; fee?: "fee_private" | "fee_public"; sender?: string } = {}) {
   let t = 0;
   const sent: { function: string; inputs: string[] }[] = [];
@@ -39,7 +75,7 @@ function setup(opts: { listAfter?: number; fee?: "fee_private" | "fee_public"; s
     deps: {
       wallet,
       address: ME,
-      fetchTransaction: async (id: string) => (id === TX ? { id, fee: { transition: { program: "credits.aleo", function: opts.fee ?? "fee_private", inputs: [{ type: "public", value: "6578u64" }, { type: "public", value: "0u64" }] } } } : null),
+      fetchTransaction: async (id: string) => (id === TX ? letterTx(opts.fee ?? "fee_private") : null),
       now: () => t,
       sleep: async (ms: number) => void (t += ms),
       waitMs: 60_000,
@@ -62,6 +98,24 @@ describe("the test letter", () => {
     expect(text).toContain("Fee paid: privately (no account shown)");
     expect(text).toContain("It opened and read back: yes");
     expect(text).not.toContain(ME); // no account in the report
+    // What anyone can see: the call, its kinds of inputs and outputs, nothing readable, and a private fee.
+    expect(text).toContain(`Call: ${LETTERS_PROGRAM}/send`);
+    expect(text).toContain("Inputs: 3 private (encrypted, unreadable)");
+    expect(text).toContain("Outputs: 2 record (encrypted to its owner)");
+    expect(text).toContain("Record ciphertext: 311 + 311 characters");
+    expect(text).toContain("Sender ciphertext (only the owner can open it): on 1 record");
+    expect(text).toContain("Readable values in this call: none");
+    expect(text).toContain("Who paid: not shown");
+    expect(text).toContain(`https://testnet.explorer.provable.com/transaction/${TX}`);
+  });
+
+  it("says when the fee names the payer, and never prints an account in readable values", async () => {
+    const { describeBroadcast } = await import("./letter_check");
+    const lines = describeBroadcast(letterTx("fee_public"));
+    expect(lines.join("\n")).toContain("Who paid: shown (fee_public names the paying account)");
+    const leaky = { execution: { transitions: [{ program: "x.aleo", function: "f", inputs: [{ type: "public", value: ME }], outputs: [] }] } };
+    expect(describeBroadcast(leaky).join("\n")).toContain("Readable values in this call: an account");
+    expect(describeBroadcast(null)).toEqual(["The explorer's copy couldn't be read"]);
   });
 
   it("says so when the fee was public and Shield never lists the letter", async () => {
