@@ -3,26 +3,42 @@
 // ---------------------------------------------------------------------------
 // Asking for changes to an offer (Joshua, 2026-10-16): the person edits a copy
 // of the terms, sees exactly what they're asking to change, adds a note, and
-// sends it through the mailbox, sealed to the two of them. Nothing is signed:
-// the offer on the chain stays as it is until the business answers by keeping
-// it or sending a revised one. Nothing here logs a key or a term.
+// sends it as a letter on chain to the business (chain/letters.ts), sealed to
+// the two of them: one Shield approval. The offer itself stays as it is until
+// the business answers by keeping it or sending a revised one. Nothing here
+// logs a key or a term.
 // ---------------------------------------------------------------------------
 
 import { useMemo, useState } from "react";
-import { MailboxClient } from "@pnw/mailbox";
 import { Button } from "@pnw/ui/button";
+import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { ChangeList } from "@/books/NegotiationView";
 import { ProposalEditor, type ProposalDraft, draftOf, proposalFromDraft } from "@/books/ProposalEditor";
 import { MAX_NOTE_CHARS, addToThread, proposalChanges, proposalOf } from "@/books/thread";
 import { type Terms, updateWorkThread, workThread } from "@/books/work";
+import { FeeChoice } from "../FeeChoice";
+import { LetterBox } from "../letters";
 import { postToThread } from "../thread";
+import { useWorkShield } from "./WorkShield";
 
-export type CounterOfferProps = { agreementId: string; partiesKey: string; terms: Terms; employer: string; onClose: (sent: boolean) => void };
+export type CounterOfferProps = {
+  agreementId: string;
+  partiesKey: string;
+  terms: Terms;
+  /** The business, as shown. */
+  employer: string;
+  /** The business's account: the letter goes to it. */
+  employerAddress: string;
+  onClose: (sent: boolean) => void;
+};
 
-export default function CounterOffer({ agreementId, partiesKey, terms, employer, onClose }: CounterOfferProps) {
+/** Inside the Offers panel, where Shield is connected (WorkShield.tsx). */
+export default function CounterOffer({ agreementId, partiesKey, terms, employer, employerAddress, onClose }: CounterOfferProps) {
   const { work, updateWork } = useWork();
+  const { wallet } = useWorkShield();
+  const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const original = useMemo(() => proposalOf({ ...terms, ...(terms.version === 2 ? { letter: terms.letter } : {}) }), [terms]);
   const [draft, setDraft] = useState<ProposalDraft>(() => draftOf(original));
   const [note, setNote] = useState("");
@@ -38,7 +54,8 @@ export default function CounterOffer({ agreementId, partiesKey, terms, employer,
     setError(null);
     try {
       const item = await postToThread({
-        client: new MailboxClient(),
+        client: new LetterBox({ wallet, to: employerAddress }),
+        feeMode,
         partiesKey,
         from: "worker",
         nextOut: workThread(work, partiesKey)?.nextOut ?? 0,
@@ -59,8 +76,11 @@ export default function CounterOffer({ agreementId, partiesKey, terms, employer,
         <ChangeList changes={changes} wantsLabel="You'd like" />
         {note.trim() && <p className="whitespace-pre-wrap text-xs">Your note: {note}</p>}
         <p className="text-xs text-muted-foreground">
-          It goes to their mailbox, sealed to the two of you. Nothing is signed: they can keep the offer as it is or send you a revised one to accept.
+          It goes to them as a letter on the network, sealed to the two of you: one approval in Shield. They can keep the offer as it is or send you a revised one to
+          accept.
         </p>
+        {!busy && <FeeChoice value={feeMode} onChange={setFeeMode} />}
+        {busy && <p className="text-sm text-muted-foreground">Approve it in Shield; it&apos;s on the network in about a minute.</p>}
         <FormError message={error} />
         <div className="flex flex-wrap gap-3">
           <Button className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void send()}>

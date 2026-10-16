@@ -7,11 +7,19 @@
 // might, and a receiver dropping what it has read never leaves a hole in a
 // sequence it still scans.
 //
+// A business and one person write to each other as letters on chain
+// (chain/letters.ts `letterThread`: the same slots, each a letter to the other
+// side); coworkers still go through the mailbox. Each message is deflated
+// before it is sealed when that makes it smaller (chain/compress.ts), so a
+// counter-offer with its whole letter still fits on one page.
+//
 // The messages themselves, and what each side may send, are books/thread.ts.
 // Nothing here logs a key, a lookup or a message.
 // ---------------------------------------------------------------------------
 
 import { MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import type { FeeMode } from "@pnw/wallet/fee-mode";
+import { packPayload, unpackPayload } from "./compress";
 import { sendReceipt } from "./receipts";
 import { GROUP_TYPES, type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, newMessageId, validateMessage } from "../books/thread";
 
@@ -26,7 +34,10 @@ const MAX_TAKEN = 8;
 export type ThreadKinds = Record<Side, string>;
 
 export type PostInput = {
-  client: Pick<MailboxClient, "put">;
+  /** The mailbox, or a letter box (chain/letters.ts) to the other side. */
+  client: { put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: FeeMode }): Promise<unknown> };
+  /** How a letter's fee is paid, as chosen next to the send button. */
+  feeMode?: FeeMode;
   partiesKey: string;
   from: Side;
   kinds?: ThreadKinds;
@@ -43,9 +54,9 @@ export type PostInput = {
  * is stepped over (the receiver keeps a message id once). Returns the
  * message as the sender's vault keeps it; throws on any other failure.
  */
-export async function postToThread({ client, partiesKey, from, nextOut, body, now, kinds, id }: PostInput): Promise<ThreadItem> {
+export async function postToThread({ client, partiesKey, from, nextOut, body, now, kinds, id, feeMode }: PostInput): Promise<ThreadItem> {
   const message: ThreadMessage = validateMessage({ version: 1, id: id ?? newMessageId(), from, sentAt: (now ?? (() => new Date()))().toISOString(), body }, from);
-  const bytes = new TextEncoder().encode(JSON.stringify(message));
+  const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(message)));
   if (bytes.length > MAX_PAYLOAD_BYTES) throw new ThreadError("That message is too long to send");
   const kind = (kinds ?? THREAD_KINDS)[from];
   const key = partiesKeyFromHex(partiesKey);
@@ -53,7 +64,7 @@ export async function postToThread({ client, partiesKey, from, nextOut, body, no
     for (let seq = nextOut; seq < nextOut + MAX_TAKEN; seq++) {
       const sealed = await seal(key, kind, seq, bytes);
       try {
-        await client.put(sealed.lookup, sealed.envelope);
+        await (feeMode ? client.put(sealed.lookup, sealed.envelope, { feeMode }) : client.put(sealed.lookup, sealed.envelope));
         return { ...message, mine: true, seq };
       } catch (e) {
         if (!(e instanceof MailboxError && e.code === "CONFLICT")) throw e;
@@ -115,7 +126,7 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
       if (!bytes) break; // the end of their side
       let item: ThreadItem;
       try {
-        const message = validateMessage(JSON.parse(new TextDecoder().decode(await open(key, kind, seq, bytes))), from);
+        const message = validateMessage(JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, kind, seq, bytes)))), from);
         // Group chat kinds only travel between coworkers, under their own filter.
         const allowed = accept ?? ((b: ThreadMessage["body"]) => !GROUP_TYPES.includes(b.type));
         if (!allowed(message.body)) throw new ThreadError("That kind of message doesn't belong in this conversation");

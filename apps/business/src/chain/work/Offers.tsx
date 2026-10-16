@@ -36,7 +36,7 @@ import { readThread } from "../thread";
 import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
 import { executeAndWait } from "./execute";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
-import { LetterBox, lettersThenMailbox } from "../letters";
+import { LetterBox, letterThread, lettersThenMailbox } from "../letters";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
 
 export type OffersPanelProps = { onClose: () => void };
@@ -102,9 +102,9 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
       try {
         const records = await readAgreementRecords(wallet.requestRecords, address);
         // Each employer's side of the conversation first, so a revised offer knows what it replaced.
-        for (const partiesKey of new Set(records.map((r) => r.partiesKey))) {
+        for (const [partiesKey, employer] of new Map(records.map((r) => [r.partiesKey, r.employerAddress]))) {
           await readThread({
-            client: client.current,
+            client: letterThread(wallet, employer, { letters: letters.current, mailbox: client.current }).reader,
             partiesKey,
             reader: "worker",
             thread: workThread(work, partiesKey),
@@ -362,7 +362,14 @@ function OfferRow({
         </div>
       )}
       {countering && t && (
-        <CounterOffer agreementId={record.agreementId} partiesKey={record.partiesKey} terms={t} employer={employer} onClose={() => setCountering(false)} />
+        <CounterOffer
+          agreementId={record.agreementId}
+          partiesKey={record.partiesKey}
+          terms={t}
+          employer={employer}
+          employerAddress={record.employerAddress}
+          onClose={() => setCountering(false)}
+        />
       )}
     </li>
   );

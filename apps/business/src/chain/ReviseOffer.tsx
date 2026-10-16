@@ -5,9 +5,10 @@
 // accept their changes as they asked, or counter back with your own. The
 // offer on the chain can't be edited, so a revision is the old offer
 // withdrawn (`terminate_employer_open`, one Shield approval) and a new one
-// sent in its place (`create_offer_open`, a second). It carries no files
-// (offers no longer do). Then a note in the thread tells the person which offer replaced
-// which, and the team member's pay in these books follows the offer.
+// sent in its place (its terms as a sealed page, then `create_offer_open`).
+// It carries no files (offers no longer do). Then a note in the thread, a
+// letter on chain, tells the person which offer replaced which (a fourth
+// approval), and the team member's pay in these books follows the offer.
 //
 // Loaded only when tapped. Nothing here logs a key, an address or a term.
 // ---------------------------------------------------------------------------
@@ -17,6 +18,7 @@ import { MailboxClient } from "@pnw/mailbox";
 import { updateWorker } from "@pnw/payroll";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
+import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
@@ -27,6 +29,7 @@ import { ProposalEditor, type ProposalDraft, draftOf, proposalFromDraft } from "
 import { removeFromTeam, removeProblem } from "@/books/hiring";
 import { addLink, linkFor, removeLink, shortAddress } from "@/books/rail";
 import { MAX_NOTE_CHARS, type Proposal, addToThread, proposalChanges, proposalOf } from "@/books/thread";
+import { FeeChoice } from "./FeeChoice";
 import { ShieldStatus } from "./ShieldStatus";
 import { type OfferStage, fetchLatestHeight, sendOffer, withdrawOffer } from "./offer";
 import { LetterBox } from "./letters";
@@ -55,14 +58,14 @@ export default function ReviseOffer(props: ReviseOfferProps) {
 type Stage = "withdrawing" | "files" | OfferStage | "noting";
 
 const STAGE_COPY: Record<Stage, string> = {
-  withdrawing: "Approve withdrawing the current offer in Shield (1 of 3)…",
+  withdrawing: "Approve withdrawing the current offer in Shield (1 of 4)…",
   files: "Putting the files in their mailbox…",
   sealing: "Sealing the revised terms…",
-  mailbox: "Approve the revised terms in Shield (2 of 3): they go as a sealed page on the network…",
-  approving: "Approve the revised offer in Shield (3 of 3)…",
+  mailbox: "Approve the revised terms in Shield (2 of 4): they go as a sealed page on the network…",
+  approving: "Approve the revised offer in Shield (3 of 4)…",
   sent: "Sent. Waiting for the network…",
   accepted: "Saving…",
-  noting: "Telling them it's a revision…",
+  noting: "Approve the note in Shield (4 of 4): it tells them this offer replaces the old one…",
 };
 
 const addDays = (date: string, days: number) => {
@@ -73,7 +76,6 @@ const addDays = (date: string, days: number) => {
 function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOfferProps) {
   const { books, payroll, rail, mailbox, updateCompany, discardAttachment } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
-  const client = useMemo(() => new MailboxClient(), []);
   const link = rail ? linkFor(rail, workerId) : undefined;
   const worker = payroll.workers.find((w) => w.id === workerId);
   const current = useMemo(() => (link?.terms ? proposalOf(link.terms) : null), [link?.terms]);
@@ -84,6 +86,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
   const [industryCode, setIndustryCode] = useState(link?.offerInputs?.industryCode ?? 1);
   const [expiresInDays, setExpiresInDays] = useState<ExpiryDays>(DEFAULT_EXPIRY_DAYS);
   const [note, setNote] = useState("");
+  // This revision's fees, starting from the device's switch.
+  const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const [stage, setStage] = useState<Stage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -135,7 +139,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
     // 1. The current offer comes off the chain.
     setStage("withdrawing");
     try {
-      await withdrawOffer({ link: old, employerNameHash: rail.businessNameHash, wallet: shield, client });
+      await withdrawOffer({ link: old, employerNameHash: rail.businessNameHash, wallet: shield, client: new MailboxClient() });
       await updateCompany((c) => (c.rail ? { ...c, rail: removeLink(c.rail, workerId) } : c));
       // Its files (from before offers stopped carrying them) go with it.
       for (const ref of old.offerFiles ?? []) await discardAttachment(ref.attachmentId).catch(() => {});
@@ -161,6 +165,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         ...(revised.employmentType ? { employmentType: revised.employmentType } : {}),
         ...(revised.hoursPerWeek ? { hoursPerWeek: revised.hoursPerWeek } : {}),
         expiresInDays,
+        feeMode,
         // The same secret key as before, so the conversation carries on (a key from before keys were random is replaced).
         ...(old.partiesKey ? { partiesKey: old.partiesKey } : {}),
         startDate: revised.startDate,
@@ -187,7 +192,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
       try {
         const partiesKey = sent.link.partiesKey!;
         const item = await postToThread({
-          client,
+          client: new LetterBox({ wallet, to: old.address }),
+          feeMode,
           partiesKey,
           from: "business",
           nextOut: threadFor(mailbox, partiesKey)?.nextOut ?? 0,
@@ -252,9 +258,10 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
       </Field>
       {hadFiles && <p className="text-xs text-muted-foreground">Offers no longer carry files, so the revised offer goes without the current one&apos;s. Paste anything they need into the offer letter.</p>}
       <p className="text-xs text-muted-foreground">
-        Shield asks three times: to withdraw the current offer, to send the revised terms as a sealed page, then to send the revised offer. Their pay
-        in Payroll changes to match.
+        Shield asks four times: to withdraw the current offer, to send the revised terms as a sealed page, to send the revised offer, then a short
+        letter telling them it replaces the old one. Their pay in Payroll changes to match.
       </p>
+      {!busy && <FeeChoice value={feeMode} onChange={setFeeMode} />}
       {stage && <p className="text-sm text-muted-foreground">{STAGE_COPY[stage]}</p>}
       <FormError message={error ?? shieldError ?? ("problem" in parsed ? parsed.problem : null)} />
       <div className="flex flex-wrap gap-3">

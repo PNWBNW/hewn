@@ -44,7 +44,7 @@ function Messages() {
   // One conversation per person with a key to seal to: linked, or with an offer out.
   const people = (rail?.links ?? [])
     .filter((l) => l.partiesKey && (l.status === "linked" || l.status === "offered"))
-    .map((l) => ({ workerId: l.workerId, name: names.get(l.workerId) ?? "A team member", partiesKey: l.partiesKey!, thread: threadFor(mailbox, l.partiesKey!) }))
+    .map((l) => ({ workerId: l.workerId, name: names.get(l.workerId) ?? "A team member", address: l.address, partiesKey: l.partiesKey!, thread: threadFor(mailbox, l.partiesKey!) }))
     .sort((a, b) => (last(b.thread) ?? "").localeCompare(last(a.thread) ?? "") || a.name.localeCompare(b.name));
   const open = people.find((p) => p.workerId === selected);
   const listed = businessDirectory(rail, mailbox).length;
@@ -75,7 +75,7 @@ function Messages() {
         <Link href="/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
         </Link>
-        <Conversation key={open.partiesKey} side="business" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/mailbox" />
+        <Conversation key={open.partiesKey} side="business" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/mailbox" peer={open.address} />
       </div>
     );
   }
