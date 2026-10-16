@@ -210,6 +210,14 @@ person and find it matches have ruled that out ("The numbers match" marks it che
 the directory sends an empty list to the person who left. ⚠️ Accepted until checked in person;
 ✅ once checked.
 
+**Group chats** (`books/groups.ts`, `chain/groups.ts`). No group key: every group message is sent
+to each member separately through the private conversation the two coworkers already share,
+with one message id for all the copies. So a member can't pass as another (each copy arrives
+under the sender's own pair key), the business can't read any of it, and taking someone out
+means they get nothing new. A group's setup counts only when it comes from its admin. Group
+messages are refused in business-and-person threads. Groups hold at most 25 people (one send per
+member per message). ✅
+
 **Receipts** (`@pnw/mailbox` `sealReceipt`, `chain/receipts.ts`). When a person's app collects an
 offer or a paystub, or the business's app collects a week of hours, it seals a small receipt
 ("received at") back to the sender, at an address in its own domain
