@@ -160,6 +160,14 @@ byte, 256 KiB cap) and logs neither bodies nor lookups. Same origin only, no COR
 document is opened and the pin is then dropped; the sender's vault kept one from the start.
 Nothing on a pin but the lookup as its name: no addresses, kinds or dates in metadata. ✅
 
+**Offer letter files** (PDFs and photos attached to an offer, 5 MB together) travel the same way,
+cut into 256 KB pieces, each sealed like any other document under a kind unique to the offer. The
+host and the pinning service see ciphertext and, from the number of pieces, roughly how big the
+files are; nothing else. Each file's SHA-256 is inside the offer's terms, which the agreement
+record's terms hash commits to, so the person's app refuses any file that isn't exactly the one
+offered. Both sides keep the files in their vaults; the pieces are dropped once the person
+accepts. ✅
+
 **What the business takes in.** A team member's week of hours arrives sealed to the agreement and is
 opened on the business's device. It comes from another person, so it is treated as untrusted input
 (`books/mailbox.ts`): it must be a version 1 timesheet naming exactly the agreement whose key opened

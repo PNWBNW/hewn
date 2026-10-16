@@ -2078,3 +2078,50 @@ Then a design for counter-offers.
 
 Tests 684/684 (+4), build green. The new view is checked by typecheck only: reaching an offered
 team member needs Shield and the registry.
+
+## 2026-10-16 — The job offer letter
+
+Joshua's ask: an offer should be a full job offer letter, not just pay and dates. It has a job
+description, requirements, handbook or policies, anything else, and a contract or photos
+attached. The worker accepts all of it. The old portal only ever had a text box; the PDF
+upload he remembered was the W-4's.
+
+**Terms version 2.** Version 1 plus `letter` (four sections, each up to 20,000 characters) and
+`files`: name, type, size, SHA-256 and piece count, for PDF, PNG, JPEG or WebP, at most 5 files
+and 5 MB together. Both live inside the terms document, so the agreement record's
+`terms_doc_hash` commits to every word and every file's fingerprint; accepting on chain accepts
+exactly these. No Leo change. Version 1 offers still load and verify.
+
+**One definition.** `books/offer_letter.ts` holds the letter's shape and limits, used by both
+sides. The business's and the worker's canonical forms are pinned to each other byte for byte
+for version 2 (`terms_contract.test.ts`).
+
+**Files through the mailbox** (`chain/offer_files.ts`). Each file is cut into 256 KB pieces,
+numbered one file after another, under a mailbox kind unique to the offer (`offer_` plus the
+start of the offer time hash), so a second offer never collides with the first. On arrival,
+each piece's size and the whole file's SHA-256 are checked against the terms.
+
+**Sending.** The files go up first, then the terms, then the one Shield signature. If a piece
+can't be delivered, nothing is signed. The business's vault keeps each file (`RailLink.offerFiles`)
+and the terms.
+
+**Offer screen.** An "Offer letter" area with the four sections and Attach files. The review
+shows the letter and files, and each file can be saved. Progress shows "x of y" while the
+pieces go up.
+
+**Worker.**
+- Check for offers collects and verifies the files and saves them in the vault
+  (`WorkAgreement.files`).
+- Accept waits until every file is in and the person ticks "I've read the offer letter and the
+  attached files".
+- After accepting, the terms and every piece are dropped from the mailbox.
+- The Offers page keeps showing the letter and the files from the vault.
+
+THREAT_MODEL's mailbox section now covers the files (the host can tell roughly how big they are).
+
+Tests 705/705 (+21): letter rules, files there and back including a missing piece, a swapped
+piece, a wrong fingerprint and someone else's key, the send order, the cross-side contract,
+and saved copies on both sides. Build green. The screens are checked by typecheck and build
+only: an offer needs Shield and two registered accounts, so Joshua's test run is the real check.
+
+**Next:** a counter-offer design, for Joshua's approval before building.

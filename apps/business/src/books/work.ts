@@ -14,12 +14,15 @@
 // the timesheet payload built in hours.ts.
 // ---------------------------------------------------------------------------
 
+import type { AttachmentRef } from "@pnw/sales";
+import { type Letter, type OfferFile, LetterError, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
+
 export type Role = "business" | "worker";
 
 export type AgreementStatus = "pending" | "active" | "paused" | "terminated";
 
 /** What an offer says. Sealed by the employer; the person keeps it once accepted. */
-export type Terms = {
+export type TermsV1 = {
   version: 1;
   kind: "terms";
   /** The agreement id, or the offer's time hash (the employer may not know the id yet). */
@@ -34,6 +37,11 @@ export type Terms = {
   offeredAt: string;
 };
 
+/** Version 2, the offer letter: version 1 plus the letter's sections and the attached files (books/offer_letter.ts). */
+export type TermsV2 = Omit<TermsV1, "version"> & { version: 2; letter: Letter; files: OfferFile[] };
+
+export type Terms = TermsV1 | TermsV2;
+
 export type WorkAgreement = {
   /** Hex, no `0x`. */
   agreementId: string;
@@ -44,6 +52,8 @@ export type WorkAgreement = {
   employerName?: string;
   status: AgreementStatus;
   terms?: Terms;
+  /** The offer letter's attached files, saved in this vault: one per file in `terms.files`, same fingerprints. */
+  files?: AttachmentRef[];
   acceptedAt?: string;
 };
 
@@ -144,7 +154,7 @@ const minutes = (v: unknown, what: string): number => {
 
 export function validateTerms(raw: unknown): Terms {
   if (!isObject(raw)) throw new WorkError("Terms must be an object");
-  if (raw.version !== 1) throw new WorkError("Unknown terms version");
+  if (raw.version !== 1 && raw.version !== 2) throw new WorkError("Unknown terms version");
   if (raw.kind !== "terms") throw new WorkError("That document isn't an offer's terms");
   const payType = text(raw.payType, "Pay type");
   if (!(PAY_TYPES as readonly string[]).includes(payType)) throw new WorkError("Pay type must be hourly or salary");
@@ -152,9 +162,8 @@ export function validateTerms(raw: unknown): Terms {
   if (!(FREQUENCIES as readonly string[]).includes(frequency)) throw new WorkError("Unknown pay frequency");
   const rate = text(raw.rate, "Rate");
   if (!/^\d+$/.test(rate)) throw new WorkError("Rate must be a whole number of cents");
-  return {
-    version: 1,
-    kind: "terms",
+  const common = {
+    kind: "terms" as const,
     agreementId: text(raw.agreementId, "Agreement id"),
     termsText: text(raw.termsText, "Terms text"),
     payType: payType as Terms["payType"],
@@ -164,6 +173,12 @@ export function validateTerms(raw: unknown): Terms {
     businessName: text(raw.businessName, "Business name"),
     offeredAt: isoDate(raw.offeredAt, "Offered at"),
   };
+  if (raw.version === 1) return { version: 1, ...common };
+  try {
+    return { version: 2, ...common, letter: validateLetter(raw.letter), files: validateOfferFiles(raw.files) };
+  } catch (e) {
+    throw e instanceof LetterError ? new WorkError(e.message) : e;
+  }
 }
 
 export function validateAgreement(raw: unknown): WorkAgreement {
@@ -180,6 +195,14 @@ export function validateAgreement(raw: unknown): WorkAgreement {
   const employerName = optionalText(raw.employerName, "Employer name");
   if (employerName !== undefined) a.employerName = employerName;
   if (raw.terms !== undefined) a.terms = validateTerms(raw.terms);
+  if (raw.files !== undefined) {
+    if (a.terms?.version !== 2) throw new WorkError("Saved files need the offer letter they came with");
+    try {
+      a.files = validateFileRefs(raw.files, a.terms.files);
+    } catch (e) {
+      throw e instanceof LetterError ? new WorkError(e.message) : e;
+    }
+  }
   if (raw.acceptedAt !== undefined) a.acceptedAt = isoDate(raw.acceptedAt, "Accepted at");
   return a;
 }

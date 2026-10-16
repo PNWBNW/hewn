@@ -10,7 +10,10 @@ import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useWork } from "@/books/BooksProvider";
+import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { PageHeader } from "@/shell/SectionView";
+import type { AttachmentRef } from "@pnw/sales";
+import type { OfferFile } from "@/books/offer_letter";
 import { RailNeeded, STATUS_LABEL, employerLabel, payLine, registeredLabel, when } from "../shared";
 
 const OffersPanel = dynamic(() => import("@/chain/work/Offers"), {
@@ -21,7 +24,7 @@ const OffersPanel = dynamic(() => import("@/chain/work/Offers"), {
 const ORDER = { pending: 0, active: 1, paused: 2, terminated: 3 } as const;
 
 export default function OffersPage() {
-  const { work, rail } = useWork();
+  const { work, rail, readAttachment } = useWork();
   const [open, setOpen] = useState(false);
   const agreements = [...work.agreements].sort((a, b) => ORDER[a.status] - ORDER[b.status]);
 
@@ -62,6 +65,12 @@ export default function OffersPage() {
                         {payLine(a.terms)} · starts {a.terms.startDate}
                       </div>
                       <p className="whitespace-pre-wrap text-xs">{a.terms.termsText}</p>
+                      {a.terms.version === 2 && (
+                        <div className="mt-2 flex flex-col gap-3">
+                          <LetterSections letter={a.terms.letter} />
+                          <SavedFiles files={a.terms.files} saved={a.files} read={readAttachment} />
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-xs text-muted-foreground">{a.status === "pending" ? "Tap Check for offers to read the terms." : "Terms not on this device."}</div>
@@ -74,5 +83,18 @@ export default function OffersPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** The letter's files from this vault, in the order the offer listed them. */
+function SavedFiles({ files, saved, read }: { files: OfferFile[]; saved: AttachmentRef[] | undefined; read: (ref: AttachmentRef) => Promise<Blob> }) {
+  const bySha = new Map((saved ?? []).map((f) => [f.sha256, f]));
+  const all = files.every((f) => bySha.has(f.sha256));
+  return (
+    <OfferFileList
+      files={files}
+      {...(all ? { read: (i: number) => read(bySha.get(files[i]!.sha256)!) } : {})}
+      missing="Tap Check for offers to collect the files."
+    />
   );
 }

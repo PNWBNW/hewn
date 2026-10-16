@@ -11,15 +11,21 @@
 //      that draft the terms; pay type, rate and frequency come from the team
 //      member's record, so the offer says what the books say. The draft is
 //      only text and can be edited freely.
+//   2b. The offer letter (Joshua, 2026-10-16): job description, requirements,
+//      handbook and anything else, plus PDFs and photos (5 MB together). Its
+//      words and each file's fingerprint go inside the terms, so accepting
+//      the offer accepts exactly these.
 //   3. Review: the agreement exactly as they will read it.
-//   4. Send: the terms go to their mailbox first, sealed to the two of you,
-//      then one transaction in Shield; the link is saved as "Offer sent".
+//   4. Send: the files and then the terms go to their mailbox first, sealed to
+//      the two of you, then one transaction in Shield; the link is saved as
+//      "Offer sent", with the terms and the files kept in these books.
 //
 // No address, key or document is ever logged from here.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
+import { Paperclip, X } from "lucide-react";
 import { MailboxClient } from "@pnw/mailbox";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
@@ -27,6 +33,8 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
+import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
+import { LETTER_SECTIONS, type Letter, MAX_OFFER_FILES, MAX_OFFER_FILES_BYTES, OFFER_FILE_TYPES, emptyLetter, fileLabel } from "@/books/offer_letter";
 import { type Rail, addLink, registeredFor, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import type { Company } from "@/books/company";
@@ -36,6 +44,7 @@ import { draftProblem, draftTerms, longDate, payLine } from "./agreement_draft";
 import NameLookup from "./NameLookup";
 import { type DirectoryEntry, entryLabel } from "./directory";
 import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveBusinessName, sendOffer } from "./offer";
+import { type PickedFile, pickFile } from "./offer_files";
 import { useShield } from "./shield";
 
 export type OfferPanelProps = { workerId: string; onClose: () => void };
@@ -51,6 +60,7 @@ export default function OfferPanel(props: OfferPanelProps) {
 }
 
 const STAGE_COPY: Record<OfferStage, string> = {
+  files: "Putting the files in their mailbox…",
   sealing: "Sealing the terms…",
   mailbox: "Putting the terms in their mailbox…",
   approving: "Approve the offer in Shield…",
@@ -94,7 +104,7 @@ function Checklist({ steps }: { steps: Step[] }) {
 }
 
 function OfferFlow({ workerId, onClose }: OfferPanelProps) {
-  const { books, payroll, rail, updateCompany } = useOpenBooks();
+  const { books, payroll, rail, updateCompany, addAttachment, discardAttachment } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
   const client = useMemo(() => new MailboxClient(), []);
   const worker = payroll.workers.find((w) => w.id === workerId);
@@ -115,6 +125,11 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   // The terms follow the fields until the person edits them by hand.
   const [termsText, setTermsText] = useState("");
   const [termsEdited, setTermsEdited] = useState(false);
+  const [letter, setLetter] = useState<Letter>(emptyLetter);
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [pieces, setPieces] = useState<{ done: number; total: number } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [reviewing, setReviewing] = useState(false);
   const [bizName, setBizName] = useState("");
   const [bizBusy, setBizBusy] = useState(false);
@@ -181,6 +196,9 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
         workerNameHash: found.nameHash,
         industryCode,
         termsText: terms,
+        letter,
+        files,
+        onFilePiece: (done, total) => setPieces({ done, total }),
         startDate,
         reviewDate,
         endDate,
@@ -196,13 +214,43 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
         },
         onProgress: setStage,
       });
-      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), { ...sent.link, terms: sent.terms }) }));
+      // These books keep their own copy of every file they sent, like the terms.
+      const saved = [];
+      try {
+        for (const p of files) saved.push(await addAttachment(new File([p.bytes], p.file.name, { type: p.file.type })));
+        const link = { ...sent.link, terms: sent.terms, ...(saved.length > 0 ? { offerFiles: saved } : {}) };
+        await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), link) }));
+      } catch (e) {
+        for (const ref of saved) await discardAttachment(ref.attachmentId).catch(() => {});
+        throw e;
+      }
       setSentTo(nameOf(found));
     } catch (e) {
       if (isMailboxOff(e)) setMailboxOff(true);
       setError(errorMessage(e));
     } finally {
       setStage(null);
+      setPieces(null);
+    }
+  }
+
+  /** Adds picked files to the letter: each checked and fingerprinted, all together under 5 MB. */
+  async function pickFiles(list: FileList | null) {
+    setFileError(null);
+    const chosen = Array.from(list ?? []);
+    if (fileInput.current) fileInput.current.value = "";
+    try {
+      const next = [...files];
+      for (const f of chosen) {
+        if (next.length >= MAX_OFFER_FILES) throw new Error(`Attach at most ${MAX_OFFER_FILES} files`);
+        const picked = await pickFile(f.name, f.type, new Uint8Array(await f.arrayBuffer()));
+        if (next.some((p) => p.file.sha256 === picked.file.sha256)) continue; // the same file twice
+        if (next.reduce((n, p) => n + p.file.size, picked.file.size) > MAX_OFFER_FILES_BYTES) throw new Error("The attached files can be at most 5 MB together");
+        next.push(picked);
+      }
+      setFiles(next);
+    } catch (e) {
+      setFileError(errorMessage(e));
     }
   }
 
@@ -329,7 +377,14 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
           </div>
         </dl>
         <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-card p-3 font-sans text-sm">{terms}</pre>
-        {stage && <p className="text-xs text-muted-foreground">{STAGE_COPY[stage]}</p>}
+        <LetterSections letter={letter} />
+        <OfferFileList files={files.map((p) => p.file)} read={async (i) => new Blob([files[i]!.bytes], { type: files[i]!.file.type })} />
+        {stage && (
+          <p className="text-xs text-muted-foreground">
+            {STAGE_COPY[stage]}
+            {stage === "files" && pieces ? ` ${pieces.done} of ${pieces.total}` : ""}
+          </p>
+        )}
         {!stage && (
           <p className="text-xs text-muted-foreground">
             Shield asks you to approve one transaction; the employer pays its network fee. Nothing is paid to anyone.
@@ -459,6 +514,62 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
               </Button>
             )}
           </div>
+          <fieldset className="flex flex-col gap-4 rounded-md border bg-card p-3 sm:col-span-2">
+            <legend className="px-1 text-sm font-semibold">Offer letter</legend>
+            <p className="text-xs text-muted-foreground">
+              Optional. Everything they should read before saying yes. They accept the terms, these sections and the attached files together, exactly as
+              sent.
+            </p>
+            {LETTER_SECTIONS.map((section) => (
+              <Field key={section.key} label={section.label} hint={section.hint}>
+                <textarea
+                  className={`${inputClass} min-h-24`}
+                  value={letter[section.key]}
+                  onChange={(e) => setLetter((l) => ({ ...l, [section.key]: e.target.value }))}
+                />
+              </Field>
+            ))}
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Files</span>
+              <span className="text-xs text-muted-foreground">
+                A contract, a handbook, photos: PDF, PNG, JPEG or WebP, up to {MAX_OFFER_FILES} files and 5 MB together. They can save each one.
+              </span>
+              {files.length > 0 && (
+                <ul className="flex flex-col divide-y rounded-md border bg-background text-sm">
+                  {files.map((p) => (
+                    <li key={p.file.sha256} className="flex items-center gap-3 px-3 py-2">
+                      <span className="min-w-0 flex-1 truncate">{fileLabel(p.file)}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-11 sm:min-h-8"
+                        aria-label={`Remove ${p.file.name}`}
+                        onClick={() => setFiles((all) => all.filter((x) => x.file.sha256 !== p.file.sha256))}
+                      >
+                        <X aria-hidden />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {files.length < MAX_OFFER_FILES && (
+                <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 self-start rounded-md border px-3 text-sm font-medium hover:bg-accent sm:min-h-9">
+                  <Paperclip aria-hidden className="size-4" />
+                  Attach files
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    className="sr-only"
+                    accept={OFFER_FILE_TYPES.join(",")}
+                    multiple
+                    onChange={(e) => void pickFiles(e.target.files)}
+                  />
+                </label>
+              )}
+              <FormError message={fileError} />
+            </div>
+          </fieldset>
           <div className="flex flex-col gap-3 sm:col-span-2">
             <FormError message={error ?? fieldProblem ?? shieldError} />
             <div className="flex gap-3">

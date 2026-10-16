@@ -19,7 +19,10 @@
 // record's own `agreement_id`.
 // ---------------------------------------------------------------------------
 
-export type Terms = {
+import { type Letter, type OfferFile, LetterError, validateLetter, validateOfferFiles } from "../books/offer_letter";
+
+/** Version 1: pay, dates and the agreement's own terms text. */
+export type TermsV1 = {
   version: 1;
   kind: "terms";
   /** The offer time hash, hex, no `0x` (see above). */
@@ -37,8 +40,22 @@ export type Terms = {
   offeredAt: string;
 };
 
-/** The keys of a terms document, in canonical order. */
+/**
+ * Version 2, the offer letter (Joshua, 2026-10-16): everything in version 1,
+ * then the letter's sections and the attached files, in that order. The
+ * files' fingerprints are inside the document, so the terms hash covers them.
+ */
+export type TermsV2 = Omit<TermsV1, "version"> & {
+  version: 2;
+  letter: Letter;
+  files: OfferFile[];
+};
+
+export type Terms = TermsV1 | TermsV2;
+
+/** The keys of a terms document, in canonical order (version 2 adds `letter` and `files` at the end). */
 export const TERMS_KEYS = ["version", "kind", "agreementId", "termsText", "payType", "rate", "frequency", "startDate", "businessName", "offeredAt"] as const;
+export const TERMS_V2_KEYS = [...TERMS_KEYS, "letter", "files"] as const;
 
 const PAY_TYPES = ["hourly", "salary"] as const;
 const FREQUENCIES = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
@@ -57,7 +74,7 @@ export class TermsError extends Error {
 export function validateTerms(raw: unknown): Terms {
   const t = raw as Partial<Terms> | null;
   if (!t || typeof t !== "object") throw new TermsError("The terms must be an object");
-  if (t.version !== 1) throw new TermsError("Unknown terms version");
+  if (t.version !== 1 && t.version !== 2) throw new TermsError("Unknown terms version");
   if (t.kind !== "terms") throw new TermsError("Not a terms document");
   if (typeof t.agreementId !== "string" || !HEX64.test(t.agreementId)) throw new TermsError("The terms need the offer time hash, 64 hex characters");
   if (typeof t.termsText !== "string" || !t.termsText.trim()) throw new TermsError("Write the terms of the offer");
@@ -67,9 +84,8 @@ export function validateTerms(raw: unknown): Terms {
   if (typeof t.startDate !== "string" || !DATE.test(t.startDate) || Number.isNaN(Date.parse(`${t.startDate}T00:00:00Z`))) throw new TermsError("The start date must be YYYY-MM-DD");
   if (typeof t.businessName !== "string" || !t.businessName.trim()) throw new TermsError("The terms need the business name");
   if (typeof t.offeredAt !== "string" || Number.isNaN(Date.parse(t.offeredAt))) throw new TermsError("The terms need the time of the offer");
-  return {
-    version: 1,
-    kind: "terms",
+  const common = {
+    kind: "terms" as const,
     agreementId: t.agreementId,
     termsText: t.termsText,
     payType: t.payType as Terms["payType"],
@@ -79,6 +95,13 @@ export function validateTerms(raw: unknown): Terms {
     businessName: t.businessName,
     offeredAt: t.offeredAt,
   };
+  if (t.version === 1) return { version: 1, ...common };
+  const v2 = raw as Partial<TermsV2>;
+  try {
+    return { version: 2, ...common, letter: validateLetter(v2.letter), files: validateOfferFiles(v2.files) };
+  } catch (e) {
+    throw e instanceof LetterError ? new TermsError(e.message) : e;
+  }
 }
 
 /** The one byte-for-byte form of a terms document: the keys above, in that order, through `JSON.stringify`. */

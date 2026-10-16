@@ -6,6 +6,7 @@ import {
   type WorkAgreement,
   WorkError,
   addPaystub,
+  agreementFor,
   bumpWorkSeq,
   emptyWork,
   nextWorkSeq,
@@ -183,5 +184,34 @@ describe("punches", () => {
     let w = upsertAgreement(withAgreement(), other);
     w = punch(w, AID, "2026-10-14T15:00:00.000Z", "p1").work;
     expect(punch(w, other.agreementId, "2026-10-14T16:00:00.000Z", "p2").punch.kind).toBe("in");
+  });
+});
+
+describe("an offer letter in the person's vault", () => {
+  const sha = "b".repeat(64);
+  const v2 = {
+    ...TERMS,
+    version: 2 as const,
+    letter: { description: "Framing.", requirements: "", handbook: "Steel toes.", other: "" },
+    files: [{ name: "contract.pdf", type: "application/pdf", size: 300_000, sha256: sha, chunks: 2 }],
+  };
+  const ref = { attachmentId: "att-1", sha256: sha, type: "application/pdf", size: 300_000, name: "contract.pdf" };
+
+  it("keeps the letter, and the files' saved copies once they're in", () => {
+    expect(validateTerms(v2)).toEqual(v2);
+    const agreement = { agreementId: "ab".repeat(32), partiesKey: "cd".repeat(32), employerAddress: "aleo1" + "q".repeat(58), employerNameHash: "1", status: "pending" as const, terms: v2, files: [ref] };
+    const w = upsertAgreement(emptyWork("Ana"), agreement);
+    expect(agreementFor(w, agreement.agreementId)!.files).toEqual([ref]);
+    // A later sighting without files keeps the ones already saved.
+    const { files: _f, ...seenAgain } = agreement;
+    expect(agreementFor(upsertAgreement(w, { ...seenAgain, status: "active" }), agreement.agreementId)!.files).toEqual([ref]);
+  });
+
+  it("refuses files that aren't the letter's, a broken letter, or files without a letter", () => {
+    const agreement = { agreementId: "ab".repeat(32), partiesKey: "cd".repeat(32), employerAddress: "aleo1" + "q".repeat(58), employerNameHash: "1", status: "pending" as const };
+    expect(() => upsertAgreement(emptyWork("Ana"), { ...agreement, terms: v2, files: [{ ...ref, size: 1 }] })).toThrow(WorkError);
+    expect(() => upsertAgreement(emptyWork("Ana"), { ...agreement, terms: TERMS, files: [ref] })).toThrow(/need the offer letter/);
+    expect(() => validateTerms({ ...v2, letter: { description: 1 } })).toThrow(WorkError);
+    expect(() => validateTerms({ ...v2, files: [{ ...v2.files[0], chunks: 9 }] })).toThrow(/piece count/);
   });
 });

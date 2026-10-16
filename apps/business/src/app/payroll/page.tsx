@@ -28,6 +28,8 @@ import { RegistryField } from "@/books/RegistryField";
 import { BRAND } from "@/brand";
 import { type Registered, linkFor, linkStatus, registeredFor, setRegistered } from "@/books/rail";
 import type { Terms } from "@/books/work";
+import type { AttachmentRef } from "@pnw/sales";
+import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Paystub } from "./Paystub";
@@ -326,7 +328,8 @@ function Team() {
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
           {payroll.workers.map((w) => {
             const status = linkStatus(rail, "worker", w.id);
-            const sentTerms = rail ? linkFor(rail, w.id)?.terms : undefined;
+            const sentLink = rail ? linkFor(rail, w.id) : undefined;
+            const sentTerms = sentLink?.terms;
             const registered = registeredFor(rail, "worker", w.id);
             return editing === w.id ? (
               <li key={w.id} className="flex flex-col gap-3 p-2">
@@ -417,7 +420,7 @@ function Team() {
                 )}
                 {sentTerms && offerShown === w.id && (
                   <div className="border-t p-3">
-                    <SentOffer terms={sentTerms} />
+                    <SentOffer terms={sentTerms} files={sentLink?.offerFiles} />
                   </div>
                 )}
               </li>
@@ -441,9 +444,13 @@ const FREQUENCY_LABEL: Record<Terms["frequency"], string> = {
   monthly: "every month",
 };
 
-/** The offer this business sent, as the person received it: the books' own copy. */
-function SentOffer({ terms }: { terms: Terms }) {
+/** The offer this business sent, as the person received it: the books' own copy, files included. */
+function SentOffer({ terms, files }: { terms: Terms; files: AttachmentRef[] | undefined }) {
+  const { readAttachment } = useOpenBooks();
   const rate = formatCents(BigInt(terms.rate));
+  const offered = terms.version === 2 ? terms.files : [];
+  const saved = new Map((files ?? []).map((f) => [f.sha256, f]));
+  const allSaved = offered.length > 0 && offered.every((f) => saved.has(f.sha256));
   return (
     <div className="flex flex-col gap-2 text-sm">
       <div className="text-xs text-muted-foreground">
@@ -451,6 +458,12 @@ function SentOffer({ terms }: { terms: Terms }) {
         {terms.startDate}
       </div>
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 font-sans text-sm">{terms.termsText}</pre>
+      {terms.version === 2 && <LetterSections letter={terms.letter} />}
+      <OfferFileList
+        files={offered}
+        {...(allSaved ? { read: (i: number) => readAttachment(saved.get(offered[i]!.sha256)!) } : {})}
+        missing="The files aren't saved on this device."
+      />
     </div>
   );
 }

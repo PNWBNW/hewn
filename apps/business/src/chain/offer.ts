@@ -19,14 +19,16 @@ import { ENV } from "@pnw/config/env";
 import { PROGRAMS, VERSIONS } from "@pnw/config/programs";
 import { computeAgreementValues, computeOfferTimeHash } from "@pnw/handshake/engine";
 import { PAY_FREQUENCY_CODES, type ComputedAgreementValues } from "@pnw/handshake/types";
-import { KINDS, MailboxError, type MailboxClient, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { KINDS, MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
 import { type RailLink, isRailAddress } from "../books/rail";
 import { bareDirectoryName } from "./directory";
 import { byteArrayHex } from "./parties_key";
-import { type Terms, canonicalTerms } from "./terms";
+import { type Letter, LetterError, emptyLetter, validateLetter } from "../books/offer_letter";
+import { type PickedFile, sendOfferFiles } from "./offer_files";
+import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
 
 export class OfferError extends Error {
   constructor(message: string) {
@@ -199,7 +201,7 @@ export function finalAgreementIds(records: unknown[]): Set<string> {
 
 export type OfferWallet = Pick<RailWallet, "executeTransaction" | "transactionStatus">;
 
-export type OfferStage = "sealing" | "mailbox" | "approving" | "sent" | "accepted";
+export type OfferStage = "files" | "sealing" | "mailbox" | "approving" | "sent" | "accepted";
 
 export type SendOfferInput = OfferDates & {
   employerAddress: string;
@@ -211,11 +213,17 @@ export type SendOfferInput = OfferDates & {
   workerNameHash: string;
   industryCode: number;
   termsText: string;
+  /** The offer letter's sections; empty sections are fine. Missing means none. */
+  letter?: Letter;
+  /** Files attached to the letter, read and fingerprinted (offer_files.ts `pickFile`). */
+  files?: readonly PickedFile[];
   currentHeight: number;
   /** Only `put` is used; a fake with that one method does for tests. */
   client: Pick<MailboxClient, "put">;
   wallet: OfferWallet;
   onProgress?: (stage: OfferStage) => void;
+  /** While the files go up: pieces sent so far, out of all of them. */
+  onFilePiece?: (done: number, total: number) => void;
   now?: () => Date;
   clock?: Clock;
   sleep?: Sleep;
@@ -284,23 +292,43 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   const now = input.now?.() ?? new Date();
   const epochs = offerEpochs(input, input.currentHeight, now.getTime());
   const offerTimeUtc = Math.floor(now.getTime() / 1000);
-  const terms: Terms = {
-    version: 1,
-    kind: "terms",
-    agreementId: bareHex(computeOfferTimeHash(offerTimeUtc)),
-    termsText: input.termsText,
-    payType: worker.payType,
-    rate: worker.rate.toString(),
-    frequency: worker.frequency,
-    startDate: input.startDate,
-    businessName: input.businessName,
-    offeredAt: now.toISOString(),
-  };
+  const picked = input.files ?? [];
+  let terms: Terms;
+  try {
+    // Version 2, the offer letter: the sections and each file's fingerprint sit inside the terms,
+    // so the agreement record's terms hash commits to them (validateTerms checks the limits).
+    terms = validateTerms({
+      version: 2,
+      kind: "terms",
+      agreementId: bareHex(computeOfferTimeHash(offerTimeUtc)),
+      termsText: input.termsText,
+      payType: worker.payType,
+      rate: worker.rate.toString(),
+      frequency: worker.frequency,
+      startDate: input.startDate,
+      businessName: input.businessName,
+      offeredAt: now.toISOString(),
+      letter: validateLetter(input.letter ?? emptyLetter()),
+      files: picked.map((p) => p.file),
+    });
+  } catch (e) {
+    throw e instanceof TermsError || e instanceof LetterError ? new OfferError(e.message) : e;
+  }
   const canonical = canonicalTerms(terms);
+  if (new TextEncoder().encode(canonical).length > MAX_PAYLOAD_BYTES) throw new OfferError("The offer letter is too long to send; shorten it or attach the long parts as a PDF");
   const computed = computeAgreementValues(input.employerAddress, input.workerAddress, canonical, offerTimeUtc, VERSIONS.schema_v, VERSIONS.policy_v);
   const partiesKey = bareHex(computed.parties_key);
 
-  // 1. The terms, sealed to the two parties, in the mailbox.
+  // 1. The files first (if any), then the terms, all sealed to the two parties, in the mailbox.
+  if (picked.length > 0) {
+    onProgress?.("files");
+    try {
+      await sendOfferFiles(client, partiesKey, terms.agreementId, picked, input.onFilePiece);
+    } catch (e) {
+      if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") throw new OfferError(MAILBOX_OFF_MESSAGE);
+      throw e;
+    }
+  }
   onProgress?.("sealing");
   const key = partiesKeyFromHex(partiesKey);
   let sealed;

@@ -22,6 +22,8 @@
 // loaded only when the user taps Connect in Settings.
 // ---------------------------------------------------------------------------
 
+import type { AttachmentRef } from "@pnw/sales";
+import { LetterError, validateFileRefs } from "./offer_letter";
 import { type Terms, validateTerms } from "./work";
 
 /** The documents the mailbox carries that keep a per-link sequence counter here. */
@@ -58,6 +60,8 @@ export type RailLink = {
    * person accepts. Absent on offers sent before it was kept.
    */
   terms?: Terms;
+  /** This business's own saved copies of the offer letter's files (vault attachments), one per file in `terms.files`. */
+  offerFiles?: AttachmentRef[];
 };
 
 export type PartyKind = "customer" | "vendor" | "worker";
@@ -196,6 +200,14 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
       throw new RailError(`The offer's terms are unreadable: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+  if (l.offerFiles !== undefined) {
+    if (link.terms?.version !== 2) throw new RailError("Saved offer files need the offer letter they came with");
+    try {
+      link.offerFiles = validateFileRefs(l.offerFiles, link.terms.files);
+    } catch (e) {
+      throw e instanceof LetterError ? new RailError(e.message) : e;
+    }
+  }
   return link;
 }
 
@@ -301,7 +313,10 @@ export function addLink(rail: Rail, link: RailLink): Rail {
   const previous = linkFor(rail, fresh.workerId);
   if (previous?.mailboxSeq && previous.partiesKey === fresh.partiesKey && fresh.mailboxSeq === undefined) fresh.mailboxSeq = previous.mailboxSeq;
   if (previous?.offeredAt && previous.agreementId === fresh.agreementId && fresh.offeredAt === undefined) fresh.offeredAt = previous.offeredAt;
-  if (previous?.terms && previous.agreementId === fresh.agreementId && fresh.terms === undefined) fresh.terms = previous.terms;
+  if (previous?.terms && previous.agreementId === fresh.agreementId && fresh.terms === undefined) {
+    fresh.terms = previous.terms;
+    if (previous.offerFiles) fresh.offerFiles = previous.offerFiles;
+  }
   return validateRail({ ...rail, links: [...rail.links.filter((l) => l.workerId !== fresh.workerId), fresh] }, LEGACY);
 }
 
