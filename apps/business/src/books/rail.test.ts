@@ -303,3 +303,44 @@ describe("registered identities", () => {
     expect(registeredFor(setRegistered(linked, "vendor", "vend-1", ANA), "vendor", "vend-1")).toEqual(ANA);
   });
 });
+
+describe("the terms a business offered", () => {
+  const terms = {
+    version: 1 as const,
+    kind: "terms" as const,
+    agreementId: "ef".repeat(32),
+    termsText: "Carpenter, 40 hours a week.\nTwo weeks' notice.",
+    payType: "hourly" as const,
+    rate: "3000",
+    frequency: "biweekly" as const,
+    startDate: "2026-11-02",
+    businessName: "Brothers Building",
+    offeredAt: "2026-10-16T18:00:00.000Z",
+  };
+  const offered: RailLink = { ...link, status: "offered", offeredAt: terms.offeredAt, terms };
+
+  it("are kept on the link and survive a save and load", () => {
+    expect(validateLink(offered).terms).toEqual(terms);
+    const saved = railFromJson(railToJson({ ...rail, links: [offered] }));
+    expect(linkFor(saved, "wkr-1")!.terms).toEqual(terms);
+  });
+
+  it("are optional, so links from before they were kept still load", () => {
+    expect(validateLink(link)).not.toHaveProperty("terms");
+  });
+
+  it("are refused when they aren't a terms document", () => {
+    expect(() => validateLink({ ...offered, terms: { ...terms, kind: "paystub" } })).toThrow(/offer's terms are unreadable/);
+    expect(() => validateLink({ ...offered, terms: { ...terms, rate: "30.00" } })).toThrow(/offer's terms are unreadable/);
+    expect(() => validateLink({ ...offered, terms: "Carpenter" })).toThrow(/offer's terms are unreadable/);
+  });
+
+  it("stay through approval and through importing the same agreement again, and go with a new agreement", () => {
+    const sent = addLink({ ...rail, links: [] }, offered);
+    expect(linkFor(markLinked(sent, "wkr-1", "2026-10-17T09:00:00.000Z"), "wkr-1")!.terms).toEqual(terms);
+    const { terms: _t, offeredAt: _o, ...imported } = { ...offered, status: "linked" as const };
+    expect(linkFor(addLink(sent, imported), "wkr-1")!.terms).toEqual(terms);
+    const another = { ...imported, agreementId: "02".repeat(32), partiesKey: KEY_B };
+    expect(linkFor(addLink(sent, another), "wkr-1")).not.toHaveProperty("terms");
+  });
+});

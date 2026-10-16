@@ -2052,3 +2052,29 @@ outside the hashed entry. Hence the settlement list in the root.
 Order: period roots (ledger), anchor on close (app; the screen needs Joshua's greenlight),
 audit pack and verifier, the worker's own proof, then `gl_core` (Fable). Docs only; no code
 changed.
+
+## 2026-10-16 — The business keeps the offer it sent
+
+Found in the offer review: the business's vault never kept the terms it offered. `OfferPanel`
+saved only the link and threw the returned terms away. The worker's app deletes the mailbox copy
+once it accepts, so after that only the worker had the agreement's text. THREAT_MODEL's mailbox
+section said the sender kept one from the start, and now it does.
+
+- `RailLink.terms` holds the terms exactly as sent. They are validated with the same
+  `validateTerms` the worker side uses (`books/work.ts`), so a bad copy refuses to load.
+- The terms are saved the moment the offer goes out. They are kept through approval and through
+  importing the same agreement again, and dropped when a different agreement replaces the link.
+- On the team list, "View offer" shows the books' copy: the date sent, the pay, the start date
+  and the full terms text.
+- Offers sent before this have no copy.
+
+**Next (Joshua, 2026-10-16):** the job offer letter.
+- Open sections for job description, requirements and handbook or policies.
+- PDF and image attachments up to 5 MB, delivered through the mailbox and committed inside the
+  terms fingerprint, so accepting binds the worker to the exact files.
+- Both sides keep the full letter.
+
+Then a design for counter-offers.
+
+Tests 684/684 (+4), build green. The new view is checked by typecheck only: reaching an offered
+team member needs Shield and the registry.
