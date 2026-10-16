@@ -104,13 +104,18 @@ export default function Home() {
           <Section icon={<BadgeDollarSign className="size-5" />} title="No monthly subscription">
             <p>
               The books are free to use for as many businesses, people and years as you like. No
-              subscription, no tiers to unlock your own records.
+              subscription, no tiers to unlock your own records. There are two ways to run it:
             </p>
             <p>
-              If you choose private payments, the payment network charges a small fee per payment,
-              which the employer pays. Once {BRAND.name} runs on the main network, a small flat fee
-              per paycheck paid this way will go toward running the service: never a percentage of
-              anyone&apos;s pay, and nothing at all for a business that runs its own copy.
+              <span className="font-medium text-foreground">Run your own.</span> {BRAND.name} is open
+              source. Host your own copy and its mailbox, and you pay only your own hosting and the
+              payment network&apos;s small fee per payment. Nothing goes to us.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Join the {BRAND.name} network.</span> We
+              run it for you: we carry and store your sealed documents and connect you with the other
+              businesses and workers on it. Once it runs on the main network, a small flat fee per
+              paycheck paid through the app covers that, never a percentage of anyone&apos;s pay.
             </p>
           </Section>
         </div>

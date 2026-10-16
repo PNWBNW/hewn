@@ -2472,6 +2472,15 @@ Joshua: say "no monthly subscription" rather than "free".
   its own copy pays nothing.
 - The meta description matches.
 
+Joshua: present "two ways to run it" as a feature. The pricing section now offers:
+- **Run your own** (open source; host your own copy and mailbox; pay only your hosting and the
+  network's fees; nothing to us);
+- **Join the Hewn network** (we carry and store your sealed documents and connect you with
+  everyone on it, for a small flat per-paycheck fee once on mainnet).
+
+BUILD_PLAN records it, and notes that the mailbox address must travel with each agreement, so
+one person can work for a self-hosted business and a hosted one at once.
+
 Still out of date on the site, for a wider copy refresh (needs Joshua's go-ahead): "no account to
 create", "nothing is uploaded" and "no server". They predate the required Shield link and name,
 and the mailbox, which carries sealed documents. Site tests 7/7; site build green.
