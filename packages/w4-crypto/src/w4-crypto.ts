@@ -1,6 +1,11 @@
 /**
  * W-4 Encryption — parties_key-based AES-256-GCM for cross-browser W-4 sharing.
  *
+ * LEGACY, DO NOT USE: the key below is computed from the two addresses, so
+ * anyone who knows both can compute it and read the W-4. Nothing in Hewn
+ * imports this package; W-4s go through the mailbox, sealed with the
+ * agreement's random parties key.
+ *
  * Both the employer and worker can independently derive the same parties_key
  * from their shared knowledge of each other's wallet addresses:
  *

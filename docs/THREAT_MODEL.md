@@ -215,6 +215,17 @@ delivery (denial of service) or see that two unknown parties exchanged *somethin
 lookup also means an attacker who steals a `parties_key` can read that pair's envelopes while
 they're pinned; the key is in a private record and in the vault, never elsewhere.
 
+**The parties key is random** (fixed 2026-10-16). Every mailbox key and address comes from the
+agreement's `parties_key`. The old portal computed it from the two addresses alone, so anyone
+who knew (or guessed) who works for whom could compute it and read their mailbox, paystubs and
+W-4s included, while pinned. The program never checks how the key was made, so the business's
+app now draws 32 random bytes for each new pair (`chain/offer.ts` `newPartiesKey`), keeps the
+same key for a revised offer to the same person, and replaces an address-derived one whenever
+an offer goes out again. The person reads it from their private agreement record. The public
+`agreement_parties_commitment` hashes the key with the two name hashes, so it can't be
+reversed. Pairs linked before the fix (testnet only) keep their old key until they get a new
+offer. ✅
+
 ## Not yet covered
 
 Phishing look-alike sites, browser extensions with page access, and denial of service are out

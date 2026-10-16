@@ -93,6 +93,11 @@ export function computeTermsRoot(
  * Compute the parties_key deterministically from employer and worker addresses.
  * Both portals can independently derive this from the same inputs.
  *
+ * NOT SECRET: anyone who knows both addresses can compute it. Hewn no longer
+ * uses it as the agreement's parties_key (the business's app draws a random
+ * one, apps/business/src/chain/offer.ts); it stays only to recognise keys
+ * made the old way.
+ *
  * parties_key = BLAKE3("PNW::PARTIES", TLV(employer_addr, worker_addr))
  *
  * Note: We use a custom domain tag "PNW::PARTIES" (not in the synced DOMAIN_TAGS

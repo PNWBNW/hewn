@@ -3,7 +3,8 @@
 // agreement, addressed by a hash only they can compute.
 //
 // Both sides already share a 32-byte secret, the agreement's `parties_key`
-// (BLAKE3 over the two addresses, private on the agreement record). Every
+// (drawn at random by the business's app, private on the agreement record;
+// never computed from the addresses, or anyone could compute it). Every
 // mailbox value is derived from it and nothing else, so neither party has
 // to talk to the other, or to anyone, before reading or writing:
 //

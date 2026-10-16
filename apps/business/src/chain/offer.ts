@@ -17,7 +17,7 @@
 
 import { ENV } from "@pnw/config/env";
 import { PROGRAMS, VERSIONS } from "@pnw/config/programs";
-import { computeAgreementValues, computeOfferTimeHash } from "@pnw/handshake/engine";
+import { computeAgreementValues, computeOfferTimeHash, computePartiesKey } from "@pnw/handshake/engine";
 import { PAY_FREQUENCY_CODES, type ComputedAgreementValues } from "@pnw/handshake/types";
 import { KINDS, MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, keepUntilAfter, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { PayFrequency, Worker } from "@pnw/payroll";
@@ -54,6 +54,32 @@ export const TERMS_SLOT = 0;
  * person's app clears them sooner, on accepting or on finding it expired.
  */
 export const offerKeepUntil = (expiresAt: string): string => keepUntilAfter(new Date(expiresAt), 1);
+
+// ---- The parties key -------------------------------------------------------------------
+// The agreement record carries `parties_key`, private to the two parties, and
+// everything they exchange through the mailbox is sealed with it. The old
+// portal computed it from the two addresses alone (BLAKE3 over both), so anyone
+// who knew who works for whom could compute it too and read their mailbox.
+// The program never checks how it was made, so the business's app now draws
+// it at random, once per pair, and the person reads it from their record.
+
+/** A fresh parties key: 32 random bytes, hex. */
+export function newPartiesKey(): string {
+  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** True for the old kind of key, computed from the two addresses: one anyone who knows both could compute. */
+export function isDerivedPartiesKey(partiesKey: string, employerAddress: string, workerAddress: string): boolean {
+  return bareHex(partiesKey) === bareHex(computePartiesKey(employerAddress, workerAddress));
+}
+
+/** The key an offer goes out with: the pair's own if it has a secret one, a fresh one otherwise. */
+function keyFor(input: Pick<SendOfferInput, "partiesKey" | "employerAddress" | "workerAddress">): string {
+  if (input.partiesKey === undefined) return newPartiesKey();
+  const key = bareHex(input.partiesKey);
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new OfferError("The pair's key must be 64 hex characters");
+  return isDerivedPartiesKey(key, input.employerAddress, input.workerAddress) ? newPartiesKey() : key;
+}
 
 // ---- Encodings, as the portal did them -------------------------------------------------
 
@@ -226,6 +252,11 @@ export type SendOfferInput = OfferDates & {
   files?: readonly PickedFile[];
   /** How long the offer stays open (every offer expires). Default 7 days. */
   expiresInDays?: ExpiryDays;
+  /**
+   * The pair's secret parties key, 64 hex characters, when they already have
+   * one (a revised offer keeps the conversation). Missing means a fresh one.
+   */
+  partiesKey?: string;
   currentHeight: number;
   /** Only `put` is used; a fake with that one method does for tests. */
   client: Pick<MailboxClient, "put">;
@@ -328,8 +359,9 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   const canonical = canonicalTerms(terms);
   const keepUntil = offerKeepUntil(expiresAt);
   if (new TextEncoder().encode(canonical).length > MAX_PAYLOAD_BYTES) throw new OfferError("The offer letter is too long to send; shorten it or attach the long parts as a PDF");
-  const computed = computeAgreementValues(input.employerAddress, input.workerAddress, canonical, offerTimeUtc, VERSIONS.schema_v, VERSIONS.policy_v);
-  const partiesKey = bareHex(computed.parties_key);
+  // The parties key seals everything the two exchange, so it must be secret: random, never computed from the addresses.
+  const partiesKey = keyFor(input);
+  const computed = { ...computeAgreementValues(input.employerAddress, input.workerAddress, canonical, offerTimeUtc, VERSIONS.schema_v, VERSIONS.policy_v), parties_key: `0x${partiesKey}` };
 
   // 1. The files first (if any), then the terms, all sealed to the two parties, in the mailbox.
   if (picked.length > 0) {
