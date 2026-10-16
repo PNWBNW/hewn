@@ -62,7 +62,7 @@ export type ThreadBody =
   /** The person stops being findable. */
   | { type: "directory_leave" }
   /** The business passes on everyone who opted in: names and public keys, nothing else. */
-  | { type: "directory"; entries: { name: string; publicKey: string }[] }
+  | { type: "directory"; entries: { name: string; publicKey: string; address?: string }[] }
   /** Between coworkers: a group chat as its admin set it up (books/groups.ts). Sent to each member. */
   | { type: "group"; groupId: string; name: string; admin: string; members: { name: string; publicKey: string }[] }
   /** Between coworkers: one message in a group chat, sent to each member with the same id. */
@@ -115,6 +115,7 @@ export const MAX_GROUP = 25;
 /** A coworker's public key: an uncompressed P-256 point, hex. */
 export const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
 export const MAX_DIRECTORY = 500;
+const ALEO_ADDRESS = /^aleo1[02-9ac-hj-np-z]{58}$/;
 const directoryName = (v: unknown): string => {
   if (typeof v !== "string" || !v.trim() || [...v].length > 60) throw new ThreadError("A directory name is 1 to 60 characters");
   return v.trim();
@@ -210,7 +211,11 @@ function validateBody(raw: unknown): ThreadBody {
       const seen = new Set<string>();
       const entries = raw.entries.map((e) => {
         if (!isObject(e)) throw new ThreadError("Each directory entry must be an object");
-        const entry = { name: directoryName(e.name), publicKey: publicKey(e.publicKey) };
+        const entry: { name: string; publicKey: string; address?: string } = { name: directoryName(e.name), publicKey: publicKey(e.publicKey) };
+        if (e.address !== undefined) {
+          if (typeof e.address !== "string" || !ALEO_ADDRESS.test(e.address)) throw new ThreadError("A directory entry's account isn't valid");
+          entry.address = e.address;
+        }
         if (seen.has(entry.publicKey)) throw new ThreadError("The same key is in the directory twice");
         seen.add(entry.publicKey);
         return entry;

@@ -2839,3 +2839,31 @@ Joshua tested #89 (messages as letters) and it worked; "let's build the rest".
   - **Coworkers:** coworkers know each other by a P-256 key, not an Aleo address.
 
 Tests: 846/846 (two existing tests now also check one-letter fit).
+
+## 2026-10-16: coworkers go as letters (accounts shared on opting in)
+
+Joshua chose "share address, opt-in" for coworker chat, and send-to-many (`hewn_letters_v2`, PNWBNW/pnw_mvp_v2 #204, waiting to
+deploy) for announcements.
+
+- **Directory entries:**
+  - Each entry now carries the person's account. The business adds it from its own link to that
+    person (the account the offer went to), never from the join message.
+  - Older lists have no accounts, and their digest differs, so the business is prompted to send
+    the list again.
+- **The business's coworker list:**
+  - It is no longer sent in the background by the Messages check.
+  - The Messages page says when the list changed and offers "Send the list": one letter per
+    person, with the fee choice (`chain/SendDirectory.tsx`, `directoryOutbox`).
+- **The person's side:**
+  - Joining or leaving the directory is a letter to the business.
+  - The join copy says your account is shared with coworkers who opted in.
+  - 1:1 coworker chat uses letters to the coworker's account. With no account on the list it
+    falls back to the old mailbox.
+  - Group chats (make, message, edit, leave) send one letter per member, with Shield gating
+    (`chain/work/coworker_letters.tsx`). They move to send-to-many with announcements once v2
+    is deployed.
+  - The background check reads coworker letters too. A mailbox that's off no longer stops it.
+- **Limit:** the coworker list must fit one page (about 7.9 KB packed, roughly 40 people opted in).
+  A larger list is refused as too long to send.
+
+Tests: 848/848 (new: the outbox, accounts from the link, a bad account refused).

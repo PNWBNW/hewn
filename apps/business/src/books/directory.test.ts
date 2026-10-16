@@ -21,7 +21,8 @@ describe("the business's directory", () => {
     m = say(m, KB, "bo", msg("worker", { type: "directory_join", name: "Bo", publicKey: PK("b") }, false));
     m = say(m, KB, "bo", msg("worker", { type: "directory_leave" }, false));
     const r = rail(link("ana", KA), link("bo", KB));
-    expect(businessDirectory(r, m)).toEqual([{ name: "Ana", publicKey: PK("a"), workerId: "ana", partiesKey: KA }]);
+    // Their account comes from the business's own link to them, never from what they sent.
+    expect(businessDirectory(r, m)).toEqual([{ name: "Ana", publicKey: PK("a"), address: ADDRESS, workerId: "ana", partiesKey: KA }]);
     // An offer that hasn't been accepted isn't a coworker yet.
     expect(businessDirectory(rail(link("ana", KA, "offered")), m)).toEqual([]);
     // Two people sending the same key: only the first is listed.
@@ -35,11 +36,34 @@ describe("the business's directory", () => {
     m = say(m, KB, "bo", msg("business", { type: "directory", entries: [{ name: "Ana", publicKey: PK("a") }] }, true));
     m = say(m, KB, "bo", msg("worker", { type: "directory_leave" }, false));
     const r = rail(link("bo", KB));
-    expect(owedEmptyDirectory(r, m)).toEqual([{ workerId: "bo", partiesKey: KB }]);
+    expect(owedEmptyDirectory(r, m)).toEqual([{ workerId: "bo", partiesKey: KB, address: ADDRESS }]);
     const after = say(m, KB, "bo", msg("business", { type: "directory", entries: [] }, true));
     expect(owedEmptyDirectory(r, after)).toEqual([]);
     expect(directoryDigest([{ name: "A", publicKey: PK("a") }, { name: "B", publicKey: PK("b") }])).toBe(directoryDigest([{ name: "B", publicKey: PK("b") }, { name: "A", publicKey: PK("a") }]));
     expect(directoryDigest([{ name: "A", publicKey: PK("a") }])).not.toBe(directoryDigest([{ name: "A2", publicKey: PK("a") }]));
+    // A list sent before accounts were in it counts as changed, so everyone gets accounts.
+    expect(directoryDigest([{ name: "A", publicKey: PK("a") }])).not.toBe(directoryDigest([{ name: "A", publicKey: PK("a"), address: ADDRESS }]));
+  });
+
+  it("knows what it owes: the new list to everyone in it, an empty one to anyone who left, nothing once sent", async () => {
+    const { directoryOutbox } = await import("./directory");
+    let m = emptyMailbox();
+    m = say(m, KA, "ana", msg("worker", { type: "directory_join", name: "Ana", publicKey: PK("a") }, false));
+    m = say(m, KB, "bo", msg("worker", { type: "directory_join", name: "Bo", publicKey: PK("b") }, false));
+    const r = rail(link("ana", KA), link("bo", KB));
+    const owed = directoryOutbox(r, m);
+    expect(owed.copies.map((c) => [c.workerId, c.address, c.entries.map((e) => [e.name, e.address])])).toEqual([
+      ["ana", ADDRESS, [["Ana", ADDRESS], ["Bo", ADDRESS]]],
+      ["bo", ADDRESS, [["Ana", ADDRESS], ["Bo", ADDRESS]]],
+    ]);
+    expect(directoryOutbox(r, { ...m, directorySent: owed.digest }).copies).toEqual([]);
+    // Bo leaves after getting the list: Ana gets the shorter list, Bo an empty one.
+    let left = say({ ...m, directorySent: owed.digest }, KB, "bo", msg("business", { type: "directory", entries: owed.copies[1]!.entries }, true));
+    left = say(left, KB, "bo", msg("worker", { type: "directory_leave" }, false));
+    expect(directoryOutbox(r, left).copies.map((c) => [c.workerId, c.entries.length])).toEqual([
+      ["ana", 1],
+      ["bo", 0],
+    ]);
   });
 });
 
@@ -61,5 +85,14 @@ describe("the person's side", () => {
     expect(validateCoworkerThread(JSON.parse(JSON.stringify(thread)))).toEqual(thread);
     const sneaky = { ...addToThread(emptyThread(), msg("business", { type: "channel_left", channelId: "c".repeat(16), name: "x" }, false)), businessKey: KA, name: "Bo" };
     expect(() => validateCoworkerThread(sneaky)).toThrow(/plain messages/);
+  });
+
+  it("reads an account on a list entry, and refuses one that isn't an account", async () => {
+    const { validateMessage, newMessageId } = await import("./thread");
+    const list = (entries: unknown[]) => ({ version: 1, id: newMessageId(), from: "business", sentAt: "2026-10-16T00:00:00.000Z", body: { type: "directory", entries } });
+    const ok = validateMessage(list([{ name: "Ana", publicKey: PK("a"), address: ADDRESS }, { name: "Bo", publicKey: PK("b") }]), "business");
+    expect(ok.body).toEqual({ type: "directory", entries: [{ name: "Ana", publicKey: PK("a"), address: ADDRESS }, { name: "Bo", publicKey: PK("b") }] });
+    expect(() => validateMessage(list([{ name: "Ana", publicKey: PK("a"), address: "aleo1nope" }]), "business")).toThrow(/account/);
+    expect(() => validateMessage(list([{ name: "Ana", publicKey: PK("a"), address: 7 }]), "business")).toThrow(/account/);
   });
 });

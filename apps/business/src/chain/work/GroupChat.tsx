@@ -3,13 +3,13 @@
 // ---------------------------------------------------------------------------
 // A group chat between coworkers (books/groups.ts): its messages with who
 // sent each, a box to send one (it goes to each member through your private
-// conversation with them), and, for its admin, who's in it. Anyone can leave.
-// Needs no Shield. Nothing here logs a key or a message.
+// conversation with them, as a letter: Shield asks once per member), and, for
+// its admin, who's in it. Anyone can leave. Nothing here logs a key or a message.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Send, Users } from "lucide-react";
-import { MailboxClient } from "@pnw/mailbox";
+import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
@@ -19,6 +19,7 @@ import { groupMessageIds, groupsFor } from "@/books/groups";
 import { MAX_GROUP, MAX_TEXT_CHARS, markItemsRead } from "@/books/thread";
 import { workThread } from "@/books/work";
 import { type FanOutResult, fanOut, keepSent } from "../groups";
+import { LettersGate, useCoworkerLetters } from "./coworker_letters";
 
 export type GroupChatProps = { businessKey: string; groupId: string };
 
@@ -26,9 +27,18 @@ const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short"
 
 const failedNote = (r: FanOutResult) => (r.failed.length > 0 ? `Couldn't reach ${r.failed.map((f) => f.name).join(", ")}; they'll miss this one.` : null);
 
-export default function GroupChat({ businessKey, groupId }: GroupChatProps) {
+export default function GroupChat(props: GroupChatProps) {
+  return (
+    <AleoWalletProviderWrapper>
+      <GroupView {...props} />
+    </AleoWalletProviderWrapper>
+  );
+}
+
+function GroupView({ businessKey, groupId }: GroupChatProps) {
   const { work, updateWork } = useWork();
-  const client = useMemo(() => new MailboxClient(), []);
+  const shield = useCoworkerLetters(businessKey);
+  const client = shield.clientFor;
   const identity = work.identities?.[businessKey];
   const group = groupsFor(work, businessKey).find((g) => g.id === groupId);
   const directory = coworkersFrom(workThread(work, businessKey));
@@ -134,7 +144,7 @@ export default function GroupChat({ businessKey, groupId }: GroupChatProps) {
                 {m.name}
               </label>
             ))}
-          <Button className="mt-2 min-h-11 self-start sm:min-h-9" disabled={busy || picked.size + 1 > MAX_GROUP} onClick={() => void saveMembers()}>
+          <Button className="mt-2 min-h-11 self-start sm:min-h-9" disabled={busy || !shield.ready || picked.size + 1 > MAX_GROUP} onClick={() => void saveMembers()}>
             {busy ? "Saving…" : "Save"}
           </Button>
         </fieldset>
@@ -164,12 +174,12 @@ export default function GroupChat({ businessKey, groupId }: GroupChatProps) {
               Message {group.name}
             </label>
             <textarea id="group-message" className={`${inputClass} h-auto min-h-11 flex-1 resize-y py-2`} rows={2} maxLength={MAX_TEXT_CHARS} placeholder={`Message ${group.name}`} value={text} onChange={(e) => setText(e.target.value)} />
-            <Button type="submit" className="min-h-11 shrink-0 sm:min-h-10" disabled={busy || !text.trim()} aria-label="Send">
+            <Button type="submit" className="min-h-11 shrink-0 sm:min-h-10" disabled={busy || !shield.ready || !text.trim()} aria-label="Send">
               <Send aria-hidden />
               <span className="hidden sm:inline">{busy ? "Sending…" : "Send"}</span>
             </Button>
           </form>
-          <Button variant="ghost" size="sm" className="min-h-11 self-start sm:min-h-8" disabled={busy} onClick={() => void leave()}>
+          <Button variant="ghost" size="sm" className="min-h-11 self-start sm:min-h-8" disabled={busy || !shield.ready} onClick={() => void leave()}>
             Leave the group
           </Button>
         </>
@@ -177,6 +187,8 @@ export default function GroupChat({ businessKey, groupId }: GroupChatProps) {
         <p className="text-xs text-muted-foreground">You&apos;re not in this group any more; what&apos;s here stays on your device.</p>
       )}
       {note && <p className="text-xs text-muted-foreground">{note}</p>}
+      <LettersGate shield={shield} />
+      {shield.ready && <p className="text-xs text-muted-foreground">Each message is a letter to each person: Shield asks once per person.</p>}
       <FormError message={error} />
     </div>
   );

@@ -15,13 +15,14 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { type Thread, preview, unreadIn } from "@/books/thread";
-import { businessDirectory } from "@/books/directory";
+import { businessDirectory, directoryOutbox } from "@/books/directory";
 import { PageHeader } from "@/shell/SectionView";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
 const Conversation = dynamic(() => import("@/chain/Conversation"), { ssr: false, loading });
 const Channel = dynamic(() => import("@/chain/Channel"), { ssr: false, loading });
 const MessagesCheck = dynamic(() => import("@/chain/MessagesCheck"), { ssr: false });
+const SendDirectory = dynamic(() => import("@/chain/SendDirectory"), { ssr: false, loading });
 
 export default function MessagesPage() {
   return (
@@ -48,6 +49,8 @@ function Messages() {
     .sort((a, b) => (last(b.thread) ?? "").localeCompare(last(a.thread) ?? "") || a.name.localeCompare(b.name));
   const open = people.find((p) => p.workerId === selected);
   const listed = businessDirectory(rail, mailbox).length;
+  const owed = directoryOutbox(rail, mailbox).copies.length;
+  const [sendingList, setSendingList] = useState(false);
 
   const update = useCallback(
     async (change: (t: Thread) => Thread) => {
@@ -170,9 +173,21 @@ function Messages() {
       </Card>
       {listed > 0 && (
         <p className="text-xs text-muted-foreground">
-          Coworker directory: {listed} {listed === 1 ? "person has" : "people have"} opted in to find each other. You pass on their names and keys; you can&apos;t read what they send each other.
+          Coworker directory: {listed} {listed === 1 ? "person has" : "people have"} opted in to find each other. You pass on their names, keys and accounts; you
+          can&apos;t read what they send each other.
         </p>
       )}
+      {owed > 0 &&
+        (sendingList ? (
+          <SendDirectory onClose={() => setSendingList(false)} />
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs text-muted-foreground">The coworker list changed; {owed === 1 ? "1 person needs" : `${owed} people need`} the new one.</p>
+            <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setSendingList(true)}>
+              Send the list
+            </Button>
+          </div>
+        ))}
     </div>
   );
 }

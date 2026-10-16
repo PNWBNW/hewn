@@ -3,8 +3,9 @@
 // ---------------------------------------------------------------------------
 // A private conversation with one coworker: the key only the two of you can
 // make (chain/coworkers.ts), the shared conversation screen in coworker mode
-// (its own slots, plain messages only), and the safety code to compare in
-// person. Nothing here logs a key or a message.
+// (its own slots, plain messages only; letters to their account when the
+// business's list has it), and the safety code to compare in person.
+// Nothing here logs a key or a message.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from "react";
@@ -13,7 +14,8 @@ import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import type { Thread, ThreadItem } from "@/books/thread";
-import { updateCoworker } from "@/books/work";
+import { coworkersFrom } from "@/books/directory";
+import { updateCoworker, workThread } from "@/books/work";
 import Conversation from "../Conversation";
 import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey, safetyCode } from "../coworkers";
 
@@ -30,6 +32,8 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
   const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const thread = work.coworkers?.[publicKey];
+  // Their account, from the latest list the business passed on.
+  const address = coworkersFrom(workThread(work, businessKey)).find((c) => c.publicKey === publicKey)?.address;
 
   useEffect(() => {
     if (!identity) return;
@@ -67,6 +71,7 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
         kinds={COWORKER_KINDS}
         accept={coworkerAccepts}
         show={onlyText}
+        {...(address ? { peer: address } : {})}
         subtitle={
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             {verified ? <ShieldCheck aria-hidden className="size-3" /> : <Lock aria-hidden className="size-3" />}
