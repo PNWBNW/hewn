@@ -14,7 +14,8 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { isExpired } from "@/books/offer_letter";
-import { linkFor, removeLink, shortAddress } from "@/books/rail";
+import { dropOffer } from "@/books/hiring";
+import { linkFor, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { withdrawOffer } from "./offer";
 import { useShield } from "./shield";
@@ -76,7 +77,8 @@ function WithdrawFlow({ workerId, onClose }: WithdrawOfferProps) {
           transactionStatus: (id) => wallet.transactionStatus(id),
         },
       });
-      await updateCompany((c) => (c.rail ? { ...c, rail: removeLink(c.rail, workerId) } : c));
+      // Someone the offer was hiring leaves the books; a team member already in them is typed again.
+      await updateCompany((c) => dropOffer(c, workerId));
       for (const ref of link.offerFiles ?? []) await discardAttachment(ref.attachmentId).catch(() => {});
       onClose();
     } catch (e) {

@@ -2604,3 +2604,35 @@ a counter-offer can work field by field.
 
 Tests: app 422; new tests for job fields, the terms contract, counter-offers, the draft and
 sendOffer.
+
+## 2026-10-16: The offer comes first; remove team members added by mistake
+
+Joshua: having to add someone to the team before sending them a job offer is backwards. He also
+wanted wrongly added team members cleared. Redeploying wouldn't do that: the books live only in
+each device's encrypted vault, not on a server. So the app gained a Remove instead.
+
+- **Team:**
+  - "Send a job offer" is now the first button. It finds the person by registered name or
+    account and opens the offer panel for them, with "Their name in your books" prefilled from
+    the registered name.
+  - The old way, "Add someone already working here", is still there, as is "Send offer" on a
+    team member's row.
+  - When the team is empty, the job offer opens by default.
+- **`books/hiring.ts`:**
+  - `hireByOffer`: a sent offer adds the person as an inactive team member (left out of pay runs)
+    with the offer's pay and the default W-4. It records who they are on the registry, and the
+    link carries `joinsOnAccept`. The row reads "Offer out: they join the team when they accept".
+  - `acceptOffers` (used where Shield's agreements are read): an accepted offer links them and
+    makes them active, and the flag goes.
+  - `dropOffer` (Withdraw offer): the link goes, and so does someone the offer was hiring. A team
+    member who was already in the books is typed again.
+  - Revised offers keep `joinsOnAccept`. If a revision fails after the withdrawal, the person
+    being hired is taken out.
+- **Remove:** a team member never paid, with no offer out, can be removed (with a confirmation):
+  `removeFromTeam`, via `removeWorker` and `hasBeenPaid` in `@pnw/payroll`. Anyone paid is
+  deactivated instead, so the books keep their history. An accepted agreement stays on the
+  network; only the books forget it.
+- **`RailLink.joinsOnAccept`:** true or absent, and dropped once linked (`validateLink`,
+  `markLinked`).
+
+Tests: 820/820 (7 new in `hiring.test.ts`).

@@ -1,8 +1,11 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Send an employment offer to a typed team member, from their row in Team.
-// Loaded through a dynamic import, so nobody without the rail downloads it.
+// Send an employment offer: to someone not yet on the team (Joshua,
+// 2026-10-16: the offer comes first; they join the team when they accept,
+// books/hiring.ts), or to a team member already in the books, from their row
+// in Team. Loaded through a dynamic import, so nobody without the rail
+// downloads it.
 //
 //   0. A short checklist of what the offer needs (Shield linked, the
 //      business's registered name) that fills in as each piece is done.
@@ -41,7 +44,8 @@ import { LetterSections } from "@/books/OfferLetterView";
 import { JobBoxes } from "@/books/ProposalEditor";
 import { type EmploymentType, cleanHours, employmentLabel, hoursLine } from "@/books/terms_words";
 import { DEFAULT_EXPIRY_DAYS, EXPIRY_DAYS, type ExpiryDays, LETTER_LABEL, MAX_SECTION_CHARS, letterFromText } from "@/books/offer_letter";
-import { type Rail, addLink, registeredFor, shortAddress } from "@/books/rail";
+import { hireByOffer } from "@/books/hiring";
+import { type Rail, type Registered, addLink, registeredFor, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import type { Company } from "@/books/company";
 import { RegisterFlow } from "./RegisterBusiness";
@@ -52,7 +56,8 @@ import { type DirectoryEntry, entryLabel } from "./directory";
 import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveBusinessName, sendOffer } from "./offer";
 import { useShield } from "./shield";
 
-export type OfferPanelProps = { workerId: string; onClose: () => void };
+/** A team member already in the books, or someone found on the registry who joins when they accept. */
+export type OfferPanelProps = { onClose: () => void } & ({ workerId: string } | { hire: Registered });
 
 export default function OfferPanel(props: OfferPanelProps) {
   return (
@@ -107,21 +112,28 @@ function Checklist({ steps }: { steps: Step[] }) {
   );
 }
 
-function OfferFlow({ workerId, onClose }: OfferPanelProps) {
+function OfferFlow(props: OfferPanelProps) {
+  const { onClose } = props;
+  const hire = "hire" in props ? props.hire : null;
+  const workerId = "workerId" in props ? props.workerId : null;
   const { books, payroll, rail, updateCompany } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
   const client = useMemo(() => new MailboxClient(), []);
-  const worker = payroll.workers.find((w) => w.id === workerId);
-  // Who they are on the registry, from when they were added to the team; Change looks them up again.
+  const existing = workerId ? payroll.workers.find((w) => w.id === workerId) : undefined;
+  // Someone not on the team yet: the name these books will know them by (their registered name to start).
+  const [hireName, setHireName] = useState(hire?.name ?? "");
+  // Who they are on the registry: the person being hired, or the team member's from when they were added (Change looks them up again).
   const [found, setFound] = useState<ResolvedWorker | null>(() => {
-    const who = registeredFor(rail, "worker", workerId);
+    const who = hire ?? (workerId ? registeredFor(rail, "worker", workerId) : undefined);
     return who ? { address: who.address, nameHash: who.nameHash, name: who.name } : null;
   });
   const [changingWho, setChangingWho] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
-  const [payType, setPayType] = useState<Worker["payType"]>(worker?.payType ?? "hourly");
-  const [rateText, setRateText] = useState(() => (worker ? formatCents(worker.rate).replace(/,/g, "") : ""));
-  const [frequency, setFrequency] = useState<PayFrequency>(worker?.frequency ?? "biweekly");
+  const [payType, setPayType] = useState<Worker["payType"]>(existing?.payType ?? "hourly");
+  const [rateText, setRateText] = useState(() => (existing ? formatCents(existing.rate).replace(/,/g, "") : ""));
+  const [frequency, setFrequency] = useState<PayFrequency>(existing?.frequency ?? "biweekly");
+  // Who the offer is to, as the draft names them.
+  const worker = existing ?? (hire ? { id: "new", name: hireName.trim() || hire.name } : undefined);
   const [employmentType, setEmploymentType] = useState<EmploymentType | "">("");
   const [duties, setDuties] = useState("");
   const [hoursPerWeek, setHoursPerWeek] = useState("");
@@ -232,8 +244,13 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
         onProgress: setStage,
       });
       const link = { ...sent.link, terms: sent.terms, offerInputs: { industryCode, reviewDate, endDate } };
-      // The books pay what the offer says.
-      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), link), payroll: updateWorker(c.payroll, worker.id, { payType, rate, frequency }) }));
+      if (hire) {
+        // Not on the team yet: kept as "Offer out" until they accept.
+        await updateCompany((c) => hireByOffer(c, { name: worker.name, who: hire, pay: { payType, rate, frequency }, link }).company);
+      } else {
+        // The books pay what the offer says.
+        await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), link), payroll: updateWorker(c.payroll, worker.id, { payType, rate, frequency }) }));
+      }
       setSentTo(nameOf(found));
     } catch (e) {
       if (isMailboxOff(e)) setMailboxOff(true);
@@ -409,9 +426,12 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
       <div>
         <h3 className="text-sm font-semibold">Send an offer to {worker.name}</h3>
         <p className="text-xs text-muted-foreground">
-          {pay}, from their team record. The terms go to their mailbox, sealed; only a fingerprint of them goes on the rail.
+          {hire
+            ? "They join your team when they accept; until then they're listed as Offer out and left out of pay runs."
+            : "Pay starts from their team record; change it below if the offer differs."}{" "}
+          The terms go to their mailbox, sealed; only a fingerprint of them goes on the rail.
         </p>
-        {worker.frequency === "semimonthly" && (
+        {frequency === "semimonthly" && (
           <p className="text-xs text-muted-foreground">The agreement records twice a month as every two weeks; the terms say twice a month.</p>
         )}
       </div>
@@ -440,9 +460,11 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
                 <span className="text-xs text-muted-foreground">To</span>
                 <span className="font-medium">{nameOf(found)}</span>
                 <span className="font-mono text-xs text-muted-foreground">{shortAddress(found.address)}</span>
-                <Button type="button" variant="ghost" size="sm" className="ml-auto min-h-11 sm:min-h-8" onClick={() => setChangingWho(true)}>
-                  Change
-                </Button>
+                {!hire && (
+                  <Button type="button" variant="ghost" size="sm" className="ml-auto min-h-11 sm:min-h-8" onClick={() => setChangingWho(true)}>
+                    Change
+                  </Button>
+                )}
               </div>
             ) : (
               <NameLookup
@@ -456,6 +478,13 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
               />
             )}
           </div>
+          {hire && (
+            <div className="sm:col-span-2">
+              <Field label="Their name in your books" hint="Their registered name to start; use the name you'll pay them under.">
+                <input className={inputClass} value={hireName} maxLength={80} onChange={(e) => setHireName(e.target.value)} autoComplete="off" />
+              </Field>
+            </div>
+          )}
           <Field label="Role" hint="Optional. Their job title.">
             <input className={inputClass} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} autoComplete="off" />
           </Field>

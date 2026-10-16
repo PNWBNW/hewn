@@ -24,6 +24,7 @@ import { emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { ChangeList } from "@/books/NegotiationView";
 import { DEFAULT_EXPIRY_DAYS, EXPIRY_DAYS, type ExpiryDays } from "@/books/offer_letter";
 import { ProposalEditor, type ProposalDraft, draftOf, proposalFromDraft } from "@/books/ProposalEditor";
+import { removeFromTeam, removeProblem } from "@/books/hiring";
 import { addLink, linkFor, removeLink, shortAddress } from "@/books/rail";
 import { MAX_NOTE_CHARS, type Proposal, addToThread, proposalChanges, proposalOf } from "@/books/thread";
 import { ShieldStatus } from "./ShieldStatus";
@@ -169,7 +170,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         wallet: shield,
         onProgress: setStage,
       });
-      const fresh = { ...sent.link, terms: sent.terms, offerInputs: { industryCode, reviewDate, endDate } };
+      // Someone the old offer was hiring still joins when they accept the revised one.
+      const fresh = { ...sent.link, terms: sent.terms, offerInputs: { industryCode, reviewDate, endDate }, ...(old.joinsOnAccept ? { joinsOnAccept: true as const } : {}) };
 
       await updateCompany((c) => ({
         ...c,
@@ -195,7 +197,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         setDone(`Revised offer sent to ${worker.name}. The note saying it replaces the old one didn't go out, but the offer itself is there for them to accept.`);
       }
     } catch (e) {
-      // The old offer is gone; without the new one the person is simply typed again.
+      // The old offer is gone; without the new one the person is simply typed again, or, if it was hiring them, out of the books.
+      if (old.joinsOnAccept) await updateCompany((c) => (removeProblem(c, workerId) ? c : removeFromTeam(c, workerId))).catch(() => {});
       setError(`The current offer was withdrawn, but the revised one didn't go out: ${errorMessage(e)} Send a new offer from Team.`);
     } finally {
       setStage(null);

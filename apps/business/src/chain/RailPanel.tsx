@@ -33,7 +33,8 @@ import { WorkerForm } from "@/app/payroll/WorkerForm";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import type { Company } from "@/books/company";
-import { type Rail, type RailLink, addLink, setRegistered, markLinked, shortAddress, validateRail } from "@/books/rail";
+import { acceptOffers } from "@/books/hiring";
+import { type Rail, type RailLink, addLink, setRegistered, shortAddress, validateRail } from "@/books/rail";
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
 import { assertKindFree } from "./account_kind";
@@ -146,13 +147,6 @@ function toLink(workerId: string, r: WorkerRecord, partiesKey: string | undefine
   return { workerId, address: r.worker_addr, nameHash: r.worker_name_hash, agreementId: r.agreement_id, partiesKey, status: "linked", linkedAt: new Date().toISOString() };
 }
 
-/** Every offer this app sent whose acceptance is now in the wallet becomes linked; anything else is left alone. */
-function acceptOffers(rail: Rail, finals: Set<string>, linkedAt: string): Rail {
-  let next = rail;
-  for (const l of rail.links) if (l.status === "offered" && finals.has(l.agreementId)) next = markLinked(next, l.workerId, linkedAt);
-  return next;
-}
-
 const REIMPORT_HINT = "Re-import to enable paystub delivery";
 
 function ImportFlow({ onClose }: { onClose: () => void }) {
@@ -177,7 +171,8 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
         const records = Array.isArray(raw) ? raw : [];
         setKeys(partiesKeysOf(records));
         const finals = finalAgreementIds(records);
-        if (finals.size > 0) await updateCompany((c) => (c.rail ? { ...c, rail: acceptOffers(c.rail, finals, new Date().toISOString()) } : c));
+        // Accepted offers become linked; anyone an offer was hiring joins the team (books/hiring.ts).
+        if (finals.size > 0) await updateCompany((c) => acceptOffers(c, finals, new Date().toISOString()));
         setRows(found);
       },
       (e: unknown) => setError(errorMessage(e)),
