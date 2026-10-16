@@ -2694,3 +2694,27 @@ Next: Joshua runs the test, ideally with the private-fee switch on (it tests bot
 offers' terms go out as a page and threads as letters.
 
 Tests: all green (2 new for the check, 1 for the fee kind).
+
+## 2026-10-16: The test letter shows what the network sees
+
+Joshua: the test letter's report should show what exactly is broadcast, not only the transaction
+id. `describeBroadcast` breaks the public transaction down from the explorer's own copy (the view
+anyone has). For each call it gives:
+- inputs and outputs by kind (private, public, record, future);
+- each record's ciphertext length;
+- whether a sender ciphertext is attached;
+- any value left readable (an account in one is printed as "an account").
+
+For the fee transition it says whether the payer is shown (`fee_public`) or not (`fee_private`).
+It also gives the JSON size and an explorer link.
+
+Tests: all green (1 new).
+
+Then Joshua: let the test letter say whatever he types.
+- **"What it says" box** in the panel, showing live whether the text goes as a letter (up to
+  1,023 bytes, about 0.0066 ALEO) or as a page (up to 7,905 bytes, about 0.087 ALEO), or is too
+  long. A page uses `send_page`, which has no sender's copy, so both calls can be measured.
+- **The words read back** from the network show on screen. The report gives only their size, so
+  it stays safe to paste.
+
+Tests: all green (1 more).
