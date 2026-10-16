@@ -2204,3 +2204,15 @@ hours, read-record-then-drop, what each side waits on, and the vault fields. Bui
 variables so the daily sweep runs.
 
 **Next:** counter-offers as a conversation thread (needs per-offer terms slots).
+
+## 2026-10-16: Premium tier candidate noted: private messaging within an organization
+
+Joshua: a full messaging system (business ↔ team, group announcements, coworker ↔ coworker
+within the same business) could be a premium feature on mainnet. Not gated now. BUILD_PLAN gains
+"Premium tier candidates" with the design constraints:
+- the circle is the business plus everyone with an accepted agreement;
+- group keys go to each member through their own mailbox and are replaced when someone leaves;
+- coworker messages are private from the business (the business only relays public keys);
+- the directory is opt-in.
+
+The tier itself is an open decision. Docs only; no tests changed.
