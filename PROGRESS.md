@@ -2125,3 +2125,36 @@ and saved copies on both sides. Build green. The screens are checked by typechec
 only: an offer needs Shield and two registered accounts, so Joshua's test run is the real check.
 
 **Next:** a counter-offer design, for Joshua's approval before building.
+
+## 2026-10-16: Every offer expires, and a waiting offer can be withdrawn
+
+Joshua: every offer has an expiry, so offers nobody answers don't sit in the mailbox forever.
+
+**Expiry** (`books/offer_letter.ts`). The business picks "Offer open for" 3, 7, 14 or 30 days
+(default 7). `expiresAt` sits inside the terms (version 2, after `offeredAt`), so the terms hash
+on the agreement commits to it. Validation refuses a missing expiry, one not after the offer,
+and one more than 30 days on.
+
+**Worker side.**
+- Check for offers clears an expired offer's terms and file pieces from the mailbox and skips
+  fetching its files.
+- Accept refuses an expired offer; the row says it expired and hides the Accept area.
+- The Offers page shows "Expired" for a pending offer past its time.
+
+**Business side.**
+- The team list shows "Offer expires in…" or "Offer expired without an answer", and the saved
+  offer shows "Open until".
+- **Withdraw offer** (`chain/WithdrawOffer.tsx`, loaded only when tapped): one Shield approval of
+  `employer_agreement_v4::terminate_employer_open` on the pending agreement. `accept_job_offer`
+  needs it pending, so the person can't accept it anywhere afterwards. Then the terms and file
+  pieces are dropped from the mailbox, the business's saved copies of the files are discarded,
+  and the team member is typed again, ready for a new offer (`rail.removeLink`). No Leo change.
+- Not yet checked on testnet: whether Shield proves `terminate_employer_open` (it calls the
+  name registry, like `create_offer_open`, which does work).
+
+Tests 713/713 (+8): expiry windows, validation and labels; withdraw inputs, the single
+privateFee-false signature, mailbox cleanup only after acceptance; `removeLink`; a 14-day offer.
+Build green.
+
+**Next:** keep-until dates and read receipts (important documents are never deleted
+automatically; unopened negotiation messages clear after 30 days).

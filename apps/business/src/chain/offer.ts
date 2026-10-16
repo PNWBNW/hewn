@@ -19,15 +19,15 @@ import { ENV } from "@pnw/config/env";
 import { PROGRAMS, VERSIONS } from "@pnw/config/programs";
 import { computeAgreementValues, computeOfferTimeHash } from "@pnw/handshake/engine";
 import { PAY_FREQUENCY_CODES, type ComputedAgreementValues } from "@pnw/handshake/types";
-import { KINDS, MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { KINDS, MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
 import { type RailLink, isRailAddress } from "../books/rail";
 import { bareDirectoryName } from "./directory";
 import { byteArrayHex } from "./parties_key";
-import { type Letter, LetterError, emptyLetter, validateLetter } from "../books/offer_letter";
-import { type PickedFile, sendOfferFiles } from "./offer_files";
+import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
+import { type PickedFile, offerFileLookups, sendOfferFiles } from "./offer_files";
 import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
 
 export class OfferError extends Error {
@@ -217,6 +217,8 @@ export type SendOfferInput = OfferDates & {
   letter?: Letter;
   /** Files attached to the letter, read and fingerprinted (offer_files.ts `pickFile`). */
   files?: readonly PickedFile[];
+  /** How long the offer stays open (every offer expires). Default 7 days. */
+  expiresInDays?: ExpiryDays;
   currentHeight: number;
   /** Only `put` is used; a fake with that one method does for tests. */
   client: Pick<MailboxClient, "put">;
@@ -308,6 +310,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
       startDate: input.startDate,
       businessName: input.businessName,
       offeredAt: now.toISOString(),
+      expiresAt: expiryFor(now.toISOString(), input.expiresInDays ?? DEFAULT_EXPIRY_DAYS),
       letter: validateLetter(input.letter ?? emptyLetter()),
       files: picked.map((p) => p.file),
     });
@@ -378,3 +381,57 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
 
 /** True when the server has no mailbox (503). */
 export const isMailboxOff = (e: unknown): boolean => (e instanceof MailboxError && e.code === "NOT_CONFIGURED") || (e instanceof OfferError && e.message === MAILBOX_OFF_MESSAGE);
+
+// ---- Withdrawing an offer ------------------------------------------------------------------
+// A pending offer is withdrawn with `terminate_employer_open` (employer_agreement_v4, works on a
+// pending agreement): the agreement turns terminated, and `accept_job_offer` needs it pending,
+// so the person can no longer accept it anywhere. Used for an expired offer, or any offer the
+// business takes back. Its documents then come out of the mailbox.
+
+/** `terminate_employer_open` without the license approval; 4 inputs. */
+export const WITHDRAW_FUNCTION = "terminate_employer_open";
+
+/** The 4 inputs that withdraw an offer: agreement id, parties key, both name hashes. */
+export function withdrawOfferInputs(link: Pick<RailLink, "agreementId" | "partiesKey" | "nameHash">, employerNameHash: string): string[] {
+  if (!link.partiesKey) throw new OfferError("This offer is too old to withdraw from here; import the team member again");
+  return [bytesToAleoU8Array(link.agreementId), bytesToAleoU8Array(link.partiesKey), `${bareField(employerNameHash)}field`, `${bareField(link.nameHash)}field`];
+}
+
+export type WithdrawInput = {
+  link: Pick<RailLink, "agreementId" | "partiesKey" | "nameHash" | "terms">;
+  employerNameHash: string;
+  wallet: OfferWallet;
+  /** Only `drop` is used. */
+  client: Pick<MailboxClient, "drop">;
+  clock?: Clock;
+  sleep?: Sleep;
+  limits?: Partial<OfferLimits>;
+};
+
+/**
+ * Withdraws a pending offer in Shield and waits for the network, then clears its terms and
+ * files from the mailbox (best effort: a document already gone is fine). Returns the
+ * transaction id.
+ */
+export async function withdrawOffer(input: WithdrawInput): Promise<string> {
+  const inputs = withdrawOfferInputs(input.link, input.employerNameHash);
+  const { transactionId: walletId } = await input.wallet.executeTransaction({ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs, privateFee: false });
+  if (!walletId) throw new OfferError("Shield didn't take the withdrawal");
+  const transactionId = await awaitAccepted(input.wallet, walletId, input);
+  for (const lookup of offerLookups(input.link)) await input.client.drop(lookup).catch(() => {});
+  return transactionId;
+}
+
+/** Every mailbox slot an offer uses: its terms, and its files' pieces. */
+export function offerLookups(link: Pick<RailLink, "partiesKey" | "terms">): string[] {
+  if (!link.partiesKey) return [];
+  const key = partiesKeyFromHex(link.partiesKey);
+  let terms: string;
+  try {
+    terms = lookupId(key, KINDS.terms, TERMS_SLOT);
+  } finally {
+    key.fill(0);
+  }
+  const t = link.terms;
+  return t?.version === 2 && t.files.length > 0 ? [terms, ...offerFileLookups(link.partiesKey, t.agreementId, t.files)] : [terms];
+}

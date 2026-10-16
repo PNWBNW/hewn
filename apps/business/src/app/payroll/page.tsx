@@ -30,6 +30,7 @@ import { type Registered, linkFor, linkStatus, registeredFor, setRegistered } fr
 import type { Terms } from "@/books/work";
 import type { AttachmentRef } from "@pnw/sales";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
+import { expiryLabel, isExpired } from "@/books/offer_letter";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Paystub } from "./Paystub";
@@ -43,6 +44,10 @@ const PayPanel = dynamic(() => import("@/chain/PayPanel"), {
 
 // Likewise, only when an offer is sent to a typed team member.
 const OfferPanel = dynamic(() => import("@/chain/OfferPanel"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+const WithdrawOffer = dynamic(() => import("@/chain/WithdrawOffer"), {
   ssr: false,
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
@@ -277,6 +282,7 @@ function Team() {
   const [editing, setEditing] = useState<string | "new" | null>(payroll.workers.length === 0 ? "new" : null);
   const [offering, setOffering] = useState<string | null>(null);
   const [offerShown, setOfferShown] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
   // The person found on the registry for the team member being added.
   const [adding, setAdding] = useState<Registered | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +336,8 @@ function Team() {
             const status = linkStatus(rail, "worker", w.id);
             const sentLink = rail ? linkFor(rail, w.id) : undefined;
             const sentTerms = sentLink?.terms;
+            // A waiting offer's window: every offer expires (offers sent before expiry existed have none).
+            const expiresAt = status === "offered" && sentTerms?.version === 2 ? sentTerms.expiresAt : undefined;
             const registered = registeredFor(rail, "worker", w.id);
             return editing === w.id ? (
               <li key={w.id} className="flex flex-col gap-3 p-2">
@@ -377,10 +385,25 @@ function Team() {
                       {payLabel(w)} · {FILING_STATUSES.find((f) => f.id === w.w4.filingStatus)?.label}
                       {!w.active && " · Inactive"}
                     </div>
+                    {expiresAt && (
+                      <div className={cn("text-xs", isExpired(expiresAt) ? "text-destructive" : "text-muted-foreground")}>
+                        {isExpired(expiresAt) ? "Offer expired without an answer" : `Offer ${expiryLabel(expiresAt).toLowerCase()}`}
+                      </div>
+                    )}
                   </div>
                   {status === "typed" && w.active && offering !== w.id && (
                     <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setOffering(w.id)}>
                       Send offer
+                    </Button>
+                  )}
+                  {status === "offered" && withdrawing !== w.id && (
+                    <Button
+                      variant={expiresAt && isExpired(expiresAt) ? "outline" : "ghost"}
+                      size="sm"
+                      className="min-h-11 sm:min-h-8"
+                      onClick={() => setWithdrawing(w.id)}
+                    >
+                      Withdraw offer
                     </Button>
                   )}
                   {sentTerms && (
@@ -416,6 +439,11 @@ function Team() {
                 {offering === w.id && (
                   <div className="border-t p-3">
                     <OfferPanel workerId={w.id} onClose={() => setOffering(null)} />
+                  </div>
+                )}
+                {withdrawing === w.id && (
+                  <div className="border-t p-3">
+                    <WithdrawOffer workerId={w.id} onClose={() => setWithdrawing(null)} />
                   </div>
                 )}
                 {sentTerms && offerShown === w.id && (
@@ -457,6 +485,7 @@ function SentOffer({ terms, files }: { terms: Terms; files: AttachmentRef[] | un
         Sent {terms.offeredAt.slice(0, 10)} · {terms.payType === "hourly" ? `${rate} an hour` : `${rate} a year`}, paid {FREQUENCY_LABEL[terms.frequency]} · starts{" "}
         {terms.startDate}
       </div>
+      {terms.version === 2 && <div className="text-xs text-muted-foreground">Open until {terms.expiresAt.slice(0, 10)}</div>}
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 font-sans text-sm">{terms.termsText}</pre>
       {terms.version === 2 && <LetterSections letter={terms.letter} />}
       <OfferFileList

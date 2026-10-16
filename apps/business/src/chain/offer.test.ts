@@ -14,6 +14,7 @@ import {
   OFFER_PROGRAM,
   type SendOfferInput,
   TERMS_SLOT,
+  WITHDRAW_FUNCTION,
   awaitAccepted,
   bareHex,
   bytesToAleoU8Array,
@@ -24,7 +25,10 @@ import {
   isMailboxOff,
   offerEpochs,
   resolveBusinessName,
+  offerLookups,
   sendOffer,
+  withdrawOffer,
+  withdrawOfferInputs,
 } from "./offer";
 import { canonicalTerms, parseTerms } from "./terms";
 
@@ -234,6 +238,7 @@ describe("sendOffer", () => {
     const stages: string[] = [];
     const letter = { description: "Framing crew lead.", requirements: "", handbook: "Steel toes on site.", other: "" };
     const sent = await sendOffer(input({ client, wallet, letter, files: [pdf], onProgress: (s) => stages.push(s) }));
+    expect(offerLookups({ ...sent.link, terms: sent.terms }).sort()).toEqual(client.puts.map((p) => p.lookup).sort());
     expect(stages).toEqual(["files", "sealing", "mailbox", "approving", "sent", "accepted"]);
     expect(client.puts).toHaveLength(3); // two pieces, then the terms
     expect(sent.terms.version).toBe(2);
@@ -318,6 +323,7 @@ describe("sendOffer", () => {
       startDate: "2026-11-02",
       businessName: "dayco",
       offeredAt: NOW.toISOString(),
+      expiresAt: new Date(NOW.getTime() + 7 * 86_400_000).toISOString(), // 7 days unless the business picks another window
       letter: { description: "", requirements: "", handbook: "", other: "" },
       files: [],
     });
@@ -417,5 +423,47 @@ describe("offer → link", () => {
     const offered = addLink(rail, sent.link);
     const imported = addLink(offered, { workerId: "wkr-1", address: WORKER, nameHash: WORKER_HASH, agreementId: sent.link.agreementId, partiesKey: sent.link.partiesKey!, status: "linked", linkedAt: "2026-10-16T09:00:00.000Z" });
     expect(linkFor(imported, "wkr-1")).toEqual({ ...sent.link, status: "linked", linkedAt: "2026-10-16T09:00:00.000Z" });
+  });
+});
+
+// ---- Withdrawing ---------------------------------------------------------------------------
+describe("withdrawing an offer", () => {
+  it("lets the business pick how long an offer stays open", async () => {
+    const sent = await sendOffer(input({ expiresInDays: 14 }));
+    expect(sent.terms.version === 2 && sent.terms.expiresAt).toBe(new Date(NOW.getTime() + 14 * 86_400_000).toISOString());
+  });
+
+  it("sends terminate_employer_open with the agreement, the parties key and both name hashes", async () => {
+    const sent = await sendOffer(input());
+    const inputs = withdrawOfferInputs(sent.link, EMPLOYER_HASH);
+    expect(WITHDRAW_FUNCTION).toBe("terminate_employer_open");
+    expect(inputs).toEqual([sent.inputs[0], sent.inputs[1], `${EMPLOYER_HASH}field`, `${WORKER_HASH}field`]);
+    expect(withdrawOfferInputs(sent.link, `${EMPLOYER_HASH}field`)).toEqual(inputs);
+    const { partiesKey: _k, ...old } = sent.link;
+    expect(() => withdrawOfferInputs(old, EMPLOYER_HASH)).toThrow(/too old to withdraw/);
+  });
+
+  it("signs once with privateFee false, waits for it, then clears the terms and the files from the mailbox", async () => {
+    const { pickFile } = await import("./offer_files");
+    const pdf = await pickFile("contract.pdf", "application/pdf", new Uint8Array(300_000));
+    const client = fakeClient();
+    const sent = await sendOffer(input({ client, files: [pdf] }));
+    const wallet = fakeWallet();
+    const dropped: string[] = [];
+    const tx = await withdrawOffer({ link: { ...sent.link, terms: sent.terms }, employerNameHash: EMPLOYER_HASH, wallet, client: { drop: async (l) => void dropped.push(l) }, ...instant });
+    expect(tx).toBe(TX);
+    expect(wallet.calls).toEqual([{ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(sent.link, EMPLOYER_HASH), privateFee: false }]);
+    expect(dropped.sort()).toEqual(client.puts.map((p) => p.lookup).sort()); // two file pieces and the terms
+    expect(dropped).toHaveLength(3);
+  });
+
+  it("clears nothing when the withdrawal isn't accepted, and shrugs off a slot already gone", async () => {
+    const sent = await sendOffer(input());
+    const dropped: string[] = [];
+    const drop = async (l: string) => void dropped.push(l);
+    await expect(withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet: fakeWallet({ outcome: "rejected" }), client: { drop }, ...instant })).rejects.toThrow();
+    expect(dropped).toEqual([]);
+    const gone = async () => { throw new MailboxError("REQUEST_FAILED", "gone"); };
+    expect(await withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet: fakeWallet(), client: { drop: gone }, ...instant })).toBe(TX);
   });
 });

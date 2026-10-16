@@ -50,7 +50,12 @@ describe("terms document", () => {
 
   it("refuses a malformed document", () => {
     expect(() => validateTerms({ ...TERMS, version: 3 })).toThrow(/version/);
-    expect(() => validateTerms({ ...TERMS, version: 2 })).toThrow(/offer letter/); // version 2 needs its letter and files
+    expect(() => validateTerms({ ...TERMS, version: 2 })).toThrow(/expiry time/); // version 2 needs its expiry, letter and files
+    const v2 = { ...TERMS, version: 2, expiresAt: "2026-10-21T15:00:00.000Z", letter: { description: "", requirements: "", handbook: "", other: "" }, files: [] };
+    expect(validateTerms(v2).version).toBe(2);
+    expect(() => validateTerms({ ...v2, letter: undefined })).toThrow(/offer letter/);
+    expect(() => validateTerms({ ...v2, expiresAt: TERMS.offeredAt })).toThrow(/expire after it's made/);
+    expect(() => validateTerms({ ...v2, expiresAt: "2026-12-31T00:00:00.000Z" })).toThrow(/at most 30 days/);
     expect(() => validateTerms({ ...TERMS, kind: "paystub" })).toThrow(/terms document/);
     expect(() => validateTerms({ ...TERMS, agreementId: "0x" + OFFER_TIME_HASH })).toThrow(/64 hex/);
     expect(() => validateTerms({ ...TERMS, termsText: "  " })).toThrow(/Write the terms/);

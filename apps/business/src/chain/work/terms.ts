@@ -16,8 +16,8 @@ import { type Terms, WorkError, validateTerms } from "../../books/work";
 
 /**
  * The exact bytes the employer hashed: keys in a fixed order, nothing else.
- * Version 2 adds the letter's sections and the files at the end, each in the
- * order books/offer_letter.ts gives them.
+ * Version 2 adds the expiry, the letter's sections and the files at the end,
+ * each in the order books/offer_letter.ts gives them.
  */
 export function canonicalTerms(t: Terms): string {
   const v1 = {
@@ -33,7 +33,7 @@ export function canonicalTerms(t: Terms): string {
     offeredAt: t.offeredAt,
   };
   if (t.version === 1) return JSON.stringify(v1);
-  return JSON.stringify({ ...v1, letter: validateLetter(t.letter), files: validateOfferFiles(t.files) });
+  return JSON.stringify({ ...v1, expiresAt: t.expiresAt, letter: validateLetter(t.letter), files: validateOfferFiles(t.files) });
 }
 
 const strip = (hex: string) => hex.replace(/^0x/i, "").toLowerCase();
