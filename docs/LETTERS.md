@@ -7,8 +7,9 @@ Settings has "Send a test letter" to measure a real one; it went through on Josh
 (below). **Offers now go as letters:** their terms are packed (deflated) and sealed into one
 page to the person, and the person's app reads offers from letters first, then the old mailbox.
 **Messages between a business and a person go as letters too** (chat, counter-offers, "keep the
-offer", the revised-offer note): one approval each, no receipts. Channels, the coworker directory,
-coworker chat, timesheets and paystubs still use the mailbox; they move next.
+offer", the revised-offer note), and so do **paystubs and timesheets**: one approval each, no
+receipts. Channels (announcements), the coworker directory and coworker chat still use the mailbox;
+they need a decision first (fan-out, and coworkers' addresses; see "What doesn't fit").
 
 **Measured on testnet (2026-10-16, Joshua's phone, Shield):** a letter took 13.6–73.7 s from tap
 to accepted (approving and Shield's sponsor step included), cost 0.006578 ALEO, and was listed by

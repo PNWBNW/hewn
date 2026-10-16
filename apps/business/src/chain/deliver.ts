@@ -1,25 +1,28 @@
 // ---------------------------------------------------------------------------
-// Delivering a paystub to the person it belongs to, through the mailbox
-// (docs/INTEGRATION_AUDIT.md §2.2 step 3, §4.4). Once a paycheck has settled
-// on the rail, the full paystub document plus its settlement (the transfer
-// id, the block height, the fee) is sealed with the agreement's parties key
-// and put in the next slot of that person's mailbox; their app scans the
-// slots and keeps its copy in its own vault.
+// Delivering a paystub to the person it belongs to (docs/INTEGRATION_AUDIT.md
+// §2.2 step 3, §4.4). Once a paycheck has settled on the rail, the full
+// paystub document plus its settlement (the transfer id, the block height,
+// the fee) is deflated when that's smaller (compress.ts), sealed with the
+// agreement's parties key and sent to that person as a letter on chain
+// (letters.ts; one Shield approval) under the next slot's lookup; their app
+// finds it among their letters and keeps its copy in its own vault.
 //
-// Mailbox, not archive: the employer's vault records what was sent (the
-// paycheck's `delivery`) so it can be sent again, and the person's app
-// drops the pin once it has the copy. Nothing here is proof of anything;
-// the books are (the paystub hash is in the entry, the entry in the chain).
+// The employer's vault records what was sent (the paycheck's `delivery`) so
+// it can be sent again. Nothing here is proof of anything; the books are
+// (the paystub hash is in the entry, the entry in the chain).
 //
-// Pure apart from the one `client.put`: the mailbox client and the clock are
-// injected, and the vault is only changed by the caller applying the result.
+// Pure apart from the one `client.put`: the letter box (or a fake) and the
+// clock are injected, and the vault is only changed by the caller applying
+// the result.
 // Nothing here logs a key, a lookup or a document.
 // ---------------------------------------------------------------------------
 
-import { KINDS, MailboxError, type MailboxClient, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { KINDS, MailboxError, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type PaycheckDelivery, type PaystubDocument, canonicalPaystub, markPaycheckDelivery, paystubDocument, paystubHash, yearToDate } from "@pnw/payroll";
 import type { Company } from "../books/company";
 import { bumpSeq, linkFor, nextSeq } from "../books/rail";
+import { packPayload } from "./compress";
 
 /**
  * What goes in the envelope, as JSON. `document` is the paystub in its
@@ -44,8 +47,10 @@ export type DeliverInput = {
   company: Company;
   runId: string;
   workerId: string;
-  /** Only `put` is used; a fake with that one method does for tests. */
-  client: Pick<MailboxClient, "put">;
+  /** A letter box to the person (letters.ts); a fake with `put` does for tests. */
+  client: { put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: FeeMode }): Promise<unknown> };
+  /** How the letter's fee is paid; the device's switch when left out. */
+  feeMode?: FeeMode;
   /** ISO timestamp of the send; defaults to now. */
   now?: () => string;
 };
@@ -54,7 +59,7 @@ export type DeliverResult = {
   /** The company with the delivery recorded and the slot advanced. */
   company: Company;
   delivery: PaycheckDelivery;
-  /** The slot already held an envelope (an earlier attempt reached the mailbox but not the vault). */
+  /** The slot was already sent under (an earlier attempt reached the network but not the vault). */
   slotTaken: boolean;
 };
 
@@ -112,19 +117,19 @@ export function recordDelivery(company: Company, runId: string, workerId: string
 }
 
 /**
- * Seals one settled paycheck's paystub to the person and puts it in the next
- * slot of their mailbox. A slot that is already taken counts as delivered:
- * only this business can have filled it, with this same document. Any other
- * failure throws and the company comes back untouched.
+ * Seals one settled paycheck's paystub to the person and sends it under the
+ * next slot. A slot already sent under counts as delivered: only this
+ * business can have filled it, with this same document. Any other failure
+ * throws and the company comes back untouched.
  */
-export async function deliverPaystub({ company, runId, workerId, client, now }: DeliverInput): Promise<DeliverResult> {
+export async function deliverPaystub({ company, runId, workerId, client, now, feeMode }: DeliverInput): Promise<DeliverResult> {
   if (!company.rail) throw new DeliveryError("Link Shield in Settings first");
   const link = linkFor(company.rail, workerId);
   if (!link) throw new DeliveryError("This person has no account on the rail yet: Settings → Import team");
   if (!link.partiesKey) throw new DeliveryError(REIMPORT_MESSAGE);
   const contents = paystubEnvelope(company, runId, workerId);
   const seq = nextSeq(link, KINDS.paystub);
-  const bytes = new TextEncoder().encode(JSON.stringify(contents));
+  const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(contents)));
   const key = partiesKeyFromHex(link.partiesKey);
   let sealed;
   try {
@@ -134,7 +139,7 @@ export async function deliverPaystub({ company, runId, workerId, client, now }: 
   }
   let slotTaken = false;
   try {
-    await client.put(sealed.lookup, sealed.envelope);
+    await (feeMode ? client.put(sealed.lookup, sealed.envelope, { feeMode }) : client.put(sealed.lookup, sealed.envelope));
   } catch (e) {
     if (e instanceof MailboxError && e.code === "CONFLICT") slotTaken = true;
     else throw e;
@@ -142,6 +147,3 @@ export async function deliverPaystub({ company, runId, workerId, client, now }: 
   const delivery: PaycheckDelivery = { seq, lookup: sealed.lookup, sentAt: (now ?? (() => new Date().toISOString()))() };
   return { company: recordDelivery(company, runId, workerId, delivery), delivery, slotTaken };
 }
-
-/** True when the server has no mailbox (503): nothing to retry until the host is set up. */
-export const isMailboxOff = (e: unknown): boolean => e instanceof MailboxError && e.code === "NOT_CONFIGURED";

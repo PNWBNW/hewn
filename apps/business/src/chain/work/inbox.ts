@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
-// Collecting paystubs from the mailbox (docs/INTEGRATION_AUDIT.md §2.2 step
-// 3, §4.4). For each agreement the person holds, the slots of kind
-// `paystub` are read from the next unseen one upward until a miss; each
+// Collecting paystubs (docs/INTEGRATION_AUDIT.md §2.2 step 3, §4.4): letters
+// on chain (chain/letters.ts), then the old mailbox for any sent before. For
+// each agreement the person holds, the slots of kind `paystub` are read from
+// the next unseen one upward until a miss; each
 // envelope is opened with the agreement's parties key, checked for shape,
 // its paystub hash recomputed from the document exactly as the employer's
 // books did, kept in the vault through `store`, and only then dropped from
@@ -16,6 +17,7 @@
 import { KINDS, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { receivedPaystubHash } from "../../books/paystub_document";
 import { type ReceivedPaystub, type Work, WorkError, nextWorkSeq } from "../../books/work";
+import { unpackPayload } from "../compress";
 import { sendReceipt } from "../receipts";
 
 /** What the employer's app seals (src/chain/deliver.ts), read back. */
@@ -50,8 +52,6 @@ export type ScanResult = {
   /** A read failed for another reason; the scan stopped there. */
   failed?: string;
 };
-
-export const INBOX_OFF_MESSAGE = "Paystub delivery is off on this server";
 
 /** Parses the opened envelope; throws on any missing or ill-shaped part. */
 export function parsePaystubEnvelope(bytes: Uint8Array): PaystubEnvelope {
@@ -109,7 +109,7 @@ export async function scanPaystubs({ work, client, store, skip, now, limit }: Sc
         if (!bytes) break; // the end of this agreement's mailbox
         let paystub: ReceivedPaystub;
         try {
-          const envelope = parsePaystubEnvelope(await open(key, KINDS.paystub, seq, bytes));
+          const envelope = parsePaystubEnvelope(await unpackPayload(await open(key, KINDS.paystub, seq, bytes)));
           const { hash } = receivedPaystubHash(envelope.document);
           paystub = {
             agreementId: agreement.agreementId,

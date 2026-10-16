@@ -2814,3 +2814,28 @@ accounts, then they should work without the mailbox):
   chat, timesheets, paystubs, offer receipts.
 
 Tests: 846/846 (5 new: `chain/thread_letters.test.ts`).
+
+## 2026-10-16: paystubs and timesheets go as letters
+
+Joshua tested #89 (messages as letters) and it worked; "let's build the rest".
+
+- **Paystubs:**
+  - Each paystub is deflated, sealed and sent to the person as a letter (one approval).
+  - The pay panel sends them after all payments finish, one at a time, so a letter never races
+    a payment in Shield.
+  - Resend on a paystub connects Shield first.
+  - Tests check that a paystub fits in one letter (not a page).
+- **The person's paystub check:**
+  - Connects Shield and reads letters, then the old mailbox.
+  - Receipts for hours sent through the old mailbox are still read, best effort.
+- **Timesheets:**
+  - Each week goes to the employer as a letter (one approval) with the fee choice.
+  - The business's Mailbox check reads weeks of hours from letters, then the old mailbox.
+- **Cleanup:** removed the "delivery is off on this server" states for paystubs and timesheets.
+- **Still on the mailbox:** channels (announcements), the coworker directory, and coworker and
+  group chat. Those need Joshua's call:
+  - **Announcements:** a post to N people is N letters (N approvals) with `hewn_letters_v1`. A
+    fan-out call needs a new program.
+  - **Coworkers:** coworkers know each other by a P-256 key, not an Aleo address.
+
+Tests: 846/846 (two existing tests now also check one-letter fit).

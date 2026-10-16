@@ -7,7 +7,9 @@ import { type Payroll, type W4, addWorker, canonicalPaystub, emptyPayroll, ensur
 import { emptySales } from "@pnw/sales";
 import type { Company } from "../books/company";
 import { type Rail, linkFor } from "../books/rail";
+import { unpackPayload } from "./compress";
 import { REIMPORT_MESSAGE, deliverPaystub, paystubEnvelope, recordDelivery } from "./deliver";
+import { LETTER_BYTES } from "./letters";
 
 const W4_SINGLE: W4 = { filingStatus: "single", dependentCredit: 0n, otherIncome: 0n, extraDeductions: 0n, extraWithholding: 0n };
 const clock = { now: () => "2026-10-16T12:00:00.000Z" };
@@ -79,7 +81,8 @@ describe("deliverPaystub", () => {
     expect(client.puts[0]!.envelope[0]).toBe(ENVELOPE_VERSION);
 
     // The person can open it with the key, the kind and the slot, and nothing else.
-    const plain = JSON.parse(new TextDecoder().decode(await open(key, KINDS.paystub, 0, client.puts[0]!.envelope)));
+    expect(client.puts[0]!.envelope.length).toBeLessThanOrEqual(LETTER_BYTES); // one letter, not a page
+    const plain = JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, KINDS.paystub, 0, client.puts[0]!.envelope))));
     const run = company.payroll.runs[0]!;
     const paycheck = run.paychecks[0]!;
     const doc = paystubDocument(run, paycheck, worker, company.books.settings, yearToDate(company.payroll, workerId, run.payDate, runId));

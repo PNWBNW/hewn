@@ -1,45 +1,31 @@
 "use client";
 
-// Sends one paystub through the mailbox and writes the outcome to the vault.
-// Shared by the pay panel (right after a paycheck settles) and the paystub
-// view (Resend). The send reads the latest vault copy, so a delivery never
-// starts from a stale paycheck, and the result is applied onto whatever the
-// vault holds by then, so settlements landing at the same time are kept.
+// Sends one paystub as a letter to the person (deliver.ts; one Shield
+// approval) and writes the outcome to the vault. Shared by the pay panel
+// (once the payments are done) and the paystub view (Resend). The send reads
+// the latest vault copy, so a delivery never starts from a stale paycheck,
+// and the result is applied onto whatever the vault holds by then, so
+// settlements landing at the same time are kept.
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { MailboxClient, MailboxError } from "@pnw/mailbox";
+import { useCallback } from "react";
 import type { PaycheckDelivery } from "@pnw/payroll";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { deliverPaystub, isMailboxOff, recordDelivery } from "./deliver";
+import { linkFor } from "@/books/rail";
+import { DeliveryError, deliverPaystub, recordDelivery } from "./deliver";
+import { LetterBox, type LetterWallet } from "./letters";
 
-export const MAILBOX_OFF_MESSAGE = "Paystub delivery is off on this server";
-
-export function usePaystubDelivery() {
+/** `wallet`: Shield, connected to the account linked to these books. */
+export function usePaystubDelivery(wallet: LetterWallet) {
   const { updateCompany } = useOpenBooks();
-  const client = useMemo(() => new MailboxClient(), []);
-  // Once the server has said it has no mailbox (503), nothing more is sent
-  // this session: every later send fails the same way without a request.
-  const [off, setOff] = useState(false);
-  const offRef = useRef(false);
-
-  const send = useCallback(
+  return useCallback(
     async (runId: string, workerId: string): Promise<PaycheckDelivery> => {
-      if (offRef.current) throw new MailboxError("NOT_CONFIGURED", MAILBOX_OFF_MESSAGE);
       const current = await updateCompany((c) => c);
-      try {
-        const { delivery } = await deliverPaystub({ company: current, runId, workerId, client });
-        await updateCompany((c) => recordDelivery(c, runId, workerId, delivery));
-        return delivery;
-      } catch (e) {
-        if (isMailboxOff(e)) {
-          offRef.current = true;
-          setOff(true);
-        }
-        throw e;
-      }
+      const to = current.rail ? linkFor(current.rail, workerId)?.address : undefined;
+      if (!to) throw new DeliveryError("This person has no account on the rail yet: Settings → Import team");
+      const { delivery } = await deliverPaystub({ company: current, runId, workerId, client: new LetterBox({ wallet, to }) });
+      await updateCompany((c) => recordDelivery(c, runId, workerId, delivery));
+      return delivery;
     },
-    [client, updateCompany],
+    [wallet, updateCompany],
   );
-
-  return { send, off };
 }
