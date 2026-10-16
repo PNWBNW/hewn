@@ -60,13 +60,13 @@ describe("group chats through the mailbox", () => {
     const [ana, bo, cy] = await Promise.all([person("Ana"), person("Bo"), person("Cy")]);
     const groupId = newGroupId();
     const members = [entry(ana), entry(bo), entry(cy)];
-    ana.work = keepSent(ana.work, BIZ, await fanOut(box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members }));
+    ana.work = keepSent(ana.work, BIZ, await fanOut(() => box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members }));
     await readFrom(box, bo, [ana]);
     await readFrom(box, cy, [ana]);
     expect(groupsFor(bo.work, BIZ)).toMatchObject([{ id: groupId, name: "Night crew", joined: true, isAdmin: false }]);
     expect(groupsFor(ana.work, BIZ)[0]!.isAdmin).toBe(true);
 
-    const sent = await fanOut(box, bo.work, bo.id, members, { type: "group_text", groupId, text: "Who's got the forklift key?" });
+    const sent = await fanOut(() => box, bo.work, bo.id, members, { type: "group_text", groupId, text: "Who's got the forklift key?" });
     expect(new Set(sent.sent.map((s) => s.item.id)).size).toBe(1); // one id for every copy
     bo.work = keepSent(bo.work, BIZ, sent);
     await readFrom(box, ana, [bo]);
@@ -81,12 +81,12 @@ describe("group chats through the mailbox", () => {
     // Ana takes Cy out: everyone hears, Cy sees she's out, and gets nothing new.
     await new Promise((r) => setTimeout(r, 5)); // a later setup, by the clock
     const without = [entry(ana), entry(bo)];
-    ana.work = keepSent(ana.work, BIZ, await fanOut(box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members: without }));
+    ana.work = keepSent(ana.work, BIZ, await fanOut(() => box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members: without }));
     await readFrom(box, cy, [ana]);
     await readFrom(box, bo, [ana]);
     expect(groupsFor(cy.work, BIZ)[0]!.joined).toBe(false);
     const g = groupsFor(bo.work, BIZ)[0]!;
-    bo.work = keepSent(bo.work, BIZ, await fanOut(box, bo.work, bo.id, g.members, { type: "group_text", groupId, text: "Found it" }));
+    bo.work = keepSent(bo.work, BIZ, await fanOut(() => box, bo.work, bo.id, g.members, { type: "group_text", groupId, text: "Found it" }));
     await readFrom(box, cy, [bo]);
     expect(groupsFor(cy.work, BIZ)[0]!.messages.map((m) => m.text)).toEqual(["Who's got the forklift key?"]);
   });
@@ -96,9 +96,9 @@ describe("group chats through the mailbox", () => {
     const [ana, bo, cy] = await Promise.all([person("Ana"), person("Bo"), person("Cy")]);
     const groupId = newGroupId();
     const members = [entry(ana), entry(bo), entry(cy)];
-    ana.work = keepSent(ana.work, BIZ, await fanOut(box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members }));
+    ana.work = keepSent(ana.work, BIZ, await fanOut(() => box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members }));
     // Bo claims Ana set it up differently: renamed, Cy taken out.
-    await fanOut(box, bo.work, bo.id, [entry(cy)], { type: "group", groupId, name: "Bo's crew", admin: ana.id.publicKey, members: [entry(ana), entry(bo)] });
+    await fanOut(() => box, bo.work, bo.id, [entry(cy)], { type: "group", groupId, name: "Bo's crew", admin: ana.id.publicKey, members: [entry(ana), entry(bo)] });
     await readFrom(box, cy, [ana, bo]);
     expect(groupsFor(cy.work, BIZ)).toMatchObject([{ name: "Night crew", joined: true }]);
   });
@@ -108,10 +108,10 @@ describe("group chats through the mailbox", () => {
     const [ana, bo] = await Promise.all([person("Ana"), person("Bo")]);
     const groupId = newGroupId();
     const members = [entry(ana), entry(bo)];
-    ana.work = keepSent(ana.work, BIZ, await fanOut(box, ana.work, ana.id, members, { type: "group", groupId, name: "Lunch", admin: ana.id.publicKey, members }));
+    ana.work = keepSent(ana.work, BIZ, await fanOut(() => box, ana.work, ana.id, members, { type: "group", groupId, name: "Lunch", admin: ana.id.publicKey, members }));
     await readFrom(box, bo, [ana]);
     await new Promise((r) => setTimeout(r, 5));
-    bo.work = keepSent(bo.work, BIZ, await fanOut(box, bo.work, bo.id, members, { type: "group_leave", groupId }));
+    bo.work = keepSent(bo.work, BIZ, await fanOut(() => box, bo.work, bo.id, members, { type: "group_leave", groupId }));
     await readFrom(box, ana, [bo]);
     expect(groupsFor(ana.work, BIZ)[0]!.members.map((m) => m.name)).toEqual(["Ana"]);
     expect(groupsFor(bo.work, BIZ)[0]!.joined).toBe(false);

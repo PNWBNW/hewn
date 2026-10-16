@@ -4,9 +4,9 @@
 // person's side): each business's new messages (thread.ts; channel keys and
 // the coworker directory arrive this way too), then each channel's new posts
 // (channels.ts), then each coworker's messages (coworkers.ts). A business's
-// messages come as letters on chain once Shield is connected
-// (letter_reader.ts), and from the old mailbox; channels and coworkers still
-// use the mailbox, with a receipt back for each. Runs once when Shield has
+// and coworkers' messages come as letters on chain once Shield is connected
+// (letter_reader.ts), and from the old mailbox; channels still use the
+// mailbox, with a receipt back for each. Runs once when Shield has
 // had its moment to reconnect, and reports back; it draws nothing itself.
 // Nothing here logs a key, a lookup or a message.
 
@@ -21,7 +21,7 @@ import { coworkersFrom } from "@/books/directory";
 import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey } from "../coworkers";
 import { readChannel } from "../channels";
 import { useLetters } from "../letter_reader";
-import { letterThread } from "../letters";
+import { letterThread, lettersThenMailbox } from "../letters";
 import { readThread } from "../thread";
 
 export type WorkMessagesCheckProps = { onFinished: (message: string | null) => void };
@@ -48,7 +48,7 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
       const apply = async (op: (w: Work) => Work) => {
         latest = await updateWork(op);
       };
-      let off = false; // the mailbox, for channels and coworkers
+      let off = false; // the mailbox, for channels (and coworkers without Shield)
       const employers = new Map(work.agreements.map((a) => [a.partiesKey, a.employerAddress]));
       for (const [partiesKey, employer] of employers) {
         const r = await readThread({
@@ -77,13 +77,14 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
         if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
       }
       // Coworkers: each one in each directory this person is listed in.
-      for (const [businessKey, identity] of off ? [] : Object.entries(latest.identities ?? {})) {
+      for (const [businessKey, identity] of off && !letters ? [] : Object.entries(latest.identities ?? {})) {
         if (!identity.listed) continue;
         for (const c of coworkersFrom(workThread(latest, businessKey))) {
           if (c.publicKey === identity.publicKey) continue;
           const key = await pairKey(identity, c.publicKey);
           const r = await readThread({
-            client,
+            // Letters from them (their account isn't needed to read), then the old mailbox, with its receipts.
+            client: letters ? { get: lettersThenMailbox(letters, client).get, drop: (lookup: string) => client.drop(lookup).catch(() => {}) } : client,
             partiesKey: key,
             reader: mySide(identity.publicKey, c.publicKey),
             thread: latest.coworkers?.[c.publicKey],
@@ -96,7 +97,7 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
           if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
         }
       }
-      onFinished(off ? "Announcements and coworker messages are off on this server." : null);
+      onFinished(off ? (letters ? "Announcements are off on this server." : "Announcements and coworker messages are off on this server.") : null);
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
   }, [work, updateWork, client, onFinished, settled, letters, wallet]);
 
