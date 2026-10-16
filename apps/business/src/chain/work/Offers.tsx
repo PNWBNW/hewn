@@ -28,6 +28,7 @@ import { ChangeList, QuotedNote } from "@/books/NegotiationView";
 import { addToThread, answerFor, openCounter, proposalChanges, proposalOf, revisedFrom, revisionOf, skipIncoming } from "@/books/thread";
 import { BRAND } from "@/brand";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
+import { employmentLabel, hoursLine } from "@/books/terms_words";
 import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
 import { fetchOfferFile, offerFileLookups } from "../offer_files";
 import { offerReceiptSlot, sendReceipt } from "../receipts";
@@ -284,6 +285,18 @@ function OfferRow({
           <dd>{t.payType === "hourly" ? `${dollars(t.rate)} per hour` : `${dollars(t.rate)} per year`}</dd>
           <dt className="text-muted-foreground">Paid</dt>
           <dd>{FREQUENCY[t.frequency]}</dd>
+          {t.version === 2 && t.employmentType && (
+            <>
+              <dt className="text-muted-foreground">Employment</dt>
+              <dd>{employmentLabel(t.employmentType)}</dd>
+            </>
+          )}
+          {t.version === 2 && t.hoursPerWeek && (
+            <>
+              <dt className="text-muted-foreground">Hours</dt>
+              <dd>{hoursLine(t.hoursPerWeek)}</dd>
+            </>
+          )}
           <dt className="text-muted-foreground">Starts</dt>
           <dd>{t.startDate}</dd>
           <dt className="text-muted-foreground">Terms</dt>

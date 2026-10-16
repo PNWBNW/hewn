@@ -415,5 +415,9 @@ handling); likely a Fable session for the key agreement.
   per-device switch first.
 - [x] Offers carry no files (PDFs, photos); the offer letter is one box of up to 20,000 characters
   to write or paste into (2026-10-16). Offers sent before keep their files.
+- [x] Pay (type, rate, how often), employment type, hours a week and start date are boxes of their
+  own in an offer, each negotiable in a counter-offer (2026-10-16).
+- [x] Letters on chain rotate to a new random key at least every 24 hours; old keys stay in the
+  vault so people keep their history (2026-10-16). Built with the letters (`docs/LETTERS.md`).
 - [x] Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
   an option (2026-10-16).

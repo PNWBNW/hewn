@@ -70,3 +70,28 @@ describe("terms contract, version 2 (the offer letter)", () => {
     expect(termsMatchRecord({ ...terms } as WorkerTerms, record)).toBe(false); // the same offer as version 1
   });
 });
+
+describe("terms contract, version 2 with the job fields", () => {
+  const v2 = {
+    ...terms,
+    version: 2 as const,
+    expiresAt: "2026-10-21T15:00:00.000Z",
+    letter: { description: "Framing crew lead.", requirements: "", handbook: "", other: "" },
+    files: [],
+  };
+
+  it("both sides put the employment type and hours last, in that order, only when given", () => {
+    const full = { hoursPerWeek: "37.5", ...v2, employmentType: "full_time" as const };
+    const employer = employerCanonical(full as EmployerTerms);
+    expect(workerCanonical(full as WorkerTerms)).toBe(employer);
+    expect(Object.keys(JSON.parse(employer))).toEqual([...Object.keys(terms), "expiresAt", "letter", "files", "employmentType", "hoursPerWeek"]);
+    // An offer without them keeps the bytes it was hashed with.
+    expect(Object.keys(JSON.parse(employerCanonical(v2 as EmployerTerms)))).toEqual([...Object.keys(terms), "expiresAt", "letter", "files"]);
+    expect(workerCanonical(v2 as WorkerTerms)).toBe(employerCanonical(v2 as EmployerTerms));
+  });
+
+  it("both sides refuse a job field this app doesn't know", () => {
+    expect(() => employerCanonical({ ...v2, employmentType: "gig" } as unknown as EmployerTerms)).toThrow(/employment type/);
+    expect(() => workerCanonical({ ...v2, hoursPerWeek: "40.0" } as unknown as WorkerTerms)).toThrow(/Hours a week/);
+  });
+});

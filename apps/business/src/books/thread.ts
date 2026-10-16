@@ -19,7 +19,7 @@
 
 import { formatCents, parseCents } from "@pnw/ledger";
 import { LETTER_LABEL, type Letter, letterText, validateLetter } from "./offer_letter";
-import { longDate, payLine } from "./terms_words";
+import { type EmploymentType, type JobFields, cleanHours, employmentLabel, hoursLine, longDate, payLine, validateJobFields } from "./terms_words";
 
 export type Side = "business" | "worker";
 
@@ -28,8 +28,12 @@ const FREQUENCIES = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
 type PayType = (typeof PAY_TYPES)[number];
 type Frequency = (typeof FREQUENCIES)[number];
 
-/** An offer's terms as the person would like them: what a counter-offer carries. */
-export type Proposal = {
+/**
+ * An offer's terms as the person would like them: what a counter-offer
+ * carries. Employment type and hours are there when the offer has them (or
+ * the person asks for them).
+ */
+export type Proposal = JobFields & {
   payType: PayType;
   /** Cents, as a decimal string: per hour when hourly, per year when salaried. */
   rate: string;
@@ -165,7 +169,13 @@ export function validateProposal(raw: unknown): Proposal {
   } catch (e) {
     throw new ThreadError(e instanceof Error ? e.message : "The proposed letter isn't valid");
   }
-  return { payType: payType as PayType, rate, frequency: frequency as Frequency, startDate, termsText, letter: cleanLetter };
+  let job: JobFields;
+  try {
+    job = validateJobFields(raw);
+  } catch (e) {
+    throw new ThreadError(e instanceof Error ? e.message : "The proposed job fields aren't valid");
+  }
+  return { payType: payType as PayType, rate, frequency: frequency as Frequency, startDate, termsText, letter: cleanLetter, ...job };
 }
 
 function validateBody(raw: unknown): ThreadBody {
@@ -402,6 +412,12 @@ export function proposalChanges(from: Proposal, to: Proposal): Change[] {
   const out: Change[] = [];
   if (from.payType !== to.payType || from.rate !== to.rate) out.push({ field: "rate", label: "Pay", was: payLabel(from.payType, from.rate), wants: payLabel(to.payType, to.rate) });
   if (from.frequency !== to.frequency) out.push({ field: "frequency", label: "Paid", was: FREQUENCY_LABEL[from.frequency], wants: FREQUENCY_LABEL[to.frequency] });
+  if (from.employmentType !== to.employmentType) {
+    out.push({ field: "employmentType", label: "Employment", was: from.employmentType ? employmentLabel(from.employmentType) : NOT_STATED, wants: to.employmentType ? employmentLabel(to.employmentType) : NOT_STATED });
+  }
+  if (from.hoursPerWeek !== to.hoursPerWeek) {
+    out.push({ field: "hoursPerWeek", label: "Hours", was: from.hoursPerWeek ? hoursLine(from.hoursPerWeek) : NOT_STATED, wants: to.hoursPerWeek ? hoursLine(to.hoursPerWeek) : NOT_STATED });
+  }
   if (from.startDate !== to.startDate) out.push({ field: "startDate", label: "Start date", was: from.startDate, wants: to.startDate });
   if (from.termsText !== to.termsText) out.push({ field: "termsText", label: "Terms", was: from.termsText, wants: to.termsText });
   // The letter as one text, as the single box shows it.
@@ -411,8 +427,10 @@ export function proposalChanges(from: Proposal, to: Proposal): Change[] {
   return out;
 }
 
+const NOT_STATED = "Not stated";
+
 /** An offer's terms as a proposal: the starting point the person edits. */
-export function proposalOf(t: { payType: PayType; rate: string; frequency: Frequency; startDate: string; termsText: string; letter?: Letter }): Proposal {
+export function proposalOf(t: JobFields & { payType: PayType; rate: string; frequency: Frequency; startDate: string; termsText: string; letter?: Letter }): Proposal {
   return {
     payType: t.payType,
     rate: t.rate,
@@ -420,16 +438,24 @@ export function proposalOf(t: { payType: PayType; rate: string; frequency: Frequ
     startDate: t.startDate,
     termsText: t.termsText,
     letter: t.letter ?? { description: "", requirements: "", handbook: "", other: "" },
+    ...(t.employmentType ? { employmentType: t.employmentType } : {}),
+    ...(t.hoursPerWeek ? { hoursPerWeek: t.hoursPerWeek } : {}),
   };
 }
 
 /**
- * The written terms with the pay and the start date brought in step with
- * `to`, wherever they still say what `from` said (the draft writes both in
- * these exact words). Anything else in the text is left as it is.
+ * The written terms with the pay, the employment type, the hours and the
+ * start date brought in step with `to`, wherever they still say what `from`
+ * said (the draft writes each in these exact words). Anything else in the
+ * text is left as it is.
  */
 export function syncTermsText(text: string, from: Proposal, to: Proposal): string {
   let out = text;
+  const swap = (was: string, now: string) => {
+    if (was !== now) out = out.split(was).join(now);
+  };
+  if (from.employmentType && to.employmentType) swap(`Employment: ${employmentLabel(from.employmentType)}.`, `Employment: ${employmentLabel(to.employmentType)}.`);
+  if (from.hoursPerWeek && to.hoursPerWeek) swap(`Hours: ${hoursLine(from.hoursPerWeek)}.`, `Hours: ${hoursLine(to.hoursPerWeek)}.`);
   const payWas = payLine(from.payType, BigInt(from.rate), from.frequency);
   const payNow = payLine(to.payType, BigInt(to.rate), to.frequency);
   if (payWas !== payNow) out = out.split(payWas).join(payNow);
@@ -441,12 +467,12 @@ export function syncTermsText(text: string, from: Proposal, to: Proposal): strin
 
 // ---- The form ----------------------------------------------------------------
 
-/** A proposal as a form holds it: the rate as typed, in dollars. */
-export type ProposalDraft = Omit<Proposal, "rate"> & { rateText: string };
+/** A proposal as a form holds it: the rate and the hours as typed, the employment type "" when not stated. */
+export type ProposalDraft = Omit<Proposal, "rate" | "employmentType" | "hoursPerWeek"> & { rateText: string; employmentType: EmploymentType | ""; hoursText: string };
 
 export const draftOf = (p: Proposal): ProposalDraft => {
-  const { rate, ...rest } = p;
-  return { ...rest, rateText: formatCents(BigInt(rate)).replace(/,/g, "") };
+  const { rate, employmentType, hoursPerWeek, ...rest } = p;
+  return { ...rest, rateText: formatCents(BigInt(rate)).replace(/,/g, ""), employmentType: employmentType ?? "", hoursText: hoursPerWeek ?? "" };
 };
 
 /** The proposal a form holds, or why it can't be one yet. */
@@ -460,6 +486,8 @@ export function proposalFromDraft(d: ProposalDraft): { proposal: Proposal } | { 
   if (cents <= 0n) return { problem: "Pay must be more than zero" };
   if (!d.termsText.trim()) return { problem: "The written terms can't be empty" };
   if (!DATE.test(d.startDate)) return { problem: "Pick a start date" };
-  const { rateText: _rateText, ...rest } = d;
-  return { proposal: { ...rest, rate: cents.toString() } };
+  const hours = d.hoursText.trim() ? cleanHours(d.hoursText) : undefined;
+  if (hours === null) return { problem: "Hours a week must be a number up to 168, like 40 or 37.5" };
+  const { rateText: _rateText, employmentType, hoursText: _hoursText, ...rest } = d;
+  return { proposal: { ...rest, rate: cents.toString(), ...(employmentType ? { employmentType } : {}), ...(hours ? { hoursPerWeek: hours } : {}) } };
 }

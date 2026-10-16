@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PayFrequency, Worker } from "@pnw/payroll";
-import { longDate, payLine } from "../books/terms_words";
+import { type EmploymentType, cleanHours, employmentLabel, hoursLine, longDate, payLine } from "../books/terms_words";
 
 type PayType = Worker["payType"];
 
@@ -27,6 +27,8 @@ export type DraftInput = {
   /** YYYY-MM-DD; blank or missing means open-ended. */
   endDate?: string;
   jobTitle?: string;
+  /** Missing leaves the line out. */
+  employmentType?: EmploymentType;
   duties?: string;
   /** Blank or missing leaves the line out. */
   hoursPerWeek?: string;
@@ -41,7 +43,7 @@ const clean = (s: string | undefined) => s?.trim() ?? "";
 /** Why a field can't go into a draft, or null. */
 export function draftProblem(i: Pick<DraftInput, "hoursPerWeek" | "noticeDays">): string | null {
   const hours = clean(i.hoursPerWeek);
-  if (hours && !(Number(hours) > 0 && Number(hours) <= 168)) return "Hours a week must be a number between 1 and 168";
+  if (hours && !cleanHours(hours)) return "Hours a week must be a number up to 168, like 40 or 37.5";
   const notice = clean(i.noticeDays);
   if (notice && !/^\d{1,3}$/.test(notice)) return "Notice must be a whole number of days";
   return null;
@@ -59,9 +61,10 @@ export function draftTerms(i: DraftInput): string {
 
   const lines: string[] = [`Offer of employment from ${clean(i.businessName) || "the business"} to ${clean(i.workerName)}.`];
   if (title) lines.push(`Role: ${title}.`);
+  if (i.employmentType) lines.push(`Employment: ${employmentLabel(i.employmentType)}.`);
   if (duties) lines.push(`Duties: ${duties}`);
   lines.push(`Pay: ${payLine(i.payType, i.rate, i.frequency)}.`);
-  if (hours) lines.push(`Hours: about ${Number(hours)} a week.`);
+  if (hours) lines.push(`Hours: ${hoursLine(cleanHours(hours)!)}.`);
   lines.push(end ? `Dates: starts ${longDate(i.startDate)} and ends ${longDate(end)}.` : `Dates: starts ${longDate(i.startDate)}; open-ended.`);
   lines.push(`Pay review: ${longDate(i.reviewDate)}.`);
   if (notice) lines.push(`Notice: either of us can end this agreement by giving ${Number(notice)} ${Number(notice) === 1 ? "day's" : "days'"} notice.`);

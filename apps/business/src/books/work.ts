@@ -19,6 +19,7 @@ import { type Thread, emptyThread, validateThread } from "./thread";
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
 import { type CoworkerThread, type Identity, validateCoworkerThread, validateIdentity } from "./directory";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
+import { type JobFields, validateJobFields } from "./terms_words";
 
 export type Role = "business" | "worker";
 
@@ -41,7 +42,7 @@ export type TermsV1 = {
 };
 
 /** Version 2, the offer letter: version 1 plus the letter's sections and the attached files (books/offer_letter.ts). */
-export type TermsV2 = Omit<TermsV1, "version"> & { version: 2; expiresAt: string; letter: Letter; files: OfferFile[] };
+export type TermsV2 = Omit<TermsV1, "version"> & JobFields & { version: 2; expiresAt: string; letter: Letter; files: OfferFile[] };
 
 export type Terms = TermsV1 | TermsV2;
 
@@ -187,8 +188,14 @@ export function validateTerms(raw: unknown): Terms {
     offeredAt: isoDate(raw.offeredAt, "Offered at"),
   };
   if (raw.version === 1) return { version: 1, ...common };
+  let job: JobFields;
   try {
-    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, raw.expiresAt), letter: validateLetter(raw.letter), files: validateOfferFiles(raw.files) };
+    job = validateJobFields(raw);
+  } catch (e) {
+    throw new WorkError(e instanceof Error ? e.message : "The job fields aren't valid");
+  }
+  try {
+    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, raw.expiresAt), letter: validateLetter(raw.letter), files: validateOfferFiles(raw.files), ...job };
   } catch (e) {
     throw e instanceof LetterError ? new WorkError(e.message) : e;
   }

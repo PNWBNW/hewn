@@ -125,8 +125,12 @@ Primary sources: snarkVM `console/network/src/lib.rs`, `synthesizer/process/src/
   input (it is already AES ciphertext), with tiny private pointer records to each member. Needs
   Joshua's call against the privacy floor before it is designed further.
 - **Forever.** Today messages are deleted after 30–60 days; on chain, ciphertext stays. If a
-  parties key ever leaks, every letter under it opens. Later: rotate parties keys per period so a
-  leak only opens one period.
+  parties key ever leaks, every letter under it opens. **Decided (Joshua, 2026-10-16): a new random
+  key at least every 24 hours, every old key kept in the vault** so a person's own history stays
+  readable, on any device. The next key travels inside a letter record (sealed to the recipient's
+  address, not only under the old key), so one leaked day's key doesn't open the next day's.
+  A leaked view key and a leaked vault still open everything; rotation limits a single key's
+  reach.
 - **Leo version.** Our pin is Leo 4.0.0 (`self.signer`); Leo 4.4 removed that sugar for
   `std::ctx::signer()`. Testnet is on consensus V22; confirm which Leo deploys there.
 - **Records pile up.** The pinned adaptor has no "since height" filter; every letter comes back on

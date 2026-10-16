@@ -156,6 +156,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         industryCode,
         termsText: revised.termsText,
         letter: revised.letter,
+        ...(revised.employmentType ? { employmentType: revised.employmentType } : {}),
+        ...(revised.hoursPerWeek ? { hoursPerWeek: revised.hoursPerWeek } : {}),
         expiresInDays,
         // The same secret key as before, so the conversation carries on (a key from before keys were random is replaced).
         ...(old.partiesKey ? { partiesKey: old.partiesKey } : {}),

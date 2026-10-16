@@ -27,6 +27,7 @@ import { type RailLink, isRailAddress } from "../books/rail";
 import { bareDirectoryName } from "./directory";
 import { byteArrayHex } from "./parties_key";
 import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
+import type { EmploymentType } from "../books/terms_words";
 import { offerFileLookups, offerTermsKind } from "./offer_files";
 import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
 
@@ -248,6 +249,10 @@ export type SendOfferInput = OfferDates & {
   termsText: string;
   /** The offer letter (offer_letter.ts `letterFromText`). Missing means none. */
   letter?: Letter;
+  /** Its own boxes in the offer, so a counter-offer can name them; missing leaves them out of the terms. */
+  employmentType?: EmploymentType;
+  /** Hours a week, as `cleanHours` writes them. */
+  hoursPerWeek?: string;
   /** How long the offer stays open (every offer expires). Default 7 days. */
   expiresInDays?: ExpiryDays;
   /**
@@ -347,6 +352,8 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
       expiresAt,
       letter: validateLetter(input.letter ?? emptyLetter()),
       files: [],
+      ...(input.employmentType ? { employmentType: input.employmentType } : {}),
+      ...(input.hoursPerWeek ? { hoursPerWeek: input.hoursPerWeek } : {}),
     });
   } catch (e) {
     throw e instanceof TermsError || e instanceof LetterError ? new OfferError(e.message) : e;

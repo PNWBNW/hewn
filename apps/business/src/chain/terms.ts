@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateLetter, validateOfferFiles } from "../books/offer_letter";
+import { type JobFields, validateJobFields } from "../books/terms_words";
 
 /** Version 1: pay, dates and the agreement's own terms text. */
 export type TermsV1 = {
@@ -44,20 +45,24 @@ export type TermsV1 = {
  * Version 2, the offer letter (Joshua, 2026-10-16): everything in version 1,
  * then the letter's sections and the attached files, in that order. The
  * files' fingerprints are inside the document, so the terms hash covers them.
+ * Then, on offers made since the job fields had their own boxes, the
+ * employment type and the hours a week (each only when given: an offer
+ * without them keeps its exact bytes).
  */
-export type TermsV2 = Omit<TermsV1, "version"> & {
-  version: 2;
-  /** ISO time the offer stops being open (every offer has one; at most 30 days after it's made). */
-  expiresAt: string;
-  letter: Letter;
-  files: OfferFile[];
-};
+export type TermsV2 = Omit<TermsV1, "version"> &
+  JobFields & {
+    version: 2;
+    /** ISO time the offer stops being open (every offer has one; at most 30 days after it's made). */
+    expiresAt: string;
+    letter: Letter;
+    files: OfferFile[];
+  };
 
 export type Terms = TermsV1 | TermsV2;
 
-/** The keys of a terms document, in canonical order (version 2 adds `expiresAt`, `letter` and `files` at the end). */
+/** The keys of a terms document, in canonical order (version 2 adds `expiresAt`, `letter` and `files` at the end, then the job fields when given). */
 export const TERMS_KEYS = ["version", "kind", "agreementId", "termsText", "payType", "rate", "frequency", "startDate", "businessName", "offeredAt"] as const;
-export const TERMS_V2_KEYS = [...TERMS_KEYS, "expiresAt", "letter", "files"] as const;
+export const TERMS_V2_KEYS = [...TERMS_KEYS, "expiresAt", "letter", "files", "employmentType", "hoursPerWeek"] as const;
 
 const PAY_TYPES = ["hourly", "salary"] as const;
 const FREQUENCIES = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
@@ -99,8 +104,14 @@ export function validateTerms(raw: unknown): Terms {
   };
   if (t.version === 1) return { version: 1, ...common };
   const v2 = raw as Partial<TermsV2>;
+  let job: JobFields;
   try {
-    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, v2.expiresAt), letter: validateLetter(v2.letter), files: validateOfferFiles(v2.files) };
+    job = validateJobFields(v2 as Record<string, unknown>);
+  } catch (e) {
+    throw new TermsError(e instanceof Error ? e.message : "The job fields aren't valid");
+  }
+  try {
+    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, v2.expiresAt), letter: validateLetter(v2.letter), files: validateOfferFiles(v2.files), ...job };
   } catch (e) {
     throw e instanceof LetterError ? new TermsError(e.message) : e;
   }

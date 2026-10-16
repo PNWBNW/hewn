@@ -256,6 +256,20 @@ describe("sendOffer", () => {
     expect(wallet.calls[0]!.inputs).toContain(bytesToAleoU8Array(computed.terms_doc_hash));
   });
 
+  it("puts the pay, employment type and hours in the terms, and the record's hash covers them", async () => {
+    const client = fakeClient();
+    const wallet = fakeWallet();
+    const sent = await sendOffer(input({ client, wallet, worker: { id: "wkr-1", payType: "salary", rate: 6_500_000n, frequency: "monthly" }, employmentType: "full_time", hoursPerWeek: "40" }));
+    if (sent.terms.version !== 2) throw new Error("unreachable");
+    expect([sent.terms.payType, sent.terms.rate, sent.terms.frequency, sent.terms.employmentType, sent.terms.hoursPerWeek]).toEqual(["salary", "6500000", "monthly", "full_time", "40"]);
+    const computed = computeAgreementValues(EMPLOYER, WORKER, canonicalTerms(sent.terms), Math.floor(NOW.getTime() / 1000));
+    expect(wallet.calls[0]!.inputs).toContain(bytesToAleoU8Array(computed.terms_doc_hash));
+    // Hours not in their one written form never reach the mailbox.
+    const other = fakeClient();
+    await expect(sendOffer(input({ client: other, hoursPerWeek: "40.0" }))).rejects.toThrow(/Hours a week/);
+    expect(other.puts).toHaveLength(0);
+  });
+
   it("refuses a letter over its limits before anything is sent", async () => {
     const client = fakeClient();
     const wallet = fakeWallet();
