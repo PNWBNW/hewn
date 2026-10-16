@@ -118,6 +118,12 @@ The highest risk for a browser app.
 - Public mappings hold only hashes, commitments, block heights. ✅ (existing programs) 🔜 `gl_core`
 - Aggregates only as proofs with a minimum group size. 🔜 P3 (group size decision open)
 - Fiat-mode app cannot import chain packages at all. ✅ `fiat_boundary.test.ts`
+- The sender behind every transaction. A public fee (`fee_public`) names the paying address, so
+  anyone can count a business's payments on payday (close to its headcount) even with every
+  amount hidden. A private fee (`fee_private`) is paid from a credits record and names no one.
+  Private by default is the decision (Joshua, 2026-10-16); 🔜 testing: a per-device switch on the
+  dashboard (`@pnw/wallet/fee-mode`, applied to every call in `chain/shield.ts`). It never falls
+  back to a public fee on its own.
 
 ### T7 — Unauthorized access by another member (multi-user)
 - Roles enforced by key wrapping and in-circuit allow-lists, not by hiding buttons. 🔜 P6

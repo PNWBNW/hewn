@@ -2484,3 +2484,35 @@ one person can work for a self-hosted business and a hosted one at once.
 Still out of date on the site, for a wider copy refresh (needs Joshua's go-ahead): "no account to
 create", "nothing is uploaded" and "no server". They predate the required Shield link and name,
 and the mailbox, which carries sealed documents. Site tests 7/7; site build green.
+
+## 2026-10-16: Private network fees, a test switch
+
+Joshua: keep the books and payments as private as possible. Only `.hewn` names and job postings
+are public. That includes the network fee: a public fee (`fee_public`) names the address that
+sent the transaction. Anyone could count a business's payments on payday, which is close to its
+headcount, even with every amount hidden. A private fee (`fee_private`) is paid from a credits
+record and names no one.
+
+Why `privateFee: false` was required: April's note says Shield tried to pay from a private credits
+record, couldn't find one, and dropped the proof silently. Testnet faucet credits arrive public, so
+the accounts most likely held no private ALEO. This needs testing before it becomes the default.
+
+- **`@pnw/wallet/fee-mode`**: `readFeeMode` / `writeFeeMode` keep this device's choice
+  (public unless private is chosen; a blocked browser store reads as public); `withFeeMode` sets a
+  call's `privateFee` to the mode. A per-device convenience while it's tested, not a book of record.
+- **`chain/shield.ts`**: every transaction the app sends goes through `useShield`'s wallet,
+  whose `executeTransaction` now applies the fee mode at the moment of sending. That covers
+  offers, withdrawals, revisions, payments, splits, names, profiles and acceptances, on both sides.
+  It never falls back from private to public on its own.
+- **Dashboard balances card**: "Pay network fees privately (testing, this device)", next to the
+  private ALEO that pays it. With it on and no private ALEO, the card says so.
+- Docs: THREAT_MODEL T6 (the fee names the sender), BUILD_PLAN decision (private fees by
+  default), CLAUDE.md's Shield fact.
+
+Test plan (Joshua, testnet):
+1. In Shield, move a few ALEO from Public to Private.
+2. Turn the switch on, create an offer to an account, then withdraw it.
+3. On the explorer, each transaction's fee should be `credits.aleo/fee_private`, with no address.
+4. Next, two payments at once: do two private fees pick different credits records?
+
+Tests: 799/799 (3 new in `fee_mode.test.ts`).

@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------------------
 // One transition, signed in Shield and waited for. Every write the person's
 // side makes (register a name, create a profile, accept an offer) goes
-// through here: the wallet package's executor with `privateFee: false` (the
-// flag Shield needs to build a proof at all), the fee left to Shield's own
+// through here: the wallet package's executor with `privateFee: false` (a
+// public fee, unless this device's fee switch makes it private: chain/shield.ts
+// applies it to every call), the fee left to Shield's own
 // estimate as the pay queue does, then the wallet's own status until it
 // says accepted or rejected. Nothing here logs an input, an id or an error.
 // ---------------------------------------------------------------------------
