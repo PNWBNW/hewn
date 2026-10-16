@@ -296,6 +296,50 @@ Exit criteria
   linked party's `name.hewn` read from the ANS registry
 - [ ] Mainnet deploy, with `config/mainnet.manifest.json` as its source of truth
 
+## Operating costs, fees and hosting (plan, Joshua 2026-10-16)
+
+The goal: Hewn scales without a monthly subscription. Bookkeeping stays free; what costs us money
+to run (the mailbox and its storage, the site) is paid for by a small fee on what moves money,
+plus name sales. Nothing here is built yet; the numbers are planning estimates to check against
+real traffic before mainnet.
+
+**What it costs to run** (estimates, 2026-10-16)
+- Mailbox storage: Cloudflare R2 (replacing Pinata, see "Scaling the mailbox" below). The free
+  tier (10 GB-month, 1M writes, 10M reads a month, no egress fees) carries roughly 150–200
+  businesses of about 10 people. Past it: about $0.36 per million reads, $4.50 per million writes.
+- Hosting: Vercel. The Hobby plan is for personal, non-commercial use, so plan on Pro ($20 a
+  month) before mainnet.
+- At about 20,000 active workers (about 2,000 businesses): roughly $120 a month in all.
+
+**The fee: flat, per paycheck paid on the rail, paid by the business**
+- About 44,000 paychecks a month at that size (most people paid every two weeks), so break-even
+  is about $0.003 a paycheck. Candidates: $0.03 (running costs with a wide margin) to $0.10 (also
+  saving toward the external security audit and development), with a monthly cap per business
+  (say $10) so larger teams aren't penalised.
+- **Flat, never a percentage**: a percentage would tie the fee to wages.
+- **Collected once per pay run**, as one private USDCx transfer of (fee × paychecks) to Hewn's
+  operating wallet, so it reveals neither headcount nor wages. One more Shield approval per run.
+- Businesses that pay through their bank (fiat and anchored modes) move no money on the rail,
+  so no fee applies; they contribute through names or the premium tier.
+- **Names**: 50% of each paid `.hewn` name's price goes to working capital (Joshua, 2026-10-16).
+
+**Hosted or self-hosted**: both, because the code is AGPL.
+- **Hosted** (the default): our mailbox, covered by the fee.
+- **Self-hosted**: a business can run its own mailbox (its own R2 bucket and copy of the mailbox
+  function) and owes us nothing. The app already runs on the device; the mailbox address becomes
+  a setting (built with "Scaling the mailbox"), and both parties to a conversation must use the
+  same mailbox for it.
+
+**Scaling the mailbox** (next PR)
+- Today every mailbox read searches Pinata's pin list by name, and that call is limited (about 30
+  a minute on the free plan) for the whole app: the first thing that breaks.
+- Move envelopes to object storage named by their lookup hash (Cloudflare R2: a private bucket
+  only our function can read, one direct read per lookup, refused overwrites of a taken slot),
+  behind the same mailbox interface, with Pinata kept as an option.
+- A batch endpoint: one request checks many lookups (a Messages check is one call, not dozens).
+- Rate limits on the mailbox endpoints (Vercel firewall) so nobody can flood the bucket.
+- Keep-until days and the daily sweep carry over to R2.
+
 ## Premium tier candidates (mainnet, not decided)
 
 Features that could sit behind a paid tier once Hewn is on mainnet (Joshua, 2026-10-16). Nothing
@@ -354,3 +398,11 @@ handling); likely a Fable session for the key agreement.
 - [ ] Agreement with the ANS team to register `hewn` as a TLD.
 - [ ] Premium tier for mainnet: whether to have one, what's in it (first candidate: private
   messaging within an organization) and its price. See "Premium tier candidates".
+- [ ] The per-paycheck fee: amount ($0.03–$0.10 proposed), the monthly cap per business, and when
+  it starts (with real traffic, before mainnet). See "Operating costs, fees and hosting".
+- [ ] Hewn's operating wallet: the original PNW rule was "no protocol treasury" (no pooled
+  custody). A fee wallet holds only fees, never anyone's pay; confirm it as an exception.
+- [ ] Where the other 50% of each paid `.hewn` name goes (50% is working capital).
+- [x] Marketing says "no monthly subscription" rather than "free" (2026-10-16).
+- [x] Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
+  an option (2026-10-16).
