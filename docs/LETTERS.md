@@ -1,11 +1,14 @@
 # Letters on chain (`hewn_letters_v1.aleo`): design
 
-Status: **being built** (2026-10-16). The program and its tests are in PNWBNW/pnw_mvp_v2
-(`src/layer1/hewn_letters_v1.aleo`, PR #202; not deployed yet). The app's codec and `LetterBox`
-are in `apps/business/src/chain/letters.ts`, not wired in yet. Offers and messages still use the
-mailbox until the program is live and a test letter has gone through on testnet. Joshua asked for an exact plan to carry messages on
-Aleo itself, with no IPFS and no Cloudflare. Nothing here is deployed; the Leo program needs his
-go-ahead on the model rule (CLAUDE.md, "Leo programs").
+Status: **deployed on testnet** (2026-10-16): `hewn_letters_v1.aleo`, deploy transaction
+`at1pxclare6clej0feuzcncngmwvma44g0hg2ngsh763gltk0rz6qpqgtfqnt` (PNWBNW/pnw_mvp_v2 #202,
+recorded in #203). The app's codec and `LetterBox` are in `apps/business/src/chain/letters.ts`;
+Settings has "Send a test letter" to measure a real one. Offers and messages still use the
+mailbox until that test has gone through.
+
+**Measured at deploy** (Leo's cost summary under consensus V22): `send` costs **0.006578 ALEO**
+(6,578 microcredits), `send_page` **0.086886 ALEO**. Deploying cost 14.955 credits (synthesis
+9.58, storage 4.37, namespace 1), more than the few credits estimated below.
 
 ## The idea in one paragraph
 

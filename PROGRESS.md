@@ -2670,3 +2670,27 @@ included.
   3. Offers' terms as a page, and threads as letters.
 
 Tests: app 9 new (letters); Leo 7/7.
+
+## 2026-10-16: hewn_letters_v1 live on testnet; "Send a test letter"
+
+Joshua ran deploy-new-program: first as a dry run, then with broadcast (run 38937150717).
+- **Deploy transaction:** `at1pxclare6clej0feuzcncngmwvma44g0hg2ngsh763gltk0rz6qpqgtfqnt`; fee
+  transaction `at1xpqcty50j8ndnfzt5nry4wc3cmme3tjqmht72enzug9us06y0gpsrmlwek`.
+- **Deploy cost:** 14.955127 credits (synthesis 9.58, storage 4.37, namespace 1).
+- **Leo's cost summary per call:** `send` 0.006578 ALEO, which is the estimate's range; `send_page`
+  0.086886 ALEO. Recorded in the pnw_mvp_v2 manifest (#203).
+
+App:
+- **The program joins `WALLET_PROGRAMS`.** An existing Shield connection may need disconnecting
+  and connecting again before Shield knows it.
+- **Settings → "Send a test letter"** (`chain/letter_check.ts`, `chain/LetterCheck.tsx`):
+  - One `send` to this account itself, carrying a line sealed with a throwaway key.
+  - It reports: tap-to-accepted time (approving included), the fee and whether it was paid
+    privately (`parseFeeKind`, new in `@pnw/rail`), whether Shield lists the letter and the
+    sender's copy and how soon, whether Shield shows a sender, and whether it opened.
+  - The report has no account in it and can be pasted into a chat.
+
+Next: Joshua runs the test, ideally with the private-fee switch on (it tests both at once). Then
+offers' terms go out as a page and threads as letters.
+
+Tests: all green (2 new for the check, 1 for the fee kind).

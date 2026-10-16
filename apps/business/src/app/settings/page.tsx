@@ -24,6 +24,12 @@ const HistoryProbe = dynamic(() => import("@/chain/HistoryProbe"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
+// One real letter to this account itself (letters on chain); fetched only when tapped.
+const LetterCheck = dynamic(() => import("@/chain/LetterCheck"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function SettingsPage() {
@@ -75,7 +81,7 @@ export default function SettingsPage() {
 function PrivatePayments() {
   const { rail, payroll, role, updateCompany } = useOpenBooks();
   const worker = role === "worker";
-  const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | null>(null);
+  const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | "letter" | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,6 +104,8 @@ function PrivatePayments() {
 
         {panel === "history" ? (
           <HistoryProbe onClose={() => setPanel(null)} />
+        ) : panel === "letter" ? (
+          <LetterCheck onClose={() => setPanel(null)} />
         ) : panel ? (
           <RailPanel mode={panel} onClose={() => setPanel(null)} />
         ) : rail ? (
@@ -117,6 +125,9 @@ function PrivatePayments() {
                 Check Shield history
               </Button>
             )}
+            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setPanel("letter")}>
+              Send a test letter
+            </Button>
             <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmUnlink(true)}>
               Unlink
             </Button>
