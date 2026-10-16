@@ -2718,3 +2718,24 @@ Then Joshua: let the test letter say whatever he types.
   it stays safe to paste.
 
 Tests: all green (1 more).
+
+## 2026-10-16: First letters on testnet (Joshua's phone, Shield)
+
+1. **`at1gl7jhc6utv47le0e20v0sywqhtrrludlt9mt7w4y4tdluzr3vu8qeddmsn`:**
+   - 13.6 s from tap to accepted, approving included.
+   - Fee 0.006578 ALEO, exactly as the deploy summary said.
+   - Shield listed the letter and the sender's copy in 0.7 s and shows a sender on it.
+   - It opened and read back.
+2. **`at1vnq22xz4jmv852qq3h6d3qn82ld683ng2rzvydlxa7p4zzk2j5zsyugujm` (custom 50-byte message):**
+   - 73.7 s; same fee and the same results, read back word for word.
+   - The network sees: `send`; 3 private inputs; 2 records of 2,311 ciphertext characters each,
+     both with a sender ciphertext; nothing readable. The transaction is 12.6 KB of JSON.
+
+**Finding:** the fee went out as `fee_public` both times, though Joshua's dashboard switch was on.
+So Shield ignored `privateFee: true`, or fell back to a public fee. Not yet known:
+- whether the account held private ALEO;
+- whether the public fee was paid by this account or by a sponsor (Provable says it covers some
+  Shield fees).
+
+The report now says which fee mode the app asked for ("Fee asked for"), and whether a public fee's
+payer is this account or another, without printing either account.

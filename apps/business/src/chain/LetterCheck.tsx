@@ -13,6 +13,7 @@ import { Check, Copy } from "lucide-react";
 import { ENV } from "@pnw/config/env";
 import { Button } from "@pnw/ui/button";
 import { inputClass } from "@/books/AuthCard";
+import { readFeeMode } from "@pnw/wallet/fee-mode";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
@@ -54,7 +55,7 @@ function CheckFlow({ onClose }: { onClose: () => void }) {
     setReport(null);
     setReadBack(null);
     try {
-      const r = await runLetterCheck({ wallet, address, message, fetchTransaction: (id) => fetchExplorerTransaction(id, ENV.ALEO_ENDPOINT) });
+      const r = await runLetterCheck({ wallet, address, message, feeAsked: readFeeMode(), fetchTransaction: (id) => fetchExplorerTransaction(id, ENV.ALEO_ENDPOINT) });
       setReport(letterCheckReport(r, todayIso()));
       setReadBack(r.readBack ?? null);
     } catch (e) {
