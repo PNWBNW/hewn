@@ -11,7 +11,21 @@ export {
   lookupId,
   seal,
   open,
+  receiptLookup,
+  sealReceipt,
+  openReceipt,
 } from "./envelope";
-export type { Kind, MailboxErrorCode, Sealed } from "./envelope";
+export type { Kind, MailboxErrorCode, Receipt, Sealed } from "./envelope";
+export {
+  KEEP_UNTIL_PATTERN,
+  MAX_KEEP_DAYS,
+  RECEIPT_KEEP_DAYS,
+  MESSAGE_KEEP_DAYS,
+  utcDay,
+  keepUntilAfter,
+  checkKeepUntil,
+  isPastKeep,
+} from "./retention";
 export { MailboxClient } from "./client";
-export type { MailboxClientOptions, MailboxFetch } from "./client";
+export { KEEP_UNTIL_HEADER } from "./client";
+export type { MailboxClientOptions, MailboxFetch, PutOptions } from "./client";

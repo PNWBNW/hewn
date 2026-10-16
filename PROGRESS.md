@@ -2158,3 +2158,49 @@ Build green.
 
 **Next:** keep-until dates and read receipts (important documents are never deleted
 automatically; unopened negotiation messages clear after 30 days).
+
+## 2026-10-16: Mailbox keep-until days, the daily sweep, and receipts
+
+Joshua: records people depend on are never deleted automatically; documents that only matter
+for a while are; and the sender should know whether something was picked up.
+
+**Keep-until days** (`@pnw/mailbox` `retention.ts`).
+- Paystubs, W-4s, weeks of hours and payment notes carry no day. They stay pinned until the
+  other side's app collects them, however long that takes.
+- An offer's terms and file pieces carry the day after the offer expires. Receipts carry 60 days.
+- The client sends the day in `X-Mailbox-Keep-Until`. The function checks it (a real date,
+  today to 60 days on) and pins it as Pinata keyvalues beside the envelope.
+
+**Daily sweep** (`/api/mailbox/sweep`, `vercel.json` cron at 04:17 UTC).
+- Unpins mailbox pins whose day has passed, only those (named by a lookup hash, with a valid
+  day), at most 500 a run.
+- Needs `Authorization: Bearer $CRON_SECRET`. Without `CRON_SECRET` set in Vercel it does nothing
+  (503), and an expired offer is still cleared by the person's app when it finds one.
+
+**Receipts** (`@pnw/mailbox` `sealReceipt`/`openReceipt`, `chain/receipts.ts`).
+- The person's app sends one when it first sees an offer and when it collects a paystub. The
+  business's app sends one when it collects a week of hours.
+- A receipt lives at its own address (`PNW::MAILBOX::RECEIPT::v1` domain) under its own key and
+  says only "received at".
+- The sender reads receipts on its mailbox check (business: Mailbox page; person: Check for
+  paystubs), keeps the time (`RailLink.offerReceivedAt`, `PaycheckDelivery.receivedAt`,
+  `SentTimesheet.receivedAt`), then drops them. Best effort on both ends.
+- Shown as: offers "Opened …" / "Not opened yet" / "It expired before they opened it";
+  paystubs "Received …" / "Waiting for their app to pick it up"; sent hours "Received …" /
+  "Not picked up yet".
+
+Manual delete of paystubs or agreements doesn't exist yet. When it's built, it asks the person
+to save a PDF first (Joshua).
+
+THREAT_MODEL's mailbox section covers keep-until days and receipts: the host learns a calendar day
+per pin and, by timing, that a document was collected.
+
+Tests 745/745 (+32): receipt addresses and sealing (wrong key, slot, kind, or a document passed off
+as a receipt), keep-until validation, the header, the function refusing bad days, the Pinata
+keyvalues and the sweep's own filter, the sweep's secret, receipts sent on collecting paystubs and
+hours, read-record-then-drop, what each side waits on, and the vault fields. Build green.
+
+**For Joshua:** add `CRON_SECRET` (any long random string) to the app's Vercel environment
+variables so the daily sweep runs.
+
+**Next:** counter-offers as a conversation thread (needs per-offer terms slots).

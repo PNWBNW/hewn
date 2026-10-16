@@ -9,8 +9,10 @@
 export interface PinStore {
   /** The content id pinned under `name`, or null if there is none. */
   find(name: string): Promise<string | null>;
-  /** Pins `bytes` under `name`. The name is the only metadata. */
-  pin(name: string, bytes: Uint8Array): Promise<void>;
+  /** Pins `bytes` under `name`. The name, and the keep-until day when there is one, are the only metadata. */
+  pin(name: string, bytes: Uint8Array, keepUntil?: string): Promise<void>;
+  /** Content ids of mailbox pins whose keep-until day is before `day` (YYYY-MM-DD), at most `limit` of them. */
+  expired(day: string, limit: number): Promise<string[]>;
   /** The pinned bytes for a content id, or null if they are gone. */
   fetch(cid: string): Promise<Uint8Array | null>;
   /** Unpins a content id. Already gone is not an error. */
@@ -27,6 +29,10 @@ export type PinataOptions = {
 };
 
 const API = "https://api.pinata.cloud";
+/** The metadata key a pin's keep-until day is stored under. */
+export const KEEP_UNTIL_KEY = "keepUntil";
+const NAME = /^[0-9a-f]{64}$/;
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_GATEWAY = "gateway.pinata.cloud";
 const TIMEOUT_MS = 30_000;
 
@@ -56,13 +62,29 @@ export function pinataStore(options: PinataOptions): PinStore {
       return row?.ipfs_pin_hash ?? null;
     },
 
-    async pin(name, bytes) {
+    async pin(name, bytes, keepUntil) {
       const form = new FormData();
       form.append("file", new Blob([new Uint8Array(bytes)], { type: "application/octet-stream" }), name);
-      form.append("pinataMetadata", JSON.stringify({ name }));
+      form.append("pinataMetadata", JSON.stringify(keepUntil ? { name, keyvalues: { [KEEP_UNTIL_KEY]: keepUntil } } : { name }));
       form.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
       const res = await call(`${API}/pinning/pinFileToIPFS`, { method: "POST", body: form });
       if (!res.ok) throw new PinStoreError(`pin failed (${res.status})`);
+    },
+
+    async expired(day, limit) {
+      const query = JSON.stringify({ [KEEP_UNTIL_KEY]: { value: day, op: "lt" } });
+      const url = `${API}/data/pinList?status=pinned&pageLimit=${Math.min(1000, Math.max(1, limit))}&metadata[keyvalues]=${encodeURIComponent(query)}`;
+      const res = await call(url);
+      if (!res.ok) throw new PinStoreError(`pin list failed (${res.status})`);
+      const data = (await res.json()) as { rows?: Array<{ ipfs_pin_hash?: string; metadata?: { name?: string; keyvalues?: Record<string, unknown> | null } }> };
+      // Checked again here: only mailbox pins (named by a lookup) whose own day has passed, whatever the filter returned.
+      return (data.rows ?? [])
+        .filter((r) => {
+          const kept = r.metadata?.keyvalues?.[KEEP_UNTIL_KEY];
+          return typeof r.ipfs_pin_hash === "string" && NAME.test(r.metadata?.name ?? "") && typeof kept === "string" && DAY.test(kept) && kept < day;
+        })
+        .slice(0, limit)
+        .map((r) => r.ipfs_pin_hash as string);
     },
 
     async fetch(cid) {

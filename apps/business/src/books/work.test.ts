@@ -12,6 +12,7 @@ import {
   nextWorkSeq,
   openPunch,
   punch,
+  markTimesheetReceived,
   recordTimesheet,
   removePunch,
   setProfile,
@@ -128,6 +129,18 @@ describe("work file", () => {
     expect(w.timesheets).toHaveLength(1);
     expect(w.timesheets[0]!.totalMinutes).toBe(300);
     expect(nextWorkSeq(w, AID, "timesheet")).toBe(2);
+  });
+
+  it("keeps the employer's receipt for a sent week, once, through a save; a week sent again waits for its own", () => {
+    const sent = { agreementId: AID, weekStart: "2026-10-12", seq: 0, lookup: "e".repeat(64), totalMinutes: 270, sentAt: "2026-10-17T00:00:00.000Z" };
+    const w = recordTimesheet(withAgreement(), sent);
+    const got = markTimesheetReceived(w, AID, 0, "2026-10-17T09:00:00.000Z");
+    expect(got.timesheets[0]!.receivedAt).toBe("2026-10-17T09:00:00.000Z");
+    expect(markTimesheetReceived(got, AID, 0, "2026-10-18T09:00:00.000Z")).toBe(got);
+    expect(markTimesheetReceived(w, AID, 5, "2026-10-17T09:00:00.000Z")).toBe(w);
+    expect(() => markTimesheetReceived(w, AID, 0, "soon")).toThrow();
+    expect(workFromJson(workToJson(got)).timesheets[0]!.receivedAt).toBe("2026-10-17T09:00:00.000Z");
+    expect(recordTimesheet(got, { ...sent, seq: 1, lookup: "f".repeat(64) }).timesheets[0]).not.toHaveProperty("receivedAt");
   });
 });
 

@@ -15,12 +15,14 @@ import { MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } f
 import { type Mailbox, type ReceivedHours, nextHoursSeq, validateTimesheetPayload } from "../books/mailbox";
 import { mailboxLinks } from "../books/mailbox_feed";
 import type { Rail } from "../books/rail";
+import { sendReceipt } from "./receipts";
 import { TIMESHEET_KIND } from "./work/timesheet";
 
 export type ScanHoursInput = {
   rail: Rail;
   mailbox: Mailbox | null;
-  client: Pick<MailboxClient, "get" | "drop">;
+  /** With `put`, a receipt goes back for each document kept (chain/receipts.ts). */
+  client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">>;
   /** Keeps one week in the vault (and moves its slot on). Called before the pin is dropped. */
   store: (hours: ReceivedHours) => Promise<void>;
   /** Moves an agreement's slot past an envelope that couldn't be kept. */
@@ -93,6 +95,7 @@ export async function scanHours({ rail, mailbox, client, store, skip, now, limit
         await store(item); // in the vault first…
         result.received.push(item);
         await client.drop(lookup).catch(() => {}); // …then the pin goes; a pin that lingers is harmless
+        if (client.put) await sendReceipt({ put: client.put.bind(client) }, link.partiesKey!, TIMESHEET_KIND, seq); // the sender learns it arrived
       }
     } finally {
       key.fill(0);

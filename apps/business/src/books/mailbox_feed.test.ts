@@ -60,6 +60,34 @@ describe("the mailbox feed", () => {
     expect(feed[1]).toMatchObject({ kind: "paystub", payDate: "2026-10-09", runId: "run-1" });
   });
 
+  it("carries what the receipts said, and an offer's expiry", () => {
+    const terms = {
+      version: 2 as const,
+      kind: "terms" as const,
+      agreementId: "ef".repeat(32),
+      termsText: "Carpenter.",
+      payType: "hourly" as const,
+      rate: "3000",
+      frequency: "biweekly" as const,
+      startDate: "2026-11-02",
+      businessName: "Day Construction",
+      offeredAt: "2026-10-02T08:00:00.000Z",
+      expiresAt: "2026-10-09T08:00:00.000Z",
+      letter: { description: "", requirements: "", handbook: "", other: "" },
+      files: [],
+    };
+    const runs = [
+      { id: "run-1", payDate: "2026-10-09", paychecks: [{ workerId: "wkr-1", delivery: { seq: 0, lookup: "ee".repeat(32), sentAt: "2026-10-09T12:00:00.000Z", receivedAt: "2026-10-10T07:00:00.000Z" } }] },
+    ] as unknown as Payroll["runs"];
+    const feed = buildFeed({
+      rail: rail(link({ workerId: "wkr-2", agreementId: "ff".repeat(32), status: "offered", offeredAt: terms.offeredAt, terms, offerReceivedAt: "2026-10-03T08:00:00.000Z" }), link({})),
+      payroll: payroll({ runs }),
+      mailbox: null,
+    });
+    expect(feed.find((i) => i.kind === "offer")).toMatchObject({ receivedAt: "2026-10-03T08:00:00.000Z", expiresAt: terms.expiresAt });
+    expect(feed.find((i) => i.kind === "paystub")).toMatchObject({ receivedAt: "2026-10-10T07:00:00.000Z" });
+  });
+
   it("leaves out offers and links it has no date for, and names a team member who's gone", () => {
     const feed = buildFeed({
       rail: rail(link({ status: "offered" }), link({ workerId: "wkr-9", agreementId: "99".repeat(32) })),

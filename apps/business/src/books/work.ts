@@ -67,6 +67,8 @@ export type SentTimesheet = {
   lookup: string;
   totalMinutes: number;
   sentAt: string;
+  /** When the business's app picked it up, from its receipt. Absent until one arrives. */
+  receivedAt?: string;
 };
 
 export type ReceivedPaystub = {
@@ -227,6 +229,7 @@ export function validateTimesheet(raw: unknown): SentTimesheet {
     lookup,
     totalMinutes: minutes(raw.totalMinutes, "Total"),
     sentAt: isoDate(raw.sentAt, "Sent at"),
+    ...(raw.receivedAt !== undefined ? { receivedAt: isoDate(raw.receivedAt, "Received at") } : {}),
   };
 }
 
@@ -365,6 +368,14 @@ export function recordTimesheet(work: Work, sent: SentTimesheet): Work {
   if (!agreementFor(work, fresh.agreementId)) throw new WorkError("No agreement with that id");
   const others = work.timesheets.filter((t) => !(t.agreementId === fresh.agreementId && t.weekStart === fresh.weekStart));
   return bumpWorkSeq({ ...work, timesheets: [...others, fresh] }, fresh.agreementId, "timesheet", fresh.seq);
+}
+
+/** Records when the business's app picked up the week in slot `seq` (its receipt). The first time sticks. */
+export function markTimesheetReceived(work: Work, agreementId: string, seq: number, receivedAt: string): Work {
+  const at = isoDate(receivedAt, "Received at");
+  const sent = work.timesheets.find((t) => t.agreementId === agreementId && t.seq === seq);
+  if (!sent || sent.receivedAt) return work;
+  return { ...work, timesheets: work.timesheets.map((t) => (t === sent ? { ...t, receivedAt: at } : t)) };
 }
 
 export const sentWeek = (work: Work, agreementId: string, weekStart: string): SentTimesheet | undefined =>

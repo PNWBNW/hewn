@@ -63,6 +63,7 @@ export type MailboxErrorCode =
   | "BAD_ENVELOPE"
   | "BAD_VERSION"
   | "TAMPERED"
+  | "BAD_KEEP_UNTIL"
   | "NOT_CONFIGURED"
   | "CONFLICT"
   | "REQUEST_FAILED";
@@ -142,19 +143,16 @@ export async function deriveMailboxKey(partiesKey: Uint8Array, kind: string): Pr
   }
 }
 
-/**
- * Where the `seq`-th document of `kind` between the two parties lives.
- * Both sides compute it alone; nobody else can.
- */
-export function lookupId(partiesKey: Uint8Array, kind: string, seq: number): string {
+/** BLAKE3(domain ‖ 0x00 ‖ parties_key ‖ kind ‖ u32be(seq)): a slot address only the two parties can compute. */
+function address(domain: string, partiesKey: Uint8Array, kind: string, seq: number): string {
   const key = checkPartiesKey(partiesKey);
   const kindBytes = utf8(checkKind(kind));
   const seqBytes = new Uint8Array(4);
   new DataView(seqBytes.buffer).setUint32(0, checkSeq(seq), false);
-  const domain = utf8(LOOKUP_DOMAIN);
-  const input = new Uint8Array(domain.length + 1 + key.length + kindBytes.length + seqBytes.length);
+  const domainBytes = utf8(domain);
+  const input = new Uint8Array(domainBytes.length + 1 + key.length + kindBytes.length + seqBytes.length);
   let at = 0;
-  for (const part of [domain, new Uint8Array([0x00]), key, kindBytes, seqBytes]) {
+  for (const part of [domainBytes, new Uint8Array([0x00]), key, kindBytes, seqBytes]) {
     input.set(part, at);
     at += part.length;
   }
@@ -166,16 +164,28 @@ export function lookupId(partiesKey: Uint8Array, kind: string, seq: number): str
   }
 }
 
+/**
+ * Where the `seq`-th document of `kind` between the two parties lives.
+ * Both sides compute it alone; nobody else can.
+ */
+export function lookupId(partiesKey: Uint8Array, kind: string, seq: number): string {
+  return address(LOOKUP_DOMAIN, partiesKey, kind, seq);
+}
+
 // ---- seal / open -----------------------------------------------------------
 
-/** Seals `payload` as the `seq`-th document of `kind`. Fresh IV every time. */
-export async function seal(partiesKey: Uint8Array, kind: string, seq: number, payload: Uint8Array): Promise<Sealed> {
+/** A document's kind: never one starting with an underscore, which the mailbox keeps for its own keys. */
+function documentKind(kind: string): string {
+  if (checkKind(kind).startsWith("_")) throw new MailboxError("BAD_KIND", "A document kind can't start with an underscore");
+  return kind;
+}
+
+async function sealAt(partiesKey: Uint8Array, keyKind: string, lookup: string, payload: Uint8Array): Promise<Sealed> {
   if (!(payload instanceof Uint8Array)) throw new MailboxError("BAD_ENVELOPE", "The payload must be bytes");
   if (payload.length > MAX_PAYLOAD_BYTES) {
     throw new MailboxError("TOO_LARGE", `A document can be at most ${MAX_PAYLOAD_BYTES} bytes`);
   }
-  const lookup = lookupId(partiesKey, kind, seq);
-  const key = await deriveMailboxKey(partiesKey, kind);
+  const key = await deriveMailboxKey(partiesKey, keyKind);
   const iv = random(12);
   const ciphertext = new Uint8Array(
     await subtle().encrypt({ name: "AES-GCM", iv, additionalData: utf8(lookup) }, key, copy(payload)),
@@ -187,12 +197,7 @@ export async function seal(partiesKey: Uint8Array, kind: string, seq: number, pa
   return { lookup, envelope };
 }
 
-/**
- * Opens an envelope as the `seq`-th document of `kind`. Fails with
- * `BAD_ENVELOPE` (too short or too long), `BAD_VERSION` (not a version this
- * code knows) or `TAMPERED` (wrong key, kind or seq, or any changed byte).
- */
-export async function open(partiesKey: Uint8Array, kind: string, seq: number, envelope: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+async function openAt(partiesKey: Uint8Array, keyKind: string, lookup: string, envelope: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
   if (!(envelope instanceof Uint8Array) || envelope.length < ENVELOPE_OVERHEAD) {
     throw new MailboxError("BAD_ENVELOPE", "That isn't a mailbox envelope");
   }
@@ -202,8 +207,7 @@ export async function open(partiesKey: Uint8Array, kind: string, seq: number, en
   if (envelope[0] !== ENVELOPE_VERSION) {
     throw new MailboxError("BAD_VERSION", "That envelope is from a different version of the mailbox");
   }
-  const lookup = lookupId(partiesKey, kind, seq);
-  const key = await deriveMailboxKey(partiesKey, kind);
+  const key = await deriveMailboxKey(partiesKey, keyKind);
   const iv = copy(envelope.subarray(1, 13));
   const ciphertext = copy(envelope.subarray(13));
   try {
@@ -213,4 +217,70 @@ export async function open(partiesKey: Uint8Array, kind: string, seq: number, en
   } catch {
     throw new MailboxError("TAMPERED", "That envelope isn't for this agreement, kind and slot, or was changed in transit");
   }
+}
+
+/** Seals `payload` as the `seq`-th document of `kind`. Fresh IV every time. */
+export async function seal(partiesKey: Uint8Array, kind: string, seq: number, payload: Uint8Array): Promise<Sealed> {
+  if (!(payload instanceof Uint8Array)) throw new MailboxError("BAD_ENVELOPE", "The payload must be bytes");
+  documentKind(kind);
+  return sealAt(partiesKey, kind, lookupId(partiesKey, kind, seq), payload);
+}
+
+/**
+ * Opens an envelope as the `seq`-th document of `kind`. Fails with
+ * `BAD_ENVELOPE` (too short or too long), `BAD_VERSION` (not a version this
+ * code knows) or `TAMPERED` (wrong key, kind or seq, or any changed byte).
+ */
+export async function open(partiesKey: Uint8Array, kind: string, seq: number, envelope: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+  if (!(envelope instanceof Uint8Array) || envelope.length < ENVELOPE_OVERHEAD) {
+    throw new MailboxError("BAD_ENVELOPE", "That isn't a mailbox envelope");
+  }
+  documentKind(kind);
+  return openAt(partiesKey, kind, lookupId(partiesKey, kind, seq), envelope);
+}
+
+// ---- receipts --------------------------------------------------------------
+// A receipt tells the sender that the receiver's app has the `seq`-th
+// document of `kind`: the receiver seals one when it collects the document,
+// the sender reads it, keeps the time and drops it. It lives at its own
+// address (another domain, so it can never land on a document's slot) and
+// is sealed under its own key; the server sees one more small envelope
+// behind one more hash. Receipts are best effort: a missing one means "not
+// known yet", never "not received".
+
+const RECEIPT_DOMAIN = "PNW::MAILBOX::RECEIPT::v1";
+/** The HKDF info for receipt keys. No document kind starts with an underscore. */
+const RECEIPT_KEY_KIND = "_receipt";
+
+/** What a receipt says. */
+export type Receipt = { version: 1; receivedAt: string };
+
+/** Where the receipt for the `seq`-th document of `kind` lives. */
+export function receiptLookup(partiesKey: Uint8Array, kind: string, seq: number): string {
+  return address(RECEIPT_DOMAIN, partiesKey, kind, seq);
+}
+
+/** Seals the receipt for the `seq`-th document of `kind`, received at `receivedAt` (ISO). */
+export async function sealReceipt(partiesKey: Uint8Array, kind: string, seq: number, receivedAt: string): Promise<Sealed> {
+  if (typeof receivedAt !== "string" || Number.isNaN(Date.parse(receivedAt))) {
+    throw new MailboxError("BAD_ENVELOPE", "A receipt needs the time it was received");
+  }
+  const receipt: Receipt = { version: 1, receivedAt: new Date(receivedAt).toISOString() };
+  return sealAt(partiesKey, RECEIPT_KEY_KIND, receiptLookup(partiesKey, kind, seq), utf8(JSON.stringify(receipt)));
+}
+
+/** Opens the receipt for the `seq`-th document of `kind`. Fails like `open`, or with `BAD_ENVELOPE` when it isn't a receipt. */
+export async function openReceipt(partiesKey: Uint8Array, kind: string, seq: number, envelope: Uint8Array): Promise<Receipt> {
+  const bytes = await openAt(partiesKey, RECEIPT_KEY_KIND, receiptLookup(partiesKey, kind, seq), envelope);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new MailboxError("BAD_ENVELOPE", "That isn't a receipt");
+  }
+  const r = raw as Partial<Receipt> | null;
+  if (!r || r.version !== 1 || typeof r.receivedAt !== "string" || Number.isNaN(Date.parse(r.receivedAt))) {
+    throw new MailboxError("BAD_ENVELOPE", "That isn't a receipt");
+  }
+  return { version: 1, receivedAt: new Date(r.receivedAt).toISOString() };
 }

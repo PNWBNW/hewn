@@ -2,37 +2,10 @@
 import { ENVELOPE_VERSION, MAX_ENVELOPE_BYTES } from "@pnw/mailbox";
 import { describe, expect, it } from "vitest";
 import { mailboxHandlers } from "./handlers";
-import type { PinStore } from "./pinata";
+import { fakeStore } from "./testing";
 
 const LOOKUP = "8a45f32884aa20563afb9535932161b51369dfddce1d952bc1e8f5341b14416e";
 const URL_ = `http://books.local/api/mailbox/${LOOKUP}`;
-
-/** An in-memory pin store that records every call. */
-function fakeStore(initial: Record<string, Uint8Array> = {}) {
-  const pins = new Map<string, Uint8Array>(Object.entries(initial));
-  const calls: string[] = [];
-  const cidOf = (name: string) => `cid-${name.slice(0, 8)}`;
-  const store: PinStore = {
-    async find(name) {
-      calls.push(`find ${name}`);
-      return pins.has(name) ? cidOf(name) : null;
-    },
-    async pin(name, bytes) {
-      calls.push(`pin ${name} ${bytes.length}`);
-      pins.set(name, bytes);
-    },
-    async fetch(cid) {
-      calls.push(`fetch ${cid}`);
-      for (const [name, bytes] of pins) if (cidOf(name) === cid) return bytes;
-      return null;
-    },
-    async unpin(cid) {
-      calls.push(`unpin ${cid}`);
-      for (const name of [...pins.keys()]) if (cidOf(name) === cid) pins.delete(name);
-    },
-  };
-  return { store, pins, calls };
-}
 
 const envelope = (n = 40) => {
   const bytes = new Uint8Array(n).map((_, i) => (i * 13) & 0xff);
@@ -77,6 +50,20 @@ describe("mailbox function", () => {
       expect(res.headers.get("access-control-allow-origin")).toBeNull();
       expect(pins.get(LOOKUP)).toEqual(envelope());
       expect(calls).toEqual([`find ${LOOKUP}`, `pin ${LOOKUP} 40`]);
+    });
+
+    it("pins a keep-until day beside the envelope, and refuses a bad one before pinning", async () => {
+      const { store, calls } = fakeStore();
+      const h = mailboxHandlers(store, { now: () => new Date("2026-10-16T12:00:00.000Z") });
+      const withDay = (day: string) => post(envelope(), { "Content-Type": "application/octet-stream", "X-Mailbox-Keep-Until": day });
+      expect((await h.POST(withDay("2026-11-15"), LOOKUP)).status).toBe(204);
+      expect(calls).toEqual([`find ${LOOKUP}`, `pin ${LOOKUP} 40 until 2026-11-15`]);
+      for (const bad of ["2026-10-15", "2026-12-16", "tomorrow", "2026-02-30"]) {
+        const res = await h.POST(withDay(bad), LOOKUP);
+        expect(res.status, bad).toBe(400);
+        expect(await res.json()).toEqual({ error: "bad keep-until day" });
+      }
+      expect(calls).toHaveLength(2);
     });
 
     it("answers 409 when the slot is already taken, and pins nothing", async () => {

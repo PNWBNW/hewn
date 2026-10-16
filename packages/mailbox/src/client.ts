@@ -6,6 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { LOOKUP_PATTERN, MailboxError } from "./envelope";
+import { KEEP_UNTIL_PATTERN } from "./retention";
 
 export type MailboxFetch = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -17,6 +18,13 @@ export type MailboxClientOptions = {
 };
 
 const OCTET_STREAM = "application/octet-stream";
+/** The request header that carries a pin's keep-until day (retention.ts). */
+export const KEEP_UNTIL_HEADER = "X-Mailbox-Keep-Until";
+
+export type PutOptions = {
+  /** The day after which the server may sweep this pin, YYYY-MM-DD (retention.ts). Leave out to keep it until collected. */
+  keepUntil?: string;
+};
 
 function checkLookup(lookup: string): string {
   if (typeof lookup !== "string" || !LOOKUP_PATTERN.test(lookup)) {
@@ -49,11 +57,16 @@ export class MailboxClient {
   }
 
   /** Delivers a sealed envelope. Fails with `CONFLICT` if the slot is already taken. */
-  async put(lookup: string, envelope: Uint8Array): Promise<void> {
+  async put(lookup: string, envelope: Uint8Array, options: PutOptions = {}): Promise<void> {
     const url = this.#url(lookup);
+    const headers: Record<string, string> = { "Content-Type": OCTET_STREAM };
+    if (options.keepUntil !== undefined) {
+      if (!KEEP_UNTIL_PATTERN.test(options.keepUntil)) throw new MailboxError("BAD_KEEP_UNTIL", "A keep-until day is YYYY-MM-DD");
+      headers[KEEP_UNTIL_HEADER] = options.keepUntil;
+    }
     const res = await this.#fetch(url, {
       method: "POST",
-      headers: { "Content-Type": OCTET_STREAM },
+      headers,
       body: new Uint8Array(envelope),
       cache: "no-store",
       credentials: "same-origin",

@@ -27,6 +27,7 @@ import { BRAND } from "@/brand";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
 import { fetchOfferFile, offerFileLookups } from "../offer_files";
+import { offerReceiptSlot, sendReceipt } from "../receipts";
 import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
 import { executeAndWait } from "./execute";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
@@ -108,6 +109,11 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
             for (const lookup of t.files.length > 0 ? offerFileLookups(record.partiesKey, t.agreementId, t.files) : []) await client.current.drop(lookup).catch(() => {});
             found.push(row);
             continue;
+          }
+          if (status === "pending" && verified && t?.version === 2 && !kept) {
+            // First time this device sees the offer: the business learns it arrived.
+            const slot = offerReceiptSlot(t.agreementId);
+            await sendReceipt(client.current, record.partiesKey, slot.kind, slot.seq);
           }
           // The letter's files: kept copies first, the mailbox for the rest, each checked against the terms.
           if (verified && terms.terms?.version === 2 && terms.terms.files.length > 0) {

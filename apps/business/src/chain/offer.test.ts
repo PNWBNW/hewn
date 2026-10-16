@@ -25,6 +25,7 @@ import {
   isMailboxOff,
   offerEpochs,
   resolveBusinessName,
+  offerKeepUntil,
   offerLookups,
   sendOffer,
   withdrawOffer,
@@ -81,13 +82,13 @@ function portalInputs(computed: ReturnType<typeof computeAgreementValues>, e: { 
 }
 
 // ---- Fakes -------------------------------------------------------------------------------
-type Put = { lookup: string; envelope: Uint8Array };
+type Put = { lookup: string; envelope: Uint8Array; keepUntil?: string };
 function fakeClient(...answers: (number | Error)[]) {
   const puts: Put[] = [];
   return {
     puts,
-    async put(lookup: string, envelope: Uint8Array) {
-      puts.push({ lookup, envelope: new Uint8Array(envelope) });
+    async put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string }) {
+      puts.push({ lookup, envelope: new Uint8Array(envelope), ...(options?.keepUntil ? { keepUntil: options.keepUntil } : {}) });
       const a = answers.shift() ?? 201;
       if (a instanceof Error) throw a;
       if (a === 409) throw new MailboxError("CONFLICT", "taken");
@@ -241,6 +242,9 @@ describe("sendOffer", () => {
     expect(offerLookups({ ...sent.link, terms: sent.terms }).sort()).toEqual(client.puts.map((p) => p.lookup).sort());
     expect(stages).toEqual(["files", "sealing", "mailbox", "approving", "sent", "accepted"]);
     expect(client.puts).toHaveLength(3); // two pieces, then the terms
+    // Every piece and the terms may be swept the day after the offer expires (7 days on).
+    expect(client.puts.map((p) => p.keepUntil)).toEqual(["2026-10-22", "2026-10-22", "2026-10-22"]);
+    expect(offerKeepUntil(sent.terms.version === 2 ? sent.terms.expiresAt : "")).toBe("2026-10-22");
     expect(sent.terms.version).toBe(2);
     if (sent.terms.version !== 2) throw new Error("unreachable");
     expect(sent.terms.letter).toEqual(letter);
