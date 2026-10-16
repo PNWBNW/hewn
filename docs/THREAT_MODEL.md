@@ -232,7 +232,8 @@ sender drops it once its vault has the time. The host sees one more small envelo
 can guess that a document was collected and answered, not by whom or what. A missing receipt only
 means "not known yet". ✅
 
-**Offer letter files** (PDFs and photos attached to an offer, 5 MB together) travel the same way,
+**Offer letter files** (PDFs and photos attached to an offer, 5 MB together; only offers sent
+before 2026-10-16, since offers no longer carry files) travel the same way,
 cut into 256 KB pieces, each sealed like any other document under a kind unique to the offer. The
 host and the pinning service see ciphertext and, from the number of pieces, roughly how big the
 files are; nothing else. Each file's SHA-256 is inside the offer's terms, which the agreement

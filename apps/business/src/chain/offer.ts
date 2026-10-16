@@ -27,7 +27,7 @@ import { type RailLink, isRailAddress } from "../books/rail";
 import { bareDirectoryName } from "./directory";
 import { byteArrayHex } from "./parties_key";
 import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
-import { type PickedFile, offerFileLookups, offerTermsKind, sendOfferFiles } from "./offer_files";
+import { offerFileLookups, offerTermsKind } from "./offer_files";
 import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
 
 export class OfferError extends Error {
@@ -234,7 +234,7 @@ export function finalAgreementIds(records: unknown[]): Set<string> {
 
 export type OfferWallet = Pick<RailWallet, "executeTransaction" | "transactionStatus">;
 
-export type OfferStage = "files" | "sealing" | "mailbox" | "approving" | "sent" | "accepted";
+export type OfferStage = "sealing" | "mailbox" | "approving" | "sent" | "accepted";
 
 export type SendOfferInput = OfferDates & {
   employerAddress: string;
@@ -246,10 +246,8 @@ export type SendOfferInput = OfferDates & {
   workerNameHash: string;
   industryCode: number;
   termsText: string;
-  /** The offer letter's sections; empty sections are fine. Missing means none. */
+  /** The offer letter (offer_letter.ts `letterFromText`). Missing means none. */
   letter?: Letter;
-  /** Files attached to the letter, read and fingerprinted (offer_files.ts `pickFile`). */
-  files?: readonly PickedFile[];
   /** How long the offer stays open (every offer expires). Default 7 days. */
   expiresInDays?: ExpiryDays;
   /**
@@ -262,8 +260,6 @@ export type SendOfferInput = OfferDates & {
   client: Pick<MailboxClient, "put">;
   wallet: OfferWallet;
   onProgress?: (stage: OfferStage) => void;
-  /** While the files go up: pieces sent so far, out of all of them. */
-  onFilePiece?: (done: number, total: number) => void;
   now?: () => Date;
   clock?: Clock;
   sleep?: Sleep;
@@ -332,12 +328,11 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   const now = input.now?.() ?? new Date();
   const epochs = offerEpochs(input, input.currentHeight, now.getTime());
   const offerTimeUtc = Math.floor(now.getTime() / 1000);
-  const picked = input.files ?? [];
   const expiresAt = expiryFor(now.toISOString(), input.expiresInDays ?? DEFAULT_EXPIRY_DAYS);
   let terms: Terms;
   try {
-    // Version 2, the offer letter: the sections and each file's fingerprint sit inside the terms,
-    // so the agreement record's terms hash commits to them (validateTerms checks the limits).
+    // Version 2, the offer letter: it sits inside the terms, so the agreement record's terms hash
+    // commits to its words (validateTerms checks the limits). New offers carry no files.
     terms = validateTerms({
       version: 2,
       kind: "terms",
@@ -351,7 +346,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
       offeredAt: now.toISOString(),
       expiresAt,
       letter: validateLetter(input.letter ?? emptyLetter()),
-      files: picked.map((p) => p.file),
+      files: [],
     });
   } catch (e) {
     throw e instanceof TermsError || e instanceof LetterError ? new OfferError(e.message) : e;
@@ -363,16 +358,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   const partiesKey = keyFor(input);
   const computed = { ...computeAgreementValues(input.employerAddress, input.workerAddress, canonical, offerTimeUtc, VERSIONS.schema_v, VERSIONS.policy_v), parties_key: `0x${partiesKey}` };
 
-  // 1. The files first (if any), then the terms, all sealed to the two parties, in the mailbox.
-  if (picked.length > 0) {
-    onProgress?.("files");
-    try {
-      await sendOfferFiles(client, partiesKey, terms.agreementId, picked, input.onFilePiece, keepUntil);
-    } catch (e) {
-      if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") throw new OfferError(MAILBOX_OFF_MESSAGE);
-      throw e;
-    }
-  }
+  // 1. The terms, sealed to the two parties, in the mailbox.
   onProgress?.("sealing");
   const key = partiesKeyFromHex(partiesKey);
   let sealed;

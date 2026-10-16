@@ -413,5 +413,7 @@ handling); likely a Fable session for the key agreement.
   else; only `.hewn` names and job postings are public (2026-10-16). Never a silent fallback to a
   public fee: short of private ALEO, the app stops and offers to move some. Being tested behind a
   per-device switch first.
+- [x] Offers carry no files (PDFs, photos); the offer letter is one box of up to 20,000 characters
+  to write or paste into (2026-10-16). Offers sent before keep their files.
 - [x] Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
   an option (2026-10-16).

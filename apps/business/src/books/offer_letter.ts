@@ -1,15 +1,18 @@
 // ---------------------------------------------------------------------------
 // The offer letter: what an offer carries beyond pay and dates (Joshua,
-// 2026-10-16). A job offer is more than a rate; the business writes the job
-// description, the requirements, its handbook or policies and anything else,
-// and can attach files (a PDF contract, a handbook, photos of a site). The
-// worker reads all of it and accepts it as a whole.
+// 2026-10-16). A job offer is more than a rate; the business writes or
+// pastes everything the person should read (the job, requirements, handbook,
+// benefits) into one box, and the person accepts it as a whole.
 //
-// Both live inside the terms document (version 2), so the terms fingerprint
-// the agreement records commits to the letter's text and to each file's
-// SHA-256: accepting the offer accepts these exact words and these exact
-// files. The files themselves travel separately (too big for one sealed
-// document), cut into numbered pieces; `chunks` says how many each file has.
+// It lives inside the terms document (version 2), so the terms fingerprint
+// the agreement records commits to the letter's exact words. The letter's
+// shape still has four sections (offers sent before the single box used
+// them); a new letter is all in `description`, shown as "Offer letter".
+//
+// Files: offers no longer carry PDFs or photos (Joshua, 2026-10-16: paste the
+// text instead; files are too big for the chain, docs/LETTERS.md). An offer
+// sent before that may still list files, each by its SHA-256; their pieces
+// travel separately, and `chunks` says how many each file has.
 //
 // One definition for both sides of the app: the business builds and checks a
 // letter with this module and the worker checks what arrives with it, so the
@@ -59,6 +62,8 @@ export const MAX_OFFER_FILES = 5;
 export const OFFER_CHUNK_BYTES = 256 * 1024;
 /** Per section, in characters: a long handbook fits, a novel doesn't. */
 export const MAX_SECTION_CHARS = 20_000;
+/** How the single box is labelled wherever a letter shows. */
+export const LETTER_LABEL = "Offer letter";
 const MAX_FILE_NAME = 120;
 
 export class LetterError extends Error {
@@ -71,6 +76,21 @@ export class LetterError extends Error {
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 export const emptyLetter = (): Letter => ({ description: "", requirements: "", handbook: "", other: "" });
+
+/** A letter written in the single box. */
+export const letterFromText = (text: string): Letter => ({ ...emptyLetter(), description: text });
+
+/**
+ * A letter as one text, for the single box: a new letter's text as it is; an
+ * older letter's sections one after another, each under its heading.
+ */
+export function letterText(l: Letter | undefined): string {
+  if (!l) return "";
+  const written = LETTER_SECTIONS.filter((s) => l[s.key].trim() !== "");
+  if (written.length === 0) return "";
+  if (written.length === 1 && written[0]!.key === "description") return l.description;
+  return written.map((s) => `${s.label}\n\n${l[s.key].trim()}`).join("\n\n");
+}
 
 /** True when the business wrote anything in the letter. */
 export const hasLetter = (l: Letter | undefined): boolean => !!l && LETTER_SECTIONS.some((s) => l[s.key].trim() !== "");

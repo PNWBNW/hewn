@@ -137,3 +137,22 @@ describe("an offer's expiry", () => {
     expect(expiryLabel(exp, new Date(exp))).toBe("Expired");
   });
 });
+
+describe("the single box", () => {
+  it("writes into the description and reads back as it was", async () => {
+    const { letterFromText, letterText, validateLetter } = await import("./offer_letter");
+    const l = letterFromText("Framing crew lead.\n\nSteel toes on site.");
+    expect(validateLetter(l)).toEqual({ description: "Framing crew lead.\n\nSteel toes on site.", requirements: "", handbook: "", other: "" });
+    expect(letterText(l)).toBe("Framing crew lead.\n\nSteel toes on site.");
+    expect(letterText(letterFromText(""))).toBe("");
+    expect(letterText(undefined)).toBe("");
+  });
+
+  it("shows an older letter's sections one after another, each under its heading", async () => {
+    const { letterText } = await import("./offer_letter");
+    expect(letterText({ description: "Framing crew lead.", requirements: "", handbook: " Steel toes. ", other: "" })).toBe(
+      "Job description\n\nFraming crew lead.\n\nHandbook and policies\n\nSteel toes.",
+    );
+    expect(letterText({ description: "", requirements: "Own truck.", handbook: "", other: "" })).toBe("Requirements\n\nOwn truck.");
+  });
+});

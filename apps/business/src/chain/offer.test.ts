@@ -233,33 +233,27 @@ describe("resolveBusinessName", () => {
 
 // ---- Sending -------------------------------------------------------------------------------
 describe("sendOffer", () => {
-  it("with an offer letter: the files' pieces first, then the terms, then Shield; the terms carry the letter and each file's fingerprint", async () => {
-    const { pickFile, fetchOfferFile } = await import("./offer_files");
-    const { OFFER_CHUNK_BYTES } = await import("../books/offer_letter");
-    const pdf = await pickFile("contract.pdf", "application/pdf", new Uint8Array(OFFER_CHUNK_BYTES + 5).map((_, i) => i & 0xff));
+  it("with an offer letter: the terms, then Shield; the terms carry the letter and no files", async () => {
+    const { letterFromText } = await import("../books/offer_letter");
     const client = fakeClient();
     const wallet = fakeWallet();
     const stages: string[] = [];
-    const letter = { description: "Framing crew lead.", requirements: "", handbook: "Steel toes on site.", other: "" };
-    const sent = await sendOffer(input({ client, wallet, letter, files: [pdf], onProgress: (s) => stages.push(s) }));
+    const letter = letterFromText("Framing crew lead.\n\nSteel toes on site.");
+    const sent = await sendOffer(input({ client, wallet, letter, onProgress: (s) => stages.push(s) }));
     const legacySlot = lookupId(partiesKeyFromHex(sent.link.partiesKey!), KINDS.terms, TERMS_SLOT);
     expect(offerLookups({ ...sent.link, terms: sent.terms }).sort()).toEqual([...client.puts.map((p) => p.lookup), legacySlot].sort());
-    expect(stages).toEqual(["files", "sealing", "mailbox", "approving", "sent", "accepted"]);
-    expect(client.puts).toHaveLength(3); // two pieces, then the terms
-    // Every piece and the terms may be swept the day after the offer expires (7 days on).
-    expect(client.puts.map((p) => p.keepUntil)).toEqual(["2026-10-22", "2026-10-22", "2026-10-22"]);
+    expect(stages).toEqual(["sealing", "mailbox", "approving", "sent", "accepted"]);
+    expect(client.puts).toHaveLength(1); // the terms alone
+    // The terms may be swept the day after the offer expires (7 days on).
+    expect(client.puts.map((p) => p.keepUntil)).toEqual(["2026-10-22"]);
     expect(offerKeepUntil(sent.terms.version === 2 ? sent.terms.expiresAt : "")).toBe("2026-10-22");
     expect(sent.terms.version).toBe(2);
     if (sent.terms.version !== 2) throw new Error("unreachable");
     expect(sent.terms.letter).toEqual(letter);
-    expect(sent.terms.files).toEqual([pdf.file]);
-    // The record's terms hash is over these terms, files and all.
+    expect(sent.terms.files).toEqual([]);
+    // The record's terms hash is over these terms, letter and all.
     const computed = computeAgreementValues(EMPLOYER, WORKER, canonicalTerms(sent.terms), Math.floor(NOW.getTime() / 1000));
     expect(wallet.calls[0]!.inputs).toContain(bytesToAleoU8Array(computed.terms_doc_hash));
-    // What the worker gets back from those pieces is the file, byte for byte.
-    const slots = new Map(client.puts.map((p) => [p.lookup, p.envelope]));
-    const back = await fetchOfferFile({ get: async (l) => { const v = slots.get(l); return v ? new Uint8Array(v) : null; } }, sent.link.partiesKey!, sent.terms.agreementId, sent.terms.files, 0);
-    expect(back.bytes).toEqual(pdf.bytes);
   });
 
   it("refuses a letter over its limits before anything is sent", async () => {
@@ -268,15 +262,6 @@ describe("sendOffer", () => {
     const letter = { description: "x".repeat(20_001), requirements: "", handbook: "", other: "" };
     await expect(sendOffer(input({ client, wallet, letter }))).rejects.toThrow(/at most/);
     expect(client.puts).toHaveLength(0);
-    expect(wallet.calls).toHaveLength(0);
-  });
-
-  it("sends nothing to Shield when a file piece can't be delivered", async () => {
-    const { pickFile } = await import("./offer_files");
-    const pdf = await pickFile("contract.pdf", "application/pdf", new Uint8Array(10));
-    const off = fakeClient(503);
-    const wallet = fakeWallet();
-    await expect(sendOffer(input({ client: off, wallet, files: [pdf] }))).rejects.toThrow(MAILBOX_OFF_MESSAGE);
     expect(wallet.calls).toHaveLength(0);
   });
 
@@ -455,14 +440,18 @@ describe("withdrawing an offer", () => {
     expect(() => withdrawOfferInputs(old, EMPLOYER_HASH)).toThrow(/too old to withdraw/);
   });
 
-  it("signs once with privateFee false, waits for it, then clears the terms and the files from the mailbox", async () => {
-    const { pickFile } = await import("./offer_files");
+  it("signs once with privateFee false, waits for it, then clears the terms and an older offer's files from the mailbox", async () => {
+    const { pickFile, sendOfferFiles } = await import("./offer_files");
     const pdf = await pickFile("contract.pdf", "application/pdf", new Uint8Array(300_000));
     const client = fakeClient();
-    const sent = await sendOffer(input({ client, files: [pdf] }));
+    const sent = await sendOffer(input({ client }));
+    // An offer sent before offers stopped carrying files: its pieces sit next to the terms.
+    if (sent.terms.version !== 2) throw new Error("unreachable");
+    const older = { ...sent.terms, files: [pdf.file] };
+    await sendOfferFiles(client, sent.link.partiesKey!, older.agreementId, [pdf]);
     const wallet = fakeWallet();
     const dropped: string[] = [];
-    const tx = await withdrawOffer({ link: { ...sent.link, terms: sent.terms }, employerNameHash: EMPLOYER_HASH, wallet, client: { drop: async (l) => void dropped.push(l) }, ...instant });
+    const tx = await withdrawOffer({ link: { ...sent.link, terms: older }, employerNameHash: EMPLOYER_HASH, wallet, client: { drop: async (l) => void dropped.push(l) }, ...instant });
     expect(tx).toBe(TX);
     expect(wallet.calls).toEqual([{ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(sent.link, EMPLOYER_HASH), privateFee: false }]);
     // Two file pieces, the terms, and the shared slot 0 older offers used.

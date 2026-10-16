@@ -27,7 +27,7 @@ const A = "aa".repeat(32);
 const B = "bb".repeat(32);
 const LETTER = { description: "Framing crew.", requirements: "", handbook: "", other: "" };
 const OFFERED: Proposal = { payType: "hourly", rate: "3000", frequency: "biweekly", startDate: "2026-11-02", termsText: "Carpenter. Pay: $30.00 an hour, paid every two weeks. Starts November 2, 2026.", letter: LETTER };
-const ASKED: Proposal = { ...OFFERED, rate: "3400", startDate: "2026-11-09", letter: { ...LETTER, other: "Dental from day one." } };
+const ASKED: Proposal = { ...OFFERED, rate: "3400", startDate: "2026-11-09", letter: { ...LETTER, description: "Framing crew. Dental from day one." } };
 const id = (n: number) => n.toString(16).padStart(32, "0");
 
 const msg = (n: number, from: "business" | "worker", body: unknown, at = `2026-10-16T1${n}:00:00.000Z`) => ({ version: 1, id: id(n), from, sentAt: at, body });
@@ -103,7 +103,7 @@ describe("what a counter-offer changes", () => {
     expect(proposalChanges(OFFERED, ASKED)).toEqual([
       { field: "rate", label: "Pay", was: "$30.00 an hour", wants: "$34.00 an hour" },
       { field: "startDate", label: "Start date", was: "2026-11-02", wants: "2026-11-09" },
-      { field: "letter.other", label: "Anything else", was: "", wants: "Dental from day one." },
+      { field: "letter", label: "Offer letter", was: "Framing crew.", wants: "Framing crew. Dental from day one." },
     ]);
     expect(proposalChanges(OFFERED, OFFERED)).toEqual([]);
     expect(proposalChanges(OFFERED, { ...OFFERED, payType: "salary", rate: "6500000", frequency: "monthly" }).map((c) => c.wants)).toEqual(["$65,000.00 a year", "Every month"]);

@@ -3,14 +3,14 @@
 // ---------------------------------------------------------------------------
 // Editing an offer's terms: the person asking for changes and the business
 // countering back fill in the same form. Pay, frequency and start date are
-// fields; the written terms and the letter's sections are text. Changing the
+// fields; the written terms and the offer letter are text. Changing the
 // pay or the start date also changes them in the written terms, wherever the
 // text still says the old ones.
 // ---------------------------------------------------------------------------
 
 import { PAY_FREQUENCIES } from "@pnw/payroll";
 import { Field, inputClass } from "./AuthCard";
-import { LETTER_SECTIONS } from "./offer_letter";
+import { LETTER_LABEL, MAX_SECTION_CHARS, letterFromText, letterText } from "./offer_letter";
 import { type Proposal, type ProposalDraft, proposalFromDraft, syncTermsText } from "./thread";
 
 export { type ProposalDraft, draftOf, proposalFromDraft } from "./thread";
@@ -55,21 +55,15 @@ export function ProposalEditor({ value, onChange }: { value: ProposalDraft; onCh
       <Field label="Written terms">
         <textarea className={textareaClass} rows={6} value={value.termsText} onChange={(e) => onChange({ ...value, termsText: e.target.value })} />
       </Field>
-      <details className="rounded-md border p-3">
-        <summary className="min-h-11 cursor-pointer text-sm font-medium sm:min-h-0">Offer letter sections</summary>
-        <div className="mt-3 flex flex-col gap-3">
-          {LETTER_SECTIONS.map((s) => (
-            <Field key={s.key} label={s.label} hint={s.hint}>
-              <textarea
-                className={textareaClass}
-                rows={4}
-                value={value.letter[s.key]}
-                onChange={(e) => onChange({ ...value, letter: { ...value.letter, [s.key]: e.target.value } })}
-              />
-            </Field>
-          ))}
-        </div>
-      </details>
+      <Field label={LETTER_LABEL}>
+        <textarea
+          className={textareaClass}
+          rows={8}
+          maxLength={MAX_SECTION_CHARS}
+          value={letterText(value.letter)}
+          onChange={(e) => onChange({ ...value, letter: letterFromText(e.target.value) })}
+        />
+      </Field>
     </div>
   );
 }

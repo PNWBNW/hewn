@@ -8,7 +8,7 @@
 
 import type { Change } from "./thread";
 
-const LONG = new Set<Change["field"]>(["termsText", "letter.description", "letter.requirements", "letter.handbook", "letter.other"]);
+const LONG = new Set<Change["field"]>(["termsText", "letter"]);
 
 export function ChangeList({ changes, wantsLabel = "Wants" }: { changes: readonly Change[]; wantsLabel?: string }) {
   if (changes.length === 0) return <p className="text-xs text-muted-foreground">No changes to the terms.</p>;

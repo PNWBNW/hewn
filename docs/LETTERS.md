@@ -115,8 +115,11 @@ Primary sources: snarkVM `console/network/src/lib.rs`, `synthesizer/process/src/
   rapid chat. Shield has no "sign without paying" or batch API (adaptor 0.3.0-alpha.3 and upstream
   master), so fee sponsorship and delegated proving are out while Shield is the only signer.
 - **Files** (offer attachments, PDFs) are too big: a 100 KB file in one transaction would cost
-  about 18 ALEO under the quadratic fee, or about 100 approvals in 5 KB pieces. They need another
-  home without IPFS/Cloudflare: the business's own mailbox (run-your-own), or peer to peer. Open.
+  about 18 ALEO under the quadratic fee, or about 100 approvals in 5 KB pieces. **Decided (Joshua,
+  2026-10-16): offers carry no files.** The offer letter is one box of up to 20,000 characters
+  to paste into. On chain that is a long letter: up to about 20 KB of text, roughly 7–8 KB
+  compressed, so it needs a bigger parcel than chat (a `send_long`, or the pointer variant below).
+  Estimated 0.07–0.3 ALEO an offer, one approval; to measure.
 - **Fan-out** (an announcement to 15 people) in one call is up to 15 letters, but 15 copies of the
   parcel push the transaction into the quadratic fee. A later variant: the parcel once, as a public
   input (it is already AES ciphertext), with tiny private pointer records to each member. Needs

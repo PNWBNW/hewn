@@ -1,5 +1,12 @@
 // ---------------------------------------------------------------------------
-// An offer letter's attached files through the mailbox. One sealed document
+// An offer letter's attached files through the mailbox: only offers sent
+// before 2026-10-16 have any (Joshua: offers no longer carry files; paste the
+// text into the offer letter). The person's app still fetches and checks an
+// older offer's files, and withdrawing one still clears its pieces; nothing
+// in the app sends new ones (`pickFile` and `sendOfferFiles` stay for the
+// tests that build such an offer).
+//
+// One sealed document
 // carries at most 256 KB, so each file is cut into pieces of exactly that size
 // (the last one shorter) and the pieces of all the offer's files are numbered
 // one after another: file 1's pieces first, then file 2's, and so on
