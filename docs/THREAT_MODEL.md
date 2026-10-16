@@ -188,6 +188,16 @@ host sees one more envelope per message and per receipt, and their timing. A con
 named in the address bar by an agreement id or a team member id, never by its key. Plain
 messages carry no keep-until day yet: an unread one stays pinned until it's read. ✅
 
+**Announcement channels** (`books/channels.ts`, `chain/channels.ts`). Each channel has its own
+random 32-byte key, numbered. The business sends it to each member inside their own thread
+(sealed with that pair's parties key), so nobody outside the channel ever sees it. A post is
+sealed once with the channel key, in slots only the business writes; members' apps refuse
+anything that doesn't open with it. Taking someone out moves the channel to a new key that only
+those who stay get: the one who left keeps what they already read and nothing after. Each reader
+sends a receipt through their own thread, so "seen by" names nobody to anyone but the business.
+Posts stay pinned (many readers), with no keep-until day yet. A member can share a key or a post
+they were given; that's true of any message anyone can read. ⚠️ Accepted.
+
 **Receipts** (`@pnw/mailbox` `sealReceipt`, `chain/receipts.ts`). When a person's app collects an
 offer or a paystub, or the business's app collects a week of hours, it seals a small receipt
 ("received at") back to the sender, at an address in its own domain

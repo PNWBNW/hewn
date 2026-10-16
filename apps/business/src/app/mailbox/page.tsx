@@ -19,7 +19,7 @@ import { isExpired } from "@/books/offer_letter";
 import { markHoursRead, threadFor, unreadCount } from "@/books/mailbox";
 import { ChangeList, QuotedNote } from "@/books/NegotiationView";
 import { linkFor } from "@/books/rail";
-import { openCounter, proposalChanges, proposalOf } from "@/books/thread";
+import { isOfferStep, openCounter, proposalChanges, proposalOf } from "@/books/thread";
 import { type FeedItem, buildFeed, hasWaitingOffer, mailboxLinks } from "@/books/mailbox_feed";
 import { PageHeader } from "@/shell/SectionView";
 import { clock, dayLabel, when } from "../work/shared";
@@ -190,7 +190,7 @@ function ThreadRow({ item: feed }: { item: Extract<FeedItem, { kind: "thread" }>
   const [answering, setAnswering] = useState<Answering>(null);
   const { item, workerName, workerId, partiesKey } = feed;
   const body = item.body;
-  if (body.type === "text") return null; // plain messages live in Messages
+  if (!isOfferStep(body)) return null; // everything else lives in Messages
   const link = rail ? linkFor(rail, workerId) : undefined;
   const title =
     body.type === "counter"

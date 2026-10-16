@@ -9,7 +9,7 @@
 import type { Payroll } from "@pnw/payroll";
 import type { Mailbox, ReceivedHours } from "./mailbox";
 import type { Rail } from "./rail";
-import type { ThreadItem } from "./thread";
+import { type ThreadItem, isOfferStep } from "./thread";
 
 export type FeedItem =
   | { kind: "offer"; key: string; at: string; workerId: string; workerName: string; receivedAt?: string; expiresAt?: string }
@@ -72,7 +72,7 @@ export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox:
 
   for (const [partiesKey, thread] of Object.entries(mailbox?.threads ?? {})) {
     for (const item of thread.items) {
-      if (item.body.type === "text") continue; // plain messages live in Messages, not the feed
+      if (!isOfferStep(item.body)) continue; // only the offer's negotiation; everything else lives in Messages
       items.push({ kind: "thread", key: `thread:${item.id}`, at: item.sentAt, workerId: thread.workerId, workerName: nameOf(thread.workerId), partiesKey, item });
     }
   }

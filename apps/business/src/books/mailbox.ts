@@ -17,6 +17,7 @@
 
 import type { TimesheetPayload } from "./hours";
 import { type Thread, emptyThread, validateThread } from "./thread";
+import { type BusinessChannel, validateBusinessChannel } from "./channels";
 
 /** A week of hours a team member sent, as it arrived. */
 export type ReceivedHours = {
@@ -48,6 +49,8 @@ export type Mailbox = {
   nextHours?: Record<string, number>;
   /** One thread per person, by the pair's parties key (the same for every offer between the two). */
   threads?: Record<string, BusinessThread>;
+  /** Announcement channels (books/channels.ts). */
+  channels?: BusinessChannel[];
 };
 
 export class MailboxError extends Error {
@@ -160,6 +163,12 @@ export function validateMailbox(raw: unknown): Mailbox {
     }
     if (Object.keys(clean).length > 0) mailbox.threads = clean;
   }
+  if (m.channels !== undefined) {
+    if (!Array.isArray(m.channels)) throw new MailboxError("The channels must be a list");
+    const byId = new Map<string, BusinessChannel>();
+    for (const c of m.channels.map(validateBusinessChannel)) byId.set(c.id, c);
+    if (byId.size > 0) mailbox.channels = [...byId.values()];
+  }
   return mailbox;
 }
 
@@ -199,3 +208,9 @@ export function updateThread(m: Mailbox, partiesKey: string, workerId: string, c
   const after = change(before);
   return validateMailbox({ ...m, threads: { ...m.threads, [partiesKey]: { ...after, workerId: before.workerId } } });
 }
+
+/** Adds or replaces one channel. */
+export const putChannel = (m: Mailbox, ch: BusinessChannel): Mailbox =>
+  validateMailbox({ ...m, channels: [...(m.channels ?? []).filter((c) => c.id !== ch.id), ch] });
+
+export const channelFor = (m: Mailbox | null | undefined, id: string): BusinessChannel | undefined => m?.channels?.find((c) => c.id === id);

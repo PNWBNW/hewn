@@ -24,6 +24,7 @@ import {
   type Thread,
   type ThreadItem,
   addToThread,
+  isOfferStep,
   markDelivered,
   markThreadRead,
   preview,
@@ -45,6 +46,7 @@ export type ConversationProps = {
   offersHref: string;
 };
 
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 export default function Conversation({ side, partiesKey, title, thread, update, offersHref }: ConversationProps) {
@@ -194,10 +196,14 @@ function Bubble({ item, title, offersHref }: { item: ThreadItem; title: string; 
       </p>
     );
   }
+  if (!isOfferStep(b)) {
+    // A channel key or a removal: a quiet line, not a bubble.
+    return <p className="max-w-[90%] rounded-md bg-muted px-3 py-1 text-xs text-muted-foreground">{item.mine ? preview(item) : `${title}: ${lowerFirst(preview(item))}`}</p>;
+  }
   // Negotiation: a short card; the full terms and the answers live with the offer.
   return (
     <div className="flex max-w-[90%] flex-col gap-1 rounded-xl border border-primary/40 bg-card px-3 py-2 text-sm">
-      <span className="font-medium">{item.mine ? preview(item) : `${title}: ${preview(item).toLowerCase()}`}</span>
+      <span className="font-medium">{item.mine ? preview(item) : `${title}: ${lowerFirst(preview(item))}`}</span>
       <QuotedNote who={item.mine ? "You" : title} text={b.note} />
       <Link href={offersHref} className="text-xs font-medium text-primary underline underline-offset-4">
         See the offer
