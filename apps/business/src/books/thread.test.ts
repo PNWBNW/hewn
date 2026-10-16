@@ -6,6 +6,11 @@ import {
   answerFor,
   draftOf,
   emptyThread,
+  markDelivered,
+  markThreadRead,
+  preview,
+  revisionOf,
+  unreadIn,
   openCounter,
   proposalChanges,
   proposalFromDraft,
@@ -119,5 +124,54 @@ describe("what a counter-offer changes", () => {
     expect(proposalFromDraft({ ...d, rateText: "0" })).toEqual({ problem: expect.stringMatching(/more than zero/) });
     expect(proposalFromDraft({ ...d, termsText: " " })).toEqual({ problem: expect.stringMatching(/empty/) });
     expect(proposalFromDraft({ ...d, startDate: "" })).toEqual({ problem: expect.stringMatching(/start date/) });
+  });
+});
+
+describe("plain messages", () => {
+  it("either side may send, and they're never empty or too long", () => {
+    expect(validateMessage(msg(1, "worker", { type: "text", text: "Running 10 min late" }), "worker").body).toEqual({ type: "text", text: "Running 10 min late" });
+    expect(validateMessage(msg(2, "business", { type: "text", text: "No problem" }), "business").body.type).toBe("text");
+    expect(() => validateMessage(msg(3, "worker", { type: "text", text: "   " }), "worker")).toThrow(/empty/);
+    expect(() => validateMessage(msg(4, "worker", { type: "text", text: "x".repeat(4001) }), "worker")).toThrow(/at most/);
+    expect(() => validateMessage(msg(5, "worker", { type: "text", text: 7 }), "worker")).toThrow(/empty/);
+  });
+
+  it("count as unread until the conversation is opened, and only theirs can be read", () => {
+    let t = emptyThread();
+    t = addToThread(t, item(1, "worker", { type: "text", text: "Hi" }, false, 0));
+    t = addToThread(t, item(2, "worker", { type: "text", text: "Are we on for Monday?" }, false, 1));
+    t = addToThread(t, item(3, "business", { type: "text", text: "Yes" }, true, 0));
+    expect(unreadIn(t)).toBe(2);
+    const read = markThreadRead(t);
+    expect(unreadIn(read)).toBe(0);
+    expect(markThreadRead(read)).toBe(read);
+    expect(validateThread(JSON.parse(JSON.stringify(read)))).toEqual(read);
+    expect(() => validateThread({ ...read, items: [{ ...read.items.find((i) => i.mine), read: true }] })).toThrow(/Only their messages/);
+  });
+
+  it("show as received once the other side's receipt arrives, the first time only", () => {
+    let t = addToThread(emptyThread(), item(1, "business", { type: "text", text: "Payday moved to Thursday" }, true, 0));
+    t = markDelivered(t, 0, "2026-10-17T08:00:00.000Z");
+    expect(t.items[0]!.receivedAt).toBe("2026-10-17T08:00:00.000Z");
+    expect(markDelivered(t, 0, "2026-10-18T08:00:00.000Z")).toBe(t);
+    expect(markDelivered(t, 5, "2026-10-18T08:00:00.000Z")).toBe(t);
+    expect(() => markDelivered(t, 0, "later")).toThrow();
+  });
+
+  it("read in a list as a few words", () => {
+    expect(preview(undefined)).toBe("No messages yet");
+    expect(preview(item(1, "worker", { type: "text", text: "Hi" }, false, 0))).toBe("Hi");
+    expect(preview(item(1, "business", { type: "text", text: "x".repeat(100) }, true, 0))).toMatch(/^You: x{79}…$/);
+    expect(preview(item(1, "worker", { type: "counter", agreementId: A, proposal: ASKED, note: "" }, false, 0))).toBe("Asked for changes to the offer");
+    expect(preview(item(1, "business", { type: "revised", agreementId: A, newAgreementId: B, note: "" }, true, 0))).toBe("You sent a revised offer");
+  });
+
+  it("don't count as answers to an offer", () => {
+    let t = addToThread(emptyThread(), item(1, "worker", { type: "counter", agreementId: A, proposal: ASKED, note: "" }, false, 0));
+    t = addToThread(t, item(2, "business", { type: "text", text: "Let me think about it" }, true, 0));
+    expect(openCounter(t, A)?.id).toBe(id(1));
+    expect(answerFor(t, A)).toBeUndefined();
+    t = addToThread(t, item(3, "business", { type: "revised", agreementId: A, newAgreementId: B, note: "Here you go" }, true, 1));
+    expect(revisionOf(t, B)?.body.note).toBe("Here you go");
   });
 });

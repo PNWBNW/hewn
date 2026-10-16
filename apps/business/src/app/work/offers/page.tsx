@@ -16,7 +16,7 @@ import type { AttachmentRef } from "@pnw/sales";
 import { type OfferFile, isExpired } from "@/books/offer_letter";
 import { type WorkAgreement, workThread } from "@/books/work";
 import { QuotedNote } from "@/books/NegotiationView";
-import { type Thread, answerFor, openCounter } from "@/books/thread";
+import { type Thread, answerFor, openCounter, revisionOf } from "@/books/thread";
 import { RailNeeded, employerLabel, payLine, registeredLabel, statusLabel, when } from "../shared";
 
 const OffersPanel = dynamic(() => import("@/chain/work/Offers"), {
@@ -97,7 +97,7 @@ function Negotiation({ agreement: a, thread }: { agreement: WorkAgreement; threa
   const who = employerLabel(a);
   const counter = openCounter(thread, a.agreementId);
   const answer = answerFor(thread, a.agreementId);
-  const revised = thread?.items.find((i) => i.body.type === "revised" && i.body.newAgreementId === a.agreementId);
+  const revised = revisionOf(thread, a.agreementId);
   return (
     <>
       {revised && (

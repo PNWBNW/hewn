@@ -46,12 +46,19 @@ export type ThreadBody =
   /** The business keeps the offer `agreementId` as it is. */
   | { type: "stands"; agreementId: string; note: string }
   /** The business withdrew the offer `agreementId` and sent `newAgreementId` in its place. */
-  | { type: "revised"; agreementId: string; newAgreementId: string; note: string };
+  | { type: "revised"; agreementId: string; newAgreementId: string; note: string }
+  /** A plain message, from either side. */
+  | { type: "text"; text: string };
 
 export type ThreadMessage = { version: 1; id: string; from: Side; sentAt: string; body: ThreadBody };
 
-/** A message as a vault keeps it: whose it is, and the slot it travelled in. */
-export type ThreadItem = ThreadMessage & { mine: boolean; seq: number; receivedAt?: string };
+/**
+ * A message as a vault keeps it: whose it is, and the slot it travelled in.
+ * `receivedAt` is when the other side's app picked it up: for theirs, when
+ * this device did; for mine, from the other side's receipt. `read` marks one
+ * of theirs as seen here.
+ */
+export type ThreadItem = ThreadMessage & { mine: boolean; seq: number; receivedAt?: string; read?: true };
 
 export type Thread = {
   items: ThreadItem[];
@@ -62,9 +69,10 @@ export type Thread = {
 };
 
 /** Who may send what. */
-export const SENDS: Record<ThreadBody["type"], Side> = { counter: "worker", stands: "business", revised: "business" };
+export const SENDS: Record<ThreadBody["type"], Side | "either"> = { counter: "worker", stands: "business", revised: "business", text: "either" };
 
 export const MAX_NOTE_CHARS = 2_000;
+export const MAX_TEXT_CHARS = 4_000;
 const MAX_TERMS_CHARS = 20_000;
 const MAX_SEQ = 0xffff_ffff;
 const HEX = /^[0-9a-f]{16,64}$/;
@@ -120,6 +128,11 @@ function validateBody(raw: unknown): ThreadBody {
       return { type: "stands", agreementId: agreementId(raw.agreementId), note: note(raw.note) };
     case "revised":
       return { type: "revised", agreementId: agreementId(raw.agreementId), newAgreementId: agreementId(raw.newAgreementId), note: note(raw.note) };
+    case "text": {
+      if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
+      if ([...raw.text].length > MAX_TEXT_CHARS) throw new ThreadError(`A message can be at most ${MAX_TEXT_CHARS.toLocaleString("en-US")} characters`);
+      return { type: "text", text: raw.text };
+    }
     default:
       throw new ThreadError("That kind of message isn't one this app knows");
   }
@@ -133,7 +146,8 @@ export function validateMessage(raw: unknown, from: Side): ThreadMessage {
   if (typeof raw.id !== "string" || !/^[0-9a-f]{32}$/.test(raw.id)) throw new ThreadError("A message needs an id");
   if (!isStamp(raw.sentAt)) throw new ThreadError("A message needs the time it was sent");
   const body = validateBody(raw.body);
-  if (SENDS[body.type] !== from) throw new ThreadError("That side can't send that kind of message");
+  const may = SENDS[body.type];
+  if (may !== "either" && may !== from) throw new ThreadError("That side can't send that kind of message");
   return { version: 1, id: raw.id, from, sentAt: raw.sentAt, body };
 }
 
@@ -148,6 +162,10 @@ function validateItem(raw: unknown): ThreadItem {
   if (raw.receivedAt !== undefined) {
     if (!isStamp(raw.receivedAt)) throw new ThreadError("A message's arrival time isn't a time");
     item.receivedAt = raw.receivedAt;
+  }
+  if (raw.read !== undefined) {
+    if (raw.read !== true || raw.mine) throw new ThreadError("Only their messages can be marked read");
+    item.read = true;
   }
   return item;
 }
@@ -197,7 +215,7 @@ export function openCounter(thread: Thread | undefined, agreementId: string): Co
   let open: Counter | undefined;
   for (const item of thread.items) {
     const b = item.body;
-    if (b.agreementId !== agreementId) continue;
+    if (b.type === "text" || b.agreementId !== agreementId) continue;
     if (b.type === "counter") open = item as Counter;
     else open = undefined; // answered
   }
@@ -205,16 +223,50 @@ export function openCounter(thread: Thread | undefined, agreementId: string): Co
 }
 
 /** The business's answer to `agreementId`, if it gave one. */
-export function answerFor(thread: Thread | undefined, agreementId: string): (ThreadItem & { body: Exclude<ThreadBody, { type: "counter" }> }) | undefined {
-  return thread?.items.filter((i) => i.body.agreementId === agreementId && i.body.type !== "counter").at(-1) as
-    | (ThreadItem & { body: Exclude<ThreadBody, { type: "counter" }> })
-    | undefined;
+type Answer = ThreadItem & { body: Extract<ThreadBody, { type: "stands" | "revised" }> };
+
+export function answerFor(thread: Thread | undefined, agreementId: string): Answer | undefined {
+  return thread?.items.filter((i): i is Answer => (i.body.type === "stands" || i.body.type === "revised") && i.body.agreementId === agreementId).at(-1);
 }
 
 /** The offer `newAgreementId` replaced, if the thread says it was a revision. */
 export function revisedFrom(thread: Thread | undefined, newAgreementId: string): string | undefined {
-  const item = thread?.items.find((i) => i.body.type === "revised" && i.body.newAgreementId === newAgreementId);
-  return item?.body.agreementId;
+  for (const i of thread?.items ?? []) if (i.body.type === "revised" && i.body.newAgreementId === newAgreementId) return i.body.agreementId;
+  return undefined;
+}
+
+/** The `revised` message that put `newAgreementId` in place of an older offer, if there is one. */
+export function revisionOf(thread: Thread | undefined, newAgreementId: string): (ThreadItem & { body: Extract<ThreadBody, { type: "revised" }> }) | undefined {
+  return thread?.items.find((i): i is ThreadItem & { body: Extract<ThreadBody, { type: "revised" }> } => i.body.type === "revised" && i.body.newAgreementId === newAgreementId);
+}
+
+// ---- Reading and receipts ----------------------------------------------------
+
+/** How many of their messages haven't been seen here. */
+export const unreadIn = (thread: Thread | undefined): number => thread?.items.filter((i) => !i.mine && !i.read).length ?? 0;
+
+/** Marks every one of their messages as seen. The same thread back when there was nothing to mark. */
+export function markThreadRead(thread: Thread): Thread {
+  if (!thread.items.some((i) => !i.mine && !i.read)) return thread;
+  return { ...thread, items: thread.items.map((i) => (i.mine || i.read ? i : { ...i, read: true as const })) };
+}
+
+/** Records the other side's receipt for my message in slot `seq`. The first time sticks. */
+export function markDelivered(thread: Thread, seq: number, receivedAt: string): Thread {
+  if (!isStamp(receivedAt)) throw new ThreadError("A receipt needs the time it was received");
+  if (!thread.items.some((i) => i.mine && i.seq === seq && !i.receivedAt)) return thread;
+  return { ...thread, items: thread.items.map((i) => (i.mine && i.seq === seq && !i.receivedAt ? { ...i, receivedAt } : i)) };
+}
+
+/** A line for a conversation list: the latest message, in a few words. */
+export function preview(item: ThreadItem | undefined): string {
+  if (!item) return "No messages yet";
+  const b = item.body;
+  const who = item.mine ? "You: " : "";
+  if (b.type === "text") return who + (b.text.length > 80 ? `${b.text.slice(0, 79)}…` : b.text);
+  if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
+  if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";
+  return item.mine ? "You sent a revised offer" : "Sent a revised offer";
 }
 
 // ---- What changed ----------------------------------------------------------

@@ -182,6 +182,12 @@ approved in Shield, and the person's app still checks the new offer's terms agai
 Each offer's terms now have their own slot (`terms_<agreement id>`), so a revised offer can never be
 read with the old one's terms. ✅
 
+**Messages** (Joshua, 2026-10-16) travel the same thread as plain `text` messages, either side,
+at most 4,000 characters. Reading one sends a receipt back, so the sender sees "Received". The
+host sees one more envelope per message and per receipt, and their timing. A conversation is
+named in the address bar by an agreement id or a team member id, never by its key. Plain
+messages carry no keep-until day yet: an unread one stays pinned until it's read. ✅
+
 **Receipts** (`@pnw/mailbox` `sealReceipt`, `chain/receipts.ts`). When a person's app collects an
 offer or a paystub, or the business's app collects a week of hours, it seals a small receipt
 ("received at") back to the sender, at an address in its own domain

@@ -25,7 +25,7 @@ import { useWork } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
 import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, updateWorkThread, upsertAgreement, workThread } from "@/books/work";
 import { ChangeList, QuotedNote } from "@/books/NegotiationView";
-import { addToThread, answerFor, openCounter, proposalChanges, proposalOf, revisedFrom, skipIncoming } from "@/books/thread";
+import { addToThread, answerFor, openCounter, proposalChanges, proposalOf, revisedFrom, revisionOf, skipIncoming } from "@/books/thread";
 import { BRAND } from "@/brand";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
@@ -259,7 +259,7 @@ function OfferRow({
   const replaced = revisedFrom(thread, record.agreementId);
   const revisedTo = thread?.items.some((i) => i.body.type === "revised" && i.body.agreementId === record.agreementId);
   const previous = replaced ? agreementFor(work, replaced)?.terms : undefined;
-  const revisedNote = thread?.items.find((i) => i.body.type === "revised" && i.body.newAgreementId === record.agreementId)?.body.note ?? "";
+  const revisedNote = revisionOf(thread, record.agreementId)?.body.note ?? "";
   const letter = terms.terms?.version === 2 ? terms.terms : null;
   const offeredFiles = letter?.files ?? [];
   const filesIn = offeredFiles.length === row.files.length;

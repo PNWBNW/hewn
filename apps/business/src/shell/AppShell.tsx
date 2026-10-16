@@ -19,6 +19,7 @@ import {
   Lock,
   LogOut,
   Mailbox,
+  MessageSquare,
   Menu,
   Settings,
   Users,
@@ -29,6 +30,7 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { SETUP_PATH, setupRedirect, setupStep } from "@/books/setup";
 import { unreadCount } from "@/books/mailbox";
+import { unreadIn } from "@/books/thread";
 import { waitingCount } from "@/books/review";
 import type { Role } from "@/books/work";
 import { BRAND } from "@/brand";
@@ -51,12 +53,14 @@ const BUSINESS_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText })),
   { href: "/mailbox", label: "Mailbox", icon: Mailbox },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
 ];
 
 /** A person who works for a business: their own, smaller app. */
 export const WORK_NAV: NavItem[] = [
   { href: "/work", label: "Home", icon: Home },
   { href: "/work/offers", label: "Offers", icon: Inbox },
+  { href: "/work/messages", label: "Messages", icon: MessageSquare },
   { href: "/work/hours", label: "Hours", icon: Clock },
   { href: "/work/paystubs", label: "Paystubs", icon: Mailbox },
   { href: "/work/profile", label: "Profile", icon: IdCard },
@@ -105,8 +109,10 @@ function Rail({
   onBackup: () => void;
   onLock: () => void;
 }) {
-  const { mailbox, review } = useOpenBooks();
+  const { mailbox, review, work } = useOpenBooks();
   const unread = unreadCount(mailbox);
+  // Unread messages: in the business's threads, or the person's.
+  const unreadMessages = Object.values((role === "worker" ? work?.threads : mailbox?.threads) ?? {}).reduce((n, t) => n + unreadIn(t), 0);
   const waiting = waitingCount(review);
   const worker = role === "worker";
   const nav = !setupDone ? [{ href: SETUP_PATH, label: "Finish setup", icon: Settings }] : worker ? WORK_NAV : BUSINESS_NAV;
@@ -134,6 +140,11 @@ function Rail({
           >
             <Icon aria-hidden className={cn("size-4 shrink-0", active && "text-rail-accent")} />
             {label}
+            {(href === "/messages" || href === "/work/messages") && unreadMessages > 0 && (
+              <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unreadMessages} unread`}>
+                {unreadMessages}
+              </span>
+            )}
             {href === "/mailbox" && unread > 0 && (
               <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unread} unread`}>
                 {unread}

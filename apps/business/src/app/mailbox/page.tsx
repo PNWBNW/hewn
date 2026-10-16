@@ -190,6 +190,7 @@ function ThreadRow({ item: feed }: { item: Extract<FeedItem, { kind: "thread" }>
   const [answering, setAnswering] = useState<Answering>(null);
   const { item, workerName, workerId, partiesKey } = feed;
   const body = item.body;
+  if (body.type === "text") return null; // plain messages live in Messages
   const link = rail ? linkFor(rail, workerId) : undefined;
   const title =
     body.type === "counter"

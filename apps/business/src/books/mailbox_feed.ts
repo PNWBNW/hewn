@@ -72,6 +72,7 @@ export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox:
 
   for (const [partiesKey, thread] of Object.entries(mailbox?.threads ?? {})) {
     for (const item of thread.items) {
+      if (item.body.type === "text") continue; // plain messages live in Messages, not the feed
       items.push({ kind: "thread", key: `thread:${item.id}`, at: item.sentAt, workerId: thread.workerId, workerName: nameOf(thread.workerId), partiesKey, item });
     }
   }
