@@ -2442,3 +2442,21 @@ the opt-in coworker directory with private coworker messages, and group chats.
 
 **Next:** the scale and hardening PR (Joshua to pick how the mailbox finds a pin: a hash-only
 index, or batching and caching within the no-database rule).
+
+## 2026-10-16: Plan for operating costs, fees and hosting
+
+Docs only. BUILD_PLAN gains "Operating costs, fees and hosting":
+- **The goal:** no monthly subscription. Bookkeeping stays free; a flat fee per paycheck paid on
+  the rail, plus name sales, pays for hosting.
+- **Cost estimates:** R2 free tier ≈ 150–200 businesses of ~10; Vercel Pro $20; ≈ $120 a month at
+  ~20k workers.
+- **Break-even:** about $0.003 a paycheck. Proposed fee $0.03–$0.10 with a monthly cap.
+- **Privacy:** the fee is flat (never a percentage), collected once per run as one private
+  transfer, so it reveals neither wages nor headcount.
+- **Hosting:** hosted (covered by the fee) or self-hosted (own mailbox, no fee). The mailbox
+  address becomes a setting.
+- **The scaling plan:** R2 object storage, a batch endpoint, rate limits.
+
+New open decisions: the fee amount and cap, the operating-wallet exception to "no protocol
+treasury", and where the other half of each name sale goes. Recorded: "no monthly subscription"
+wording, and the R2 move.
