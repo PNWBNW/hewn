@@ -22,6 +22,8 @@
 // loaded only when the user taps Connect in Settings.
 // ---------------------------------------------------------------------------
 
+import { type Terms, validateTerms } from "./work";
+
 /** The documents the mailbox carries that keep a per-link sequence counter here. */
 export const MAILBOX_KINDS = ["paystub"] as const;
 export type MailboxKind = (typeof MAILBOX_KINDS)[number];
@@ -49,6 +51,13 @@ export type RailLink = {
   offeredAt?: string;
   /** ISO timestamp of the approval, when this app saw it. */
   linkedAt?: string;
+  /**
+   * The terms this business offered, exactly as sent (the worker's app checks
+   * them against the agreement's terms fingerprint). Kept from the moment the
+   * offer goes out, because the copy in the mailbox is removed once the
+   * person accepts. Absent on offers sent before it was kept.
+   */
+  terms?: Terms;
 };
 
 export type PartyKind = "customer" | "vendor" | "worker";
@@ -180,6 +189,13 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
   const linkedAt = optionalDate(l.linkedAt, "The link date");
   if (offeredAt !== undefined) link.offeredAt = offeredAt;
   if (linkedAt !== undefined) link.linkedAt = linkedAt;
+  if (l.terms !== undefined) {
+    try {
+      link.terms = validateTerms(l.terms);
+    } catch (e) {
+      throw new RailError(`The offer's terms are unreadable: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
   return link;
 }
 
@@ -277,14 +293,15 @@ export function railFromJson(text: string): Rail {
 /**
  * Adds or replaces the link for one team member; the new link must be
  * complete. Importing the same agreement again keeps the mailbox where it
- * was and remembers when it was offered; a different agreement (a new
- * parties key) starts its mailbox over.
+ * was and remembers when it was offered and what its terms were; a different
+ * agreement (a new parties key) starts its mailbox over.
  */
 export function addLink(rail: Rail, link: RailLink): Rail {
   const fresh = validateLink(link);
   const previous = linkFor(rail, fresh.workerId);
   if (previous?.mailboxSeq && previous.partiesKey === fresh.partiesKey && fresh.mailboxSeq === undefined) fresh.mailboxSeq = previous.mailboxSeq;
   if (previous?.offeredAt && previous.agreementId === fresh.agreementId && fresh.offeredAt === undefined) fresh.offeredAt = previous.offeredAt;
+  if (previous?.terms && previous.agreementId === fresh.agreementId && fresh.terms === undefined) fresh.terms = previous.terms;
   return validateRail({ ...rail, links: [...rail.links.filter((l) => l.workerId !== fresh.workerId), fresh] }, LEGACY);
 }
 

@@ -196,7 +196,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
         },
         onProgress: setStage,
       });
-      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), sent.link) }));
+      await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), { ...sent.link, terms: sent.terms }) }));
       setSentTo(nameOf(found));
     } catch (e) {
       if (isMailboxOff(e)) setMailboxOff(true);

@@ -26,7 +26,8 @@ import { LinkBadge } from "@/books/LinkBadge";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { RegistryField } from "@/books/RegistryField";
 import { BRAND } from "@/brand";
-import { type Registered, linkStatus, registeredFor, setRegistered } from "@/books/rail";
+import { type Registered, linkFor, linkStatus, registeredFor, setRegistered } from "@/books/rail";
+import type { Terms } from "@/books/work";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Paystub } from "./Paystub";
@@ -273,6 +274,7 @@ function Team() {
   const { payroll, rail, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(payroll.workers.length === 0 ? "new" : null);
   const [offering, setOffering] = useState<string | null>(null);
+  const [offerShown, setOfferShown] = useState<string | null>(null);
   // The person found on the registry for the team member being added.
   const [adding, setAdding] = useState<Registered | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -324,6 +326,7 @@ function Team() {
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
           {payroll.workers.map((w) => {
             const status = linkStatus(rail, "worker", w.id);
+            const sentTerms = rail ? linkFor(rail, w.id)?.terms : undefined;
             const registered = registeredFor(rail, "worker", w.id);
             return editing === w.id ? (
               <li key={w.id} className="flex flex-col gap-3 p-2">
@@ -377,6 +380,17 @@ function Team() {
                       Send offer
                     </Button>
                   )}
+                  {sentTerms && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="min-h-11 sm:min-h-8"
+                      aria-expanded={offerShown === w.id}
+                      onClick={() => setOfferShown(offerShown === w.id ? null : w.id)}
+                    >
+                      {offerShown === w.id ? "Hide offer" : "View offer"}
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEditing(w.id)}>
                     Edit
                   </Button>
@@ -401,6 +415,11 @@ function Team() {
                     <OfferPanel workerId={w.id} onClose={() => setOffering(null)} />
                   </div>
                 )}
+                {sentTerms && offerShown === w.id && (
+                  <div className="border-t p-3">
+                    <SentOffer terms={sentTerms} />
+                  </div>
+                )}
               </li>
             );
           })}
@@ -411,6 +430,27 @@ function Team() {
         <span className="font-medium">Linked</span>: an agreement approved by both sides, so they can be paid on the rail and receive paystubs.
         Tap Send offer to start one.
       </p>
+    </div>
+  );
+}
+
+const FREQUENCY_LABEL: Record<Terms["frequency"], string> = {
+  weekly: "every week",
+  biweekly: "every two weeks",
+  semimonthly: "twice a month",
+  monthly: "every month",
+};
+
+/** The offer this business sent, as the person received it: the books' own copy. */
+function SentOffer({ terms }: { terms: Terms }) {
+  const rate = formatCents(BigInt(terms.rate));
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <div className="text-xs text-muted-foreground">
+        Sent {terms.offeredAt.slice(0, 10)} · {terms.payType === "hourly" ? `${rate} an hour` : `${rate} a year`}, paid {FREQUENCY_LABEL[terms.frequency]} · starts{" "}
+        {terms.startDate}
+      </div>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 font-sans text-sm">{terms.termsText}</pre>
     </div>
   );
 }
