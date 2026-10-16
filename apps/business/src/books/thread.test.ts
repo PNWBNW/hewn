@@ -188,3 +188,16 @@ describe("channel messages in a thread", () => {
     expect(preview(item(7, "business", ok, false, 0))).toBe("Added you to “Everyone”");
   });
 });
+
+describe("directory messages in a thread", () => {
+  it("the person joins and leaves; the business passes on names and keys", () => {
+    const key = "04" + "a".repeat(128);
+    expect(validateMessage(msg(1, "worker", { type: "directory_join", name: " Ana ", publicKey: key }), "worker").body).toEqual({ type: "directory_join", name: "Ana", publicKey: key });
+    expect(() => validateMessage(msg(2, "business", { type: "directory_join", name: "Ana", publicKey: key }), "business")).toThrow(/can't send/);
+    expect(() => validateMessage(msg(3, "worker", { type: "directory_join", name: "Ana", publicKey: "04abc" }), "worker")).toThrow(/P-256/);
+    expect(validateMessage(msg(4, "worker", { type: "directory_leave" }), "worker").body).toEqual({ type: "directory_leave" });
+    expect(validateMessage(msg(5, "business", { type: "directory", entries: [{ name: "Ana", publicKey: key }] }), "business").body.type).toBe("directory");
+    expect(() => validateMessage(msg(6, "business", { type: "directory", entries: [{ name: "Ana", publicKey: key }, { name: "Again", publicKey: key }] }), "business")).toThrow(/twice/);
+    expect(() => validateMessage(msg(7, "worker", { type: "directory", entries: [] }), "worker")).toThrow(/can't send/);
+  });
+});

@@ -2357,3 +2357,43 @@ out and can't read the next post while the other can. A forged post under anothe
 
 **Next:** the opt-in coworker directory, coworker ↔ coworker messages (keys only the two coworkers
 hold) and group chats.
+
+## 2026-10-16: Coworker directory and private coworker messages
+
+Part 4 of the messaging suite (group chats come next).
+
+- **Opt-in directory** (`books/directory.ts`).
+  - On Messages → Coworkers, a person who works at a business (an accepted agreement) can tap
+    **Let coworkers find me** under a name they choose.
+  - Their device makes a P-256 key pair for that business only and sends the name and public
+    key to the business (`directory_join`). **Stop letting coworkers find me** sends
+    `directory_leave`.
+  - On its Messages check, the business passes the list of everyone who opted in (`directory`)
+    to each of them whenever it changes, and an empty list to anyone who left
+    (`businessDirectory`, `directoryDigest`, `owedEmptyDirectory`). Its Messages page shows how
+    many opted in.
+- **Coworker messages** (`chain/coworkers.ts`, `chain/work/CoworkerChat.tsx`).
+  - The pair key is ECDH plus HKDF-SHA256 over both public keys, so only the two coworkers can
+    make it.
+  - The conversation uses its own slots (`cw_a`/`cw_b`, by key order) and the shared
+    conversation screen, accepting plain messages only.
+  - A **safety code** (6 groups of 5 digits) to compare in person, and **The numbers match**
+    marks it checked.
+  - The worker's Messages check reads every coworker conversation. Unread counts are in the
+    list and the nav.
+  - The address bar names a coworker by a tag from their public key and the agreement it's
+    under, never by a key.
+- **Supporting changes:**
+  - `chain/thread.ts` takes optional `kinds` and an `accept` filter.
+  - `Conversation` takes them too, plus a subtitle.
+  - Directory bookkeeping messages are hidden from conversations.
+
+THREAT_MODEL covers coworkers. Tests 791/791 (app 403, +10). Covered:
+- the pair key matches on both sides and differs with anyone else;
+- the safety code is symmetric and changes if a key is swapped;
+- a coworker conversation through a fake mailbox skips anything but plain messages;
+- the directory: joins, leaves, duplicates, the empty list owed;
+- the vault fields.
+
+**Next:** group chats (everyone can post): a group key handed out through the coworker or
+business threads, each member posting in their own slots.

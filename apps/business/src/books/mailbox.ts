@@ -51,6 +51,8 @@ export type Mailbox = {
   threads?: Record<string, BusinessThread>;
   /** Announcement channels (books/channels.ts). */
   channels?: BusinessChannel[];
+  /** The coworker directory as it was last sent out (books/directory.ts `directoryDigest`). */
+  directorySent?: string;
 };
 
 export class MailboxError extends Error {
@@ -162,6 +164,10 @@ export function validateMailbox(raw: unknown): Mailbox {
       clean[key] = { ...validateThread(raw), workerId };
     }
     if (Object.keys(clean).length > 0) mailbox.threads = clean;
+  }
+  if (m.directorySent !== undefined) {
+    if (typeof m.directorySent !== "string" || m.directorySent.length > 200_000) throw new MailboxError("The directory fingerprint must be text");
+    mailbox.directorySent = m.directorySent;
   }
   if (m.channels !== undefined) {
     if (!Array.isArray(m.channels)) throw new MailboxError("The channels must be a list");

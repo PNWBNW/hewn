@@ -8,12 +8,13 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft, Megaphone, RefreshCw } from "lucide-react";
+import { ChevronLeft, Megaphone, RefreshCw, Users } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useWork } from "@/books/BooksProvider";
 import { markPostsRead, unreadPosts } from "@/books/channels";
+import { coworkerTag, coworkersFrom } from "@/books/directory";
 import { type Thread, preview, unreadIn } from "@/books/thread";
 import { updateWorkChannels, updateWorkThread, workThread } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
@@ -21,6 +22,8 @@ import { employerLabel } from "../shared";
 
 const Conversation = dynamic(() => import("@/chain/Conversation"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const MessagesCheck = dynamic(() => import("@/chain/work/MessagesCheck"), { ssr: false });
+const Directory = dynamic(() => import("@/chain/work/Directory"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
+const CoworkerChat = dynamic(() => import("@/chain/work/CoworkerChat"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
@@ -37,6 +40,8 @@ function Messages() {
   const params = useSearchParams();
   const selected = params.get("with");
   const channelId = params.get("channel");
+  const coworker = params.get("coworker");
+  const at = params.get("at");
   const [check, setCheck] = useState<{ run: number } | { done: string | null }>({ run: 0 });
   const finished = useCallback((message: string | null) => setCheck({ done: message }), []);
   // One conversation per business: its agreements share a key. Offers withdrawn before acceptance don't count.
@@ -60,12 +65,28 @@ function Messages() {
   );
 
   const channels = work.channels ?? [];
+  // The directory is for people who work there: an accepted agreement, not just an offer.
+  const working = people.filter((p) => work.agreements.some((a) => a.partiesKey === p.partiesKey && (a.status === "active" || a.status === "paused")));
   const channel = channels.find((c) => c.id === channelId);
   // Opening a channel marks its posts read.
   useEffect(() => {
     if (!channel || !channel.posts.some((p) => !p.read)) return;
     void updateWork((w) => updateWorkChannels(w, (all) => all.map((c) => (c === channel || (c.id === channel.id && c.partiesKey === channel.partiesKey) ? markPostsRead(c) : c))));
   }, [channel, updateWork]);
+
+  // A coworker conversation: named by the coworker's tag and the agreement it's under, never by a key.
+  const atBusiness = people.find((p) => p.ref === at);
+  const mate = atBusiness && coworker ? coworkersFrom(workThread(work, atBusiness.partiesKey)).find((c) => coworkerTag(c.publicKey) === coworker) : undefined;
+  if (atBusiness && mate) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+          <ChevronLeft aria-hidden className="size-4" /> All messages
+        </Link>
+        <CoworkerChat key={mate.publicKey} businessKey={atBusiness.partiesKey} publicKey={mate.publicKey} name={mate.name} />
+      </div>
+    );
+  }
 
   if (channel) {
     const from = people.find((p) => p.partiesKey === channel.partiesKey);
@@ -185,6 +206,21 @@ function Messages() {
           )}
         </CardContent>
       </Card>
+      {working.length > 0 && (
+        <Card>
+          <CardContent className="flex flex-col gap-4 pt-6">
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Users aria-hidden className="size-4" /> Coworkers
+            </h2>
+            {working.map((b) => (
+              <section key={b.partiesKey} className="flex flex-col gap-2">
+                {working.length > 1 && <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{b.name}</h3>}
+                <Directory businessKey={b.partiesKey} businessName={b.name} agreementRef={b.ref} />
+              </section>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

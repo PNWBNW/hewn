@@ -2,7 +2,9 @@
 
 // Checking every conversation at once, for the Messages list (the business's
 // side): each team member's new messages (thread.ts), with a receipt back for
-// each. Runs once when it mounts and reports back; it draws nothing itself.
+// each; then, if who has opted into the coworker directory changed, the new
+// list goes to each of them (books/directory.ts). Runs once when it mounts
+// and reports back; it draws nothing itself.
 // Needs no Shield. Nothing here logs a key, a lookup or a message.
 
 import { useEffect, useMemo, useRef } from "react";
@@ -10,7 +12,12 @@ import { MailboxClient } from "@pnw/mailbox";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { addToThread, skipIncoming } from "@/books/thread";
-import { readThread } from "./thread";
+import { businessDirectory, directoryDigest, owedEmptyDirectory } from "@/books/directory";
+import type { Mailbox } from "@/books/mailbox";
+import { postToThread, readThread } from "./thread";
+
+/** The threads from `from`, laid over `into` (the rest of `into` stays as it is). */
+const updateThreadsFrom = (into: Mailbox, from: Mailbox): Mailbox => ({ ...into, threads: { ...into.threads, ...from.threads } });
 
 export type MessagesCheckProps = { onFinished: (message: string | null) => void };
 
@@ -40,6 +47,27 @@ export default function MessagesCheck({ onFinished }: MessagesCheckProps) {
         });
         if (r.off) return onFinished("Messages are off on this server.");
         if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
+      }
+      // The coworker directory: passed on whenever who's in it changes.
+      const latest = await updateCompany((c) => c);
+      const entries = businessDirectory(latest.rail, latest.mailbox);
+      const digest = directoryDigest(entries);
+      if (digest !== (latest.mailbox?.directorySent ?? directoryDigest([]))) {
+        const list = entries.map(({ name, publicKey }) => ({ name, publicKey }));
+        let failed = 0;
+        let mailbox = latest.mailbox ?? emptyMailbox();
+        // Everyone listed gets the new list; anyone who left gets an empty one.
+        const to = [...entries.map((e) => ({ ...e, list })), ...owedEmptyDirectory(latest.rail, latest.mailbox).map((o) => ({ ...o, list: [] }))];
+        for (const e of to) {
+          try {
+            const item = await postToThread({ client, partiesKey: e.partiesKey, from: "business", nextOut: threadFor(mailbox, e.partiesKey)?.nextOut ?? 0, body: { type: "directory", entries: e.list } });
+            mailbox = updateThread(mailbox, e.partiesKey, e.workerId, (t) => addToThread(t, item));
+          } catch {
+            failed++;
+          }
+        }
+        const sent = mailbox;
+        await updateCompany((c) => ({ ...c, mailbox: { ...updateThreadsFrom(c.mailbox ?? emptyMailbox(), sent), ...(failed === 0 ? { directorySent: digest } : {}) } }));
       }
       onFinished(null);
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));

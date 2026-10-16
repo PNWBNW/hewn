@@ -198,6 +198,18 @@ sends a receipt through their own thread, so "seen by" names nobody to anyone bu
 Posts stay pinned (many readers), with no keep-until day yet. A member can share a key or a post
 they were given; that's true of any message anyone can read. ⚠️ Accepted.
 
+**Coworkers** (`books/directory.ts`, `chain/coworkers.ts`). Opt-in only. Opting in at a business,
+the person's device makes an ECDH P-256 key pair for that business alone (no key ties them across
+employers); the private half stays in their vault. The business passes on the names and public
+keys of those who opted in, and nothing else, and only to them. Two coworkers derive their key
+with ECDH and HKDF-SHA256 (salt `PNW::COWORKER::v1`, both public keys as info): the business never
+holds it, and their conversation uses its own slots (`cw_a`/`cw_b`) and accepts plain messages
+only. The business relays the public keys, so it could swap one and sit in the middle; a safety
+code (SHA-256 over both keys, 30 digits) is shown on both phones, and coworkers who compare it in
+person and find it matches have ruled that out ("The numbers match" marks it checked). Leaving
+the directory sends an empty list to the person who left. ⚠️ Accepted until checked in person;
+✅ once checked.
+
 **Receipts** (`@pnw/mailbox` `sealReceipt`, `chain/receipts.ts`). When a person's app collects an
 offer or a paystub, or the business's app collects a week of hours, it seals a small receipt
 ("received at") back to the sender, at an address in its own domain

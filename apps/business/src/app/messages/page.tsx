@@ -15,6 +15,7 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { type Thread, preview, unreadIn } from "@/books/thread";
+import { businessDirectory } from "@/books/directory";
 import { PageHeader } from "@/shell/SectionView";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -46,6 +47,7 @@ function Messages() {
     .map((l) => ({ workerId: l.workerId, name: names.get(l.workerId) ?? "A team member", partiesKey: l.partiesKey!, thread: threadFor(mailbox, l.partiesKey!) }))
     .sort((a, b) => (last(b.thread) ?? "").localeCompare(last(a.thread) ?? "") || a.name.localeCompare(b.name));
   const open = people.find((p) => p.workerId === selected);
+  const listed = businessDirectory(rail, mailbox).length;
 
   const update = useCallback(
     async (change: (t: Thread) => Thread) => {
@@ -166,6 +168,11 @@ function Messages() {
           )}
         </CardContent>
       </Card>
+      {listed > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Coworker directory: {listed} {listed === 1 ? "person has" : "people have"} opted in to find each other. You pass on their names and keys; you can&apos;t read what they send each other.
+        </p>
+      )}
     </div>
   );
 }

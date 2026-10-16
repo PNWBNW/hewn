@@ -52,7 +52,13 @@ export type ThreadBody =
   /** The business added the person to an announcement channel, or gave it a new key (books/channels.ts). */
   | { type: "channel"; channelId: string; name: string; epoch: number; key: string }
   /** The business took the person out of a channel. */
-  | { type: "channel_left"; channelId: string; name: string };
+  | { type: "channel_left"; channelId: string; name: string }
+  /** The person lets coworkers at this business find them (books/directory.ts): the name they chose and their public key. */
+  | { type: "directory_join"; name: string; publicKey: string }
+  /** The person stops being findable. */
+  | { type: "directory_leave" }
+  /** The business passes on everyone who opted in: names and public keys, nothing else. */
+  | { type: "directory"; entries: { name: string; publicKey: string }[] };
 
 /** The messages that negotiate an offer. */
 export type OfferStep = Extract<ThreadBody, { type: "counter" | "stands" | "revised" }>;
@@ -84,6 +90,21 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   text: "either",
   channel: "business",
   channel_left: "business",
+  directory_join: "worker",
+  directory_leave: "worker",
+  directory: "business",
+};
+
+/** A coworker's public key: an uncompressed P-256 point, hex. */
+export const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
+export const MAX_DIRECTORY = 500;
+const directoryName = (v: unknown): string => {
+  if (typeof v !== "string" || !v.trim() || [...v].length > 60) throw new ThreadError("A directory name is 1 to 60 characters");
+  return v.trim();
+};
+const publicKey = (v: unknown): string => {
+  if (typeof v !== "string" || !PUBLIC_KEY.test(v)) throw new ThreadError("A public key must be an uncompressed P-256 point in hex");
+  return v;
 };
 
 export const MAX_NOTE_CHARS = 2_000;
@@ -156,6 +177,22 @@ function validateBody(raw: unknown): ThreadBody {
       if (typeof channelId !== "string" || !/^[0-9a-f]{16}$/.test(channelId)) throw new ThreadError("A channel needs its id");
       if (typeof name !== "string" || [...name].length > 60) throw new ThreadError("A channel's name is at most 60 characters");
       return { type: "channel_left", channelId, name };
+    }
+    case "directory_join":
+      return { type: "directory_join", name: directoryName(raw.name), publicKey: publicKey(raw.publicKey) };
+    case "directory_leave":
+      return { type: "directory_leave" };
+    case "directory": {
+      if (!Array.isArray(raw.entries) || raw.entries.length > MAX_DIRECTORY) throw new ThreadError(`A directory is a list of at most ${MAX_DIRECTORY}`);
+      const seen = new Set<string>();
+      const entries = raw.entries.map((e) => {
+        if (!isObject(e)) throw new ThreadError("Each directory entry must be an object");
+        const entry = { name: directoryName(e.name), publicKey: publicKey(e.publicKey) };
+        if (seen.has(entry.publicKey)) throw new ThreadError("The same key is in the directory twice");
+        seen.add(entry.publicKey);
+        return entry;
+      });
+      return { type: "directory", entries };
     }
     case "text": {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
@@ -295,6 +332,9 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "text") return who + (b.text.length > 80 ? `${b.text.slice(0, 79)}…` : b.text);
   if (b.type === "channel") return item.mine ? `You gave them the key to “${b.name}”` : `Added you to “${b.name}”`;
   if (b.type === "channel_left") return item.mine ? `You took them out of “${b.name}”` : `Took you out of “${b.name}”`;
+  if (b.type === "directory_join") return item.mine ? "You let coworkers find you" : "Joined the coworker directory";
+  if (b.type === "directory_leave") return item.mine ? "You left the coworker directory" : "Left the coworker directory";
+  if (b.type === "directory") return item.mine ? "You updated the coworker directory" : "Updated the coworker directory";
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";
   return item.mine ? "You sent a revised offer" : "Sent a revised offer";

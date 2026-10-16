@@ -22,10 +22,14 @@ const other = (side: Side): Side => (side === "business" ? "worker" : "business"
 /** How many taken slots a send steps over before giving up (another device of the same side, or an earlier try). */
 const MAX_TAKEN = 8;
 
+/** Which kinds each side writes to; coworker threads use their own (chain/coworkers.ts). */
+export type ThreadKinds = Record<Side, string>;
+
 export type PostInput = {
   client: Pick<MailboxClient, "put">;
   partiesKey: string;
   from: Side;
+  kinds?: ThreadKinds;
   /** The sender's next unused slot (Thread.nextOut). */
   nextOut: number;
   body: ThreadBody;
@@ -37,11 +41,11 @@ export type PostInput = {
  * is stepped over (the receiver keeps a message id once). Returns the
  * message as the sender's vault keeps it; throws on any other failure.
  */
-export async function postToThread({ client, partiesKey, from, nextOut, body, now }: PostInput): Promise<ThreadItem> {
+export async function postToThread({ client, partiesKey, from, nextOut, body, now, kinds }: PostInput): Promise<ThreadItem> {
   const message: ThreadMessage = validateMessage({ version: 1, id: newMessageId(), from, sentAt: (now ?? (() => new Date()))().toISOString(), body }, from);
   const bytes = new TextEncoder().encode(JSON.stringify(message));
   if (bytes.length > MAX_PAYLOAD_BYTES) throw new ThreadError("That message is too long to send");
-  const kind = THREAD_KINDS[from];
+  const kind = (kinds ?? THREAD_KINDS)[from];
   const key = partiesKeyFromHex(partiesKey);
   try {
     for (let seq = nextOut; seq < nextOut + MAX_TAKEN; seq++) {
@@ -65,6 +69,9 @@ export type ReadInput = {
   partiesKey: string;
   /** Who is reading: their thread's incoming side is the other one. */
   reader: Side;
+  kinds?: ThreadKinds;
+  /** Which kinds of message this thread takes; anything else is skipped. Default: all. */
+  accept?: (body: ThreadMessage["body"]) => boolean;
   thread: Thread | undefined;
   /** Keeps one message in the vault (and moves the slot on). Called before its pin is dropped. */
   store: (item: ThreadItem) => Promise<void>;
@@ -85,9 +92,9 @@ export type ReadResult = {
 };
 
 /** Reads every new message from the other side. Never throws; the result says what happened. */
-export async function readThread({ client, partiesKey, reader, thread, store, skip, now, limit }: ReadInput): Promise<ReadResult> {
+export async function readThread({ client, partiesKey, reader, thread, store, skip, now, limit, kinds, accept }: ReadInput): Promise<ReadResult> {
   const from = other(reader);
-  const kind = THREAD_KINDS[from];
+  const kind = (kinds ?? THREAD_KINDS)[from];
   const stamp = now ?? (() => new Date().toISOString());
   const result: ReadResult = { received: [], skipped: [], off: false };
   const key = partiesKeyFromHex(partiesKey);
@@ -107,6 +114,7 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
       let item: ThreadItem;
       try {
         const message = validateMessage(JSON.parse(new TextDecoder().decode(await open(key, kind, seq, bytes))), from);
+        if (accept && !accept(message.body)) throw new ThreadError("That kind of message doesn't belong in this conversation");
         item = { ...message, mine: false, seq, receivedAt: stamp() };
       } catch (e) {
         result.skipped.push({ seq, message: e instanceof Error ? e.message : "The message couldn't be read" });
@@ -125,9 +133,9 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
 }
 
 /** My messages the other side hasn't been heard to receive yet, as receipts to look for (receipts.ts). The latest `most`. */
-export function awaitingReceipts(thread: Thread | undefined, partiesKey: string, me: Side, most = 20): { partiesKey: string; kind: string; seq: number; target: number }[] {
+export function awaitingReceipts(thread: Thread | undefined, partiesKey: string, me: Side, most = 20, kinds: ThreadKinds = THREAD_KINDS): { partiesKey: string; kind: string; seq: number; target: number }[] {
   return (thread?.items ?? [])
     .filter((i) => i.mine && !i.receivedAt)
     .slice(-most)
-    .map((i) => ({ partiesKey, kind: THREAD_KINDS[me], seq: i.seq, target: i.seq }));
+    .map((i) => ({ partiesKey, kind: kinds[me], seq: i.seq, target: i.seq }));
 }
