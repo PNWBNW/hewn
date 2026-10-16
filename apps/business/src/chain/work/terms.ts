@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// The terms of an offer, as the employer seals them into the mailbox (terms
-// slot 0) and as the agreement record on the chain commits to them:
+// The terms of an offer, as the employer seals them into the mailbox (the
+// offer's own terms slot) and as the agreement record on the chain commits to them:
 //
 //   terms_doc_hash = computeTermsDocHash(canonicalTerms(terms))
 //
@@ -12,6 +12,7 @@
 import { computeTermsDocHash } from "@pnw/handshake/engine";
 import { KINDS, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { validateLetter, validateOfferFiles } from "../../books/offer_letter";
+import { offerTermsKind } from "../offer_files";
 import { type Terms, WorkError, validateTerms } from "../../books/work";
 
 /**
@@ -64,14 +65,23 @@ export function parseTermsPayload(bytes: Uint8Array): Terms {
 export type TermsFetch = { terms: Terms; lookup: string } | { terms: null; lookup: string; reason: "missing" | "off" | "unreadable"; message: string };
 
 /**
- * The terms for one agreement from the mailbox (slot 0), opened with the
- * agreement's parties key. Never throws: a missing document, a host with no
- * mailbox and a document that won't open each come back as a reason.
+ * The terms for one agreement from the mailbox, opened with the agreement's
+ * parties key: from the offer's own slot, or, for an offer sent before those
+ * existed, the shared slot 0 of kind `terms`. Never throws: a missing
+ * document, a host with no mailbox and a document that won't open each come
+ * back as a reason.
  */
-export async function fetchTerms(partiesKeyHex: string, client: Pick<MailboxClient, "get">): Promise<TermsFetch> {
+export async function fetchTerms(partiesKeyHex: string, agreementId: string, client: Pick<MailboxClient, "get">): Promise<TermsFetch> {
+  const own = await fetchTermsAt(partiesKeyHex, offerTermsKind(agreementId), client);
+  if (own.terms || own.reason !== "missing") return own;
+  const legacy = await fetchTermsAt(partiesKeyHex, KINDS.terms, client);
+  return legacy.terms || legacy.reason !== "missing" ? legacy : own;
+}
+
+async function fetchTermsAt(partiesKeyHex: string, kind: string, client: Pick<MailboxClient, "get">): Promise<TermsFetch> {
   const key = partiesKeyFromHex(partiesKeyHex);
   try {
-    const lookup = lookupId(key, KINDS.terms, 0);
+    const lookup = lookupId(key, kind, 0);
     let bytes: Uint8Array | null;
     try {
       bytes = await client.get(lookup);
@@ -81,7 +91,7 @@ export async function fetchTerms(partiesKeyHex: string, client: Pick<MailboxClie
     }
     if (!bytes) return { terms: null, lookup, reason: "missing", message: "The terms haven't arrived yet" };
     try {
-      return { terms: parseTermsPayload(await open(key, KINDS.terms, 0, bytes)), lookup };
+      return { terms: parseTermsPayload(await open(key, kind, 0, bytes)), lookup };
     } catch (e) {
       return { terms: null, lookup, reason: "unreadable", message: e instanceof Error ? e.message : "The terms couldn't be read" };
     }

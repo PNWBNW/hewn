@@ -11,6 +11,9 @@ import { BRAND } from "@/brand";
 
 export const STATUS_LABEL: Record<AgreementStatus, string> = { pending: "Waiting for you", active: "Active", paused: "Paused", terminated: "Ended" };
 
+/** An agreement's status in words; an offer ended before it was accepted was withdrawn. */
+export const statusLabel = (a: Pick<WorkAgreement, "status" | "acceptedAt">): string => (a.status === "terminated" && !a.acceptedAt ? "Withdrawn" : STATUS_LABEL[a.status]);
+
 /** `brothers.hewn`, or the short account when the employer has no registered name. */
 export const registeredLabel = (a: Pick<WorkAgreement, "employerName" | "employerAddress">): string =>
   a.employerName ? `${a.employerName}.${BRAND.nameSuffix}` : shortAddress(a.employerAddress);

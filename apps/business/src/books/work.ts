@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AttachmentRef } from "@pnw/sales";
+import { type Thread, emptyThread, validateThread } from "./thread";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 
 export type Role = "business" | "worker";
@@ -97,6 +98,8 @@ export type Work = {
   paystubs: ReceivedPaystub[];
   /** The next unused mailbox slot per agreement and kind of document. Missing means 0. */
   mailboxSeq: Record<string, MailboxSeq>;
+  /** One thread per employer, by the pair's parties key (books/thread.ts). */
+  threads?: Record<string, Thread>;
 };
 
 export class WorkError extends Error {
@@ -311,6 +314,19 @@ export function validateWork(raw: unknown): Work {
     mailboxSeq: validateSeq(raw.mailboxSeq ?? {}),
   };
   if (raw.profile !== undefined) work.profile = validateProfile(raw.profile);
+  if (raw.threads !== undefined) {
+    if (!isObject(raw.threads)) throw new WorkError("The threads must be an object");
+    const threads: Record<string, Thread> = {};
+    for (const [key, t] of Object.entries(raw.threads)) {
+      if (!PARTIES_KEY.test(key)) throw new WorkError("A thread is filed under a parties key");
+      try {
+        threads[key] = validateThread(t);
+      } catch (e) {
+        throw new WorkError(e instanceof Error ? e.message : "A thread couldn't be read");
+      }
+    }
+    if (Object.keys(threads).length > 0) work.threads = threads;
+  }
   return work;
 }
 
@@ -376,6 +392,15 @@ export function markTimesheetReceived(work: Work, agreementId: string, seq: numb
   const sent = work.timesheets.find((t) => t.agreementId === agreementId && t.seq === seq);
   if (!sent || sent.receivedAt) return work;
   return { ...work, timesheets: work.timesheets.map((t) => (t === sent ? { ...t, receivedAt: at } : t)) };
+}
+
+/** The thread with the employer whose agreements use `partiesKey`, if there is one. */
+export const workThread = (work: Work, partiesKey: string): Thread | undefined => work.threads?.[partiesKey];
+
+/** Applies `change` to the thread with one employer (a new one if there was none). */
+export function updateWorkThread(work: Work, partiesKey: string, change: (t: Thread) => Thread): Work {
+  if (!PARTIES_KEY.test(partiesKey)) throw new WorkError("A thread is filed under a parties key");
+  return validateWork({ ...work, threads: { ...work.threads, [partiesKey]: change(workThread(work, partiesKey) ?? emptyThread()) } });
 }
 
 export const sentWeek = (work: Work, agreementId: string, weekStart: string): SentTimesheet | undefined =>

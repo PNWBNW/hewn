@@ -31,6 +31,8 @@ import type { Terms } from "@/books/work";
 import type { AttachmentRef } from "@pnw/sales";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { expiryLabel, isExpired } from "@/books/offer_letter";
+import { threadFor } from "@/books/mailbox";
+import { openCounter } from "@/books/thread";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Paystub } from "./Paystub";
@@ -278,7 +280,7 @@ function payLabel(w: Worker): string {
 }
 
 function Team() {
-  const { payroll, rail, updateCompany } = useOpenBooks();
+  const { payroll, rail, mailbox, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(payroll.workers.length === 0 ? "new" : null);
   const [offering, setOffering] = useState<string | null>(null);
   const [offerShown, setOfferShown] = useState<string | null>(null);
@@ -338,6 +340,8 @@ function Team() {
             const sentTerms = sentLink?.terms;
             // A waiting offer's window: every offer expires (offers sent before expiry existed have none).
             const expiresAt = status === "offered" && sentTerms?.version === 2 ? sentTerms.expiresAt : undefined;
+            // They asked for changes and it's waiting on this business (answered from the Mailbox).
+            const askedForChanges = status === "offered" && sentLink?.partiesKey ? !!openCounter(threadFor(mailbox, sentLink.partiesKey), sentLink.agreementId) : false;
             const registered = registeredFor(rail, "worker", w.id);
             return editing === w.id ? (
               <li key={w.id} className="flex flex-col gap-3 p-2">
@@ -389,6 +393,11 @@ function Team() {
                       <div className={cn("text-xs", isExpired(expiresAt) ? "text-destructive" : "text-muted-foreground")}>
                         {isExpired(expiresAt) ? "Offer expired without an answer" : `Offer ${expiryLabel(expiresAt).toLowerCase()}`}
                       </div>
+                    )}
+                    {askedForChanges && (
+                      <Link href="/mailbox" className="text-xs font-medium text-primary underline underline-offset-4">
+                        Asked for changes: answer in Mailbox
+                      </Link>
                     )}
                   </div>
                   {status === "typed" && w.active && offering !== w.id && (

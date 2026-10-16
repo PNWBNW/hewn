@@ -16,7 +16,10 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { formatMinutes } from "@/books/hours";
 import { isExpired } from "@/books/offer_letter";
-import { markHoursRead, unreadCount } from "@/books/mailbox";
+import { markHoursRead, threadFor, unreadCount } from "@/books/mailbox";
+import { ChangeList, QuotedNote } from "@/books/NegotiationView";
+import { linkFor } from "@/books/rail";
+import { openCounter, proposalChanges, proposalOf } from "@/books/thread";
 import { type FeedItem, buildFeed, hasWaitingOffer, mailboxLinks } from "@/books/mailbox_feed";
 import { PageHeader } from "@/shell/SectionView";
 import { clock, dayLabel, when } from "../work/shared";
@@ -28,6 +31,9 @@ const RailPanel = dynamic(() => import("@/chain/RailPanel"), {
   ssr: false,
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
+// And only when answering a request for changes.
+const KeepOffer = dynamic(() => import("@/chain/KeepOffer"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
+const ReviseOffer = dynamic(() => import("@/chain/ReviseOffer"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 
 type Checking = { state: "idle" } | { state: "running"; run: number } | { state: "done"; received: number; skipped: number; message?: string };
 
@@ -123,6 +129,7 @@ function offerDetail(item: Extract<FeedItem, { kind: "offer" }>): string {
 }
 
 function Row({ item, onRead }: { item: FeedItem; onRead: (hours: Extract<FeedItem, { kind: "hours" }>["hours"]) => void }) {
+  if (item.kind === "thread") return <ThreadRow item={item} />;
   if (item.kind === "hours") {
     const h = item.hours;
     return (
@@ -171,6 +178,62 @@ function Row({ item, onRead }: { item: FeedItem; onRead: (hours: Extract<FeedIte
         <span className="shrink-0 text-xs text-muted-foreground">{when(item.at)}</span>
       </div>
       <div className="text-xs text-muted-foreground">{text.detail}</div>
+    </div>
+  );
+}
+
+type Answering = "keep" | "accept" | "counter" | null;
+
+/** One message in the conversation with a team member: their request for changes, or this business's answer. */
+function ThreadRow({ item: feed }: { item: Extract<FeedItem, { kind: "thread" }> }) {
+  const { rail, mailbox } = useOpenBooks();
+  const [answering, setAnswering] = useState<Answering>(null);
+  const { item, workerName, workerId, partiesKey } = feed;
+  const body = item.body;
+  const link = rail ? linkFor(rail, workerId) : undefined;
+  const title =
+    body.type === "counter"
+      ? `${workerName} asked for changes to your offer`
+      : body.type === "stands"
+        ? `You kept the offer to ${workerName} as it is`
+        : `You sent ${workerName} a revised offer`;
+
+  // A request is answerable while it's the latest one on the offer that is still waiting.
+  const current = link?.status === "offered" && link.agreementId === body.agreementId && link.terms ? link.terms : null;
+  const open = body.type === "counter" && current && openCounter(threadFor(mailbox, partiesKey), body.agreementId)?.id === item.id;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={cn("font-medium", open && "text-primary")}>{title}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{when(item.sentAt)}</span>
+      </div>
+      {body.type === "counter" &&
+        (current ? (
+          <ChangeList changes={proposalChanges(proposalOf(current), body.proposal)} />
+        ) : (
+          <p className="text-xs text-muted-foreground">On an earlier offer.</p>
+        ))}
+      <QuotedNote who={item.mine ? "You" : workerName} text={body.note} />
+      {open && body.type === "counter" && answering === null && (
+        <div className="flex flex-wrap gap-2">
+          <Button className="min-h-11 sm:min-h-9" onClick={() => setAnswering("accept")}>
+            Accept their changes
+          </Button>
+          <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setAnswering("counter")}>
+            Counter back
+          </Button>
+          <Button variant="ghost" className="min-h-11 sm:min-h-9" onClick={() => setAnswering("keep")}>
+            Keep the offer as it is
+          </Button>
+        </div>
+      )}
+      {open && body.type === "counter" && answering === "keep" && (
+        <KeepOffer workerId={workerId} workerName={workerName} partiesKey={partiesKey} agreementId={body.agreementId} onClose={() => setAnswering(null)} />
+      )}
+      {open && body.type === "counter" && (answering === "accept" || answering === "counter") && (
+        <ReviseOffer workerId={workerId} proposal={body.proposal} mode={answering} onClose={() => setAnswering(null)} />
+      )}
     </div>
   );
 }

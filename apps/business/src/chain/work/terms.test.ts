@@ -2,6 +2,7 @@ import { KINDS, MailboxError, lookupId, partiesKeyFromHex, seal } from "@pnw/mai
 import { computeTermsDocHash } from "@pnw/handshake/engine";
 import { describe, expect, it } from "vitest";
 import type { Terms } from "../../books/work";
+import { offerTermsKind } from "../offer_files";
 import { canonicalTerms, fetchTerms, parseTermsPayload, termsDocHash, termsMatchRecord } from "./terms";
 
 // The fixture the employer's side pins too: if this hash changes, offers stop verifying.
@@ -51,22 +52,35 @@ describe("canonical terms", () => {
 describe("fetchTerms", () => {
   const KEY_HEX = "ab".repeat(32);
   const key = partiesKeyFromHex(KEY_HEX);
+  const AID = "0a".repeat(32);
+  const OWN = offerTermsKind(AID);
 
-  it("opens the terms at slot 0 of the terms kind", async () => {
-    const sealed = await seal(key, KINDS.terms, 0, new TextEncoder().encode(JSON.stringify(TERMS)));
+  it("opens the terms in the offer's own slot first", async () => {
+    const sealed = await seal(key, OWN, 0, new TextEncoder().encode(JSON.stringify(TERMS)));
     const asked: string[] = [];
-    const result = await fetchTerms(KEY_HEX, { get: async (l) => (asked.push(l), l === sealed.lookup ? sealed.envelope : null) });
-    expect(asked).toEqual([lookupId(key, KINDS.terms, 0)]);
+    const result = await fetchTerms(KEY_HEX, AID, { get: async (l) => (asked.push(l), l === sealed.lookup ? sealed.envelope : null) });
+    expect(OWN).toBe("terms_0a0a0a0a0a0a0a0a0a0a0a0a");
+    expect(asked).toEqual([lookupId(key, OWN, 0)]);
     expect(result).toEqual({ terms: TERMS, lookup: sealed.lookup });
   });
 
+  it("falls back to the shared slot 0 of kind terms for an offer sent before per-offer slots", async () => {
+    const sealed = await seal(key, KINDS.terms, 0, new TextEncoder().encode(JSON.stringify(TERMS)));
+    const asked: string[] = [];
+    const result = await fetchTerms(KEY_HEX, AID, { get: async (l) => (asked.push(l), l === sealed.lookup ? sealed.envelope : null) });
+    expect(asked).toEqual([lookupId(key, OWN, 0), lookupId(key, KINDS.terms, 0)]);
+    expect(result).toEqual({ terms: TERMS, lookup: sealed.lookup });
+    const none = await fetchTerms(KEY_HEX, AID, { get: async () => null });
+    expect(none).toMatchObject({ terms: null, reason: "missing", lookup: lookupId(key, OWN, 0) });
+  });
+
   it("reports a missing document, a host without a mailbox, and a document it can't open", async () => {
-    expect(await fetchTerms(KEY_HEX, { get: async () => null })).toMatchObject({ terms: null, reason: "missing" });
-    expect(await fetchTerms(KEY_HEX, { get: async () => { throw new MailboxError("NOT_CONFIGURED", "off"); } })).toMatchObject({ terms: null, reason: "off" });
-    expect(await fetchTerms(KEY_HEX, { get: async () => { throw new MailboxError("REQUEST_FAILED", "502"); } })).toMatchObject({ terms: null, reason: "unreadable", message: "502" });
-    const other = await seal(partiesKeyFromHex("cd".repeat(32)), KINDS.terms, 0, new TextEncoder().encode(JSON.stringify(TERMS)));
-    expect(await fetchTerms(KEY_HEX, { get: async () => other.envelope })).toMatchObject({ terms: null, reason: "unreadable" });
-    const junk = await seal(key, KINDS.terms, 0, new TextEncoder().encode('{"kind":"w4"}'));
-    expect(await fetchTerms(KEY_HEX, { get: async () => junk.envelope })).toMatchObject({ terms: null, reason: "unreadable", message: expect.stringMatching(/terms/) });
+    expect(await fetchTerms(KEY_HEX, AID, { get: async () => null })).toMatchObject({ terms: null, reason: "missing" });
+    expect(await fetchTerms(KEY_HEX, AID, { get: async () => { throw new MailboxError("NOT_CONFIGURED", "off"); } })).toMatchObject({ terms: null, reason: "off" });
+    expect(await fetchTerms(KEY_HEX, AID, { get: async () => { throw new MailboxError("REQUEST_FAILED", "502"); } })).toMatchObject({ terms: null, reason: "unreadable", message: "502" });
+    const other = await seal(partiesKeyFromHex("cd".repeat(32)), OWN, 0, new TextEncoder().encode(JSON.stringify(TERMS)));
+    expect(await fetchTerms(KEY_HEX, AID, { get: async () => other.envelope })).toMatchObject({ terms: null, reason: "unreadable" });
+    const junk = await seal(key, OWN, 0, new TextEncoder().encode('{"kind":"w4"}'));
+    expect(await fetchTerms(KEY_HEX, AID, { get: async () => junk.envelope })).toMatchObject({ terms: null, reason: "unreadable", message: expect.stringMatching(/terms/) });
   });
 });

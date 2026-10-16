@@ -172,6 +172,16 @@ pin: roughly how long the sender wants it kept, which hints at whether it is an 
 `CRON_SECRET` the sweep does nothing and expired pins wait for the receiver's app, which clears an
 expired offer when it finds one. ⚠️ Accepted.
 
+**The thread between a business and one person** (`books/thread.ts`, `chain/thread.ts`; counter-offers
+first). Each side writes its own numbered slots (kinds `thread_b`, `thread_w`) sealed with the pair's
+parties key, and reads the other side's. Every message that arrives is untrusted input: a known
+kind, one that side may send (only the person asks for changes; only the business keeps or
+revises an offer), every field in shape and bounded, or it is skipped and its pin left. Nothing in
+a thread signs anything: an offer changes only by a withdrawal and a new offer on the chain, each
+approved in Shield, and the person's app still checks the new offer's terms against its record.
+Each offer's terms now have their own slot (`terms_<agreement id>`), so a revised offer can never be
+read with the old one's terms. ✅
+
 **Receipts** (`@pnw/mailbox` `sealReceipt`, `chain/receipts.ts`). When a person's app collects an
 offer or a paystub, or the business's app collects a week of hours, it seals a small receipt
 ("received at") back to the sender, at an address in its own domain

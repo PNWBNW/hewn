@@ -125,3 +125,27 @@ describe("the mailbox", () => {
     expect(() => addHours(emptyMailbox(), hours(0, { workerId: "" }))).toThrow(/team member/);
   });
 });
+
+describe("threads in the mailbox", () => {
+  const KEY = "ab".repeat(32);
+  const counter = {
+    version: 1 as const,
+    id: "1".repeat(32),
+    from: "worker" as const,
+    sentAt: "2026-10-16T18:00:00.000Z",
+    body: { type: "stands" as const, agreementId: "aa".repeat(32), note: "" },
+  };
+
+  it("are kept per person by parties key, survive a save, and refuse a bad one", async () => {
+    const { updateThread, threadFor, mailboxFromJson, mailboxToJson, emptyMailbox } = await import("./mailbox");
+    const { addToThread } = await import("./thread");
+    const item = { ...counter, from: "business" as const, mine: true, seq: 0 };
+    const m = updateThread(emptyMailbox(), KEY, "wkr-1", (t) => addToThread(t, item));
+    expect(threadFor(m, KEY)).toMatchObject({ workerId: "wkr-1", nextOut: 1, nextIn: 0 });
+    expect(mailboxFromJson(mailboxToJson(m))).toEqual(m);
+    expect(() => mailboxFromJson(JSON.stringify({ ...m, threads: { nope: threadFor(m, KEY) } }))).toThrow(/parties key/);
+    expect(() => mailboxFromJson(JSON.stringify({ ...m, threads: { [KEY]: { ...threadFor(m, KEY), workerId: "" } } }))).toThrow(/team member/);
+    // A message only a business may send can't sit in the vault as the worker's.
+    expect(() => mailboxFromJson(JSON.stringify({ ...m, threads: { [KEY]: { ...threadFor(m, KEY), items: [{ ...item, from: "worker" }] } } }))).toThrow();
+  });
+});

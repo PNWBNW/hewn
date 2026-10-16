@@ -13,6 +13,8 @@ import {
   openPunch,
   punch,
   markTimesheetReceived,
+  updateWorkThread,
+  workThread,
   recordTimesheet,
   removePunch,
   setProfile,
@@ -227,5 +229,17 @@ describe("an offer letter in the person's vault", () => {
     expect(() => upsertAgreement(emptyWork("Ana"), { ...agreement, terms: TERMS, files: [ref] })).toThrow(/need the offer letter/);
     expect(() => validateTerms({ ...v2, letter: { description: 1 } })).toThrow(WorkError);
     expect(() => validateTerms({ ...v2, files: [{ ...v2.files[0], chunks: 9 }] })).toThrow(/piece count/);
+  });
+});
+
+describe("threads in the person's vault", () => {
+  it("are kept per employer by parties key and survive a save", async () => {
+    const { addToThread } = await import("./thread");
+    const key = "ab".repeat(32);
+    const item = { version: 1 as const, id: "2".repeat(32), from: "business" as const, sentAt: "2026-10-16T18:00:00.000Z", body: { type: "stands" as const, agreementId: "aa".repeat(32), note: "Kept." }, mine: false, seq: 0 };
+    const w = updateWorkThread(withAgreement(), key, (t) => addToThread(t, item));
+    expect(workThread(w, key)?.nextIn).toBe(1);
+    expect(workFromJson(workToJson(w))).toEqual(w);
+    expect(() => updateWorkThread(w, "nope", (t) => t)).toThrow(/parties key/);
   });
 });

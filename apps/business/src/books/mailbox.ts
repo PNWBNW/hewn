@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import type { TimesheetPayload } from "./hours";
+import { type Thread, emptyThread, validateThread } from "./thread";
 
 /** A week of hours a team member sent, as it arrived. */
 export type ReceivedHours = {
@@ -37,11 +38,16 @@ export type ReceivedHours = {
   read?: boolean;
 };
 
+/** The conversation with one team member (books/thread.ts), and who they are in these books. */
+export type BusinessThread = Thread & { workerId: string };
+
 export type Mailbox = {
   version: 1;
   hours: ReceivedHours[];
   /** The next unread `timesheet` slot, per agreement id. Missing means 0. */
   nextHours?: Record<string, number>;
+  /** One thread per person, by the pair's parties key (the same for every offer between the two). */
+  threads?: Record<string, BusinessThread>;
 };
 
 export class MailboxError extends Error {
@@ -142,6 +148,18 @@ export function validateMailbox(raw: unknown): Mailbox {
     }
     if (Object.keys(clean).length > 0) mailbox.nextHours = clean;
   }
+  if (m.threads !== undefined) {
+    const t = m.threads as Record<string, unknown> | null;
+    if (!t || typeof t !== "object" || Array.isArray(t)) throw new MailboxError("The threads must be an object");
+    const clean: Record<string, BusinessThread> = {};
+    for (const [key, raw] of Object.entries(t)) {
+      if (!LOOKUP.test(key)) throw new MailboxError("A thread is filed under a parties key");
+      const workerId = (raw as { workerId?: unknown } | null)?.workerId;
+      if (typeof workerId !== "string" || !workerId) throw new MailboxError("A thread needs its team member");
+      clean[key] = { ...validateThread(raw), workerId };
+    }
+    if (Object.keys(clean).length > 0) mailbox.threads = clean;
+  }
   return mailbox;
 }
 
@@ -171,3 +189,13 @@ export function markHoursRead(m: Mailbox, agreementId: string, seq: number): Mai
 }
 
 export const unreadCount = (m: Mailbox | null | undefined): number => m?.hours.filter((h) => !h.read).length ?? 0;
+
+/** The thread with the person whose agreements use `partiesKey`, if there is one. */
+export const threadFor = (m: Mailbox | null | undefined, partiesKey: string): BusinessThread | undefined => m?.threads?.[partiesKey];
+
+/** Applies `change` to the thread with one person (a new one if there was none). */
+export function updateThread(m: Mailbox, partiesKey: string, workerId: string, change: (t: Thread) => Thread): Mailbox {
+  const before = threadFor(m, partiesKey) ?? { ...emptyThread(), workerId };
+  const after = change(before);
+  return validateMailbox({ ...m, threads: { ...m.threads, [partiesKey]: { ...after, workerId: before.workerId } } });
+}

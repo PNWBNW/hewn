@@ -64,7 +64,12 @@ export type RailLink = {
   terms?: Terms;
   /** This business's own saved copies of the offer letter's files (vault attachments), one per file in `terms.files`. */
   offerFiles?: AttachmentRef[];
+  /** What else the offer said on the chain (industry, review and end dates), so a revised offer can start from it. */
+  offerInputs?: OfferInputs;
 };
+
+/** An offer's inputs that its terms don't carry. */
+export type OfferInputs = { industryCode: number; reviewDate: string; endDate: string };
 
 export type PartyKind = "customer" | "vendor" | "worker";
 
@@ -212,6 +217,14 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
       throw e instanceof LetterError ? new RailError(e.message) : e;
     }
   }
+  if (l.offerInputs !== undefined) {
+    const o = l.offerInputs as Partial<OfferInputs> | null;
+    const day = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (!o || typeof o !== "object") throw new RailError("The offer's inputs must be an object");
+    if (typeof o.industryCode !== "number" || !Number.isInteger(o.industryCode) || o.industryCode < 1 || o.industryCode > 255) throw new RailError("The offer's industry isn't valid");
+    if (!day(o.reviewDate) || !(o.endDate === "" || day(o.endDate))) throw new RailError("The offer's dates aren't valid");
+    link.offerInputs = { industryCode: o.industryCode, reviewDate: o.reviewDate as string, endDate: o.endDate as string };
+  }
   return link;
 }
 
@@ -322,6 +335,7 @@ export function addLink(rail: Rail, link: RailLink): Rail {
     fresh.terms = previous.terms;
     if (previous.offerFiles) fresh.offerFiles = previous.offerFiles;
   }
+  if (previous?.offerInputs && previous.agreementId === fresh.agreementId && fresh.offerInputs === undefined) fresh.offerInputs = previous.offerInputs;
   return validateRail({ ...rail, links: [...rail.links.filter((l) => l.workerId !== fresh.workerId), fresh] }, LEGACY);
 }
 

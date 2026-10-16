@@ -231,7 +231,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
       const saved = [];
       try {
         for (const p of files) saved.push(await addAttachment(new File([p.bytes], p.file.name, { type: p.file.type })));
-        const link = { ...sent.link, terms: sent.terms, ...(saved.length > 0 ? { offerFiles: saved } : {}) };
+        const link = { ...sent.link, terms: sent.terms, offerInputs: { industryCode, reviewDate, endDate }, ...(saved.length > 0 ? { offerFiles: saved } : {}) };
         await updateCompany((c) => ({ ...c, rail: addLink(railOf(c), link) }));
       } catch (e) {
         for (const ref of saved) await discardAttachment(ref.attachmentId).catch(() => {});

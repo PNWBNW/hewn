@@ -9,12 +9,15 @@
 import type { Payroll } from "@pnw/payroll";
 import type { Mailbox, ReceivedHours } from "./mailbox";
 import type { Rail } from "./rail";
+import type { ThreadItem } from "./thread";
 
 export type FeedItem =
   | { kind: "offer"; key: string; at: string; workerId: string; workerName: string; receivedAt?: string; expiresAt?: string }
   | { kind: "accepted"; key: string; at: string; workerId: string; workerName: string }
   | { kind: "paystub"; key: string; at: string; workerId: string; workerName: string; payDate: string; runId: string; receivedAt?: string }
-  | { kind: "hours"; key: string; at: string; workerId: string; workerName: string; hours: ReceivedHours };
+  | { kind: "hours"; key: string; at: string; workerId: string; workerName: string; hours: ReceivedHours }
+  /** A message in the conversation with one person (books/thread.ts): theirs or this business's answer. */
+  | { kind: "thread"; key: string; at: string; workerId: string; workerName: string; partiesKey: string; item: ThreadItem };
 
 const FALLBACK_NAME = "A team member";
 
@@ -65,6 +68,12 @@ export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox:
 
   for (const h of mailbox?.hours ?? []) {
     items.push({ kind: "hours", key: `hours:${h.agreementId}:${h.seq}`, at: h.receivedAt, workerId: h.workerId, workerName: nameOf(h.workerId), hours: h });
+  }
+
+  for (const [partiesKey, thread] of Object.entries(mailbox?.threads ?? {})) {
+    for (const item of thread.items) {
+      items.push({ kind: "thread", key: `thread:${item.id}`, at: item.sentAt, workerId: thread.workerId, workerName: nameOf(thread.workerId), partiesKey, item });
+    }
   }
 
   // Newest first; the key keeps ties in a stable order.

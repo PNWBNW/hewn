@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { AttachmentRef } from "@pnw/sales";
 import { MailboxClient } from "@pnw/mailbox";
 import { checkAgreementStatus } from "@pnw/records/agreement_reader";
@@ -22,18 +23,23 @@ import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
-import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, upsertAgreement } from "@/books/work";
+import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, updateWorkThread, upsertAgreement, workThread } from "@/books/work";
+import { ChangeList, QuotedNote } from "@/books/NegotiationView";
+import { addToThread, answerFor, openCounter, proposalChanges, proposalOf, revisedFrom, skipIncoming } from "@/books/thread";
 import { BRAND } from "@/brand";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
 import { fetchOfferFile, offerFileLookups } from "../offer_files";
 import { offerReceiptSlot, sendReceipt } from "../receipts";
+import { readThread } from "../thread";
 import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
 import { executeAndWait } from "./execute";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
 
 export type OffersPanelProps = { onClose: () => void };
+
+const CounterOffer = dynamic(() => import("./CounterOffer"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 
 export default function OffersPanel({ onClose }: OffersPanelProps) {
   return (
@@ -91,15 +97,32 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
     (async () => {
       try {
         const records = await readAgreementRecords(wallet.requestRecords, address);
+        // Each employer's side of the conversation first, so a revised offer knows what it replaced.
+        for (const partiesKey of new Set(records.map((r) => r.partiesKey))) {
+          await readThread({
+            client: client.current,
+            partiesKey,
+            reader: "worker",
+            thread: workThread(work, partiesKey),
+            store: async (item) => {
+              await updateWork((w) => updateWorkThread(w, partiesKey, (t) => addToThread(t, item)));
+            },
+            skip: async (seq) => {
+              await updateWork((w) => updateWorkThread(w, partiesKey, (t) => skipIncoming(t, seq)));
+            },
+          });
+        }
         const found: Row[] = [];
         for (const record of records) {
           const previous = agreementFor(work, record.agreementId);
           let status: AgreementStatus = record.kind === "pending" ? "pending" : "active";
-          if (record.kind === "final") status = STATUS_OF[(await checkAgreementStatus(record.agreementId).catch(() => null)) ?? "active"] ?? "active";
+          const onChain = await checkAgreementStatus(record.agreementId).catch(() => null);
+          if (record.kind === "final") status = STATUS_OF[onChain ?? "active"] ?? "active";
+          else if (onChain === "terminated") status = "terminated"; // withdrawn before it was accepted
           const employerName = previous?.employerName ?? ((await queryNamePlaintext(record.employerNameHash).catch(() => null)) || undefined);
           // Terms already in the vault are used as long as they still hash to the record; otherwise the mailbox.
           const kept: Terms | undefined = previous?.terms && termsMatchRecord(previous.terms, record.termsDocHash) ? previous.terms : undefined;
-          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, client.current);
+          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, client.current);
           const verified = !!terms.terms && termsMatchRecord(terms.terms, record.termsDocHash);
           const row: Row = { record, status, terms, verified, files: [] };
           const t = terms.terms;
@@ -227,7 +250,16 @@ function OfferRow({
   read: (ref: AttachmentRef) => Promise<Blob>;
 }) {
   const { record, status, terms, verified } = row;
+  const { work } = useWork();
   const [readIt, setReadIt] = useState(false);
+  const [countering, setCountering] = useState(false);
+  const thread = workThread(work, record.partiesKey);
+  const counter = openCounter(thread, record.agreementId);
+  const answer = answerFor(thread, record.agreementId);
+  const replaced = revisedFrom(thread, record.agreementId);
+  const revisedTo = thread?.items.some((i) => i.body.type === "revised" && i.body.agreementId === record.agreementId);
+  const previous = replaced ? agreementFor(work, replaced)?.terms : undefined;
+  const revisedNote = thread?.items.find((i) => i.body.type === "revised" && i.body.newAgreementId === record.agreementId)?.body.note ?? "";
   const letter = terms.terms?.version === 2 ? terms.terms : null;
   const offeredFiles = letter?.files ?? [];
   const filesIn = offeredFiles.length === row.files.length;
@@ -240,7 +272,9 @@ function OfferRow({
     <li className="flex flex-col gap-2 p-3 text-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <span className="font-medium">{employer}</span>
-        <span className={status === "pending" ? "text-xs text-primary" : "text-xs text-muted-foreground"}>{STATUS_LABEL[status]}</span>
+        <span className={status === "pending" ? "text-xs text-primary" : "text-xs text-muted-foreground"}>
+          {status === "terminated" && record.kind === "pending" ? (revisedTo ? "Replaced by a revised offer" : "Withdrawn") : STATUS_LABEL[status]}
+        </span>
       </div>
       {t && verified ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
@@ -270,6 +304,20 @@ function OfferRow({
       ) : (
         <p className="text-xs text-muted-foreground">{terms.terms === null ? terms.message : ""}</p>
       )}
+      {replaced && (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/40 p-2">
+          <p className="text-xs font-medium">Revised offer: it replaces the one you asked to change.</p>
+          {previous && t && verified && <ChangeList changes={proposalChanges(proposalOf(previous), proposalOf(t))} wantsLabel="Now" />}
+          <QuotedNote who={employer} text={revisedNote} />
+        </div>
+      )}
+      {status === "pending" && answer?.body.type === "stands" && (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs">They kept this offer as it is.</p>
+          <QuotedNote who={employer} text={answer.body.note} />
+        </div>
+      )}
+      {status === "pending" && counter && <p className="text-xs text-muted-foreground">You asked for changes on {counter.sentAt.slice(0, 10)}. Waiting for their answer.</p>}
       {status === "pending" && letter && (
         <p className={expired ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
           {expired
@@ -288,9 +336,17 @@ function OfferRow({
           <Button className="min-h-11 sm:min-h-9" disabled={disabled || !ready} onClick={onAccept}>
             {busy ? "Accepting…" : "Accept"}
           </Button>
+          {verified && t && !countering && (
+            <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={disabled} onClick={() => setCountering(true)}>
+              {counter ? "Ask for different changes" : "Ask for changes"}
+            </Button>
+          )}
           {!verified && <span className="text-xs text-muted-foreground">You can accept once the terms arrive and match.</span>}
           {verified && (!filesIn || row.filesProblem) && <span className="text-xs text-muted-foreground">You can accept once every file has arrived.</span>}
         </div>
+      )}
+      {countering && t && (
+        <CounterOffer agreementId={record.agreementId} partiesKey={record.partiesKey} terms={t} employer={employer} onClose={() => setCountering(false)} />
       )}
     </li>
   );

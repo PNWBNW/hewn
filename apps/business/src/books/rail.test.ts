@@ -412,3 +412,21 @@ describe("an offer's receipt", () => {
     expect(() => validateLink({ ...offered, offerReceivedAt: "soon" })).toThrow();
   });
 });
+
+describe("an offer's other inputs", () => {
+  const offered: RailLink = { ...link, status: "offered", offeredAt: "2026-10-16T18:00:00.000Z", offerInputs: { industryCode: 4, reviewDate: "2027-01-31", endDate: "" } };
+
+  it("are kept for a revision, through a save and an import of the same agreement, and go with a new one", () => {
+    expect(validateLink(offered).offerInputs).toEqual({ industryCode: 4, reviewDate: "2027-01-31", endDate: "" });
+    expect(linkFor(railFromJson(railToJson({ ...rail, links: [offered] })), "wkr-1")!.offerInputs).toEqual(offered.offerInputs);
+    const sent = addLink({ ...rail, links: [] }, offered);
+    const { offerInputs: _i, ...imported } = { ...offered, status: "linked" as const };
+    expect(linkFor(addLink(sent, imported), "wkr-1")!.offerInputs).toEqual(offered.offerInputs);
+    expect(linkFor(addLink(sent, { ...imported, agreementId: "02".repeat(32), partiesKey: KEY_B }), "wkr-1")).not.toHaveProperty("offerInputs");
+  });
+
+  it("are refused when malformed", () => {
+    expect(() => validateLink({ ...offered, offerInputs: { industryCode: 0, reviewDate: "2027-01-31", endDate: "" } })).toThrow(/industry/);
+    expect(() => validateLink({ ...offered, offerInputs: { industryCode: 4, reviewDate: "soon", endDate: "" } })).toThrow(/dates/);
+  });
+});
