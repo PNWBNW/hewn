@@ -22,9 +22,11 @@
 //      benefits). No files: paste the text instead. Its words go inside the
 //      terms, so accepting the offer accepts exactly these.
 //   3. Review: the agreement exactly as they will read it.
-//   4. Send: the terms go to their mailbox first, sealed to the two of you,
-//      then one transaction in Shield; the link is saved as "Offer sent",
-//      with the terms kept in these books.
+//   4. Send: the terms go first, packed and sealed to the two of you, as one
+//      page on the network (letters, docs/LETTERS.md; one Shield approval),
+//      then the offer itself (a second); the link is saved as "Offer sent",
+//      with the terms kept in these books. The person chooses how both fees
+//      are paid (FeeChoice).
 //
 // No address, key or document is ever logged from here.
 // ---------------------------------------------------------------------------
@@ -32,7 +34,6 @@
 import Link from "next/link";
 import { type ReactNode, useMemo, useState } from "react";
 import { formatCents, parseCents } from "@pnw/ledger";
-import { MailboxClient } from "@pnw/mailbox";
 import { PAY_FREQUENCIES, type PayFrequency, type Worker, updateWorker } from "@pnw/payroll";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
@@ -54,6 +55,9 @@ import { draftProblem, draftTerms, longDate, payLine } from "./agreement_draft";
 import NameLookup from "./NameLookup";
 import { type DirectoryEntry, entryLabel } from "./directory";
 import { type OfferStage, type ResolvedWorker, fetchLatestHeight, isMailboxOff, resolveBusinessName, sendOffer } from "./offer";
+import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
+import { FeeChoice } from "./FeeChoice";
+import { LetterBox } from "./letters";
 import { useShield } from "./shield";
 
 /** A team member already in the books, or someone found on the registry who joins when they accept. */
@@ -71,8 +75,8 @@ export default function OfferPanel(props: OfferPanelProps) {
 
 const STAGE_COPY: Record<OfferStage, string> = {
   sealing: "Sealing the terms…",
-  mailbox: "Putting the terms in their mailbox…",
-  approving: "Approve the offer in Shield…",
+  mailbox: "Approve the terms in Shield (1 of 2): they go as a sealed page on the network…",
+  approving: "Approve the offer in Shield (2 of 2)…",
   sent: "Sent. Waiting for the network…",
   accepted: "Accepted. Saving…",
 };
@@ -118,7 +122,6 @@ function OfferFlow(props: OfferPanelProps) {
   const workerId = "workerId" in props ? props.workerId : null;
   const { books, payroll, rail, updateCompany } = useOpenBooks();
   const { state, connect, error: shieldError, wallet } = useShield();
-  const client = useMemo(() => new MailboxClient(), []);
   const existing = workerId ? payroll.workers.find((w) => w.id === workerId) : undefined;
   // Someone not on the team yet: the name these books will know them by (their registered name to start).
   const [hireName, setHireName] = useState(hire?.name ?? "");
@@ -154,6 +157,8 @@ function OfferFlow(props: OfferPanelProps) {
   const [stage, setStage] = useState<OfferStage | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [mailboxOff, setMailboxOff] = useState(false);
+  // How both fees are paid (the terms page and the offer), starting from the device's switch.
+  const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const [error, setError] = useState<string | null>(null);
 
   const address = state.kind === "connected" ? state.address : null;
@@ -232,7 +237,9 @@ function OfferFlow(props: OfferPanelProps) {
         reviewDate,
         endDate,
         currentHeight,
-        client,
+        // The terms go to them as a sealed page on the network.
+        client: new LetterBox({ wallet, to: found.address }),
+        feeMode,
         wallet: {
           executeTransaction: async (opts) => {
             const r = await wallet.executeTransaction(opts);
@@ -401,9 +408,11 @@ function OfferFlow(props: OfferPanelProps) {
         <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-card p-3 font-sans text-sm">{terms}</pre>
         <LetterSections letter={letter} />
         {stage && <p className="text-xs text-muted-foreground">{STAGE_COPY[stage]}</p>}
+        {!stage && <FeeChoice value={feeMode} onChange={setFeeMode} />}
         {!stage && (
           <p className="text-xs text-muted-foreground">
-            Shield asks you to approve one transaction; the employer pays its network fee. Nothing is paid to anyone.
+            Shield asks you to approve twice: first the terms, sent to them as a sealed page on the network, then the offer itself. Nothing is paid to
+            anyone.
           </p>
         )}
         <FormError message={error ?? shieldError} />

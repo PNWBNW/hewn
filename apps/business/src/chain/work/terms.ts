@@ -13,6 +13,7 @@ import { computeTermsDocHash } from "@pnw/handshake/engine";
 import { KINDS, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { validateLetter, validateOfferFiles } from "../../books/offer_letter";
 import { validateJobFields } from "../../books/terms_words";
+import { unpackPayload } from "../compress";
 import { offerTermsKind } from "../offer_files";
 import { type Terms, WorkError, validateTerms } from "../../books/work";
 
@@ -94,7 +95,8 @@ async function fetchTermsAt(partiesKeyHex: string, kind: string, client: Pick<Ma
     }
     if (!bytes) return { terms: null, lookup, reason: "missing", message: "The terms haven't arrived yet" };
     try {
-      return { terms: parseTermsPayload(await open(key, kind, 0, bytes)), lookup };
+      // Offers sent as letters are deflated before sealing (chain/compress.ts); older ones aren't.
+      return { terms: parseTermsPayload(await unpackPayload(await open(key, kind, 0, bytes))), lookup };
     } catch (e) {
       return { terms: null, lookup, reason: "unreadable", message: e instanceof Error ? e.message : "The terms couldn't be read" };
     }

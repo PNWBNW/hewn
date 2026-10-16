@@ -83,4 +83,16 @@ describe("fetchTerms", () => {
     const junk = await seal(key, OWN, 0, new TextEncoder().encode('{"kind":"w4"}'));
     expect(await fetchTerms(KEY_HEX, AID, { get: async () => junk.envelope })).toMatchObject({ terms: null, reason: "unreadable", message: expect.stringMatching(/terms/) });
   });
+
+  it("reads terms that were packed before sealing (offers sent as letters)", async () => {
+    const { packPayload } = await import("../compress");
+    const { partiesKeyFromHex, seal } = await import("@pnw/mailbox");
+    const { offerTermsKind } = await import("../offer_files");
+    const long = { ...TERMS, termsText: "Carpentry, tools provided. ".repeat(100) };
+    const packed = await packPayload(new TextEncoder().encode(JSON.stringify(long)));
+    expect(packed[0]).toBe(0x01);
+    const sealed = await seal(partiesKeyFromHex(KEY_HEX), offerTermsKind(AID), 0, packed);
+    const result = await fetchTerms(KEY_HEX, AID, { get: async (l) => (l === sealed.lookup ? sealed.envelope : null) });
+    expect(result.terms).toEqual(long);
+  });
 });

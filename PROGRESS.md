@@ -2755,3 +2755,36 @@ anyway. The next test, with "Private" chosen and "Fee asked for" in the report, 
 the request reached Shield.
 
 Tests: 835/835.
+
+## 2026-10-16: Shield's sponsor pays the fee; offers go as letters
+
+**Finding** (`at14j5vyy9dmztdajcsy7qhtejw3736ssd93dtlcy70a5dwjennwv8qvkdhuk`, "Fee asked for:
+private"):
+- The fee was `fee_public`, but paid by *another* account, not Joshua's. Shield sponsors dApp fees
+  (Provable covers them), so the public sees the sponsor's account and not the sender.
+- The sender paid nothing; his Shield activity shows the letters with no amount.
+- Shield ignores `privateFee: true` for these calls.
+- Recorded in THREAT_MODEL T6 and LETTERS. The per-send fee choice stays in case sponsorship
+  changes.
+
+**Offers go as letters** (Joshua hit "Offers need the mailbox" again: offers hadn't moved yet):
+- **`chain/compress.ts`:** a document is deflated before sealing when that's smaller (a 0x01
+  marker, then deflate-raw; plain JSON starts with `{`). A long offer letter then fits in one page.
+- **`sendOffer`:**
+  - The terms are packed, sealed, and refused before Shield is asked if the envelope is over a
+    page ("too long to send on the network").
+  - They go through `client.put`, which is now a `LetterBox` to the person: one `send_page`.
+  - The person's fee choice (`feeMode`) goes with both the page and `create_offer_open`.
+- **The offer panel:** the review step has the Private/Public fee choice, and the copy says Shield
+  asks twice (the terms page, then the offer).
+- **Revised offers:** these send their terms as a page too, with three approvals in all.
+- **The person's side:** `fetchTerms` reads through `lettersThenMailbox`: the wallet's letters
+  first, then the old mailbox for offers sent before (a mailbox that's off reads as empty). It
+  unpacks deflated terms.
+- **Not moved yet:** offer receipts (best effort; the business sees "Sent", not "Received"),
+  thread notes, counter-offers, timesheets, paystubs and channels still use the mailbox. They move
+  next.
+
+Both accounts need to reconnect Hewn in Shield once, so Shield knows the letters program.
+
+Tests: 841/841.

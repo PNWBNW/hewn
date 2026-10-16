@@ -30,6 +30,8 @@ import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLe
 import type { EmploymentType } from "../books/terms_words";
 import { offerFileLookups, offerTermsKind } from "./offer_files";
 import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
+import { packPayload } from "./compress";
+import { PAGE_BYTES } from "./letters";
 
 export class OfferError extends Error {
   constructor(message: string) {
@@ -262,7 +264,13 @@ export type SendOfferInput = OfferDates & {
   partiesKey?: string;
   currentHeight: number;
   /** Only `put` is used; a fake with that one method does for tests. */
-  client: Pick<MailboxClient, "put">;
+  /**
+   * Where the sealed terms go: letters on chain (a LetterBox to the person,
+   * one Shield approval for the page) or, in tests, any client with `put`.
+   */
+  client: { put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: "public" | "private" }): Promise<void> };
+  /** The person's fee choice for both transactions (the terms page and the offer); the device's switch when left out. */
+  feeMode?: "public" | "private";
   wallet: OfferWallet;
   onProgress?: (stage: OfferStage) => void;
   now?: () => Date;
@@ -365,19 +373,21 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
   const partiesKey = keyFor(input);
   const computed = { ...computeAgreementValues(input.employerAddress, input.workerAddress, canonical, offerTimeUtc, VERSIONS.schema_v, VERSIONS.policy_v), parties_key: `0x${partiesKey}` };
 
-  // 1. The terms, sealed to the two parties, in the mailbox.
+  // 1. The terms, packed (deflated when that's smaller), sealed to the two parties, and sent: on
+  // chain, as one page to the person (letters, docs/LETTERS.md).
   onProgress?.("sealing");
   const key = partiesKeyFromHex(partiesKey);
   let sealed;
   try {
-    sealed = await seal(key, offerTermsKind(bareHex(computed.agreement_id)), TERMS_SLOT, new TextEncoder().encode(canonical));
+    sealed = await seal(key, offerTermsKind(bareHex(computed.agreement_id)), TERMS_SLOT, await packPayload(new TextEncoder().encode(canonical)));
   } finally {
     key.fill(0);
   }
+  if (sealed.envelope.length > PAGE_BYTES) throw new OfferError("The offer is too long to send on the network; shorten the offer letter");
   onProgress?.("mailbox");
   let slotTaken = false;
   try {
-    await client.put(sealed.lookup, sealed.envelope, { keepUntil });
+    await client.put(sealed.lookup, sealed.envelope, { keepUntil, ...(input.feeMode ? { feeMode: input.feeMode } : {}) });
   } catch (e) {
     if (e instanceof MailboxError && e.code === "CONFLICT") slotTaken = true;
     else if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") throw new OfferError(MAILBOX_OFF_MESSAGE);
@@ -395,7 +405,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
     epochs,
   });
   onProgress?.("approving");
-  const { transactionId: walletId } = await wallet.executeTransaction({ program: OFFER_PROGRAM, function: OFFER_FUNCTION, inputs, privateFee: false });
+  const { transactionId: walletId } = await wallet.executeTransaction({ program: OFFER_PROGRAM, function: OFFER_FUNCTION, inputs, privateFee: false, ...(input.feeMode ? { feeMode: input.feeMode } : {}) });
   if (!walletId) throw new OfferError("Shield didn't take the offer");
   onProgress?.("sent");
   const transactionId = await awaitAccepted(wallet, walletId, input);
