@@ -2709,3 +2709,12 @@ For the fee transition it says whether the payer is shown (`fee_public`) or not 
 It also gives the JSON size and an explorer link.
 
 Tests: all green (1 new).
+
+Then Joshua: let the test letter say whatever he types.
+- **"What it says" box** in the panel, showing live whether the text goes as a letter (up to
+  1,023 bytes, about 0.0066 ALEO) or as a page (up to 7,905 bytes, about 0.087 ALEO), or is too
+  long. A page uses `send_page`, which has no sender's copy, so both calls can be measured.
+- **The words read back** from the network show on screen. The report gives only their size, so
+  it stays safe to paste.
+
+Tests: all green (1 more).
