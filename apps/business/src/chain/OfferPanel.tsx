@@ -34,7 +34,18 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
-import { LETTER_SECTIONS, type Letter, MAX_OFFER_FILES, MAX_OFFER_FILES_BYTES, OFFER_FILE_TYPES, emptyLetter, fileLabel } from "@/books/offer_letter";
+import {
+  DEFAULT_EXPIRY_DAYS,
+  EXPIRY_DAYS,
+  type ExpiryDays,
+  LETTER_SECTIONS,
+  type Letter,
+  MAX_OFFER_FILES,
+  MAX_OFFER_FILES_BYTES,
+  OFFER_FILE_TYPES,
+  emptyLetter,
+  fileLabel,
+} from "@/books/offer_letter";
 import { type Rail, addLink, registeredFor, shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import type { Company } from "@/books/company";
@@ -126,6 +137,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
   const [termsText, setTermsText] = useState("");
   const [termsEdited, setTermsEdited] = useState(false);
   const [letter, setLetter] = useState<Letter>(emptyLetter);
+  const [expiresInDays, setExpiresInDays] = useState<ExpiryDays>(DEFAULT_EXPIRY_DAYS);
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [pieces, setPieces] = useState<{ done: number; total: number } | null>(null);
@@ -198,6 +210,7 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
         termsText: terms,
         letter,
         files,
+        expiresInDays,
         onFilePiece: (done, total) => setPieces({ done, total }),
         startDate,
         reviewDate,
@@ -375,6 +388,10 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
             <dt className="text-xs text-muted-foreground">Ends</dt>
             <dd>{endDate ? longDate(endDate) : "Open-ended"}</dd>
           </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Offer open for</dt>
+            <dd>{expiresInDays} days, then it expires and is cleared</dd>
+          </div>
         </dl>
         <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-card p-3 font-sans text-sm">{terms}</pre>
         <LetterSections letter={letter} />
@@ -479,6 +496,15 @@ function OfferFlow({ workerId, onClose }: OfferPanelProps) {
           </Field>
           <Field label="Notice to end (days)" hint="Optional. How much notice either side gives.">
             <input className={inputClass} inputMode="numeric" value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label="Offer open for" hint="Every offer expires. After this, they can't accept it and it's cleared from the mailbox.">
+            <select className={inputClass} value={expiresInDays} onChange={(e) => setExpiresInDays(Number(e.target.value) as ExpiryDays)}>
+              {EXPIRY_DAYS.map((d) => (
+                <option key={d} value={d}>
+                  {d} days
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Industry">
             <select className={inputClass} value={industryCode} onChange={(e) => setIndustryCode(Number(e.target.value))}>

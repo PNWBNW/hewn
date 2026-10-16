@@ -320,6 +320,12 @@ export function addLink(rail: Rail, link: RailLink): Rail {
   return validateRail({ ...rail, links: [...rail.links.filter((l) => l.workerId !== fresh.workerId), fresh] }, LEGACY);
 }
 
+/** Drops a team member's link (a withdrawn or expired offer): they're typed again, ready for a new offer. */
+export function removeLink(rail: Rail, workerId: string): Rail {
+  if (!linkFor(rail, workerId)) return rail;
+  return validateRail({ ...rail, links: rail.links.filter((l) => l.workerId !== workerId) }, LEGACY);
+}
+
 /** The link for one team member, if they have one. */
 export const linkFor = (rail: Rail, workerId: string): RailLink | undefined => rail.links.find((l) => l.workerId === workerId);
 

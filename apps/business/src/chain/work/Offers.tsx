@@ -25,7 +25,7 @@ import { shortAddress } from "@/books/rail";
 import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, upsertAgreement } from "@/books/work";
 import { BRAND } from "@/brand";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
-import { hasLetter } from "@/books/offer_letter";
+import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
 import { fetchOfferFile, offerFileLookups } from "../offer_files";
 import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
 import { executeAndWait } from "./execute";
@@ -101,6 +101,14 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, client.current);
           const verified = !!terms.terms && termsMatchRecord(terms.terms, record.termsDocHash);
           const row: Row = { record, status, terms, verified, files: [] };
+          const t = terms.terms;
+          if (status === "pending" && verified && t?.version === 2 && isExpired(t.expiresAt)) {
+            // Expired without an answer: it can't be accepted, so its documents come out of the mailbox.
+            if (terms.lookup) await client.current.drop(terms.lookup).catch(() => {});
+            for (const lookup of t.files.length > 0 ? offerFileLookups(record.partiesKey, t.agreementId, t.files) : []) await client.current.drop(lookup).catch(() => {});
+            found.push(row);
+            continue;
+          }
           // The letter's files: kept copies first, the mailbox for the rest, each checked against the terms.
           if (verified && terms.terms?.version === 2 && terms.terms.files.length > 0) {
             const offered = terms.terms.files;
@@ -133,6 +141,11 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
   }, [address, wallet.requestRecords, work, updateWork]);
 
   async function accept(row: Row) {
+    const t = row.terms.terms;
+    if (t?.version === 2 && isExpired(t.expiresAt)) {
+      setError("This offer has expired. Ask them to send a new one.");
+      return;
+    }
     setBusy(row.record.agreementId);
     setError(null);
     setNote("Approve the acceptance in Shield, then wait for the network. This can take a minute or two.");
@@ -213,7 +226,8 @@ function OfferRow({
   const offeredFiles = letter?.files ?? [];
   const filesIn = offeredFiles.length === row.files.length;
   const needsReading = !!letter && (hasLetter(letter.letter) || offeredFiles.length > 0);
-  const ready = verified && filesIn && !row.filesProblem && (!needsReading || readIt);
+  const expired = status === "pending" && !!letter && isExpired(letter.expiresAt);
+  const ready = verified && filesIn && !row.filesProblem && (!needsReading || readIt) && !expired;
   const employer = row.employerName ? `${row.employerName}.${BRAND.nameSuffix}` : shortAddress(record.employerAddress);
   const t = terms.terms;
   return (
@@ -250,7 +264,14 @@ function OfferRow({
       ) : (
         <p className="text-xs text-muted-foreground">{terms.terms === null ? terms.message : ""}</p>
       )}
-      {status === "pending" && (
+      {status === "pending" && letter && (
+        <p className={expired ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+          {expired
+            ? `This offer expired on ${letter.expiresAt.slice(0, 10)} without an answer. Ask them to send a new one if you're still interested.`
+            : `${expiryLabel(letter.expiresAt)}: accept before then.`}
+        </p>
+      )}
+      {status === "pending" && !expired && (
         <div className="flex flex-wrap items-center gap-3">
           {verified && filesIn && !row.filesProblem && needsReading && (
             <label className="flex min-h-11 w-full items-center gap-3 text-sm sm:min-h-8">

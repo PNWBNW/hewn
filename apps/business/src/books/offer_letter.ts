@@ -165,3 +165,40 @@ export function validateFileRefs(raw: unknown, files: readonly OfferFile[]): Att
     return { attachmentId, sha256: file.sha256, type: file.type, size: file.size, name: typeof name === "string" && name.trim() ? name : file.name };
   });
 }
+
+// ---- Expiry -----------------------------------------------------------------------------------
+// Every offer has one (Joshua, 2026-10-16). It sits inside the terms, so the
+// agreement's terms hash commits to it: the person's app won't accept after it,
+// and the offer's documents are cleared from the mailbox once it passes.
+
+/** The windows a business can give an offer, in days. */
+export const EXPIRY_DAYS = [3, 7, 14, 30] as const;
+export type ExpiryDays = (typeof EXPIRY_DAYS)[number];
+export const DEFAULT_EXPIRY_DAYS: ExpiryDays = 7;
+const DAY_MS = 86_400_000;
+
+/** When an offer made at `offeredAt` expires, given `days`. */
+export function expiryFor(offeredAt: string, days: ExpiryDays): string {
+  if (!(EXPIRY_DAYS as readonly number[]).includes(days)) throw new LetterError(`An offer expires after ${EXPIRY_DAYS.join(", ")} days`);
+  return new Date(Date.parse(offeredAt) + days * DAY_MS).toISOString();
+}
+
+/** Checks an expiry: a real time after the offer, at most the longest window later. */
+export function validateExpiry(offeredAt: string, raw: unknown): string {
+  if (typeof raw !== "string" || Number.isNaN(Date.parse(raw))) throw new LetterError("The offer needs an expiry time");
+  const span = Date.parse(raw) - Date.parse(offeredAt);
+  if (span <= 0) throw new LetterError("The offer must expire after it's made");
+  if (span > Math.max(...EXPIRY_DAYS) * DAY_MS) throw new LetterError(`An offer can stay open at most ${Math.max(...EXPIRY_DAYS)} days`);
+  return raw;
+}
+
+export const isExpired = (expiresAt: string, now: Date = new Date()): boolean => now.getTime() >= Date.parse(expiresAt);
+
+/** "Expires in 3 days", "Expires today", "Expired": for a row on a phone. */
+export function expiryLabel(expiresAt: string, now: Date = new Date()): string {
+  const ms = Date.parse(expiresAt) - now.getTime();
+  if (ms <= 0) return "Expired";
+  const days = Math.floor(ms / DAY_MS);
+  if (days === 0) return `Expires in ${Math.max(1, Math.ceil(ms / 3_600_000))} h`;
+  return `Expires in ${days} ${days === 1 ? "day" : "days"}`;
+}

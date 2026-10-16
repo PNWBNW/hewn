@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_EXPIRY_DAYS,
+  EXPIRY_DAYS,
   MAX_OFFER_FILES_BYTES,
   MAX_SECTION_CHARS,
   OFFER_CHUNK_BYTES,
@@ -7,9 +9,13 @@ import {
   chunkCount,
   cleanFileName,
   emptyLetter,
+  expiryFor,
+  expiryLabel,
   fileLabel,
   firstPieces,
   hasLetter,
+  isExpired,
+  validateExpiry,
   validateFileRefs,
   validateLetter,
   validateOfferFiles,
@@ -95,5 +101,39 @@ describe("offer files", () => {
     expect(() => validateFileRefs([ref(SHA("a")), ref(SHA("a"))], files)).toThrow(/isn't one of the offer's files/);
     expect(() => validateFileRefs([ref(SHA("a"), { size: 5 })], files)).toThrow(/doesn't match/);
     expect(() => validateFileRefs([ref(SHA("a"), { attachmentId: "../x" })], files)).toThrow(/id isn't valid/);
+  });
+});
+
+describe("an offer's expiry", () => {
+  const AT = "2026-10-16T18:00:00.000Z";
+  const DAY = 86_400_000;
+
+  it("comes in 3, 7, 14 or 30 days, 7 unless the business picks another", () => {
+    expect(EXPIRY_DAYS).toEqual([3, 7, 14, 30]);
+    expect(DEFAULT_EXPIRY_DAYS).toBe(7);
+    expect(expiryFor(AT, 7)).toBe("2026-10-23T18:00:00.000Z");
+    expect(expiryFor(AT, 30)).toBe("2026-11-15T18:00:00.000Z");
+    expect(() => expiryFor(AT, 5 as 7)).toThrow(/3, 7, 14, 30 days/);
+  });
+
+  it("must be a real time after the offer and at most 30 days on", () => {
+    expect(validateExpiry(AT, expiryFor(AT, 3))).toBe("2026-10-19T18:00:00.000Z");
+    expect(validateExpiry(AT, new Date(Date.parse(AT) + 30 * DAY).toISOString())).toBeTruthy();
+    expect(() => validateExpiry(AT, undefined)).toThrow(/expiry time/);
+    expect(() => validateExpiry(AT, "next week")).toThrow(/expiry time/);
+    expect(() => validateExpiry(AT, AT)).toThrow(/after it's made/);
+    expect(() => validateExpiry(AT, "2026-10-01T00:00:00.000Z")).toThrow(/after it's made/);
+    expect(() => validateExpiry(AT, new Date(Date.parse(AT) + 30 * DAY + 1).toISOString())).toThrow(/at most 30 days/);
+  });
+
+  it("is passed from the moment it arrives, and reads plainly on a row", () => {
+    const exp = expiryFor(AT, 3);
+    expect(isExpired(exp, new Date(Date.parse(exp) - 1))).toBe(false);
+    expect(isExpired(exp, new Date(exp))).toBe(true);
+    expect(expiryLabel(exp, new Date(AT))).toBe("Expires in 3 days");
+    expect(expiryLabel(exp, new Date(Date.parse(exp) - DAY - 1))).toBe("Expires in 1 day");
+    expect(expiryLabel(exp, new Date(Date.parse(exp) - 5 * 3_600_000))).toBe("Expires in 5 h");
+    expect(expiryLabel(exp, new Date(Date.parse(exp) - 60_000))).toBe("Expires in 1 h");
+    expect(expiryLabel(exp, new Date(exp))).toBe("Expired");
   });
 });

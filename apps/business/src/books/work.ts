@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AttachmentRef } from "@pnw/sales";
-import { type Letter, type OfferFile, LetterError, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
+import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 
 export type Role = "business" | "worker";
 
@@ -38,7 +38,7 @@ export type TermsV1 = {
 };
 
 /** Version 2, the offer letter: version 1 plus the letter's sections and the attached files (books/offer_letter.ts). */
-export type TermsV2 = Omit<TermsV1, "version"> & { version: 2; letter: Letter; files: OfferFile[] };
+export type TermsV2 = Omit<TermsV1, "version"> & { version: 2; expiresAt: string; letter: Letter; files: OfferFile[] };
 
 export type Terms = TermsV1 | TermsV2;
 
@@ -175,7 +175,7 @@ export function validateTerms(raw: unknown): Terms {
   };
   if (raw.version === 1) return { version: 1, ...common };
   try {
-    return { version: 2, ...common, letter: validateLetter(raw.letter), files: validateOfferFiles(raw.files) };
+    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, raw.expiresAt), letter: validateLetter(raw.letter), files: validateOfferFiles(raw.files) };
   } catch (e) {
     throw e instanceof LetterError ? new WorkError(e.message) : e;
   }

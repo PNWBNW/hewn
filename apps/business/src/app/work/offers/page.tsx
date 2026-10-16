@@ -13,7 +13,8 @@ import { useWork } from "@/books/BooksProvider";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { PageHeader } from "@/shell/SectionView";
 import type { AttachmentRef } from "@pnw/sales";
-import type { OfferFile } from "@/books/offer_letter";
+import { type OfferFile, isExpired } from "@/books/offer_letter";
+import type { WorkAgreement } from "@/books/work";
 import { RailNeeded, STATUS_LABEL, employerLabel, payLine, registeredLabel, when } from "../shared";
 
 const OffersPanel = dynamic(() => import("@/chain/work/Offers"), {
@@ -56,7 +57,9 @@ export default function OffersPage() {
                 <li key={a.agreementId} className="flex flex-col gap-1 py-3 text-sm">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="font-medium">{employerLabel(a)}</span>
-                    <span className={cn("shrink-0 text-xs", a.status === "pending" ? "text-primary" : "text-muted-foreground")}>{STATUS_LABEL[a.status]}</span>
+                    <span className={cn("shrink-0 text-xs", a.status === "pending" && !lapsed(a) ? "text-primary" : "text-muted-foreground")}>
+                      {lapsed(a) ? "Expired" : STATUS_LABEL[a.status]}
+                    </span>
                   </div>
                   {a.terms?.businessName && <div className="text-xs text-muted-foreground">{registeredLabel(a)}</div>}
                   {a.terms ? (
@@ -98,3 +101,6 @@ function SavedFiles({ files, saved, read }: { files: OfferFile[]; saved: Attachm
     />
   );
 }
+
+/** A waiting offer whose window has passed: it can no longer be accepted. */
+const lapsed = (a: WorkAgreement): boolean => a.status === "pending" && a.terms?.version === 2 && isExpired(a.terms.expiresAt);

@@ -39,6 +39,7 @@ describe("terms contract, version 2 (the offer letter)", () => {
   const v2 = {
     ...terms,
     version: 2 as const,
+    expiresAt: "2026-10-21T15:00:00.000Z",
     letter: { description: "Framing crew lead.", requirements: "Own truck.", handbook: "Steel toes on site.", other: "" },
     files: [{ name: "contract.pdf", type: "application/pdf", size: 300_000, sha256: "b".repeat(64), chunks: 2 }],
   };
@@ -49,12 +50,13 @@ describe("terms contract, version 2 (the offer letter)", () => {
       letter: { other: "", handbook: "Steel toes on site.", requirements: "Own truck.", description: "Framing crew lead." },
       ...terms,
       version: 2 as const,
+      expiresAt: "2026-10-21T15:00:00.000Z",
     };
     const employer = employerCanonical(v2 as EmployerTerms);
     expect(workerCanonical(v2 as WorkerTerms)).toBe(employer);
     expect(employerCanonical(shuffled as EmployerTerms)).toBe(employer);
     expect(workerCanonical(shuffled as WorkerTerms)).toBe(employer);
-    expect(Object.keys(JSON.parse(employer))).toEqual([...Object.keys(terms), "letter", "files"]);
+    expect(Object.keys(JSON.parse(employer))).toEqual([...Object.keys(terms), "expiresAt", "letter", "files"]);
   });
 
   it("the worker's check covers every word and every file: change one and the terms no longer match the record", async () => {

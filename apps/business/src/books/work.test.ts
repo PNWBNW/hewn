@@ -192,6 +192,7 @@ describe("an offer letter in the person's vault", () => {
   const v2 = {
     ...TERMS,
     version: 2 as const,
+    expiresAt: "2026-10-21T16:00:00.000Z",
     letter: { description: "Framing.", requirements: "", handbook: "Steel toes.", other: "" },
     files: [{ name: "contract.pdf", type: "application/pdf", size: 300_000, sha256: sha, chunks: 2 }],
   };

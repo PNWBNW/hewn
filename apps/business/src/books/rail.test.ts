@@ -13,6 +13,7 @@ import {
   partyLinkFor,
   railFromJson,
   railToJson,
+  removeLink,
   removePartyLink,
   setPartyAddress,
   setPartyLink,
@@ -358,6 +359,7 @@ describe("an offer letter's files, saved by the business", () => {
     startDate: "2026-11-02",
     businessName: "Brothers Building",
     offeredAt: "2026-10-16T18:00:00.000Z",
+    expiresAt: "2026-10-23T18:00:00.000Z",
     letter: { description: "Framing.", requirements: "", handbook: "", other: "" },
     files: [{ name: "contract.pdf", type: "application/pdf", size: 300_000, sha256: sha, chunks: 2 }],
   };
@@ -375,5 +377,16 @@ describe("an offer letter's files, saved by the business", () => {
     expect(() => validateLink({ ...offered, offerFiles: [{ ...ref, sha256: "c".repeat(64) }] })).toThrow(/isn't one of the offer's files/);
     const { terms: _t, ...noTerms } = offered;
     expect(() => validateLink(noTerms)).toThrow(/need the offer letter/);
+  });
+});
+
+describe("removing a team member's link", () => {
+  it("drops only that link, so the person is typed again and can get a new offer", () => {
+    const offered: RailLink = { ...link, workerId: "wkr-2", agreementId: "02".repeat(32), partiesKey: KEY_B, status: "offered", offeredAt: "2026-10-16T18:00:00.000Z" };
+    const both = addLink(rail, offered);
+    const after = removeLink(both, "wkr-2");
+    expect(linkStatus(after, "worker", "wkr-2")).toBe("typed");
+    expect(linkFor(after, "wkr-1")).toEqual(link);
+    expect(removeLink(after, "wkr-9")).toBe(after);
   });
 });
