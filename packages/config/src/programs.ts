@@ -32,7 +32,10 @@ export const PROGRAMS = {
   },
   // Private letters as records (docs/LETTERS.md in this repo): the chain is the mailbox.
   letters: {
-    hewn_letters: "hewn_letters_v1.aleo",
+    // v2 (deployed 2026-10-18) sends: send, send_page, and send_many (one announcement to up to eight).
+    hewn_letters: "hewn_letters_v2.aleo",
+    // v1 (2026-10-16) is only read: letters sent before v2 stay in people's wallets.
+    hewn_letters_v1: "hewn_letters_v1.aleo",
   },
   external: {
     usdcx: "test_usdcx_stablecoin.aleo", // testnet only

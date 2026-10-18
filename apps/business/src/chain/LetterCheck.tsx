@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------------
 // Settings → "Send a test letter": one real letter to this account itself
-// through hewn_letters_v1 (letter_check.ts), saying whatever the person
+// through hewn_letters_v2 (letter_check.ts), saying whatever the person
 // types (a long message goes as a page), and a short report of what it cost,
 // how long it took, whether Shield found it and what the network sees, with
 // a Copy button. One Shield approval.

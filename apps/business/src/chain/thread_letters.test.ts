@@ -4,7 +4,10 @@
 import { describe, expect, it } from "vitest";
 import { MailboxError, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import { type Proposal, type Thread, type ThreadItem, addToThread, emptyThread, newMessageId, skipIncoming } from "../books/thread";
-import { LETTERS_PROGRAM, LetterBox, type LetterWallet, SEND_PAGE_FUNCTION, letterThread } from "./letters";
+import { LETTERS_PROGRAM, LetterBox, type LetterWallet, ManyLetterBox, SEND_MANY_FUNCTION, SEND_PAGE_FUNCTION, letterThread, lettersThenMailbox } from "./letters";
+import { addReceivedPost, newChannel, skipPost } from "../books/channels";
+import { type Work, emptyWork, updateWorkThread, workThread } from "../books/work";
+import { postToChannel, readChannel, sendChannelKey } from "./channels";
 import { packPayload } from "./compress";
 import { THREAD_KINDS, postToThread, readThread } from "./thread";
 
@@ -24,7 +27,10 @@ function network() {
       calls.push({ function: o.function, ...(o.feeMode ? { feeMode: o.feeMode } : {}) });
       const [to, lookup, parcel] = o.inputs as [string, string, string];
       if (o.function === SEND_PAGE_FUNCTION) records.push({ owner: to, name: "Page", lookup, parcel });
-      else records.push({ owner: to, name: "Letter", lookup, parcel }, { owner: me, name: "SentLetter", lookup, parcel });
+      else if (o.function === SEND_MANY_FUNCTION) {
+        for (const each of to.slice(1, -1).split(", ")) records.push({ owner: each, name: "Letter", lookup, parcel });
+        records.push({ owner: me, name: "SentLetter", lookup, parcel });
+      } else records.push({ owner: to, name: "Letter", lookup, parcel }, { owner: me, name: "SentLetter", lookup, parcel });
       return { transactionId: "shield_1" };
     },
     async transactionStatus() {
@@ -144,5 +150,50 @@ describe("the thread over letters", () => {
     await box.put(A, envelope);
     await expect(box.put(A, envelope)).rejects.toMatchObject({ code: "CONFLICT" });
     expect(net.calls).toHaveLength(1);
+  });
+});
+
+describe("announcements over letters", () => {
+  const ANA = { workerId: "wkr-ana", partiesKey: "a1".repeat(32), address: "aleo1" + "w".repeat(58) };
+  const BO = { workerId: "wkr-bo", partiesKey: "b2".repeat(32), address: "aleo1" + "x".repeat(58) };
+
+  /** A person's app: their thread with the business (where the channel key comes), then the channel's posts. */
+  async function personReads(net: ReturnType<typeof network>, me: typeof ANA): Promise<Work> {
+    let w: Work = emptyWork("Person");
+    const reader = { get: lettersThenMailbox(new LetterBox({ wallet: net.wallet(me.address) }), mailboxOff).get, drop: async () => {} };
+    await readThread({
+      client: reader,
+      partiesKey: me.partiesKey,
+      reader: "worker",
+      thread: workThread(w, me.partiesKey),
+      store: async (item) => void (w = updateWorkThread(w, me.partiesKey, (t) => addToThread(t, item))),
+      skip: async (seq) => void (w = updateWorkThread(w, me.partiesKey, (t) => skipIncoming(t, seq))),
+    });
+    for (const channel of w.channels ?? []) {
+      await readChannel({
+        client: reader,
+        channel,
+        store: async (item) => void (w = { ...w, channels: (w.channels ?? []).map((c) => (c.id === channel.id ? addReceivedPost(c, item) : c)) }),
+        skip: async (epoch, seq) => void (w = { ...w, channels: (w.channels ?? []).map((c) => (c.id === channel.id ? skipPost(c, epoch, seq) : c)) }),
+      });
+    }
+    return w;
+  }
+
+  it("gives each member the key in a letter, then reaches all of them with one send_many", async () => {
+    const net = network();
+    const biz = net.wallet(BUSINESS);
+    const ch = newChannel("Everyone", [ANA.workerId, BO.workerId]);
+    const keys = await sendChannelKey((m) => new LetterBox({ wallet: biz, to: m.address!, execute: fast }), ch, [ANA, BO].map((m) => ({ ...m, thread: undefined })));
+    expect(keys.failed).toEqual([]);
+    expect(net.calls.map((c) => c.function)).toEqual(["send", "send"]); // one letter each
+
+    const post = await postToChannel(new ManyLetterBox({ wallet: biz, to: [ANA.address, BO.address], self: BUSINESS, execute: fast }), ch, "Shift swap board is up.", new Date(), "private");
+    expect(net.calls.slice(2)).toEqual([{ function: SEND_MANY_FUNCTION, feeMode: "private" }]); // one approval for both
+
+    for (const person of [ANA, BO]) {
+      const w = await personReads(net, person);
+      expect(w.channels?.[0]?.posts.map((p) => [p.id, p.text])).toEqual([[post.id, "Shift swap board is up."]]);
+    }
   });
 });

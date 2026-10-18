@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Settings → "Send a test letter": the first real letter through
-// hewn_letters_v1, to this account itself, measuring what docs/LETTERS.md
+// hewn_letters_v2, to this account itself, measuring what docs/LETTERS.md
 // could only estimate. One Shield approval; then the report says:
 //
 //   - how long from the tap to the network accepting it (it includes the

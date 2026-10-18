@@ -1,15 +1,17 @@
 # Letters on chain (`hewn_letters_v1.aleo`): design
 
-Status: **deployed on testnet** (2026-10-16): `hewn_letters_v1.aleo`, deploy transaction
-`at1pxclare6clej0feuzcncngmwvma44g0hg2ngsh763gltk0rz6qpqgtfqnt` (PNWBNW/pnw_mvp_v2 #202,
-recorded in #203). The app's codec and `LetterBox` are in `apps/business/src/chain/letters.ts`;
-Settings has "Send a test letter" to measure a real one; it went through on Joshua's phone
-(below). **Offers now go as letters:** their terms are packed (deflated) and sealed into one
-page to the person, and the person's app reads offers from letters first, then the old mailbox.
-**Messages between a business and a person go as letters too** (chat, counter-offers, "keep the
-offer", the revised-offer note), and so do **paystubs and timesheets**: one approval each, no
-receipts. Channels (announcements), the coworker directory and coworker chat still use the mailbox;
-they need a decision first (fan-out, and coworkers' addresses; see "What doesn't fit").
+Status: **`hewn_letters_v2.aleo` deployed on testnet** (2026-10-18): deploy transaction
+`at177xpwtt9kdlffahrrnzdwv335g9lys63auye7zw3gtju09ghxu8q9jlauk` (PNWBNW/pnw_mvp_v2 #204, recorded in
+#205), 21.61 credits. It keeps v1's `send` and `send_page` and adds `send_many`: one letter to up to
+eight accounts in one approval (0.056052 credits a call). The app sends with v2 and still reads
+letters sent with `hewn_letters_v1.aleo` (2026-10-16, `at1pxclare6clej0feuzcncngmwvma44g0hg2ngsh763gltk0rz6qpqgtfqnt`).
+Settings has "Send a test letter".
+
+**Everything between people now goes as letters:** offers (one page), messages, counter-offers,
+paystubs, timesheets, the coworker directory and coworker chat. Group chats send one letter per
+member. Announcements: the channel's key goes to each member in a letter, and each post goes to
+everyone through `send_many` (one approval for each eight). Nothing is sent through the old mailbox;
+it is only read, for anything sent before, until it is retired.
 
 **Measured on testnet (2026-10-16, Joshua's phone, Shield):** a letter took 13.6–73.7 s from tap
 to accepted (approving and Shield's sponsor step included), cost 0.006578 ALEO, and was listed by

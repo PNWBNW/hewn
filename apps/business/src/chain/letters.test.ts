@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { open, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { PROGRAMS } from "@pnw/config/programs";
 import {
   LETTERS_PROGRAM,
+  LETTER_PROGRAMS,
+  MANY,
+  ManyLetterBox,
+  SEND_MANY_FUNCTION,
+  manyCalls,
   LETTER_BYTES,
   LETTER_FIELDS,
   LetterBox,
@@ -19,7 +25,10 @@ import {
 } from "./letters";
 
 const ANA = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px";
+const BO = "aleo1" + "c".repeat(58);
+const ME = "aleo1" + "m".repeat(58);
 const LOOKUP = "0f".repeat(32);
+const OLD_PROGRAM = PROGRAMS.letters.hewn_letters_v1;
 const bytes = (n: number, seed = 1) => Uint8Array.from({ length: n }, (_, i) => (i * 31 + seed) & 0xff);
 
 /** A record as Shield shows it, in snarkVM's own plaintext format (as `leo run` prints it). */
@@ -94,7 +103,7 @@ describe("reading Shield's records", () => {
 });
 
 describe("the letter box", () => {
-  function wallet(records: unknown[]) {
+  function wallet(records: unknown[], oldRecords: unknown[] = []) {
     const sent: { program: string; function: string; inputs: string[] }[] = [];
     let reads = 0;
     const w: LetterWallet = {
@@ -106,8 +115,9 @@ describe("the letter box", () => {
         return { status: "accepted", transactionId: "at1" + "x".repeat(58) };
       },
       async requestRecords(program) {
+        if (program !== LETTERS_PROGRAM) return program === OLD_PROGRAM ? oldRecords : [];
         reads++;
-        return program === LETTERS_PROGRAM ? records : [];
+        return records;
       },
     };
     return { w, sent, reads: () => reads };
@@ -136,6 +146,14 @@ describe("the letter box", () => {
     await expect(box.drop(sealed.lookup)).resolves.toBeUndefined();
   });
 
+  it("still reads letters sent with the program before this one", async () => {
+    expect(LETTER_PROGRAMS).toEqual([LETTERS_PROGRAM, OLD_PROGRAM]);
+    const { w } = wallet([record("Letter", "aa".repeat(32), bytes(3))], [record("Letter", LOOKUP, bytes(7))]);
+    const box = new LetterBox({ wallet: w });
+    expect(await box.get(LOOKUP)).toEqual(bytes(7));
+    expect(await box.get("aa".repeat(32))).toEqual(bytes(3));
+  });
+
   it("won't send from a box that only reads", async () => {
     const { w } = wallet([]);
     await expect(new LetterBox({ wallet: w }).put(LOOKUP, bytes(10))).rejects.toThrow(/only reads/);
@@ -156,5 +174,53 @@ describe("reading letters first, then the old mailbox", () => {
     expect(await off.get("c")).toBeNull();
     const broken = lettersThenMailbox(fromLetters, { get: async () => { throw new MailboxError("REQUEST_FAILED", "502"); } });
     await expect(broken.get("c")).rejects.toThrow("502");
+  });
+});
+
+describe("announcements: one letter to many", () => {
+  it("sends eight to a call, filling the last call's places with the sender", () => {
+    const to = Array.from({ length: 10 }, (_, i) => (i % 2 ? ANA : BO));
+    const calls = manyCalls(to, ME, LOOKUP, bytes(300));
+    expect(calls.map((c) => c.function)).toEqual([SEND_MANY_FUNCTION, SEND_MANY_FUNCTION]);
+    const accounts = (c: { inputs: string[] }) => c.inputs[0]!.slice(1, -1).split(", ");
+    expect(accounts(calls[0]!)).toEqual(to.slice(0, MANY));
+    expect(accounts(calls[1]!)).toEqual([...to.slice(MANY), ...Array(6).fill(ME)]);
+    // Every copy is the same parcel under the same lookup.
+    expect(calls[0]!.inputs.slice(1)).toEqual(calls[1]!.inputs.slice(1));
+    expect(calls[0]!.inputs[2]!.match(/field/g)).toHaveLength(LETTER_FIELDS);
+  });
+
+  it("refuses what the program would refuse, or what doesn't fit one letter", () => {
+    expect(() => manyCalls([], ME, LOOKUP, bytes(1))).toThrow(/someone/);
+    expect(() => manyCalls(["aleo1nope"], ME, LOOKUP, bytes(1))).toThrow(/accounts/);
+    expect(() => manyCalls([ANA], ME, "00".repeat(32), bytes(1))).toThrow(/all zeros/);
+    expect(() => manyCalls([ANA], ME, LOOKUP, bytes(LETTER_BYTES + 1))).toThrow(/too long/);
+  });
+
+  it("sends each call through Shield, and steps aside from a slot already used", async () => {
+    const sent: string[] = [];
+    const sentCopy = (lookup: string) => {
+      const [hi, lo] = lookupHalves(lookup);
+      const fields = packParcel(bytes(1), LETTER_FIELDS);
+      return { recordName: "SentLetter", recordPlaintext: `{ owner: ${ME}.private, lookup: [ ${hi}u128.private, ${lo}u128.private ], parcel: [ ${fields.map((f) => `${f}field.private`).join(", ")} ] }`, spent: false };
+    };
+    const used = "dd".repeat(32);
+    const w: LetterWallet = {
+      async executeTransaction(o) {
+        sent.push(o.function);
+        return { transactionId: "shield_1" };
+      },
+      async transactionStatus() {
+        return { status: "accepted", transactionId: "at1" + "x".repeat(58) };
+      },
+      async requestRecords(program) {
+        return program === LETTERS_PROGRAM ? [sentCopy(used)] : [];
+      },
+    };
+    const box = new ManyLetterBox({ wallet: w, to: Array(9).fill(ANA), self: ME, execute: { sleep: async () => {}, pollMs: 1 } });
+    await box.put(LOOKUP, bytes(200));
+    expect(sent).toEqual([SEND_MANY_FUNCTION, SEND_MANY_FUNCTION]);
+    await expect(box.put(used, bytes(200))).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(sent).toHaveLength(2);
   });
 });
