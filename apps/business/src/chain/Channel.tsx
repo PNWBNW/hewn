@@ -2,26 +2,34 @@
 
 // ---------------------------------------------------------------------------
 // An announcement channel, the business's side (books/channels.ts): make one,
-// post to it, see who has seen each post, and choose who's in it. Adding
-// someone sends them the channel's key through their own thread; taking
-// someone out moves the channel to a new key that only those who stay get.
-// Needs no Shield. Loaded only when a channel is opened or made.
-// Nothing here logs a key or a post.
+// post to it, and choose who's in it. Adding someone sends them the
+// channel's key through their own thread (a letter each); taking someone out
+// moves the channel to a new key that only those who stay get. A post is one
+// letter to everyone in it (send_many: one Shield approval for each eight).
+// Loaded only when a channel is opened or made. Nothing here logs a key or a post.
 // ---------------------------------------------------------------------------
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Megaphone, Users } from "lucide-react";
-import { MailboxClient } from "@pnw/mailbox";
 import { Button } from "@pnw/ui/button";
+import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
+import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { type BusinessChannel, MAX_POST_CHARS, addMembers, addOwnPost, markSeen, newChannel, removeMembers } from "@/books/channels";
+import { type BusinessChannel, addMembers, addOwnPost, newChannel, removeMembers } from "@/books/channels";
 import { type Mailbox, emptyMailbox, putChannel, threadFor, updateThread } from "@/books/mailbox";
 import { addToThread } from "@/books/thread";
 import type { Company } from "@/books/company";
-import { type KeyOutResult, type Member, awaitingSeen, postToChannel, readSeen, sendChannelKey } from "./channels";
+import { FeeChoice } from "./FeeChoice";
+import { ShieldStatus } from "./ShieldStatus";
+import { type KeyOutResult, type Member, postToChannel, sendChannelKey } from "./channels";
+import { useLetters } from "./letter_reader";
+import { LetterBox, MANY, ManyLetterBox } from "./letters";
 
 export type ChannelProps = { channelId: string | null; onCreated?: (id: string) => void; onClose: () => void };
+
+/** A post is one announcement letter: about a short page of text once packed (letters.ts LETTER_BYTES). */
+export const MAX_ANNOUNCEMENT_CHARS = 1_500;
 
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
@@ -30,15 +38,29 @@ function keepSent(m: Mailbox, sent: KeyOutResult["sent"]): Mailbox {
   return sent.reduce((acc, s) => updateThread(acc, s.partiesKey, s.workerId, (t) => addToThread(t, s.item)), m);
 }
 
-export default function Channel({ channelId, onCreated, onClose }: ChannelProps) {
+export default function Channel(props: ChannelProps) {
+  return (
+    <AleoWalletProviderWrapper>
+      <ChannelView {...props} />
+    </AleoWalletProviderWrapper>
+  );
+}
+
+function ChannelView({ channelId, onCreated, onClose }: ChannelProps) {
   const { rail, payroll, mailbox, updateCompany } = useOpenBooks();
-  const client = useMemo(() => new MailboxClient(), []);
+  const { state, connect, error: shieldError, address, mismatch, letters, wallet } = useLetters();
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
   // Who can be in a channel: linked team members (there's a key to reach them with).
-  const team = (rail?.links ?? []).filter((l) => l.status === "linked" && l.partiesKey).map((l) => ({ workerId: l.workerId, partiesKey: l.partiesKey!, name: names.get(l.workerId) ?? "A team member" }));
+  const team = (rail?.links ?? [])
+    .filter((l) => l.status === "linked" && l.partiesKey)
+    .map((l) => ({ workerId: l.workerId, partiesKey: l.partiesKey!, address: l.address, name: names.get(l.workerId) ?? "A team member" }));
   const keys = new Map(team.map((t) => [t.workerId, t.partiesKey]));
+  const accounts = new Map(team.map((t) => [t.workerId, t.address]));
   const channel = channelId ? mailbox?.channels?.find((c) => c.id === channelId) : undefined;
-  const memberOf = (workerId: string): Member => ({ workerId, partiesKey: keys.get(workerId)!, thread: threadFor(mailbox, keys.get(workerId)!) });
+  const memberOf = (workerId: string): Member => ({ workerId, partiesKey: keys.get(workerId)!, address: accounts.get(workerId)!, thread: threadFor(mailbox, keys.get(workerId)!) });
+  // Each key message is a letter to that member.
+  const keyClient = (m: Member) => new LetterBox({ wallet, to: m.address! });
+  const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
 
   const [name, setName] = useState(channel?.name ?? "Everyone");
   const [picked, setPicked] = useState<Set<string>>(() => new Set(channel?.members ?? team.map((t) => t.workerId)));
@@ -57,7 +79,7 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
     setError(null);
     try {
       const ch = newChannel(name, [...picked].filter((id) => keys.has(id)));
-      const out = await sendChannelKey(client, ch, ch.members.map(memberOf));
+      const out = await sendChannelKey(keyClient, ch, ch.members.map(memberOf), false, feeMode);
       await save((c) => ({ ...c, mailbox: putChannel(keepSent(c.mailbox ?? emptyMailbox(), out.sent), ch) }));
       setNote(failedNote(out));
       onCreated?.(ch.id);
@@ -81,14 +103,14 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
       if (gone.length > 0) {
         // A new key for everyone who stays; the ones leaving are told, and keep only the old key.
         next = removeMembers(next, gone);
-        const left = await sendChannelKey(client, next, gone.filter((g) => keys.has(g)).map(memberOf), true);
-        const stay = await sendChannelKey(client, next, next.members.filter((m) => !added.includes(m)).map(memberOf));
+        const left = await sendChannelKey(keyClient, next, gone.filter((g) => keys.has(g)).map(memberOf), true, feeMode);
+        const stay = await sendChannelKey(keyClient, next, next.members.filter((m) => !added.includes(m)).map(memberOf), false, feeMode);
         sent = [...sent, ...left.sent, ...stay.sent];
         failed.push(...left.failed, ...stay.failed);
       }
       if (added.length > 0) {
         next = addMembers(next, added);
-        const out = await sendChannelKey(client, next, added.map(memberOf));
+        const out = await sendChannelKey(keyClient, next, added.map(memberOf), false, feeMode);
         sent = [...sent, ...out.sent];
         failed.push(...out.failed);
       }
@@ -104,34 +126,18 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
   }
 
   async function post(ch: BusinessChannel) {
-    if (!text.trim()) return;
+    if (!text.trim() || !address) return;
     setBusy(true);
     setError(null);
     try {
-      const item = await postToChannel(client, ch, text.trim());
+      // One copy to every member, sealed under the channel's key.
+      const to = ch.members.flatMap((id) => (accounts.has(id) ? [accounts.get(id)!] : []));
+      const item = await postToChannel(new ManyLetterBox({ wallet, to, self: address }), ch, text.trim(), new Date(), feeMode);
       await save((c) => {
         const current = c.mailbox?.channels?.find((x) => x.id === ch.id) ?? ch;
         return { ...c, mailbox: putChannel(c.mailbox ?? emptyMailbox(), addOwnPost(current, item)) };
       });
       setText("");
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function checkSeen(ch: BusinessChannel) {
-    setBusy(true);
-    setError(null);
-    try {
-      await readSeen(client, awaitingSeen(ch, keys), async (heard) => {
-        await save((c) => {
-          const current = c.mailbox?.channels?.find((x) => x.id === ch.id) ?? ch;
-          const marked = heard.reduce((acc, h) => markSeen(acc, h.target.epoch, h.target.seq, h.target.workerId, h.receivedAt), current);
-          return { ...c, mailbox: putChannel(c.mailbox ?? emptyMailbox(), marked) };
-        });
-      });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -157,6 +163,15 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
     </fieldset>
   );
 
+  const gate = mismatch ? (
+    <p className="text-sm">Shield is on a different account than these books. Switch accounts in Shield, then try again.</p>
+  ) : !letters ? (
+    <>
+      <ShieldStatus state={state} connect={connect} onClose={onClose} />
+      {shieldError && <p className="text-sm text-destructive">{shieldError}</p>}
+    </>
+  ) : null;
+
   if (!channel) {
     return (
       <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-4">
@@ -167,10 +182,14 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
           <input className={inputClass} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
         </Field>
         {memberPicker}
-        <p className="text-xs text-muted-foreground">The channel gets its own key, sent to each person privately. Only people in it can read its posts.</p>
+        <p className="text-xs text-muted-foreground">
+          The channel gets its own key, sent to each person privately as a letter: Shield asks once per person. Only people in it can read its posts.
+        </p>
+        {gate}
+        {!busy && letters && <FeeChoice value={feeMode} onChange={setFeeMode} />}
         <FormError message={error} />
         <div className="flex flex-wrap gap-3">
-          <Button className="min-h-11 sm:min-h-9" disabled={busy || !name.trim() || picked.size === 0} onClick={() => void create()}>
+          <Button className="min-h-11 sm:min-h-9" disabled={busy || !letters || !name.trim() || picked.size === 0} onClick={() => void create()}>
             {busy ? "Making it…" : "Make the channel"}
           </Button>
           <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={onClose}>
@@ -193,9 +212,6 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={busy} onClick={() => void checkSeen(channel)}>
-            Who&apos;s seen it
-          </Button>
           <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={busy} onClick={() => setEditing((v) => !v)}>
             <Users aria-hidden /> People
           </Button>
@@ -205,29 +221,25 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
       {editing && (
         <div className="flex flex-col gap-3 rounded-md border bg-muted/40 p-4">
           {memberPicker}
-          <p className="text-xs text-muted-foreground">Taking someone out gives the channel a new key, so they can&apos;t read what&apos;s posted after.</p>
-          <Button className="min-h-11 self-start sm:min-h-9" disabled={busy} onClick={() => void saveMembers(channel)}>
+          <p className="text-xs text-muted-foreground">
+            Taking someone out gives the channel a new key, so they can&apos;t read what&apos;s posted after. Each person told is a letter: Shield asks once per
+            person.
+          </p>
+          <Button className="min-h-11 self-start sm:min-h-9" disabled={busy || !letters} onClick={() => void saveMembers(channel)}>
             {busy ? "Saving…" : "Save"}
           </Button>
         </div>
       )}
 
+      {gate}
       <ol className="flex flex-col gap-3">
         {channel.posts.length === 0 && <li className="text-sm text-muted-foreground">Nothing posted yet.</li>}
-        {channel.posts.map((p) => {
-          const seen = Object.keys(p.seenBy ?? {}).filter((id) => channel.members.includes(id));
-          return (
-            <li key={p.id} className="flex flex-col gap-1 rounded-md border bg-card p-3">
-              <p className="whitespace-pre-wrap text-sm">{p.text}</p>
-              <details className="text-xs text-muted-foreground">
-                <summary className="cursor-pointer">
-                  {stamp(p.sentAt)} · Seen by {seen.length} of {channel.members.length}
-                </summary>
-                <span>{seen.length === 0 ? "No one yet." : seen.map((id) => names.get(id) ?? "A team member").join(", ")}</span>
-              </details>
-            </li>
-          );
-        })}
+        {channel.posts.map((p) => (
+          <li key={p.id} className="flex flex-col gap-1 rounded-md border bg-card p-3">
+            <p className="whitespace-pre-wrap text-sm">{p.text}</p>
+            <span className="text-xs text-muted-foreground">{stamp(p.sentAt)}</span>
+          </li>
+        ))}
       </ol>
 
       <form
@@ -240,8 +252,20 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
         <label className="text-sm font-medium" htmlFor="post">
           Post to {channel.name}
         </label>
-        <textarea id="post" className={`${inputClass} h-auto min-h-20 py-2`} rows={3} maxLength={MAX_POST_CHARS} value={text} onChange={(e) => setText(e.target.value)} />
-        <Button type="submit" className="min-h-11 self-start sm:min-h-9" disabled={busy || !text.trim() || channel.members.length === 0}>
+        <textarea
+          id="post"
+          className={`${inputClass} h-auto min-h-20 py-2`}
+          rows={3}
+          maxLength={MAX_ANNOUNCEMENT_CHARS}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          {text.length.toLocaleString("en-US")} / {MAX_ANNOUNCEMENT_CHARS.toLocaleString("en-US")} · one letter to everyone in it: Shield asks{" "}
+          {approvals(channel.members.length)}.
+        </p>
+        {!busy && letters && <FeeChoice compact value={feeMode} onChange={setFeeMode} />}
+        <Button type="submit" className="min-h-11 self-start sm:min-h-9" disabled={busy || !letters || !text.trim() || channel.members.length === 0}>
           {busy ? "Posting…" : "Post"}
         </Button>
       </form>
@@ -249,4 +273,10 @@ export default function Channel({ channelId, onCreated, onClose }: ChannelProps)
       <FormError message={error} />
     </div>
   );
+}
+
+/** "once" for up to eight people, "twice" for up to sixteen, then "N times". */
+function approvals(people: number): string {
+  const n = Math.max(1, Math.ceil(people / MANY));
+  return n === 1 ? "once" : n === 2 ? "twice" : `${n} times`;
 }

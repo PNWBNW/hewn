@@ -2867,3 +2867,31 @@ deploy) for announcements.
   A larger list is refused as too long to send.
 
 Tests: 848/848 (new: the outbox, accounts from the link, a bad account refused).
+
+## 2026-10-18: hewn_letters_v2 deployed; announcements go as letters
+
+Joshua deployed `hewn_letters_v2.aleo` on testnet (deploy-new-program run 39170375139).
+- **Deploy:** transaction `at177xpwtt9kdlffahrrnzdwv335g9lys63auye7zw3gtju09ghxu8q9jlauk`, fee
+  transaction `at1sthw0xvmuu3xz0vw7lg75j58qhr7j2d2ru88v7t2ffsw99vzqgps8mn0y5`.
+- **Cost:** 21.611652 credits (synthesis 14.627, storage 5.983, namespace 1). Per call: `send`
+  0.006578, `send_page` 0.086886, `send_many` 0.056052.
+- **Recorded in PNWBNW/pnw_mvp_v2 #205:** the manifest names v2, v1 stays listed as legacy for
+  reading, and v1's source is archived unchanged.
+
+The app:
+- **Programs:** sends with v2 and reads letters from both v2 and v1. Both are in `WALLET_PROGRAMS`,
+  so each account reconnects Hewn in Shield once.
+- **Announcements:**
+  - Making a channel, or changing who's in it, sends the key to each member in a letter, one
+    approval per person.
+  - A post goes to every member through `send_many`, one approval for each eight
+    (`ManyLetterBox`, `manyCalls`). Every copy is the same parcel under the channel slot's lookup,
+    and the business's own account fills the unused places.
+  - Posts are deflated before sealing and capped at 1,500 characters so they fit one letter.
+  - "Who's seen it" is gone: letters have no receipts.
+  - The person's check reads posts from letters, then the old mailbox.
+- **Group chats** still send one letter per member: each copy is sealed under a different pair's
+  key, so `send_many`'s shared parcel doesn't fit them.
+
+Tests: 853/853 (new: reading v1 letters, `manyCalls` grouping, padding and refusals, the slot check
+for `send_many`, and an announcement end to end over a fake network).

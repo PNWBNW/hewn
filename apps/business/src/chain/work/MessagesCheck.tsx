@@ -3,10 +3,9 @@
 // Checking every conversation and channel at once, for the Messages list (the
 // person's side): each business's new messages (thread.ts; channel keys and
 // the coworker directory arrive this way too), then each channel's new posts
-// (channels.ts), then each coworker's messages (coworkers.ts). A business's
-// and coworkers' messages come as letters on chain once Shield is connected
-// (letter_reader.ts), and from the old mailbox; channels still use the
-// mailbox, with a receipt back for each. Runs once when Shield has
+// (channels.ts), then each coworker's messages (coworkers.ts). All of them
+// come as letters on chain once Shield is connected (letter_reader.ts), and
+// from the old mailbox, for anything sent before. Runs once when Shield has
 // had its moment to reconnect, and reports back; it draws nothing itself.
 // Nothing here logs a key, a lookup or a message.
 
@@ -48,7 +47,7 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
       const apply = async (op: (w: Work) => Work) => {
         latest = await updateWork(op);
       };
-      let off = false; // the mailbox, for channels (and coworkers without Shield)
+      let off = false; // the mailbox, without Shield
       const employers = new Map(work.agreements.map((a) => [a.partiesKey, a.employerAddress]));
       for (const [partiesKey, employer] of employers) {
         const r = await readThread({
@@ -65,7 +64,8 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
       // Channels as they stand after the threads (new keys may have just arrived).
       for (const channel of latest.channels ?? []) {
         const r = await readChannel({
-          client,
+          // Posts come as letters (send_many), then from the old mailbox, with its receipts.
+          client: letters ? { get: lettersThenMailbox(letters, client).get } : client,
           channel,
           store: (item) => apply((w) => updateWorkChannels(w, (all) => all.map((c) => (c.id === channel.id && c.partiesKey === channel.partiesKey ? addReceivedPost(c, item) : c)))),
           skip: (epoch, seq) => apply((w) => updateWorkChannels(w, (all) => all.map((c) => (c.id === channel.id && c.partiesKey === channel.partiesKey ? skipPost(c, epoch, seq) : c)))),
@@ -93,11 +93,11 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
             store: (item) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...addToThread(t, item) }))),
             skip: (seq) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...skipIncoming(t, seq) }))),
           });
-          if (r.off) return onFinished("Announcements and coworker messages are off on this server.");
+          if (r.off) return onFinished("Connect Shield (open a conversation) to check for announcements and coworker messages.");
           if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
         }
       }
-      onFinished(off ? (letters ? "Announcements are off on this server." : "Announcements and coworker messages are off on this server.") : null);
+      onFinished(off ? "Connect Shield (open a conversation) to check for announcements and coworker messages." : null);
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
   }, [work, updateWork, client, onFinished, settled, letters, wallet]);
 

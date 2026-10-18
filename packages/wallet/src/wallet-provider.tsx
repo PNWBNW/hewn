@@ -33,8 +33,9 @@ export const WALLET_PROGRAMS: string[] = [
   layer1.worker_profiles,
   layer1.paystub_receipts,
   layer1.payroll_audit_log,
-  // Letters on chain (no imports; deployed 2026-10-16): Shield must know it to find and decrypt letters.
+  // Letters on chain (no imports): Shield must know them to find and decrypt letters. v2 sends; v1 is read.
   PROGRAMS.letters.hewn_letters,
+  PROGRAMS.letters.hewn_letters_v1,
   // Depends on freezelist
   external.usdcx,
   // Depends on stablecoin + registry

@@ -1,12 +1,15 @@
 // ---------------------------------------------------------------------------
-// Announcement channels through the mailbox (books/channels.ts has the model).
+// Announcement channels (books/channels.ts has the model), as letters on chain.
 //
 //   key out:   a `channel` message in each member's own thread (thread.ts),
-//              sealed with that pair's parties key
+//              sealed with that pair's parties key: one letter each
 //   posts:     sealed with the channel key, kind `ann_<epoch>`, slots only the
-//              business writes; posts stay pinned (many readers)
-//   receipts:  each reader's app seals one with its own parties key, kind
-//              `ch_<channel>_<epoch>`, so the business sees who has seen what
+//              business writes, deflated when that's smaller; one copy to
+//              every member through send_many (letters.ts `ManyLetterBox`:
+//              one approval for each eight)
+//   receipts:  only through the old mailbox (a letter in a block has
+//              arrived): each reader's app seals one with its own parties
+//              key, kind `ch_<channel>_<epoch>`
 //
 // Nothing here logs a key, a lookup or a post.
 // ---------------------------------------------------------------------------
@@ -22,14 +25,16 @@ import {
   postReceiptKind,
   validatePost,
 } from "../books/channels";
+import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type Thread, type ThreadItem, newMessageId } from "../books/thread";
+import { packPayload, unpackPayload } from "./compress";
 import { type Awaiting, type Heard, readReceipts, sendReceipt } from "./receipts";
-import { postToThread } from "./thread";
+import { type PostInput, postToThread } from "./thread";
 
 const MAX_TAKEN = 8;
 
-/** One member to reach through their own thread. */
-export type Member = { workerId: string; partiesKey: string; thread: Thread | undefined };
+/** One member to reach through their own thread (and, for letters, at their account). */
+export type Member = { workerId: string; partiesKey: string; thread: Thread | undefined; address?: string };
 
 export type KeyOutResult = { sent: { workerId: string; partiesKey: string; item: ThreadItem }[]; failed: { workerId: string; message: string }[] };
 
@@ -38,12 +43,19 @@ export type KeyOutResult = { sent: { workerId: string; partiesKey: string; item:
  * taken out (`left`), as a message in their own thread. One failure doesn't
  * stop the rest; the result says who got it.
  */
-export async function sendChannelKey(client: Pick<MailboxClient, "put">, ch: BusinessChannel, members: readonly Member[], left = false): Promise<KeyOutResult> {
+export async function sendChannelKey(
+  clientFor: (m: Member) => PostInput["client"],
+  ch: BusinessChannel,
+  members: readonly Member[],
+  left = false,
+  feeMode?: FeeMode,
+): Promise<KeyOutResult> {
   const result: KeyOutResult = { sent: [], failed: [] };
   for (const m of members) {
     try {
       const item = await postToThread({
-        client,
+        client: clientFor(m),
+        ...(feeMode ? { feeMode } : {}),
         partiesKey: m.partiesKey,
         from: "business",
         nextOut: m.thread?.nextOut ?? 0,
@@ -58,16 +70,16 @@ export async function sendChannelKey(client: Pick<MailboxClient, "put">, ch: Bus
 }
 
 /** Seals one post with the channel key into the next free slot. Returns it as the business keeps it. */
-export async function postToChannel(client: Pick<MailboxClient, "put">, ch: BusinessChannel, text: string, now: Date = new Date()): Promise<PostItem> {
+export async function postToChannel(client: PostInput["client"], ch: BusinessChannel, text: string, now: Date = new Date(), feeMode?: FeeMode): Promise<PostItem> {
   const post: ChannelPost = validatePost({ version: 1, id: newMessageId(), sentAt: now.toISOString(), text });
-  const bytes = new TextEncoder().encode(JSON.stringify(post));
+  const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(post)));
   if (bytes.length > MAX_PAYLOAD_BYTES) throw new ChannelError("That post is too long to send");
   const key = partiesKeyFromHex(ch.key);
   try {
     for (let seq = ch.nextOut; seq < ch.nextOut + MAX_TAKEN; seq++) {
       const sealed = await seal(key, postKind(ch.epoch), seq, bytes);
       try {
-        await client.put(sealed.lookup, sealed.envelope);
+        await (feeMode ? client.put(sealed.lookup, sealed.envelope, { feeMode }) : client.put(sealed.lookup, sealed.envelope));
         return { ...post, epoch: ch.epoch, seq };
       } catch (e) {
         if (!(e instanceof MailboxError && e.code === "CONFLICT")) throw e;
@@ -141,7 +153,7 @@ export async function readChannel({
         if (!bytes) break;
         let item: PostItem;
         try {
-          const post = validatePost(JSON.parse(new TextDecoder().decode(await open(key, kind, seq, bytes))));
+          const post = validatePost(JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, kind, seq, bytes)))));
           item = { ...post, epoch, seq, receivedAt: stamp() };
         } catch (err) {
           result.skipped.push({ epoch, seq, message: err instanceof Error ? err.message : "The post couldn't be read" });

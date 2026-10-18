@@ -2,11 +2,15 @@
 // Letters on chain (docs/LETTERS.md): the chain is the mailbox. A sealed
 // envelope (the same bytes the mailbox carried, AES-256-GCM under the pair's
 // parties key) goes into a record owned by its recipient through
-// hewn_letters_v1:
+// hewn_letters_v2 (v1 letters, sent before it, are still read):
 //
 //   send       up to LETTER_BYTES: a Letter to them and a SentLetter back
 //   send_page  up to PAGE_BYTES: a Page to them (a long document: an
 //              offer's terms); the sender keeps its own copy in its books
+//   send_many  up to LETTER_BYTES, to up to eight accounts at once (an
+//              announcement, sealed under the channel's key): a Letter to
+//              each and one SentLetter back; places left over go to the
+//              sender's own account
 //
 // Every parcel is padded to its call's fixed size (a 2-byte length, the
 // envelope, zeros), so nothing on the chain shows how long a message is.
@@ -30,9 +34,15 @@ import { MailboxClient, MailboxError } from "@pnw/mailbox";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type ExecuteOptions, type WorkWallet, executeAndWait } from "./work/execute";
 
+/** The program letters are sent with. */
 export const LETTERS_PROGRAM = PROGRAMS.letters.hewn_letters;
+/** Every program letters are read from: the current one, then the one before it. */
+export const LETTER_PROGRAMS: readonly string[] = [LETTERS_PROGRAM, PROGRAMS.letters.hewn_letters_v1];
 export const SEND_FUNCTION = "send";
 export const SEND_PAGE_FUNCTION = "send_page";
+export const SEND_MANY_FUNCTION = "send_many";
+/** How many accounts one `send_many` reaches. */
+export const MANY = 8;
 
 /** Bytes per field element: 248 bits, always below the field's modulus. */
 export const FIELD_BYTES = 31;
@@ -112,6 +122,27 @@ export function letterCall(to: string, lookup: string, envelope: Uint8Array): { 
   };
 }
 
+/**
+ * The calls that carry one announcement to `to` (any number of accounts):
+ * `send_many` for each eight, the last one's empty places filled with
+ * `self` (the sender's own account). An announcement is one letter's size.
+ */
+export function manyCalls(to: readonly string[], self: string, lookup: string, envelope: Uint8Array): { program: string; function: string; inputs: string[] }[] {
+  if (to.length === 0) throw new LetterError("An announcement needs someone to go to");
+  for (const a of [...to, self]) if (!ADDRESS.test(a)) throw new LetterError("An announcement needs the accounts it goes to");
+  const [hi, lo] = lookupHalves(lookup);
+  if (hi === 0n && lo === 0n) throw new LetterError("A lookup can't be all zeros");
+  if (envelope.length > LETTER_BYTES) throw new LetterError("That is too long for one announcement; shorten it");
+  const parcel = `[${packParcel(envelope, LETTER_FIELDS).map((f) => `${f}field`).join(", ")}]`;
+  const calls = [];
+  for (let i = 0; i < to.length; i += MANY) {
+    const group = to.slice(i, i + MANY);
+    while (group.length < MANY) group.push(self);
+    calls.push({ program: LETTERS_PROGRAM, function: SEND_MANY_FUNCTION, inputs: [`[${group.join(", ")}]`, `[${hi}u128, ${lo}u128]`, parcel] });
+  }
+  return calls;
+}
+
 // ---- Reading the wallet's records ------------------------------------------
 
 export type LetterRecord = {
@@ -188,8 +219,8 @@ export class LetterBox {
   async put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: FeeMode }): Promise<void> {
     if (!this.to) throw new LetterError("This letter box only reads");
     const call = letterCall(this.to, lookup, envelope);
-    this.refresh(); // what this account has sent, as of now
-    if ((await this.read()).sent.has(lookup)) throw new MailboxError("CONFLICT", "That slot is taken");
+    // What this account has sent, as of now.
+    if (await this.hasSent(lookup)) throw new MailboxError("CONFLICT", "That slot is taken");
     await executeAndWait(this.wallet, { ...call, ...(options?.feeMode ? { feeMode: options.feeMode } : {}) }, this.execute);
     (await this.read()).sent.add(lookup);
   }
@@ -197,6 +228,12 @@ export class LetterBox {
   /** The envelope received under `lookup`, or null when no letter has it (yet). */
   async get(lookup: string): Promise<Uint8Array<ArrayBuffer> | null> {
     return (await this.read()).received.get(lookup)?.envelope ?? null;
+  }
+
+  /** Whether this account has sent a letter under `lookup` (read afresh). */
+  async hasSent(lookup: string): Promise<boolean> {
+    this.refresh();
+    return (await this.read()).sent.has(lookup);
   }
 
   /** A record can't be unsent or deleted; reading it is enough. */
@@ -218,9 +255,9 @@ export class LetterBox {
   }
 
   private async load(): Promise<Letters> {
-    const raw = await this.wallet.requestRecords(LETTERS_PROGRAM, true);
     const out: Letters = { received: new Map(), sent: new Set() };
-    for (const r of Array.isArray(raw) ? raw : []) {
+    const raw = (await Promise.all(LETTER_PROGRAMS.map((p) => this.wallet.requestRecords(p, true)))).flatMap((r) => (Array.isArray(r) ? r : []));
+    for (const r of raw) {
       const letter = parseLetterRecord(r);
       if (!letter) continue;
       if (letter.kind === "sent") out.sent.add(letter.lookup);
@@ -231,6 +268,27 @@ export class LetterBox {
 }
 
 type Letters = { received: Map<string, LetterRecord>; sent: Set<string> };
+
+/**
+ * Sends one announcement to many accounts: one Shield approval for each
+ * eight (manyCalls). Refuses a slot this account already sent under, as
+ * `LetterBox.put` does. Reading is `LetterBox`'s: every copy is a Letter.
+ */
+export class ManyLetterBox {
+  private readonly own: LetterBox;
+
+  constructor(
+    private readonly options: { wallet: LetterWallet; to: readonly string[]; self: string; execute?: ExecuteOptions },
+  ) {
+    this.own = new LetterBox({ wallet: options.wallet });
+  }
+
+  async put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: FeeMode }): Promise<void> {
+    const calls = manyCalls(this.options.to, this.options.self, lookup, envelope);
+    if (await this.own.hasSent(lookup)) throw new MailboxError("CONFLICT", "That slot is taken");
+    for (const call of calls) await executeAndWait(this.options.wallet, { ...call, ...(options?.feeMode ? { feeMode: options.feeMode } : {}) }, this.options.execute ?? {});
+  }
+}
 
 /**
  * A reader that looks among the wallet's letters first and then in the old

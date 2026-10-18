@@ -59,7 +59,7 @@ describe("announcement channels through the mailbox", () => {
     // The business's own side of each thread, as its vault keeps it.
     const mine = new Map<string, Thread>();
     const keep = (r: { sent: { partiesKey: string; item: ThreadItem }[] }) => r.sent.forEach((s) => mine.set(s.partiesKey, addToThread(mine.get(s.partiesKey) ?? emptyThread(), s.item)));
-    const out = await sendChannelKey(box, ch, [ANA, BO].map((m) => ({ ...m, thread: undefined })));
+    const out = await sendChannelKey(() => box, ch, [ANA, BO].map((m) => ({ ...m, thread: undefined })));
     keep(out);
     expect(out.sent).toHaveLength(2);
     expect(out.sent[0]!.item.body).toMatchObject({ type: "channel", channelId: ch.id, name: "Everyone", epoch: 0, key: ch.key });
@@ -80,8 +80,8 @@ describe("announcement channels through the mailbox", () => {
     // Bo leaves: a new key for Ana only; Bo is told.
     ch = removeMembers(ch, [BO.workerId]);
     expect(ch.epoch).toBe(1);
-    keep(await sendChannelKey(box, ch, [{ ...BO, thread: mine.get(BO.partiesKey) }], true));
-    keep(await sendChannelKey(box, ch, [{ ...ANA, thread: mine.get(ANA.partiesKey) }]));
+    keep(await sendChannelKey(() => box, ch, [{ ...BO, thread: mine.get(BO.partiesKey) }], true));
+    keep(await sendChannelKey(() => box, ch, [{ ...ANA, thread: mine.get(ANA.partiesKey) }]));
     expect(mine.get(ANA.partiesKey)?.nextOut).toBe(2);
     ch = addOwnPost(ch, await postToChannel(box, ch, "Bonuses go out Thursday."));
     ana = await personReads(box, ANA.partiesKey, ana);
