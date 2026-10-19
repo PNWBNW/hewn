@@ -1,4 +1,5 @@
-// The traction store on Upstash Redis (added through the Vercel marketplace),
+// The traction store on Upstash ("Upstash for Redis" from the Vercel marketplace,
+// not the Redis Cloud listing, which has no REST API),
 // over its REST API with fetch: no client library. Two hashes, one field per
 // country (counts.ts). The URL and key come from the environment, under
 // either name the Vercel integration uses.

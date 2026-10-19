@@ -3052,5 +3052,7 @@ since launch only, never by day).
   like `/board`.
 - **Rules:** CLAUDE.md now carries this as the one, narrow exception to "no database"; the threat
   model and the privacy page say what is kept.
-- **To switch it on:** add Upstash Redis from the Vercel marketplace to the project (it sets the
-  `KV_REST_API_*` settings). Until then nothing is counted and the map shows zeros.
+- **To switch it on:** add **Upstash** (its "Upstash for Redis" database, free plan) from the Vercel
+  marketplace and connect it to the project (it sets the `KV_REST_API_*` settings). Not the separate
+  "Redis" (Redis Cloud) listing: that one gives only a TCP `REDIS_URL`, and the store talks to
+  Upstash's REST API. Until then nothing is counted and the map shows zeros.
