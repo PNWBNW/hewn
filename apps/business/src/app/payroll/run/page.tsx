@@ -21,23 +21,30 @@ import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
+import { formatMinutes } from "@/books/hours";
+import { emptyMailbox } from "@/books/mailbox";
 import { TagFields } from "@/books/tags";
+import { type UnpaidHours, hoursText, markPaid, shiftCount, unpaidHours } from "@/books/timecard_pay";
 import { PageHeader } from "@/shell/SectionView";
+import { dayLabel } from "../../work/shared";
 
 function daysBefore(iso: string, days: number): string {
   const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d - days)).toISOString().slice(0, 10);
 }
 
-/** One optional project per paycheck: its wages and employer taxes count as that job's labour. */
-type Row = { include: boolean; hours: string; project?: string };
+/**
+ * One optional project per paycheck: its wages and employer taxes count as that job's labour.
+ * `typed`: the person chose to type the hours instead of paying the timecards (books/timecard_pay.ts).
+ */
+type Row = { include: boolean; hours: string; project?: string; typed?: boolean };
 
 /** The "Paid from" choice that isn't a bank account: the business's own rail balance. */
 const RAIL = "rail";
 const LINK_FIRST = "Link on the rail first: Settings → Import team";
 
 export default function RunPayrollPage() {
-  const { books, payroll, dimensions, rail, updateCompany } = useOpenBooks();
+  const { books, payroll, dimensions, rail, mailbox, updateCompany } = useOpenBooks();
   const router = useRouter();
   const team = payroll.workers.filter((w) => w.active);
   const linked = useMemo(() => new Set(rail?.links.map((l) => l.workerId) ?? []), [rail]);
@@ -61,21 +68,27 @@ export default function RunPayrollPage() {
     () =>
       team.map((w) => {
         const row = rows[w.id] ?? { include: false, hours: "" };
+        // The hours sent on timecards inside the period and not yet paid: what an hourly paycheck pays,
+        // unless the person chose to type the hours instead.
+        const timecard: UnpaidHours | null = w.payType === "hourly" ? unpaidHours(mailbox, w.id, periodStart, periodEnd) : null;
+        const fromCards = !!timecard && timecard.minutes > 0 && !row.typed;
+        const hoursValue = fromCards ? hoursText(timecard.minutes) : row.hours;
+        const base = { worker: w, timecard, fromCards, hoursValue };
         // Paying on the rail needs an account for everyone included; a row without one stays out.
-        if (onRail && !linked.has(w.id)) return { worker: w, row: { ...row, include: false }, paycheck: null, problem: LINK_FIRST };
-        if (!row.include) return { worker: w, row, paycheck: null, problem: null };
+        if (onRail && !linked.has(w.id)) return { ...base, row: { ...row, include: false }, paycheck: null, problem: LINK_FIRST };
+        if (!row.include) return { ...base, row, paycheck: null, problem: null };
         try {
-          const hours = w.payType === "hourly" ? (row.hours.trim() ? Number(row.hours) : undefined) : undefined;
+          const hours = w.payType === "hourly" ? (hoursValue.trim() ? Number(hoursValue) : undefined) : undefined;
           if (w.payType === "hourly" && (hours === undefined || Number.isNaN(hours))) {
-            return { worker: w, row, paycheck: null, problem: "Enter hours" };
+            return { ...base, row, paycheck: null, problem: "Enter hours" };
           }
           const paycheck = computePaycheck(w, grossFor(w, hours), yearToDate(payroll, w.id, payDate), hours);
-          return { worker: w, row, paycheck, problem: null };
+          return { ...base, row, paycheck, problem: null };
         } catch (e) {
-          return { worker: w, row, paycheck: null, problem: errorMessage(e) };
+          return { ...base, row, paycheck: null, problem: errorMessage(e) };
         }
       }),
-    [team, rows, payroll, payDate, onRail, linked],
+    [team, rows, payroll, payDate, onRail, linked, mailbox, periodStart, periodEnd],
   );
 
   const included = preview.filter((p) => p.row.include);
@@ -84,9 +97,9 @@ export default function RunPayrollPage() {
   const ready = included.length > 0 && included.every((p) => p.paycheck) && !!bank;
   const names = new Map(team.map((w) => [w.id, w.name]));
   const lines = () =>
-    included.map(({ worker, row }) => ({
+    included.map(({ worker, row, hoursValue }) => ({
       workerId: worker.id,
-      ...(worker.payType === "hourly" ? { hours: Number(row.hours) } : {}),
+      ...(worker.payType === "hourly" ? { hours: Number(hoursValue) } : {}),
       ...(row.project ? { tags: { project: row.project } } : {}),
     }));
 
@@ -126,7 +139,10 @@ export default function RunPayrollPage() {
           lines: lines(),
         });
         runId = r.run.id;
-        return { ...c, books: r.books, payroll: r.payroll };
+        // The stretches this run paid are marked with it, so they're never paid twice and the card says which paycheck.
+        const paidFromCards = included.filter((p) => p.fromCards && p.timecard);
+        const mailbox = paidFromCards.length > 0 ? paidFromCards.reduce((m, p) => markPaid(m, p.timecard!.shifts, runId, payDate), c.mailbox ?? emptyMailbox()) : c.mailbox;
+        return { ...c, books: r.books, payroll: r.payroll, ...(mailbox ? { mailbox } : {}) };
       });
       // A rail run goes straight to the pay panel; the rest is done.
       router.push(onRail ? `/payroll?pay=${runId}` : "/payroll");
@@ -192,7 +208,7 @@ export default function RunPayrollPage() {
         </div>
 
         <ul className="flex flex-col gap-3">
-          {preview.map(({ worker, row, paycheck, problem }) => (
+          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue }) => (
             <li key={worker.id} className={cn("rounded-lg border bg-card p-4", !row.include && "opacity-60")}>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex min-h-11 flex-1 items-center gap-3">
@@ -212,15 +228,39 @@ export default function RunPayrollPage() {
                 </label>
                 {worker.payType === "hourly" && row.include && (
                   <input
-                    className={cn(inputClass, "w-28 text-right")}
+                    className={cn(inputClass, "w-28 text-right", fromCards && "bg-muted")}
                     inputMode="decimal"
                     placeholder="Hours"
                     aria-label={`${worker.name} hours`}
-                    value={row.hours}
+                    value={hoursValue}
+                    readOnly={fromCards}
                     onChange={(e) => setRows((r) => ({ ...r, [worker.id]: { ...row, hours: e.target.value } }))}
                   />
                 )}
               </div>
+              {worker.payType === "hourly" && row.include && timecard && timecard.minutes > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {fromCards ? (
+                    <>
+                      From their timecards: {formatMinutes(timecard.minutes)} across {shiftCount(timecard.shifts.length)}, week{timecard.weeks.length === 1 ? "" : "s"} of{" "}
+                      {timecard.weeks.map(dayLabel).join(", ")}. Those stretches are marked paid when this run posts.{" "}
+                      <button type="button" className="underline underline-offset-4" onClick={() => setRows((r) => ({ ...r, [worker.id]: { ...row, typed: true, hours: hoursValue } }))}>
+                        Type the hours instead
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Typed by hand; their timecards hold {formatMinutes(timecard.minutes)} unpaid in this period, which stay unpaid.{" "}
+                      <button type="button" className="underline underline-offset-4" onClick={() => setRows((r) => ({ ...r, [worker.id]: { ...row, typed: false } }))}>
+                        Pay the timecards
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+              {worker.payType === "hourly" && row.include && timecard && timecard.minutes === 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">No unpaid hours on their timecards in this period; type the hours.</p>
+              )}
               {row.include && (
                 <TagFields
                   dims={dimensions}
