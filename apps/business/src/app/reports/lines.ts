@@ -14,7 +14,7 @@ import {
   type TrialBalance,
   formatCents,
 } from "@pnw/ledger";
-import type { SalesTaxReport } from "@pnw/sales";
+import { AGING_BUCKETS, type Aging, type SalesTaxReport } from "@pnw/sales";
 
 export type LineKind = "heading" | "account" | "subtotal" | "total" | "grand";
 
@@ -118,6 +118,24 @@ export function cashFlowLines(cf: CashFlow): ReportLine[] {
     { kind: "grand", label: "Cash at end of period", depth: 0, amounts: cf.cashAtEnd },
   );
   return lines;
+}
+
+/** The aging report's columns: a bucket of days past due each, then the total. */
+export const AGING_COLUMNS: string[] = [...AGING_BUCKETS.map((b) => b.label), "Total"];
+
+/**
+ * A/R or A/P aging: one row per customer or vendor (by name), what they owe in each bucket and in
+ * all, then the total row. The total is the receivable (or payable) account on the balance sheet.
+ */
+export function agingLines(aging: Aging, names: Map<string, string>): ReportLine[] {
+  const amounts = (row: Aging["totals"]): Amounts => [...AGING_BUCKETS.map((b) => row[b.id]), row.total];
+  const rows = [...aging.byParty]
+    .map((row) => ({ row, label: names.get(row.partyId) ?? row.partyId }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.row.partyId.localeCompare(b.row.partyId));
+  return [
+    ...rows.map(({ row, label }): ReportLine => ({ kind: "account", label, depth: 0, amounts: amounts(row), blankZero: true })),
+    { kind: "grand", label: "Total", depth: 0, amounts: amounts(aging.totals) },
+  ];
 }
 
 /** Trial balance, debit and credit columns, with accounts in the order given (chart order). */

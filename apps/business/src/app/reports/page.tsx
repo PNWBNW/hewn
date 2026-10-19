@@ -15,7 +15,7 @@ import {
   profitByTag,
   trialBalance,
 } from "@pnw/ledger";
-import { salesTaxReport } from "@pnw/sales";
+import { apAging, arAging, salesTaxReport } from "@pnw/sales";
 import { Button, buttonVariants } from "@pnw/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@pnw/ui/tabs";
 import { cn } from "@pnw/ui/utils";
@@ -25,7 +25,9 @@ import { orderedAccounts, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
 import { type Comparison, type Preset, PRESETS, compareDate, compareRange, formatDate, presetRange, rangeLabel } from "./dates";
 import {
+  AGING_COLUMNS,
   type Report,
+  agingLines,
   balanceSheetLines,
   cashFlowLines,
   formatMargin,
@@ -37,13 +39,15 @@ import {
 } from "./lines";
 import { Statement } from "./Statement";
 
-type ReportId = "profit_and_loss" | "balance_sheet" | "cash_flow" | "trial_balance" | "project_profitability" | "sales_tax";
+type ReportId = "profit_and_loss" | "balance_sheet" | "cash_flow" | "trial_balance" | "ar_aging" | "ap_aging" | "project_profitability" | "sales_tax";
 
 const REPORTS: { id: ReportId; label: string; file: string }[] = [
   { id: "profit_and_loss", label: "Profit and loss", file: "profit-and-loss" },
   { id: "balance_sheet", label: "Balance sheet", file: "balance-sheet" },
   { id: "cash_flow", label: "Cash flow", file: "cash-flow" },
   { id: "trial_balance", label: "Trial balance", file: "trial-balance" },
+  { id: "ar_aging", label: "A/R aging", file: "ar-aging" },
+  { id: "ap_aging", label: "A/P aging", file: "ap-aging" },
   { id: "project_profitability", label: "Project profitability", file: "project-profitability" },
   { id: "sales_tax", label: "Sales tax liability", file: "sales-tax-liability" },
 ];
@@ -137,6 +141,20 @@ export default function ReportsPage() {
       };
     }
     if (!isDate(asOf)) return "Choose a date.";
+    if (reportId === "ar_aging" || reportId === "ap_aging") {
+      const receivable = reportId === "ar_aging";
+      const aging = receivable ? arAging(sales, asOf) : apAging(sales, asOf);
+      const names = new Map((receivable ? sales.customers : sales.vendors).map((p) => [p.id, p.name]));
+      return {
+        title: receivable ? "A/R aging" : "A/P aging",
+        subtitle: `As of ${formatDate(asOf)}`,
+        columns: AGING_COLUMNS,
+        lines: agingLines(aging, names),
+        note: receivable
+          ? "What each customer still owed on that date, by how far past due. The total is Accounts Receivable on the balance sheet."
+          : "What you still owed each vendor on that date, by how far past due. The total is Accounts Payable on the balance sheet.",
+      };
+    }
     if (reportId === "balance_sheet") {
       const bs = balanceSheet(books, asOf, compareDate(asOf, comparison));
       return {
