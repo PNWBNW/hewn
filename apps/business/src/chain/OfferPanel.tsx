@@ -277,7 +277,7 @@ function OfferFlow(props: OfferPanelProps) {
     return (
       <>
         <p className="text-sm">
-          Offer sent to <span className="font-medium">{sentTo}</span>. It&apos;s in their mailbox now. Once they accept, check for the reply in your
+          Offer sent to <span className="font-medium">{sentTo}</span>. It&apos;s waiting in their Offers now. Once they accept, check for the reply in your
           Mailbox and they&apos;re linked.
         </p>
         <div className="flex flex-wrap items-center gap-3">
@@ -369,7 +369,7 @@ function OfferFlow(props: OfferPanelProps) {
       <>
         <div>
           <h3 className="text-sm font-semibold">Review the offer to {worker.name}</h3>
-          <p className="text-xs text-muted-foreground">This is exactly what lands in their mailbox. Check it, then send.</p>
+          <p className="text-xs text-muted-foreground">This is exactly what they&apos;ll receive, sealed. Check it, then send.</p>
         </div>
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
           <div>
@@ -438,7 +438,7 @@ function OfferFlow(props: OfferPanelProps) {
           {hire
             ? "They join your team when they accept; until then they're listed as Offer out and left out of pay runs."
             : "Pay starts from their team record; change it below if the offer differs."}{" "}
-          The terms go to their mailbox, sealed; only a fingerprint of them goes on the rail.
+          The terms go to them as a sealed page on the network that only the two of you can open; the offer on the rail carries only a fingerprint of them.
         </p>
         {frequency === "semimonthly" && (
           <p className="text-xs text-muted-foreground">The agreement records twice a month as every two weeks; the terms say twice a month.</p>
