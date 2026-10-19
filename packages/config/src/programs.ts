@@ -37,6 +37,10 @@ export const PROGRAMS = {
     // v1 (2026-10-16) is only read: letters sent before v2 stay in people's wallets.
     hewn_letters_v1: "hewn_letters_v1.aleo",
   },
+  // The public job board (docs/JOB_BOARD.md): postings in public mappings, gated by the business's .hewn name.
+  jobs: {
+    hewn_jobs: "hewn_jobs_v1.aleo",
+  },
   external: {
     usdcx: "test_usdcx_stablecoin.aleo", // testnet only
     usdcx_freezelist: "test_usdcx_freezelist.aleo", // testnet only

@@ -38,6 +38,8 @@ export const WALLET_PROGRAMS: string[] = [
   PROGRAMS.letters.hewn_letters_v1,
   // Depends on freezelist
   external.usdcx,
+  // Depends on name_registry + stablecoin: the job board (post, update, feature, close)
+  PROGRAMS.jobs.hewn_jobs,
   // Depends on stablecoin + registry
   layer1.pnw_name_registrar,
   // Depends on license_registry + name_registry

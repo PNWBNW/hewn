@@ -2895,3 +2895,39 @@ The app:
 
 Tests: 853/853 (new: reading v1 letters, `manyCalls` grouping, padding and refusals, the slot check
 for `send_many`, and an announcement end to end over a fake network).
+
+## 2026-10-19: the job board program, and posting from the Jobs page
+
+**Program** (PNWBNW/pnw_mvp_v2 #206, #207, merged; Joshua deploying): `hewn_jobs_v1.aleo`, the
+public job board. Postings live in public mappings (`postings`, `posting_body`, `posting_count`,
+`posting_at`, walkable from the explorer with no server); applications and everything after them
+are letters. Calls: `post` ($1 USDCx to the Hewn foundation, plus the network fee), `update`
+(free), `feature` ($5 a day, 1 to 30 days, never more than 30 days ahead), `close` (free). Every
+call is gated by `pnw_name_registry_v2::assert_employer_owner` on the signer and the name's
+industry code, so only a business `.hewn` name can post (a worker name has code 0; forks can't post).
+31 Leo tests, 26 must-fail, mutation-checked; local stubs for the registry and USDCx. Codex's
+sellback point (a name sold back and re-registered carries its old postings to the new holder) left
+as is: a posting belongs to the name. Design: `docs/JOB_BOARD.md`.
+
+**The app** (this PR):
+- `packages/config` names `hewn_jobs_v1.aleo`; it is in `WALLET_PROGRAMS` after USDCx, so each
+  account reconnects Hewn in Shield once.
+- `books/jobs.ts`: the business's own copy of each posting in the vault (`jobs` on the company
+  file), with the same checks the program makes (pay range, hidden pay, kinds, 168 hours), and the
+  words' limits (title 80, location 80, description 4,000 characters).
+- `chain/jobs.ts`: the encodings (the words as a JSON array, deflated, packed into 40 fields like a
+  letter: 1,238 bytes), the four calls with their inputs, the explorer reads (count, index, posting,
+  body, the newest N), board order (featured and current first, then newest), and the feature maths
+  (days allowed, where the window ends).
+- **Jobs page** (`/jobs`, business navigation): the list from the vault; New posting, Change,
+  Feature and Close open `chain/JobPanel.tsx`, Shield-gated on the linked account, which reads the
+  name's industry code from the registry and sends one call per approval. Posting shows "$1"; feature
+  reads the current height and the posting's window from the chain first and offers only the days
+  still allowed, with the cost.
+- Not yet: the public board page (marketing site and the worker's "Find work"), applying (name +
+  message + resume text, builder, local PDF import), the person's applications list with statuses,
+  and the business's applicants per posting (interview, offer, not selected).
+
+Tests: 872/872 (new: posting facts and words, the vault's postings and the company file, posting
+ids, the body codec with deflate and refusals, the calls' inputs, featuring maths and board order,
+parsing the explorer's postings and walking the newest with a fake read).

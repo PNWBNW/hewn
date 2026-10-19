@@ -3,29 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  ArrowLeftRight,
-  ChartColumn,
-  Clock,
-  Download,
-  CreditCard,
-  FileText,
-  FolderKanban,
-  Home,
-  IdCard,
-  Inbox,
-  Landmark,
-  LayoutDashboard,
-  Lock,
-  LogOut,
-  Mailbox,
-  MessageSquare,
-  Menu,
-  Settings,
-  Users,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowLeftRight, Briefcase, ChartColumn, Clock, CreditCard, Download, FileText, FolderKanban, Home, IdCard, Inbox, Landmark, LayoutDashboard, Lock, LogOut, Mailbox, Menu, MessageSquare, Settings, type LucideIcon, Users, X } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { SETUP_PATH, setupRedirect, setupStep } from "@/books/setup";
@@ -53,6 +31,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon };
 const BUSINESS_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText })),
+  { href: "/jobs", label: "Jobs", icon: Briefcase },
   { href: "/mailbox", label: "Mailbox", icon: Mailbox },
   { href: "/messages", label: "Messages", icon: MessageSquare },
 ];
