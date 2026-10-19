@@ -2,8 +2,10 @@
 
 // Hours: the week's punches by day, each one editable or removable with a
 // confirm, the weekly total, and Send to the employer. Earlier weeks are a
-// tap away. Everything here is the vault; nothing leaves the device until
-// the person taps Send.
+// tap away. A shift longer than the work week's longest shift is marked: an
+// open one stops counting there; a closed one is confirmed ("It's right")
+// or its clock-out fixed before the week can be sent. Everything here is the
+// vault; nothing leaves the device until the person taps Send.
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
@@ -13,8 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import { addDays, calendarOf, formatMinutes, localDate, overtimeSplit, shiftsOf, weekDays, weekMinutes, weekStartOf } from "@/books/hours";
-import { type Punch, removePunch, updatePunch } from "@/books/work";
+import { addDays, calendarOf, formatMinutes, localDate, longestMinutesOf, overtimeSplit, shiftsOf, weekDays, weekMinutes, weekStartOf } from "@/books/hours";
+import { type Punch, confirmShift, removePunch, updatePunch } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { SendWeek } from "../SendWeek";
 import { clock, dayLabel, employerLabel, useNow } from "../shared";
@@ -37,6 +39,8 @@ export default function HoursPage() {
   // Days and weeks on the agreement's calendar (the work week in its terms; Monday and this device's zone without one).
   const calendar = calendarOf(agreement);
   const tz = calendar.timeZone;
+  const longest = longestMinutesOf(agreement);
+  const longestLabel = formatMinutes(longest).replace(/ 00m$/, "");
   const today = localDate(now, tz);
   const thisWeek = weekStartOf(today, calendar);
   const [chosenWeek, setWeekStart] = useState(thisWeek);
@@ -45,11 +49,12 @@ export default function HoursPage() {
   const [removing, setRemoving] = useState<Punch | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const shifts = agreementId ? shiftsOf(work.punches, agreementId, now, tz) : [];
+  const shifts = agreementId ? shiftsOf(work.punches, agreementId, now, tz, longest) : [];
   const byDay = new Map<string, typeof shifts>();
   for (const s of shifts) byDay.set(s.date, [...(byDay.get(s.date) ?? []), s]);
   const punchById = new Map(work.punches.map((p) => [p.id, p]));
-  const total = agreementId ? weekMinutes(work.punches, agreementId, weekStart, now, tz) : 0;
+  const outPunchFor = (id: string | undefined) => (id ? punchById.get(id) : undefined);
+  const total = agreementId ? weekMinutes(work.punches, agreementId, weekStart, now, tz, longest) : 0;
   const weekLabel = `${dayLabel(weekStart)} – ${dayLabel(addDays(weekStart, 6))}`;
   // Overtime under the agreement's work week, over this week's shifts (the same split the employer makes).
   const workWeek = agreement?.terms?.version === 2 ? agreement.terms.workWeek : undefined;
@@ -126,8 +131,24 @@ export default function HoursPage() {
                           <div key={`${s.inId}:${s.in}`} className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-xs text-muted-foreground">
                             <span className="tabular-nums">
                               {clock(s.in, tz)} – {s.open ? "now" : clock(s.out, tz)}
-                              {s.open && s.out !== now.toISOString() && new Date(s.out) < now && " (not clocked out; counted to midnight)"}
+                              {s.open && s.long && ` (still clocked in, longer than ${longestLabel}: counted to there; set the clock-out time)`}
+                              {s.open && !s.long && s.out !== now.toISOString() && new Date(s.out) < now && " (not clocked out; counted to midnight)"}
                             </span>
+                            {!s.open && s.long && (
+                              <span className={cn("rounded-sm px-1.5 py-0.5", s.confirmed ? "bg-muted" : "bg-warning/15 text-warning")}>
+                                {s.confirmed ? `Longer than ${longestLabel} · confirmed` : `Longer than ${longestLabel}`}
+                              </span>
+                            )}
+                            {!s.open && s.long && !s.confirmed && outPunchFor(s.outId) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="min-h-11 sm:min-h-7"
+                                onClick={() => void change((w) => confirmShift(w, s.outId!))}
+                              >
+                                It&apos;s right
+                              </Button>
+                            )}
                             <span className="flex gap-1">
                               {inPunch && <PunchButton icon={Pencil} label={`Edit clock-in at ${clock(inPunch.at)}`} onClick={() => setEditing(inPunch)} />}
                               {outPunch && <PunchButton icon={Pencil} label={`Edit clock-out at ${clock(outPunch.at)}`} onClick={() => setEditing(outPunch)} />}

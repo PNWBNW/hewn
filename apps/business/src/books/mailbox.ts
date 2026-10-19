@@ -87,7 +87,9 @@ function validateEntries(raw: unknown): TimesheetPayload["entries"] {
     if (!isDate(x.date)) throw new MailboxError("Every entry needs a date");
     if (!isStamp(x.in) || !isStamp(x.out)) throw new MailboxError("Every entry needs a start and an end time");
     if (!isMinutes(x.minutes, MINUTES_IN_DAY)) throw new MailboxError("An entry's minutes must be a whole number within one day");
-    return { date: x.date, in: x.in, out: x.out, minutes: x.minutes };
+    if (x.long !== undefined && x.long !== true) throw new MailboxError("An entry's long flag can only be true");
+    // `long`: a shift past the longest shift in the terms, which the sender confirmed (books/hours.ts).
+    return { date: x.date, in: x.in, out: x.out, minutes: x.minutes, ...(x.long ? { long: true as const } : {}) };
   });
 }
 

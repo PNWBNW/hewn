@@ -75,6 +75,16 @@ describe("a timesheet another person sent", () => {
     expect(bad([null], 0)).toThrow(/object/);
   });
 
+  it("keeps an entry's long-shift flag, and only as true", () => {
+    const long = validateTimesheetPayload({ ...PAYLOAD, entries: [{ ...ENTRY, long: true }, PAYLOAD.entries[1]] }, AGREEMENT);
+    expect(long.entries[0]).toEqual({ ...ENTRY, long: true });
+    expect(long.entries[1]).not.toHaveProperty("long");
+    expect(() => validateTimesheetPayload({ ...PAYLOAD, entries: [{ ...ENTRY, long: "yes" }, PAYLOAD.entries[1]] }, AGREEMENT)).toThrow(/long flag/);
+    expect(() => validateTimesheetPayload({ ...PAYLOAD, entries: [{ ...ENTRY, long: false }, PAYLOAD.entries[1]] }, AGREEMENT)).toThrow(/long flag/);
+    const kept = addHours(emptyMailbox(), { ...hours(0), entries: long.entries });
+    expect(mailboxFromJson(mailboxToJson(kept)).hours[0]?.entries[0]).toEqual({ ...ENTRY, long: true });
+  });
+
   it("is refused without the time it was sent", () => {
     expect(() => validateTimesheetPayload({ ...PAYLOAD, sentAt: undefined }, AGREEMENT)).toThrow(/sent/);
   });

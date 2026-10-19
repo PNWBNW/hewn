@@ -13,6 +13,11 @@
 // (`overtimeSplit`): hours past the day's threshold first, then hours past
 // the week's, so a day's overtime never counts twice.
 //
+// A forgotten clock-out (Joshua, 2026-10-19): a shift longer than the work
+// week's longest shift (12 hours without one) is `long`. Open, it counts up
+// to that length and no further; closed, it goes into a week only once the
+// person has confirmed it (work.ts `confirmShift`), and the entry says so.
+//
 // The timesheet payload built here is a contract shared with the employer's
 // side of the app: keep the field names exactly.
 // ---------------------------------------------------------------------------
@@ -25,18 +30,30 @@ export type DayDate = string; // YYYY-MM-DD, in the calendar's zone
 /** The ruler a week is drawn with: which day it starts on, and the zone its days are in. */
 export type Calendar = { startsOn: Weekday; timeZone: string };
 
-/** One worked stretch inside a single day. */
-export type Shift = { date: DayDate; in: string; out: string; minutes: number; open: boolean; inId: string; outId?: string };
+/**
+ * One worked stretch inside a single day. `long`: the whole shift it belongs to runs past the
+ * longest shift (open: it has already); `confirmed`: the person confirmed that long shift.
+ */
+export type Shift = { date: DayDate; in: string; out: string; minutes: number; open: boolean; inId: string; outId?: string; long: boolean; confirmed: boolean };
+
+export type TimesheetEntry = { date: DayDate; in: string; out: string; minutes: number; long?: true };
 
 export type TimesheetPayload = {
   version: 1;
   kind: "timesheet";
   agreementId: string;
   weekStart: DayDate;
-  entries: { date: DayDate; in: string; out: string; minutes: number }[];
+  entries: TimesheetEntry[];
   totalMinutes: number;
   sentAt: string;
 };
+
+/** The longest shift before a clock-out is questioned, in minutes: the work week's, or 12 hours. */
+export const DEFAULT_LONGEST_MINUTES = 12 * 60;
+export function longestMinutesOf(agreement: Pick<WorkAgreement, "terms"> | undefined): number {
+  const w = agreement?.terms?.version === 2 ? agreement.terms.workWeek : undefined;
+  return w ? Math.round(w.longestShiftHours * 60) : DEFAULT_LONGEST_MINUTES;
+}
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -105,10 +122,11 @@ const wholeMinutes = (fromMs: number, toMs: number) => Math.max(0, Math.floor((t
 
 /**
  * The shifts for one agreement, split at midnight in the zone, in time order.
- * `now` closes an open shift (at now, or at the end of its first day if that
- * has passed). Assumes the punches keep the alternating rule (work.ts enforces it).
+ * `now` closes an open shift (at now, at the end of its first day if that has
+ * passed, or at the longest shift, whichever comes first). Assumes the punches
+ * keep the alternating rule (work.ts enforces it).
  */
-export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Date, timeZone: string = deviceTimeZone()): Shift[] {
+export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Date, timeZone: string = deviceTimeZone(), longestMinutes: number = DEFAULT_LONGEST_MINUTES): Shift[] {
   const mine = punches.filter((p) => p.agreementId === agreementId).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   const out: Shift[] = [];
   for (let i = 0; i < mine.length; i++) {
@@ -117,45 +135,74 @@ export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Da
     const next = mine[i + 1];
     const start = new Date(p.at);
     const open = next?.kind !== "out";
+    const cap = start.getTime() + longestMinutes * 60_000;
     let end: Date;
-    if (!open && next) end = new Date(next.at);
-    else {
+    let long: boolean;
+    if (!open && next) {
+      end = new Date(next.at);
+      long = end.getTime() > cap;
+    } else {
       const midnight = startOfDay(addDays(localDate(start, timeZone), 1), timeZone);
-      end = now.getTime() < midnight.getTime() ? now : midnight;
+      end = new Date(Math.min(now.getTime(), midnight.getTime(), cap));
       if (end.getTime() < start.getTime()) end = start;
+      long = now.getTime() > cap;
     }
+    const confirmed = !open && next?.confirmed === true;
     // Split at each midnight the shift crosses.
     let cursor = start;
     while (cursor.getTime() < end.getTime()) {
       const boundary = startOfDay(addDays(localDate(cursor, timeZone), 1), timeZone);
       const segmentEnd = boundary.getTime() < end.getTime() ? boundary : end;
-      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }) });
+      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed });
       cursor = segmentEnd;
     }
     if (start.getTime() === end.getTime()) {
-      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }) });
+      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed });
     }
   }
   return out;
 }
 
 /** Minutes per day for one agreement, in the zone. */
-export function minutesByDay(punches: readonly Punch[], agreementId: string, now: Date, timeZone: string = deviceTimeZone()): Map<DayDate, number> {
+export function minutesByDay(punches: readonly Punch[], agreementId: string, now: Date, timeZone: string = deviceTimeZone(), longestMinutes: number = DEFAULT_LONGEST_MINUTES): Map<DayDate, number> {
   const by = new Map<DayDate, number>();
-  for (const s of shiftsOf(punches, agreementId, now, timeZone)) by.set(s.date, (by.get(s.date) ?? 0) + s.minutes);
+  for (const s of shiftsOf(punches, agreementId, now, timeZone, longestMinutes)) by.set(s.date, (by.get(s.date) ?? 0) + s.minutes);
   return by;
 }
 
-export function minutesOn(punches: readonly Punch[], agreementId: string, date: DayDate, now: Date, timeZone: string = deviceTimeZone()): number {
-  return minutesByDay(punches, agreementId, now, timeZone).get(date) ?? 0;
+export function minutesOn(punches: readonly Punch[], agreementId: string, date: DayDate, now: Date, timeZone: string = deviceTimeZone(), longestMinutes: number = DEFAULT_LONGEST_MINUTES): number {
+  return minutesByDay(punches, agreementId, now, timeZone, longestMinutes).get(date) ?? 0;
 }
 
 /** Minutes in the week starting `weekStart` for one agreement, in the zone. */
-export function weekMinutes(punches: readonly Punch[], agreementId: string, weekStart: DayDate, now: Date, timeZone: string = deviceTimeZone()): number {
+export function weekMinutes(punches: readonly Punch[], agreementId: string, weekStart: DayDate, now: Date, timeZone: string = deviceTimeZone(), longestMinutes: number = DEFAULT_LONGEST_MINUTES): number {
   const days = new Set(weekDays(weekStart));
   let total = 0;
-  for (const [date, m] of minutesByDay(punches, agreementId, now, timeZone)) if (days.has(date)) total += m;
+  for (const [date, m] of minutesByDay(punches, agreementId, now, timeZone, longestMinutes)) if (days.has(date)) total += m;
   return total;
+}
+
+/** The shifts of one week for one agreement, on the agreement's own calendar and longest shift. */
+export function weekShifts(work: Work, agreementId: string, weekStart: DayDate, now: Date): Shift[] {
+  const agreement = work.agreements.find((a) => a.agreementId === agreementId);
+  const days = new Set(weekDays(weekStart));
+  return shiftsOf(work.punches, agreementId, now, calendarOf(agreement).timeZone, longestMinutesOf(agreement)).filter((s) => days.has(s.date));
+}
+
+/**
+ * Why a week can't be sent yet, or null: a shift still open past the longest
+ * shift (set its clock-out time), or a long shift the person hasn't confirmed.
+ */
+export function sendProblem(work: Work, agreementId: string, weekStart: DayDate, now: Date): string | null {
+  const agreement = work.agreements.find((a) => a.agreementId === agreementId);
+  if (!agreement) return "No agreement with that id";
+  const hours = formatMinutes(longestMinutesOf(agreement)).replace(/ 00m$/, "");
+  for (const s of weekShifts(work, agreementId, weekStart, now)) {
+    if (!s.long) continue;
+    if (s.open) return `You've been clocked in since ${s.date}, longer than ${hours}. Forgot to clock out? Set the time you left, under Hours.`;
+    if (!s.confirmed) return `A shift on ${s.date} is longer than ${hours}. Under Hours, fix its clock-out time or confirm it's right.`;
+  }
+  return null;
 }
 
 /** The week's shifts for one agreement, as the employer will receive them, on the agreement's calendar. */
@@ -164,10 +211,9 @@ export function buildTimesheet(work: Work, agreementId: string, weekStart: DayDa
   if (!agreement) throw new WorkError("No agreement with that id");
   const calendar = calendarOf(agreement);
   if (weekStartOf(weekStart, calendar) !== weekStart) throw new WorkError(`A week starts on a ${weekdayLabel(calendar.startsOn)}`);
-  const days = new Set(weekDays(weekStart));
-  const entries = shiftsOf(work.punches, agreementId, now, calendar.timeZone)
-    .filter((s) => days.has(s.date))
-    .map(({ date, in: i, out, minutes }) => ({ date, in: i, out, minutes }));
+  const problem = sendProblem(work, agreementId, weekStart, now);
+  if (problem) throw new WorkError(problem);
+  const entries: TimesheetEntry[] = weekShifts(work, agreementId, weekStart, now).map(({ date, in: i, out, minutes, long }) => ({ date, in: i, out, minutes, ...(long ? { long: true as const } : {}) }));
   if (entries.length === 0) throw new WorkError("Nothing to send: no hours this week");
   return {
     version: 1,

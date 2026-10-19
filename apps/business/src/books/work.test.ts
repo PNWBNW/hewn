@@ -25,6 +25,8 @@ import {
   validateTerms,
   workFromJson,
   workToJson,
+  confirmShift,
+  validatePunch,
 } from "./work";
 
 const EMPLOYER = "aleo1" + "k".repeat(58);
@@ -258,5 +260,24 @@ describe("coworkers in the person's vault", () => {
     expect(w.coworkers?.[theirs]).toMatchObject({ businessKey: biz, name: "Bo", nextOut: 1 });
     expect(workFromJson(workToJson(w))).toEqual(w);
     expect(() => setIdentity(w, "nope", id)).toThrow();
+  });
+});
+
+describe("confirming a long shift", () => {
+  it("marks the clock-out, only a clock-out, survives a save, and is dropped when the shift moves", () => {
+    let w = withAgreement();
+    w = punch(w, AID, "2026-10-14T13:00:00.000Z", "p1").work;
+    w = punch(w, AID, "2026-10-15T03:00:00.000Z", "p2").work;
+    expect(() => confirmShift(w, "p1")).toThrow(/Only a clock-out/);
+    expect(() => confirmShift(w, "nope")).toThrow(/No punch/);
+    const c = confirmShift(w, "p2");
+    expect(c.punches.find((p) => p.id === "p2")).toEqual({ id: "p2", agreementId: AID, at: "2026-10-15T03:00:00.000Z", kind: "out", confirmed: true });
+    expect(confirmShift(c, "p2")).toEqual(c);
+    expect(workFromJson(workToJson(c)).punches.find((p) => p.id === "p2")?.confirmed).toBe(true);
+    expect(validatePunch({ id: "x", agreementId: AID, at: "2026-10-15T03:00:00.000Z", kind: "out", confirmed: false })).not.toHaveProperty("confirmed");
+    expect(validatePunch({ id: "x", agreementId: AID, at: "2026-10-15T03:00:00.000Z", kind: "in", confirmed: true })).not.toHaveProperty("confirmed");
+    expect(() => validatePunch({ id: "x", agreementId: AID, at: "2026-10-15T03:00:00.000Z", kind: "out", confirmed: "yes" })).toThrow(/Confirmed/);
+    expect(updatePunch(c, "p2", { at: "2026-10-15T04:00:00.000Z" }).punches.find((p) => p.id === "p2")).not.toHaveProperty("confirmed");
+    expect(updatePunch(c, "p1", { at: "2026-10-14T12:00:00.000Z" }).punches.find((p) => p.id === "p2")).not.toHaveProperty("confirmed");
   });
 });
