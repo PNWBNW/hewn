@@ -1,8 +1,8 @@
 "use client";
 
 // Hours, under Payroll: the weeks the team has sent from their Hours page,
-// newest first, one card per week (a week sent again replaces the earlier
-// send), each opening to its days. They are read from the team's letters when
+// newest first, one card per week (the sends of a week are combined,
+// books/mailbox.ts), each opening to its days. They are read from the team's letters when
 // the tab opens and on "Check now" and kept in the encrypted vault.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -102,12 +102,12 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
     >
       <summary className="flex min-h-11 cursor-pointer list-none items-baseline justify-between gap-3 sm:min-h-0">
         <span className="min-w-0">
-          <span className={cn("font-medium", !h.read && "text-primary")}>{item.workerName}</span> sent hours {h.resent && "again "}for the week of{" "}
+          <span className={cn("font-medium", !h.read && "text-primary")}>{item.workerName}</span> sent {h.sends ? "more hours" : "hours"} for the week of{" "}
           {dayLabel(h.weekStart)}
           <span className="block text-xs text-muted-foreground">
             {formatMinutes(h.totalMinutes)}
             {split && split.overtime > 0 && ` (${formatMinutes(split.overtime)} overtime)`} · {when(item.at)}
-            {h.resent && " · Replaces their earlier send"}
+            {h.sends && ` · ${h.sends} sends combined`}
             {longShifts > 0 && <span className="text-warning"> · {longShifts === 1 ? "1 long shift" : `${longShifts} long shifts`} to review</span>}
             {!h.read && " · New"}
           </span>

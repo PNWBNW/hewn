@@ -489,7 +489,7 @@ export function addPaystub(work: Work, paystub: ReceivedPaystub): Work {
   return bumpWorkSeq({ ...work, paystubs: [...work.paystubs, fresh] }, fresh.agreementId, "paystub", fresh.seq);
 }
 
-/** Records a week sent to an employer and moves the slot past it. A week sent again replaces the earlier record. */
+/** Records a week sent to an employer and moves the slot past it. A week sent again replaces the earlier record here; the employer's side combines the sends. */
 export function recordTimesheet(work: Work, sent: SentTimesheet): Work {
   const fresh = validateTimesheet(sent);
   if (!agreementFor(work, fresh.agreementId)) throw new WorkError("No agreement with that id");

@@ -109,10 +109,10 @@ describe("the mailbox feed", () => {
     expect(buildFeed({ rail: null, payroll: payroll(), mailbox: m }).map((i) => i.key)).toEqual([`hours:${"ab".repeat(32)}:0`, `hours:${"ab".repeat(32)}:1`]);
   });
 
-  it("shows a week sent again as one card, the latest send", () => {
+  it("shows a week sent twice as one card, combined", () => {
     const m = addHours(addHours(emptyMailbox(), hours(0, "2026-10-12T09:00:00.000Z")), hours(1, "2026-10-13T09:00:00.000Z"));
     const feed = hoursFeed({ rail: null, payroll: payroll(), mailbox: m });
-    expect(feed.map((i) => [i.key, i.hours.resent ?? false])).toEqual([[`hours:${"ab".repeat(32)}:1`, true]]);
+    expect(feed.map((i) => [i.key, i.hours.sends])).toEqual([[`hours:${"ab".repeat(32)}:1`, 2]]);
   });
 
   it("knows when an offer is still waiting", () => {

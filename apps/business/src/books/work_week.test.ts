@@ -15,8 +15,8 @@ import {
 const LA = defaultWorkWeek("America/Los_Angeles");
 
 describe("a work week", () => {
-  it("starts from Monday to Sunday, overtime after 40, shifts up to 12", () => {
-    expect(LA).toEqual({ startsOn: "monday", timeZone: "America/Los_Angeles", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12 });
+  it("starts from Sunday to Saturday, overtime after 40, shifts up to 12", () => {
+    expect(LA).toEqual({ startsOn: "sunday", timeZone: "America/Los_Angeles", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12 });
     expect(Object.keys(LA)).toEqual([...WORK_WEEK_KEYS]);
     expect(defaultWorkWeek().timeZone).toBeTruthy();
   });
@@ -45,18 +45,18 @@ describe("a work week", () => {
 
   it("puts itself into words", () => {
     expect(workWeekLines(LA)).toEqual([
-      "Work week: Monday to Sunday, Pacific Time (America/Los_Angeles).",
+      "Work week: Sunday to Saturday, Pacific Time (America/Los_Angeles).",
       "Overtime: after 40 hours in a week.",
       "Shifts: a shift longer than 12 hours is reviewed before it is paid.",
     ]);
-    expect(workWeekLines({ ...LA, startsOn: "sunday", dailyOvertimeAfterHours: 8, longestShiftHours: 10.5 })).toEqual([
-      "Work week: Sunday to Saturday, Pacific Time (America/Los_Angeles).",
+    expect(workWeekLines({ ...LA, startsOn: "monday", dailyOvertimeAfterHours: 8, longestShiftHours: 10.5 })).toEqual([
+      "Work week: Monday to Sunday, Pacific Time (America/Los_Angeles).",
       "Overtime: after 8 hours in a day or 40 hours in a week.",
       "Shifts: a shift longer than 10.5 hours is reviewed before it is paid.",
     ]);
     expect(workWeekLines({ ...LA, overtimeAfterHours: 0 })[1]).toBe("Overtime: none.");
     expect(workWeekLines({ ...LA, overtimeAfterHours: 0, dailyOvertimeAfterHours: 8 })[1]).toBe("Overtime: after 8 hours in a day.");
-    expect(workWeekSummary(LA)).toBe("Monday to Sunday · overtime after 40 hours a week · shifts up to 12 hours");
+    expect(workWeekSummary(LA)).toBe("Sunday to Saturday · overtime after 40 hours a week · shifts up to 12 hours");
     expect(workWeekSummary({ ...LA, overtimeAfterHours: 0 })).toContain("no overtime");
     expect(weekEndsOn("monday")).toBe("sunday");
     expect(weekEndsOn("sunday")).toBe("saturday");
@@ -65,7 +65,7 @@ describe("a work week", () => {
 
   it("round-trips through the form and names what's wrong", () => {
     const draft = draftOfWorkWeek({ ...LA, dailyOvertimeAfterHours: 8, longestShiftHours: 10.5 });
-    expect(draft).toEqual({ startsOn: "monday", timeZone: "America/Los_Angeles", overtimeText: "40", dailyText: "8", longestText: "10.5" });
+    expect(draft).toEqual({ startsOn: "sunday", timeZone: "America/Los_Angeles", overtimeText: "40", dailyText: "8", longestText: "10.5" });
     expect(workWeekFromDraft(draft)).toEqual({ workWeek: { ...LA, dailyOvertimeAfterHours: 8, longestShiftHours: 10.5 } });
     expect(workWeekFromDraft({ ...draft, overtimeText: "" })).toEqual({ workWeek: { ...LA, overtimeAfterHours: 0, dailyOvertimeAfterHours: 8, longestShiftHours: 10.5 } });
     expect(workWeekFromDraft({ ...draft, overtimeText: "40.25" })).toEqual({ problem: expect.stringMatching(/Overtime after/) });

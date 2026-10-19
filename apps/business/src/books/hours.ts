@@ -3,8 +3,8 @@
 // calendar (books/work_week.ts: the day a week starts on and the time zone
 // its days are drawn in) decides which day and which week it falls in. The
 // calendar comes from the agreement's terms, so both sides draw the same
-// one; an agreement from before the terms said so uses Monday and this
-// device's zone, as before. A shift that crosses midnight is split between
+// one; an agreement from before the terms said so uses the baseline, Sunday
+// to Saturday (Joshua, 2026-10-19), in this device's zone. A shift that crosses midnight is split between
 // the two days. A shift still open counts up to now, or, when the day it
 // started has ended, up to that midnight (a forgotten clock-out never bleeds
 // into the next day).
@@ -57,8 +57,8 @@ export function longestMinutesOf(agreement: Pick<WorkAgreement, "terms"> | undef
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** Monday, this device's zone: the calendar of an agreement whose terms don't set one. */
-export const deviceCalendar = (): Calendar => ({ startsOn: "monday", timeZone: deviceTimeZone() });
+/** Sunday to Saturday, this device's zone: the calendar of an agreement whose terms don't set one. */
+export const deviceCalendar = (): Calendar => ({ startsOn: "sunday", timeZone: deviceTimeZone() });
 
 /** The calendar an agreement's terms set, or the device's when they don't. */
 export function calendarOf(agreement: Pick<WorkAgreement, "terms"> | undefined): Calendar {
@@ -109,8 +109,8 @@ export function addDays(date: DayDate, n: number): DayDate {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-/** The first day of the week a day falls in: the Monday on or before it, unless the calendar starts elsewhere. */
-export function weekStartOf(date: DayDate, calendar: Pick<Calendar, "startsOn"> = { startsOn: "monday" }): DayDate {
+/** The first day of the week a day falls in: the Sunday on or before it, unless the calendar starts elsewhere. */
+export function weekStartOf(date: DayDate, calendar: Pick<Calendar, "startsOn"> = { startsOn: "sunday" }): DayDate {
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
   const back = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() - WEEKDAY_INDEX[calendar.startsOn] + 7) % 7;
   return addDays(date, -back);
