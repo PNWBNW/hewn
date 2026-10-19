@@ -40,7 +40,8 @@ export function useNow(everyMs = 60_000): Date {
 }
 
 export const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-export const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+/** "9:30 AM", in a zone when given (the work week's), else this device's. */
+export const clock = (iso: string, timeZone?: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", ...(timeZone ? { timeZone } : {}) });
 export const dayLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
 /** Shown on the pages that need Shield when none is linked yet. */

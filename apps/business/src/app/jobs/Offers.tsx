@@ -25,6 +25,7 @@ import { isExpired } from "@/books/offer_letter";
 import { type Registered, linkFor, linkStatus } from "@/books/rail";
 import { RegistryField } from "@/books/RegistryField";
 import { isOfferStep, openCounter, proposalChanges, proposalOf } from "@/books/thread";
+import { workWeekSummary } from "@/books/work_week";
 import type { Terms } from "@/books/work";
 import { BRAND } from "@/brand";
 import { when } from "../work/shared";
@@ -307,6 +308,7 @@ function SentOffer({ terms, files }: { terms: Terms; files: AttachmentRef[] | un
         {terms.startDate}
       </div>
       {terms.version === 2 && <div className="text-xs text-muted-foreground">Open until {terms.expiresAt.slice(0, 10)}</div>}
+      {terms.version === 2 && terms.workWeek && <div className="text-xs text-muted-foreground">Work week: {workWeekSummary(terms.workWeek)}</div>}
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 font-sans text-sm">{terms.termsText}</pre>
       {terms.version === 2 && <LetterSections letter={terms.letter} />}
       <OfferFileList

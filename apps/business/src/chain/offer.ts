@@ -28,6 +28,7 @@ import { bareDirectoryName } from "./directory";
 import { byteArrayHex } from "./parties_key";
 import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
 import type { EmploymentType } from "../books/terms_words";
+import type { WorkWeek } from "../books/work_week";
 import { offerFileLookups, offerTermsKind } from "./offer_files";
 import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
 import { packPayload } from "./compress";
@@ -255,6 +256,8 @@ export type SendOfferInput = OfferDates & {
   employmentType?: EmploymentType;
   /** Hours a week, as `cleanHours` writes them. */
   hoursPerWeek?: string;
+  /** The work week the hours are drawn on (books/work_week.ts); missing leaves it out of the terms. */
+  workWeek?: WorkWeek;
   /** How long the offer stays open (every offer expires). Default 7 days. */
   expiresInDays?: ExpiryDays;
   /**
@@ -362,6 +365,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
       files: [],
       ...(input.employmentType ? { employmentType: input.employmentType } : {}),
       ...(input.hoursPerWeek ? { hoursPerWeek: input.hoursPerWeek } : {}),
+      ...(input.workWeek ? { workWeek: input.workWeek } : {}),
     });
   } catch (e) {
     throw e instanceof TermsError || e instanceof LetterError ? new OfferError(e.message) : e;

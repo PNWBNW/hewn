@@ -3231,3 +3231,39 @@ slot as its own card.
   the run's hours are typed).
 
 Tests: 923/923 (2 new, fixtures given a week per slot).
+
+## 2026-10-19: the work week in the offer's terms; overtime on both sides
+
+Joshua: the chain can't know what day of the week a stamp falls on, so the app needs its own calendar
+to say which week each time card belongs to and whether its hours are overtime, per the work week
+the two sides agreed. Also: a shift that runs past a standard length should be reviewed before it is
+paid (the guard itself is the next task; its number travels here).
+- `books/work_week.ts`: `WorkWeek` (`startsOn`, `timeZone`, `overtimeAfterHours`,
+  `dailyOvertimeAfterHours`, `longestShiftHours`), `validateWorkWeek` (whole or half hours; an IANA
+  zone the runtime knows; keys in the contract's order), `defaultWorkWeek` (Monday, the device's
+  zone, 40, 0, 12), the sentences for the draft terms and a one-line summary, and the form's draft
+  helpers. Five tests.
+- Terms version 2 gain an optional `workWeek`, last in the canonical form (after the job fields); an
+  offer without one keeps its exact bytes. Both validators (`books/work.ts`, `chain/terms.ts`) and
+  both canonical forms (`chain/terms.ts`, `chain/work/terms.ts`) carry it; `terms_contract.test.ts`
+  pins the bytes on both sides and that both refuse a bad one.
+- The offer form (`chain/OfferPanel.tsx`, `books/WorkWeekBoxes.tsx`): "Work week starts on",
+  "Overtime after (hours a week)", "Daily overtime after (hours a day)", "Longest shift (hours)";
+  the zone is the device's, shown. Starts from the last offer this business sent. The draft terms
+  say it ("Work week: Monday to Sunday, Pacific Time (America/Los_Angeles)." "Overtime: after 40
+  hours in a week." "Shifts: a shift longer than 12 hours is reviewed before it is paid."); the
+  review, the sent offer under Jobs → Offers and the person's view of the offer show the summary.
+  A revised offer keeps the old one's work week (it isn't negotiated).
+- `books/hours.ts`: every day and week is drawn on a `Calendar` (`calendarOf(agreement)`: the terms'
+  work week, else Monday and the device's zone as before). `localDate`, `startOfDay`, `shiftsOf`,
+  `minutesByDay`, `minutesOn` and `weekMinutes` take the zone; `weekStartOf` the start day;
+  `buildTimesheet` uses the agreement's own and refuses a week that doesn't start on its day.
+  `overtimeSplit(entries, workWeek)`: past the day's threshold first, then past the week's over the
+  regular minutes only, so an hour is never counted twice; the same function on both sides.
+  Tested across zones (Tokyo, a half-hour zone, the November clock change) and start days.
+- The person's Home and Hours pages follow the agreement's calendar; Hours shows "Regular / Overtime"
+  under the week's total when there is overtime. Payroll → Hours shows "(4h 00m overtime)" on a card
+  under the same split.
+
+Tests: 938/938 (15 new). No change to what goes on chain: the terms hash covers the work week as it
+covers the rest of the terms.

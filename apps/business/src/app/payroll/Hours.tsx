@@ -12,9 +12,10 @@ import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { formatMinutes } from "@/books/hours";
+import { formatMinutes, overtimeSplit } from "@/books/hours";
 import { markHoursRead, unreadCount } from "@/books/mailbox";
 import { type HoursItem, hoursFeed, mailboxLinks } from "@/books/mailbox_feed";
+import { linkFor } from "@/books/rail";
 import { clock, dayLabel, when } from "../work/shared";
 
 // Fetched only once there is a linked team member whose weeks could arrive.
@@ -87,7 +88,11 @@ export function Hours() {
 }
 
 function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem["hours"]) => void }) {
+  const { rail } = useOpenBooks();
   const h = item.hours;
+  // Overtime under the work week in their offer's terms: the same split their own Hours page shows.
+  const terms = rail ? linkFor(rail, item.workerId)?.terms : undefined;
+  const split = terms?.version === 2 && terms.workWeek ? overtimeSplit(h.entries, terms.workWeek) : null;
   return (
     <details
       onToggle={(e) => {
@@ -99,7 +104,8 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
           <span className={cn("font-medium", !h.read && "text-primary")}>{item.workerName}</span> sent hours {h.resent && "again "}for the week of{" "}
           {dayLabel(h.weekStart)}
           <span className="block text-xs text-muted-foreground">
-            {formatMinutes(h.totalMinutes)} · {when(item.at)}
+            {formatMinutes(h.totalMinutes)}
+            {split && split.overtime > 0 && ` (${formatMinutes(split.overtime)} overtime)`} · {when(item.at)}
             {h.resent && " · Replaces their earlier send"}
             {!h.read && " · New"}
           </span>

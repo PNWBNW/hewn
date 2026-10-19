@@ -10,6 +10,7 @@
 
 import type { PayFrequency, Worker } from "@pnw/payroll";
 import { type EmploymentType, cleanHours, employmentLabel, hoursLine, longDate, payLine } from "../books/terms_words";
+import { type WorkWeek, workWeekLines } from "../books/work_week";
 
 type PayType = Worker["payType"];
 
@@ -34,6 +35,8 @@ export type DraftInput = {
   hoursPerWeek?: string;
   /** Whole days; blank or missing leaves the line out. */
   noticeDays?: string;
+  /** The work week (books/work_week.ts); missing leaves its lines out. */
+  workWeek?: WorkWeek;
 };
 
 export { longDate, payLine } from "../books/terms_words";
@@ -65,6 +68,7 @@ export function draftTerms(i: DraftInput): string {
   if (duties) lines.push(`Duties: ${duties}`);
   lines.push(`Pay: ${payLine(i.payType, i.rate, i.frequency)}.`);
   if (hours) lines.push(`Hours: ${hoursLine(cleanHours(hours)!)}.`);
+  if (i.workWeek) lines.push(...workWeekLines(i.workWeek));
   lines.push(end ? `Dates: starts ${longDate(i.startDate)} and ends ${longDate(end)}.` : `Dates: starts ${longDate(i.startDate)}; open-ended.`);
   lines.push(`Pay review: ${longDate(i.reviewDate)}.`);
   if (notice) lines.push(`Notice: either of us can end this agreement by giving ${Number(notice)} ${Number(notice) === 1 ? "day's" : "days'"} notice.`);

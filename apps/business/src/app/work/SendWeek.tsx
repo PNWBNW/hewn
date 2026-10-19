@@ -8,7 +8,7 @@ import dynamic from "next/dynamic";
 import { Send } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { useWork } from "@/books/BooksProvider";
-import { formatMinutes, weekMinutes } from "@/books/hours";
+import { calendarOf, formatMinutes, weekMinutes } from "@/books/hours";
 import { sentWeek } from "@/books/work";
 import { employerLabel, when } from "./shared";
 
@@ -22,7 +22,7 @@ export function SendWeek({ agreementId, weekStart, now }: { agreementId: string;
   const [open, setOpen] = useState(false);
   const agreement = work.agreements.find((a) => a.agreementId === agreementId);
   if (!agreement || agreement.status !== "active") return null;
-  const minutes = weekMinutes(work.punches, agreementId, weekStart, now);
+  const minutes = weekMinutes(work.punches, agreementId, weekStart, now, calendarOf(agreement).timeZone);
   const sent = sentWeek(work, agreementId, weekStart);
   return (
     <div className="flex flex-col gap-2">

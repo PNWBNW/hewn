@@ -397,6 +397,11 @@ handling); likely a Fable session for the key agreement.
 - [x] The Mailbox page is retired (2026-10-19, Joshua): Messages is the line of communication. Offers
   and the conversation around each live under Jobs → Offers; the weeks of hours a team sends land under
   Payroll → Hours; a paystub's delivery shows on its paycheck.
+- [x] The work week is part of an offer's terms (2026-10-19, Joshua): the day it starts on, the time
+  zone its days are drawn in, when overtime starts (a week's hours, and a day's where the state says
+  so) and the longest shift before a clock-out is questioned (`books/work_week.ts`). Both sides lay
+  the same calendar against the same stamps, so the chain never has to know what day it is. Not
+  negotiated: a revised offer keeps it. Location at clock-in: not built (Joshua, 2026-10-19).
 - [x] Three ways in to Shield: the extension, Shield's own browser, and a plain phone browser over
   Shield's relay (2026-10-19). An installable Android app (Capacitor around the same code) is the
   third route in a wrapper. Step 1 done (2026-10-19): the app builds as a static bundle beside the

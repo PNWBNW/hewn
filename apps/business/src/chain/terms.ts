@@ -21,6 +21,7 @@
 
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateLetter, validateOfferFiles } from "../books/offer_letter";
 import { type JobFields, validateJobFields } from "../books/terms_words";
+import { type WorkWeek, validateWorkWeek } from "../books/work_week";
 
 /** Version 1: pay, dates and the agreement's own terms text. */
 export type TermsV1 = {
@@ -47,7 +48,8 @@ export type TermsV1 = {
  * files' fingerprints are inside the document, so the terms hash covers them.
  * Then, on offers made since the job fields had their own boxes, the
  * employment type and the hours a week (each only when given: an offer
- * without them keeps its exact bytes).
+ * without them keeps its exact bytes); then, on offers made since the work
+ * week was part of an offer (2026-10-19), the work week (books/work_week.ts).
  */
 export type TermsV2 = Omit<TermsV1, "version"> &
   JobFields & {
@@ -56,13 +58,15 @@ export type TermsV2 = Omit<TermsV1, "version"> &
     expiresAt: string;
     letter: Letter;
     files: OfferFile[];
+    /** The work week both sides draw hours on; absent on offers from before it existed. */
+    workWeek?: WorkWeek;
   };
 
 export type Terms = TermsV1 | TermsV2;
 
-/** The keys of a terms document, in canonical order (version 2 adds `expiresAt`, `letter` and `files` at the end, then the job fields when given). */
+/** The keys of a terms document, in canonical order (version 2 adds `expiresAt`, `letter` and `files` at the end, then the job fields and the work week when given). */
 export const TERMS_KEYS = ["version", "kind", "agreementId", "termsText", "payType", "rate", "frequency", "startDate", "businessName", "offeredAt"] as const;
-export const TERMS_V2_KEYS = [...TERMS_KEYS, "expiresAt", "letter", "files", "employmentType", "hoursPerWeek"] as const;
+export const TERMS_V2_KEYS = [...TERMS_KEYS, "expiresAt", "letter", "files", "employmentType", "hoursPerWeek", "workWeek"] as const;
 
 const PAY_TYPES = ["hourly", "salary"] as const;
 const FREQUENCIES = ["weekly", "biweekly", "semimonthly", "monthly"] as const;
@@ -105,13 +109,15 @@ export function validateTerms(raw: unknown): Terms {
   if (t.version === 1) return { version: 1, ...common };
   const v2 = raw as Partial<TermsV2>;
   let job: JobFields;
+  let workWeek: { workWeek: WorkWeek } | Record<string, never> = {};
   try {
     job = validateJobFields(v2 as Record<string, unknown>);
+    if (v2.workWeek !== undefined) workWeek = { workWeek: validateWorkWeek(v2.workWeek) };
   } catch (e) {
     throw new TermsError(e instanceof Error ? e.message : "The job fields aren't valid");
   }
   try {
-    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, v2.expiresAt), letter: validateLetter(v2.letter), files: validateOfferFiles(v2.files), ...job };
+    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, v2.expiresAt), letter: validateLetter(v2.letter), files: validateOfferFiles(v2.files), ...job, ...workWeek };
   } catch (e) {
     throw e instanceof LetterError ? new TermsError(e.message) : e;
   }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defaultWorkWeek } from "../books/work_week";
 import { type DraftInput, draftProblem, draftTerms, longDate, payLine } from "./agreement_draft";
 
 const BASE: DraftInput = {
@@ -79,5 +80,15 @@ describe("agreement draft: employment type and hours", () => {
   it("refuses hours that aren't a plain number up to 168", () => {
     for (const bad of ["0", "169", "1e2", "40.125", "forty"]) expect(draftProblem({ hoursPerWeek: bad })).toMatch(/up to 168/);
     expect(draftProblem({ hoursPerWeek: "168" })).toBeNull();
+  });
+});
+
+describe("the work week in the draft", () => {
+  it("follows the hours, one sentence a fact, and is left out when the offer has none", () => {
+    const text = draftTerms({ ...BASE, hoursPerWeek: "40", workWeek: { ...defaultWorkWeek("America/Los_Angeles"), dailyOvertimeAfterHours: 8 } });
+    expect(text).toContain(
+      "Hours: about 40 a week.\n\nWork week: Monday to Sunday, Pacific Time (America/Los_Angeles).\n\nOvertime: after 8 hours in a day or 40 hours in a week.\n\nShifts: a shift longer than 12 hours is reviewed before it is paid.\n\nDates:",
+    );
+    expect(draftTerms(BASE)).not.toContain("Work week");
   });
 });

@@ -9,7 +9,7 @@ import { Button } from "@pnw/ui/button";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import { formatMinutes, weekMinutes } from "@/books/hours";
+import { calendarOf, formatMinutes, weekMinutes } from "@/books/hours";
 import { shortAddress } from "@/books/rail";
 import { agreementFor, recordTimesheet, sentWeek } from "@/books/work";
 import { BRAND } from "@/brand";
@@ -37,7 +37,7 @@ function SendFlow({ agreementId, weekStart, onClose }: SendTimesheetPanelProps) 
   const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const agreement = agreementFor(work, agreementId);
   const already = sentWeek(work, agreementId, weekStart);
-  const minutes = weekMinutes(work.punches, agreementId, weekStart, new Date());
+  const minutes = weekMinutes(work.punches, agreementId, weekStart, new Date(), calendarOf(agreement ?? undefined).timeZone);
   const employer = agreement?.employerName ? `${agreement.employerName}.${BRAND.nameSuffix}` : agreement ? shortAddress(agreement.employerAddress) : "";
 
   async function send() {

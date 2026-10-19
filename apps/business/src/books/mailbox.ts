@@ -29,7 +29,7 @@ export type ReceivedHours = {
   receivedAt: string;
   /** The team member, by the books' id. */
   workerId: string;
-  /** Monday, YYYY-MM-DD, in the sender's time zone. */
+  /** The first day of the work week, YYYY-MM-DD, on the agreement's calendar (books/hours.ts). */
   weekStart: string;
   entries: TimesheetPayload["entries"];
   totalMinutes: number;
