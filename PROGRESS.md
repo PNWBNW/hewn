@@ -3127,3 +3127,28 @@ build as plain files that an app can carry, beside the website build, from one c
 Tests: 910/910 (new: `static_csp.test.ts`; the mailbox route tests follow the renamed files);
 website build, static build and audit pass.
 
+
+
+## 2026-10-19: the cash flow statement (Phase 4 criterion ticked)
+
+The third statement, computed on the device from the vault like the other two.
+- **`@pnw/ledger` `cashFlow(books, range, compare?)`** (`statements.ts`), indirect method: net
+  income (from `netIncome`), then the change over the range in every other balance sheet account
+  as its effect on cash (an asset up is cash out, a liability or equity up is cash in), placed by
+  account type: the current accounts (A/R, other current assets, credit cards, A/P, other current
+  liabilities) as operating adjustments; fixed and other assets as investing; long-term debt and
+  equity as financing. Then the net change, and the bank accounts' total at the start and end of
+  the range ("cash" is the bank accounts). Comparison column like the P&L's. A contra fixed asset
+  (accumulated depreciation) shows under investing, as QuickBooks places it, not as an operating
+  add-back; the totals are the same.
+- **Reconciliation, the criterion:** on the two-year sample, net income equals the P&L's and the
+  balance sheet's "Net income" line, the cash at start and end equal the balance sheet's bank
+  total on those dates, and the net change equals their difference. A 300-run property test holds
+  the same for random entries, fiscal start month and range. It holds by construction: every entry
+  balances, so what did not land in a bank account landed in another.
+- **App `/reports`:** "Cash flow" in the picker, with the P&L's date presets, comparison and CSV
+  download. Lines: Operating activities (Net income; Adjustments…; Net cash from operating
+  activities), Investing activities, Financing activities, Net change in cash, Cash at start of
+  period, Cash at end of period. Empty sections stay out.
+
+Tests: 916/916 (ledger +5, business +1). Build and audit pass.

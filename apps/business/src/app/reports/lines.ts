@@ -6,6 +6,7 @@ import {
   type Account,
   type Amounts,
   type BalanceSheet,
+  type CashFlow,
   type ProfitAndLoss,
   type StatementRow,
   type StatementSection,
@@ -87,6 +88,36 @@ export function balanceSheetLines(bs: BalanceSheet): ReportLine[] {
     ...sectionLines(bs.equity, 0),
     { kind: "grand", label: "Total liabilities and equity", depth: 0, amounts: bs.liabilitiesAndEquity },
   ];
+}
+
+/** Cash flow, indirect method: net income and its adjustments, then investing and financing, down to the cash on hand. */
+export function cashFlowLines(cf: CashFlow): ReportLine[] {
+  const lines: ReportLine[] = [
+    { kind: "heading", label: cf.operating.label, depth: 0, amounts: null },
+    { kind: "account", label: "Net income", depth: 1, amounts: cf.netIncome },
+  ];
+  for (const g of cf.operating.groups) {
+    lines.push(
+      { kind: "heading", label: g.label, depth: 1, amounts: null },
+      ...accountLines(g.rows, 2),
+      { kind: "subtotal", label: "Total adjustments", depth: 1, amounts: g.total },
+    );
+  }
+  lines.push({ kind: "total", label: `Net cash from ${lowerFirst(cf.operating.label)}`, depth: 0, amounts: cf.operating.total });
+  for (const s of [cf.investing, cf.financing]) {
+    if (!hasRows(s)) continue;
+    lines.push(
+      { kind: "heading", label: s.label, depth: 0, amounts: null },
+      ...accountLines(s.rows, 1),
+      { kind: "total", label: `Net cash from ${lowerFirst(s.label)}`, depth: 0, amounts: s.total },
+    );
+  }
+  lines.push(
+    { kind: "grand", label: "Net change in cash", depth: 0, amounts: cf.netChange },
+    { kind: "account", label: "Cash at start of period", depth: 0, amounts: cf.cashAtStart },
+    { kind: "grand", label: "Cash at end of period", depth: 0, amounts: cf.cashAtEnd },
+  );
+  return lines;
 }
 
 /** Trial balance, debit and credit columns, with accounts in the order given (chart order). */
