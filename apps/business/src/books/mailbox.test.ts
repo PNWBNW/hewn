@@ -26,13 +26,14 @@ const PAYLOAD = {
   sentAt: "2026-10-11T18:00:00.000Z",
 };
 
+/** A week of hours in slot `seq`; each slot is its own week unless `over` says otherwise. */
 const hours = (seq: number, over: Partial<ReceivedHours> = {}): ReceivedHours => ({
   agreementId: AGREEMENT,
   seq,
   lookup: LOOKUP,
   receivedAt: "2026-10-12T09:00:00.000Z",
   workerId: "wkr-1",
-  weekStart: PAYLOAD.weekStart,
+  weekStart: new Date(Date.UTC(2026, 9, 5 + 7 * seq)).toISOString().slice(0, 10),
   entries: PAYLOAD.entries,
   totalMinutes: PAYLOAD.totalMinutes,
   sentAt: PAYLOAD.sentAt,
@@ -95,7 +96,28 @@ describe("the mailbox", () => {
     m = addHours(m, hours(3, { totalMinutes: 510, entries: [ENTRY] }));
     expect(m.hours.filter((h) => h.seq === 3)).toHaveLength(1);
     expect(m.hours.find((h) => h.seq === 3)?.totalMinutes).toBe(510);
+    expect(m.hours.find((h) => h.seq === 3)?.resent).toBeUndefined();
     expect(nextHoursSeq(bumpHoursSeq(m, AGREEMENT, 1), AGREEMENT)).toBe(4);
+  });
+
+  it("keeps one card per week: a week sent again replaces the earlier send, and is marked so", () => {
+    const first = addHours(addHours(emptyMailbox(), hours(0)), hours(1));
+    expect(first.hours).toHaveLength(2);
+    const again = addHours(markHoursRead(first, AGREEMENT, 0), hours(2, { weekStart: hours(0).weekStart, totalMinutes: 510, entries: [ENTRY], sentAt: "2026-10-13T08:00:00.000Z" }));
+    expect(again.hours.map((h) => [h.seq, h.weekStart, h.resent ?? false, h.read ?? false])).toEqual([
+      [1, hours(1).weekStart, false, false],
+      [2, hours(0).weekStart, true, false], // the replacement is new, unread
+    ]);
+    expect(nextHoursSeq(again, AGREEMENT)).toBe(3);
+    // Another agreement's week is its own card.
+    const other = addHours(again, hours(0, { agreementId: "ef".repeat(32) }));
+    expect(other.hours).toHaveLength(3);
+    // An earlier send turning up after the later one changes nothing but the slot.
+    const late = addHours(again, hours(0));
+    expect(late.hours.map((h) => h.seq)).toEqual([1, 2]);
+    // A vault saved with both sends loads as one card.
+    const loaded = mailboxFromJson(mailboxToJson({ ...first, hours: [...first.hours, hours(2, { weekStart: hours(0).weekStart })] }));
+    expect(loaded.hours.map((h) => [h.seq, h.resent ?? false])).toEqual([[1, false], [2, true]]);
   });
 
   it("skips a slot that couldn't be kept without adding anything", () => {
