@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { BRAND } from "@pnw/brand";
 import { SiteFooter, SiteHeader } from "@/components/Chrome";
 import { DESCRIPTION } from "@/copy";
+import { PageViews } from "@/PageViews";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <SiteFooter />
+        <PageViews />
       </body>
     </html>
   );

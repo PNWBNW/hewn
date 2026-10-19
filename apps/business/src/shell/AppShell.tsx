@@ -165,8 +165,8 @@ function Rail({
         <RailButton icon={Download} label="Download a backup" onClick={onBackup} />
         <RailButton icon={LogOut} label="Log out" onClick={onLock} />
         <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
-          {worker ? "Your hours and paystubs stay on this device, encrypted." : "Your books stay on this device, encrypted."} Nothing is sent to a
-          server.{" "}
+          {worker ? "Your hours and paystubs stay on this device, encrypted." : "Your books stay on this device, encrypted."} They are never sent
+          to a server.{" "}
           <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-rail-active-foreground">
             Source code
           </a>
