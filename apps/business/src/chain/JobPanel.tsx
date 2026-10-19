@@ -74,6 +74,19 @@ export default function JobPanel(props: JobPanelProps) {
 
 const dollars = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** The fee choice, with the one thing it doesn't change (Joshua, 2026-10-19): the posting is public either way. */
+function PostingFee({ value, onChange }: { value: FeeMode; onChange: (mode: FeeMode) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <FeeChoice value={value} onChange={onChange} />
+      <p className="text-xs text-muted-foreground">
+        Private or public only changes which ALEO pays the network fee. The posting itself is public either way: it lives on the board under your business
+        name for anyone to read.
+      </p>
+    </div>
+  );
+}
+
 /** Shield connected to the linked account, and the business name's industry code read from the registry. */
 function Gate(props: JobPanelProps) {
   const { rail } = useOpenBooks();
@@ -253,7 +266,7 @@ function EditFlow({ posting, keyFor, wallet, onClose }: FlowProps & { posting?: 
           ? "Changing a posting is free apart from the network fee. It stays where it is on the board."
           : "Posting costs $1 in USDCx, paid from your account's public balance to the Hewn foundation, plus the network fee. Shield asks once."}
       </p>
-      {busy ? <p className="text-sm text-muted-foreground">{progress}</p> : <FeeChoice value={feeMode} onChange={setFeeMode} />}
+      {busy ? <p className="text-sm text-muted-foreground">{progress}</p> : <PostingFee value={feeMode} onChange={setFeeMode} />}
       <FormError message={error} />
       <div className="flex flex-wrap gap-3">
         <Button className="min-h-11 sm:min-h-9" disabled={busy || !title.trim() || !description.trim()} onClick={() => void send()}>
@@ -330,7 +343,7 @@ function FeatureFlow({ posting, keyFor, wallet, onClose }: FlowProps & { posting
           <input className={inputClass} inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} disabled={busy} />
         </Field>
       )}
-      {busy ? <p className="text-sm text-muted-foreground">Approve it in Shield…</p> : allowed > 0 && <FeeChoice value={feeMode} onChange={setFeeMode} />}
+      {busy ? <p className="text-sm text-muted-foreground">Approve it in Shield…</p> : allowed > 0 && <PostingFee value={feeMode} onChange={setFeeMode} />}
       <FormError message={error} />
       <div className="flex flex-wrap gap-3">
         {allowed > 0 && (
@@ -374,7 +387,7 @@ function CloseFlow({ posting, keyFor, wallet, onClose }: FlowProps & { posting: 
           keeps their conversation with you.
         </p>
       </div>
-      {busy ? <p className="text-sm text-muted-foreground">Approve it in Shield…</p> : <FeeChoice value={feeMode} onChange={setFeeMode} />}
+      {busy ? <p className="text-sm text-muted-foreground">Approve it in Shield…</p> : <PostingFee value={feeMode} onChange={setFeeMode} />}
       <FormError message={error} />
       <div className="flex flex-wrap gap-3">
         <Button variant="destructive" className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void send()}>
