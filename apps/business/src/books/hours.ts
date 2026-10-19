@@ -248,25 +248,37 @@ export type OvertimeSplit = { regular: number; overtime: number };
  * sides, over the same entries, gives the same split.
  */
 export function overtimeSplit(entries: readonly { in: string; minutes: number }[], week: Pick<WorkWeek, "timeZone" | "overtimeAfterHours" | "dailyOvertimeAfterHours">): OvertimeSplit {
-  const byDay = new Map<DayDate, number>();
-  for (const e of entries) {
-    const day = localDate(new Date(e.in), week.timeZone);
-    byDay.set(day, (byDay.get(day) ?? 0) + e.minutes);
-  }
+  return labelOvertime(entries, week).reduce((t, l) => ({ regular: t.regular + l.regular, overtime: t.overtime + l.overtime }), { regular: 0, overtime: 0 });
+}
+
+/**
+ * The same split, stretch by stretch: walking the week in time order, the
+ * minutes past the day's threshold are overtime, then the regular minutes
+ * past the week's. So the overtime lands on the last hours worked, and each
+ * stretch knows its own share (what a pay run pays when a period ends inside
+ * a week). Returned in the order the entries were given; the sums equal
+ * `overtimeSplit`.
+ */
+export function labelOvertime(entries: readonly { in: string; minutes: number }[], week: Pick<WorkWeek, "timeZone" | "overtimeAfterHours" | "dailyOvertimeAfterHours">): OvertimeSplit[] {
   const dailyCap = week.dailyOvertimeAfterHours > 0 ? Math.round(week.dailyOvertimeAfterHours * 60) : Infinity;
-  let regular = 0;
-  let overtime = 0;
-  for (const minutes of byDay.values()) {
-    const over = Math.max(0, minutes - dailyCap);
-    overtime += over;
-    regular += minutes - over;
+  const weeklyCap = week.overtimeAfterHours > 0 ? Math.round(week.overtimeAfterHours * 60) : Infinity;
+  const order = entries.map((_, i) => i).sort((a, b) => (entries[a]!.in < entries[b]!.in ? -1 : entries[a]!.in > entries[b]!.in ? 1 : a - b));
+  const byDay = new Map<DayDate, number>();
+  let weekRegular = 0;
+  const out: OvertimeSplit[] = entries.map(() => ({ regular: 0, overtime: 0 }));
+  const past = (total: number, cap: number) => Math.max(0, total - cap);
+  for (const i of order) {
+    const e = entries[i]!;
+    const day = localDate(new Date(e.in), week.timeZone);
+    const before = byDay.get(day) ?? 0;
+    byDay.set(day, before + e.minutes);
+    const daily = past(before + e.minutes, dailyCap) - past(before, dailyCap);
+    const regular = e.minutes - daily;
+    const weekly = past(weekRegular + regular, weeklyCap) - past(weekRegular, weeklyCap);
+    weekRegular += regular;
+    out[i] = { regular: regular - weekly, overtime: daily + weekly };
   }
-  if (week.overtimeAfterHours > 0) {
-    const weeklyOver = Math.max(0, regular - Math.round(week.overtimeAfterHours * 60));
-    overtime += weeklyOver;
-    regular -= weeklyOver;
-  }
-  return { regular, overtime };
+  return out;
 }
 
 /** "7h 30m", "45m", "0m". */

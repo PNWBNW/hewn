@@ -18,6 +18,7 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { addDays, calendarOf, formatMinutes, localDate, longestMinutesOf, overtimeSplit, weekDays, weekMinutes, weekShifts, weekStartOf } from "@/books/hours";
 import { type Punch, confirmShift, removePunch, updatePunch } from "@/books/work";
+import { payRulesOf } from "@/books/work_week";
 import { PageHeader } from "@/shell/SectionView";
 import { SendWeek } from "../SendWeek";
 import { clock, dayLabel, employerLabel, useNow } from "../shared";
@@ -59,7 +60,9 @@ export default function HoursPage() {
   const weekLabel = `${dayLabel(weekStart)} – ${dayLabel(addDays(weekStart, 6))}`;
   // Overtime under the agreement's work week, over this week's shifts (the same split the employer makes).
   const workWeek = agreement?.terms?.version === 2 ? agreement.terms.workWeek : undefined;
-  const split = workWeek ? overtimeSplit(shifts, workWeek) : null;
+  // Without a work week in the terms: the baseline, time and a half after 40 a week (books/work_week.ts payRulesOf).
+  const rules = payRulesOf(workWeek, tz);
+  const split = overtimeSplit(shifts, rules);
   const anySent = shifts.some((s) => s.sent);
 
   async function change(op: (w: typeof work) => typeof work) {
@@ -176,7 +179,9 @@ export default function HoursPage() {
               {split && split.overtime > 0 && (
                 <div className="-mt-3 flex items-baseline justify-between text-xs text-muted-foreground">
                   <span>Regular {formatMinutes(split.regular)}</span>
-                  <span className="tabular-nums">Overtime {formatMinutes(split.overtime)}</span>
+                  <span className="tabular-nums">
+                    Overtime {formatMinutes(split.overtime)} at {rules.overtimeRate}×
+                  </span>
                 </div>
               )}
               {anySent && <p className="text-xs text-muted-foreground">A shift marked Sent is on the employer&apos;s timecard: confirmed by you, and theirs to change.</p>}

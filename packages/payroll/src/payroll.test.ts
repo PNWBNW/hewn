@@ -17,6 +17,7 @@ import {
   type W4,
   type WorkerInput,
   addWorker,
+  checkDoublePay,
   computePaycheck,
   emptyPayroll,
   ensurePayrollAccounts,
@@ -73,6 +74,34 @@ describe("gross pay", () => {
     expect(grossFor(ben, 40.25)).toBe(102_638n); // 25.50 × 40.25 = 1,026.375 → 1,026.38
     expect(() => grossFor(ben)).toThrow(/Enter hours/);
     expect(() => grossFor(ben, -1)).toThrow(/Enter hours/);
+  });
+
+  it("pays overtime hours at the rate times the multiplier, rounded once", () => {
+    const { ana, ben } = setup();
+    // 40 h at 25.50 plus 2.5 h at 1.5 × 25.50 = 1,020 + 95.625 → 1,115.63
+    expect(grossFor(ben, 40, { hours: 2.5, rate: 1.5 })).toBe(111_563n);
+    expect(grossFor(ben, 40, { hours: 1, rate: 2 })).toBe(107_100n); // double time
+    // No overtime, or none worth a cent of an hour, is the same as plain hours.
+    expect(grossFor(ben, 40.25, { hours: 0, rate: 1.5 })).toBe(grossFor(ben, 40.25));
+    expect(grossFor(ben, 40.25, undefined)).toBe(102_638n);
+    // Salaried pay has no overtime part.
+    expect(grossFor(ana, undefined, { hours: 5, rate: 1.5 })).toBe(200_000n);
+    expect(() => grossFor(ben, 40, { hours: -1, rate: 1.5 })).toThrow(/zero or more/);
+    expect(() => grossFor(ben, 40, { hours: 1, rate: 0.5 })).toThrow(/from 1 to 3/);
+    expect(() => grossFor(ben, 40, { hours: 1, rate: 1.555 })).toThrow(/from 1 to 3/);
+  });
+
+  it("carries the overtime on the paycheck, and in a run", () => {
+    const s = setup();
+    const drafts = previewPayRun(s.payroll(), { ...run(s), lines: [{ workerId: s.ben.id, hours: 80, overtime: { hours: 3, rate: 1.5 } }, { workerId: s.cy.id, hours: 72 }] });
+    expect(drafts[0]).toMatchObject({ hours: 80, overtimeHours: 3, overtimeRate: 1.5, gross: 215_475n }); // 2,040 + 114.75
+    expect(drafts[1]).not.toHaveProperty("overtimeHours");
+    const posted = postPayRun(s.books, s.payroll(), { ...run(s), lines: [{ workerId: s.ben.id, hours: 80, overtime: { hours: 3, rate: 1.5 } }] });
+    expect(posted.run.paychecks[0]).toMatchObject({ overtimeHours: 3, overtimeRate: 1.5, gross: 215_475n });
+    expect(payrollFromJson(payrollToJson(posted.payroll)).runs[0]!.paychecks[0]).toMatchObject({ overtimeHours: 3, overtimeRate: 1.5 });
+    // The double-pay guard compares the whole gross, overtime included.
+    expect(checkDoublePay(posted.payroll, { payDate: run(s).payDate, lines: [{ workerId: s.ben.id, hours: 80, overtime: { hours: 3, rate: 1.5 } }] }).blocked).toHaveLength(1);
+    expect(checkDoublePay(posted.payroll, { payDate: run(s).payDate, lines: [{ workerId: s.ben.id, hours: 80 }] }).blocked).toHaveLength(0);
   });
 });
 

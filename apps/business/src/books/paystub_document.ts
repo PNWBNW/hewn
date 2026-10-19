@@ -24,6 +24,10 @@ export function paystubFromCanonical(raw: unknown): PaystubDocument {
   if (r.payType !== "hourly" && r.payType !== "salary") throw new PaystubDocumentError("Unknown pay type");
   if (typeof r.position !== "number" || !Number.isInteger(r.position) || r.position < 1) throw new PaystubDocumentError("The paystub's position must be a whole number");
   if (r.hours !== null && r.hours !== undefined && (typeof r.hours !== "number" || !Number.isFinite(r.hours))) throw new PaystubDocumentError("Hours must be a number");
+  const hasOvertime = r.overtimeHours !== undefined || r.overtimeRate !== undefined;
+  if (hasOvertime && (typeof r.overtimeHours !== "number" || !Number.isFinite(r.overtimeHours) || typeof r.overtimeRate !== "number" || !Number.isFinite(r.overtimeRate))) {
+    throw new PaystubDocumentError("Overtime needs its hours and its rate, as numbers");
+  }
   const doc = { version: 1, payType: r.payType, position: r.position } as PaystubDocument;
   for (const k of TEXT) {
     if (typeof r[k] !== "string") throw new PaystubDocumentError(`The paystub's ${k} is missing`);
@@ -34,6 +38,10 @@ export function paystubFromCanonical(raw: unknown): PaystubDocument {
     doc[k] = BigInt(r[k]);
   }
   if (typeof r.hours === "number") doc.hours = r.hours;
+  if (hasOvertime) {
+    doc.overtimeHours = r.overtimeHours as number;
+    doc.overtimeRate = r.overtimeRate as number;
+  }
   return doc;
 }
 

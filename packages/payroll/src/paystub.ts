@@ -11,7 +11,9 @@
 // hash = BLAKE3("PNW::PAYSTUB::v1" || 0x00 || canonical(doc))
 //
 // canonical() is JSON with every key in a fixed order, amounts as decimal
-// strings and absent fields as null, mirroring the ledger's entry hash.
+// strings and absent fields as null, mirroring the ledger's entry hash. The
+// overtime fields (2026-10-19) come last and only when the paycheck has
+// overtime, so every paystub from before them keeps its exact bytes and hash.
 // ---------------------------------------------------------------------------
 
 import { blake3 } from "@noble/hashes/blake3.js";
@@ -34,6 +36,9 @@ export type PaystubDocument = {
   /** Hourly: per hour. Salary: per year. */
   rate: Cents;
   hours?: number;
+  /** Hours paid at the overtime rate, and its multiplier (1.5 for time and a half), when there were any. */
+  overtimeHours?: number;
+  overtimeRate?: number;
   gross: Cents;
   federalIncomeTax: Cents;
   socialSecurity: Cents;
@@ -77,6 +82,7 @@ export function paystubDocument(
     payType: worker.payType,
     rate: worker.rate,
     ...(paycheck.hours !== undefined ? { hours: paycheck.hours } : {}),
+    ...(paycheck.overtimeHours !== undefined && paycheck.overtimeRate !== undefined ? { overtimeHours: paycheck.overtimeHours, overtimeRate: paycheck.overtimeRate } : {}),
     gross: paycheck.gross,
     federalIncomeTax: paycheck.federalIncomeTax,
     socialSecurity: paycheck.socialSecurity,
@@ -120,6 +126,7 @@ export function canonicalPaystub(doc: PaystubDocument): string {
     ytdWithheld: str(doc.ytdWithheld),
     runId: doc.runId,
     position: doc.position,
+    ...(doc.overtimeHours !== undefined && doc.overtimeRate !== undefined ? { overtimeHours: doc.overtimeHours, overtimeRate: doc.overtimeRate } : {}),
   });
 }
 

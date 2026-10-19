@@ -8,33 +8,89 @@
 // Pure; the vault is the only store.
 // ---------------------------------------------------------------------------
 
+import { labelOvertime } from "./hours";
 import type { Mailbox, ReceivedEntry, ReceivedHours } from "./mailbox";
 import { validateMailbox } from "./mailbox";
+import { type Rail, linkFor } from "./rail";
+import { type PayRules, payRulesOf } from "./work_week";
 
-/** One stretch to pay, with the card it sits on. */
-export type PayableShift = { agreementId: string; seq: number; weekStart: string; date: string; in: string; out: string; minutes: number; long?: true };
+/** One stretch to pay, with the card it sits on and its share of regular and overtime minutes. */
+export type PayableShift = {
+  agreementId: string;
+  seq: number;
+  weekStart: string;
+  date: string;
+  in: string;
+  out: string;
+  minutes: number;
+  regular: number;
+  overtime: number;
+  long?: true;
+};
 
 export type UnpaidHours = {
   minutes: number;
+  /** Of those, paid at the rate, and at the overtime rate. */
+  regularMinutes: number;
+  overtimeMinutes: number;
+  /** The overtime multiplier the agreement sets (time and a half without one). */
+  overtimeRate: number;
   shifts: PayableShift[];
   /** The weeks the shifts come from, first day of each, in order. */
   weeks: string[];
 };
 
+/** The rules a team member's hours are paid by, from the work week in their offer's terms (books/work_week.ts). */
+export function payRulesFor(rail: Rail | null | undefined, workerId: string): PayRules {
+  const terms = rail ? linkFor(rail, workerId)?.terms : undefined;
+  return payRulesOf(terms?.version === 2 ? terms.workWeek : undefined);
+}
+
+/** Each stretch of a week's card with its regular and overtime minutes, laid against the whole week (paid stretches included). */
+function labelled(card: ReceivedHours, rules: PayRules): (ReceivedEntry & { regular: number; overtime: number })[] {
+  const labels = labelOvertime(card.entries, rules);
+  return card.entries.map((e, i) => ({ ...e, ...labels[i]! }));
+}
+
+const shiftOf = (card: ReceivedHours, e: ReceivedEntry & { regular: number; overtime: number }): PayableShift => ({
+  agreementId: card.agreementId,
+  seq: card.seq,
+  weekStart: card.weekStart,
+  date: e.date,
+  in: e.in,
+  out: e.out,
+  minutes: e.minutes,
+  regular: e.regular,
+  overtime: e.overtime,
+  ...(e.long ? { long: true as const } : {}),
+});
+
 const inPeriod = (date: string, start: string, end: string) => start <= date && date <= end;
 
-/** The stretches on a team member's cards dated within the period (inclusive) that no pay run has paid, oldest first. */
-export function unpaidHours(mailbox: Mailbox | null | undefined, workerId: string, periodStart: string, periodEnd: string): UnpaidHours {
+/**
+ * The stretches on a team member's cards dated within the period (inclusive)
+ * that no pay run has paid, oldest first, each with its share of overtime
+ * under `rules` (the whole week counts toward the thresholds, paid or not).
+ */
+export function unpaidHours(mailbox: Mailbox | null | undefined, workerId: string, periodStart: string, periodEnd: string, rules: PayRules = payRulesOf(undefined)): UnpaidHours {
   const shifts: PayableShift[] = [];
   for (const card of mailbox?.hours ?? []) {
     if (card.workerId !== workerId) continue;
-    for (const e of card.entries) {
+    for (const e of labelled(card, rules)) {
       if (e.paid || !inPeriod(e.date, periodStart, periodEnd)) continue;
-      shifts.push({ agreementId: card.agreementId, seq: card.seq, weekStart: card.weekStart, date: e.date, in: e.in, out: e.out, minutes: e.minutes, ...(e.long ? { long: true as const } : {}) });
+      shifts.push(shiftOf(card, e));
     }
   }
   shifts.sort((a, b) => (a.in < b.in ? -1 : a.in > b.in ? 1 : 0));
-  return { minutes: shifts.reduce((t, s) => t + s.minutes, 0), shifts, weeks: [...new Set(shifts.map((s) => s.weekStart))].sort() };
+  const sum = (f: (s: PayableShift) => number) => shifts.reduce((t, s) => t + f(s), 0);
+  return {
+    minutes: sum((s) => s.minutes),
+    regularMinutes: sum((s) => s.regular),
+    overtimeMinutes: sum((s) => s.overtime),
+    overtimeRate: rules.overtimeRate,
+    shifts,
+    weeks: [...new Set(shifts.map((s) => s.weekStart))].sort(),
+  };
 }
 
 /** Minutes as the hours box takes them: to the hundredth, written the one way ("0.75", "40", "37.5"). */
@@ -59,13 +115,13 @@ export function markPaid(mailbox: Mailbox, shifts: readonly PayableShift[], runI
 }
 
 /** The stretches a pay run paid, per team member: what a paycheck's hours were made of. */
-export function paidByRun(mailbox: Mailbox | null | undefined, runId: string): Map<string, PayableShift[]> {
+export function paidByRun(mailbox: Mailbox | null | undefined, runId: string, rules: PayRules = payRulesOf(undefined)): Map<string, PayableShift[]> {
   const by = new Map<string, PayableShift[]>();
   for (const card of mailbox?.hours ?? []) {
-    for (const e of card.entries) {
+    for (const e of labelled(card, rules)) {
       if (e.paid?.runId !== runId) continue;
       const list = by.get(card.workerId) ?? [];
-      list.push({ agreementId: card.agreementId, seq: card.seq, weekStart: card.weekStart, date: e.date, in: e.in, out: e.out, minutes: e.minutes, ...(e.long ? { long: true as const } : {}) });
+      list.push(shiftOf(card, e));
       by.set(card.workerId, list);
     }
   }

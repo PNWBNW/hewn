@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type ReceivedHours, addHours, emptyMailbox, mailboxFromJson, mailboxToJson } from "./mailbox";
-import { hoursText, markPaid, paidByRun, unpaidHours } from "./timecard_pay";
+import { hoursText, markPaid, paidByRun, payRulesFor, unpaidHours } from "./timecard_pay";
+import { labelOvertime, overtimeSplit } from "./hours";
 
 const AGREEMENT = "ab".repeat(32);
 const OTHER = "cd".repeat(32);
@@ -36,7 +37,7 @@ describe("hours from timecards into a pay run", () => {
     expect(all.minutes).toBe(765);
     expect(all.weeks).toEqual(["2026-10-18", "2026-10-25"]);
     expect(unpaidHours(m, "wkr-2", "2026-10-01", "2026-10-31").minutes).toBe(480);
-    expect(unpaidHours(m, "wkr-9", "2026-10-01", "2026-10-31")).toEqual({ minutes: 0, shifts: [], weeks: [] });
+    expect(unpaidHours(m, "wkr-9", "2026-10-01", "2026-10-31")).toEqual({ minutes: 0, regularMinutes: 0, overtimeMinutes: 0, overtimeRate: 1.5, shifts: [], weeks: [] });
     expect(unpaidHours(null, "wkr-1", "2026-10-01", "2026-10-31").minutes).toBe(0);
   });
 
@@ -79,5 +80,60 @@ describe("hours from timecards into a pay run", () => {
     expect(hoursText(2250)).toBe("37.5");
     expect(hoursText(1)).toBe("0.02");
     expect(hoursText(0)).toBe("0");
+  });
+});
+
+describe("overtime from timecards", () => {
+  const rules = { timeZone: "UTC", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: 1.5 };
+  const day = (date: string, hours: number) => stretch(date, "08:00", `${String(8 + hours).padStart(2, "0")}:00`, hours * 60);
+  // Sunday the 18th to Saturday the 24th: five 9-hour days, then 4 hours Saturday = 49 hours.
+  const week = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"].map((d) => day(d, 9));
+  const sat = day("2026-10-24", 4);
+  const m = addHours(emptyMailbox(), card(0, [...week, sat]));
+
+  it("lands the week's overtime on the last hours worked, and pays it at the agreement's rate", () => {
+    const u = unpaidHours(m, "wkr-1", "2026-10-18", "2026-10-24", rules);
+    expect(u).toMatchObject({ minutes: 2940, regularMinutes: 2400, overtimeMinutes: 540, overtimeRate: 1.5 });
+    expect(u.shifts.map((s) => [s.date, s.regular, s.overtime])).toEqual([
+      ["2026-10-19", 540, 0],
+      ["2026-10-20", 540, 0],
+      ["2026-10-21", 540, 0],
+      ["2026-10-22", 540, 0],
+      ["2026-10-23", 240, 300], // the 40th hour falls on Friday afternoon
+      ["2026-10-24", 0, 240],
+    ]);
+    expect(hoursText(u.regularMinutes)).toBe("40");
+    expect(hoursText(u.overtimeMinutes)).toBe("9");
+  });
+
+  it("counts a day's overtime first under a daily rule, never an hour twice", () => {
+    const daily = { ...rules, dailyOvertimeAfterHours: 8, overtimeRate: 2 };
+    const u = unpaidHours(m, "wkr-1", "2026-10-18", "2026-10-24", daily);
+    // 1 hour a day over 8 (5 hours), then 40 regular reached on Saturday: 4 more.
+    expect(u).toMatchObject({ regularMinutes: 2400, overtimeMinutes: 540, overtimeRate: 2 });
+    expect(u.shifts.map((s) => s.overtime)).toEqual([60, 60, 60, 60, 60, 240]);
+    const totals = overtimeSplit([...week, sat], daily);
+    expect(totals).toEqual({ regular: u.regularMinutes, overtime: u.overtimeMinutes });
+  });
+
+  it("pays the right share when a pay period ends inside the week", () => {
+    // Paid through Thursday: 36 regular. Then Friday and Saturday: 4 regular, 9 overtime.
+    const first = unpaidHours(m, "wkr-1", "2026-10-18", "2026-10-22", rules);
+    expect(first).toMatchObject({ regularMinutes: 2160, overtimeMinutes: 0 });
+    const paid = markPaid(m, first.shifts, "run-1", "2026-10-23");
+    const second = unpaidHours(paid, "wkr-1", "2026-10-23", "2026-10-31", rules);
+    expect(second).toMatchObject({ regularMinutes: 240, overtimeMinutes: 540 });
+  });
+
+  it("labels stretches in time order whatever order they're given, and the labels add up to the split", () => {
+    const shuffled = [sat, ...week].reverse();
+    const labels = labelOvertime(shuffled, rules);
+    expect(labels.reduce((t, l) => t + l.overtime, 0)).toBe(540);
+    expect(labels[shuffled.indexOf(sat)]).toEqual({ regular: 0, overtime: 240 });
+  });
+
+  it("takes the rules from the offer's work week, or the baseline without one", () => {
+    expect(payRulesFor(null, "wkr-1").overtimeRate).toBe(1.5);
+    expect(payRulesFor(null, "wkr-1").overtimeAfterHours).toBe(40);
   });
 });

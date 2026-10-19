@@ -3360,3 +3360,31 @@ The hours a run pays should be the stretches the team sent, and the run should s
   and the stretches on the paystub itself.
 
 Tests: 949/949 (4 new).
+
+## 2026-10-19: overtime is paid at the overtime rate the offer sets
+
+Joshua: overtime is often 1.5 times the pay; some businesses count it by the day (past 8 or 10
+hours); it's agreed in the offer and follows the person for the life of the agreement.
+- `books/work_week.ts`: the work week gains `overtimeRate` (1 to 3, to the hundredth; 1.5 by
+  default), last and only when given, so a work week from before it keeps its bytes (and reads as
+  time and a half). The offer form asks "Overtime pays (× the hourly rate)"; the draft terms say
+  "Overtime: after 40 hours in a week, paid at 1.5 times the hourly rate." `payRulesOf`: the
+  agreement's rules, or the baseline (40 a week, time and a half) for an agreement without a work
+  week. The daily threshold box was already there; its hint now says by the day, like 8 or 10.
+- `packages/payroll`: `grossFor(worker, hours, overtime?)` prices overtime hours at rate × the
+  multiplier, rounded once; a paycheck carries `overtimeHours` and `overtimeRate`; a run line takes
+  `overtime: { hours, rate }`; the double-pay guard compares the whole gross. The paystub document
+  carries the two fields last and only when present, so every earlier paystub keeps its hash
+  (tested); the person's app reads them.
+- `books/hours.ts` `labelOvertime`: the week walked in time order, a day's overtime first, then the
+  week's, so overtime lands on the last hours worked and each stretch knows its own share; sums
+  equal `overtimeSplit`. `books/timecard_pay.ts`: `unpaidHours` returns regular and overtime
+  minutes under the person's rules (the whole week counts toward the thresholds, paid or not, so a
+  pay period ending mid-week pays the right share); `payRulesFor(rail, workerId)`.
+- Run payroll: two boxes, Regular and "Overtime 1.5×", filled from the timecards ("…, 9h 00m of it
+  overtime at 1.5×") or typed. Pay runs: "40 h + 9 h overtime at 1.5×". Both paystubs: "…× 40
+  hours, plus 9 overtime hours at 1.5× ($33.75 per hour)". Payroll → Hours and the person's Hours
+  page show the split under the same rules.
+- Proposed, not built: on-call days and callouts (see the reply to Joshua on 2026-10-19).
+
+Tests: 961/961 (12 new).

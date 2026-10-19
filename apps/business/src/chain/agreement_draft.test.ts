@@ -87,7 +87,7 @@ describe("the work week in the draft", () => {
   it("follows the hours, one sentence a fact, and is left out when the offer has none", () => {
     const text = draftTerms({ ...BASE, hoursPerWeek: "40", workWeek: { ...defaultWorkWeek("America/Los_Angeles"), dailyOvertimeAfterHours: 8 } });
     expect(text).toContain(
-      "Hours: about 40 a week.\n\nWork week: Sunday to Saturday, Pacific Time (America/Los_Angeles).\n\nOvertime: after 8 hours in a day or 40 hours in a week.\n\nShifts: a shift longer than 12 hours is reviewed before it is paid.\n\nDates:",
+      "Hours: about 40 a week.\n\nWork week: Sunday to Saturday, Pacific Time (America/Los_Angeles).\n\nOvertime: after 8 hours in a day or 40 hours in a week, paid at 1.5 times the hourly rate.\n\nShifts: a shift longer than 12 hours is reviewed before it is paid.\n\nDates:",
     );
     expect(draftTerms(BASE)).not.toContain("Work week");
   });
