@@ -3194,3 +3194,24 @@ job offers belong with jobs, and the Mailbox has no use now that Messages carrie
 
 Tests: 917/917 (feed test reshaped). Build, static build and audit pass.
 
+
+## 2026-10-19: an acceptance is noticed by the one check
+
+Joshua: a worker accepted an offer and the business never saw it. The acceptance was only ever read
+by "Check for a reply" on the waiting-offer card (the Import team panel, reading the agreement
+records from Shield); the check that runs when Jobs → Offers opens, and "Check now", read hours
+and replies only and then said "Up to date."
+- `chain/acceptance.ts` `checkAcceptances`: while an offer is waiting, asks Shield once for the
+  agreement program's records; every waiting offer whose agreement id is on an unspent
+  `FinalAgreement` (the employer's copy, minted by `accept_job_offer`) turns linked and the hire
+  joins the team (`books/hiring.ts` `acceptOffers`); returns the names. Four tests: links and names
+  the hire, ignores the pending copy / a spent final / another agreement's final, asks Shield for
+  nothing while no offer waits, passes a refusal on with the vault untouched.
+- `chain/MailboxCheck.tsx` runs it first, then hours, replies and receipts as before. The outcome
+  carries `accepted`; Jobs → Offers says "Ana Ruiz accepted your offer." and, when Shield isn't
+  connected while an offer waits, "Connect Shield to check for a reply to your offer." instead of
+  "Up to date." The waiting card's detail says Check now looks for their answer.
+- Gone from Jobs → Offers: the "Check for a reply" card and its Import team panel. Settings keeps
+  Import team for linking agreements made elsewhere.
+
+Tests: 921/921 (4 new).
