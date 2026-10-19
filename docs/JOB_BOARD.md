@@ -1,7 +1,8 @@
 # The job board: design
 
 Status: **`hewn_jobs_v1.aleo` merged in PNWBNW/pnw_mvp_v2 (#206, #207), deploying to testnet**
-(Joshua, 2026-10-19). The app's first piece, posting from the business's Jobs page, is in this repo.
+(Joshua, 2026-10-19). In the app: posting from the business's Jobs page (#94), and the public board
+(`/board`, with the worker's "Find work"). Next: applying, the applications and applicants lists.
 
 ## What it is
 
@@ -76,14 +77,23 @@ the transaction, and when it was changed, featured or closed). The chain code (`
 - Every call needs Shield on the linked account and the business name registered; the industry
   code is read from the registry each time the panel opens.
 
-### Public board (next)
+### The board (`/board`)
 
-`/jobs` on the marketing site, no account: walks the newest postings from the explorer and shows
-them in board order with the business's name (from the registry's reverse resolver), a filter on
-the facts, and the words. "Apply" opens the app. Inside the app, a worker's "Find work" page shows
-the same board with Apply wired up.
+In the app, not the marketing site: the site is a brochure with no chain reads and a security
+policy that names no host, while the app already reads the explorer. `/board` is the one public
+path: `BooksGate` lets it through without open books and `AppShell` shows a bare header (the brand
+and "Open Hewn") instead of the rail; with books open it is an ordinary page, "Find work" in a
+worker's navigation and reachable by a business too (no role redirect). `chain/board.ts` reads the
+newest 100 postings (`readRecent`), the current height, and each business's name from the
+registry's reverse resolver (once per name; a name that can't be read shows as "A business"),
+orders them featured-first, and filters on words (every word must appear in the title, location,
+description or business name) and on the facts. `chain/Board.tsx` is the page: search, three
+filters, Refresh, each posting opening to its description, and for a visitor "Open Hewn to apply".
+A posting written for a newer app (a body this one can't unpack) is listed without its words.
 
 ### Applying, and a person's applications (next)
+
+Apply is the next PR; the board shows "Applying from here comes next" to a signed-in worker until then.
 
 An application is a letter to the business's account (looked up from its name on the registry):
 the person's `.hewn` name, a message, and a full resume as text. A resume builder guides people who
