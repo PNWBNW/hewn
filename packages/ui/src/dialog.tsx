@@ -85,7 +85,9 @@ const DialogContent = React.forwardRef<
     <dialog
       ref={dialogRef}
       className={cn(
-        "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 shadow-lg backdrop:bg-black/80 open:animate-in open:fade-in-0 open:zoom-in-95",
+        // A native <dialog> does not inherit the page's colour: without text-foreground it takes the
+        // browser's default (black), unreadable on the dark theme's background.
+        "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 text-foreground shadow-lg backdrop:bg-black/80 open:animate-in open:fade-in-0 open:zoom-in-95",
         className
       )}
       onClose={() => setOpen(false)}

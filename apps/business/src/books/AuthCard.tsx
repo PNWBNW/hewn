@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, type Ref, useState } from "react";
+import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { BRAND } from "@/brand";
@@ -33,6 +34,10 @@ export function AuthFooter() {
       <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">
         Source code
       </a>
+      {" · "}
+      <Link href="/traction" className="underline underline-offset-4">
+        Traction map
+      </Link>
     </p>
   );
 }
