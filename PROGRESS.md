@@ -2978,3 +2978,21 @@ Tests: 887/887 (new: the key agreement from both sides, the application letter o
 the posting's key and refusing tampering or another posting, a long resume deflated and one that
 won't fit, the thread kinds' side rules, the vault's applications and their status, the resume
 text, the body with a hiring key).
+
+## 2026-10-19: the business's applicants
+
+The last piece of the job board loop (hewn #97): from Jobs, each posting has **Applicants**.
+- **Reading applications** (`chain/applicants.ts`, `chain/Applicants.tsx`): every letter under the
+  posting's application lookup (`LetterBox.getAll`) is opened with the posting's hiring key; each
+  new key is an applicant, their account looked up on the registry by their name hash (a name with
+  no account yet is counted and left for later), with a conversation in the business's mailbox
+  threads under `applicant:<key>`, the application as its first message. Each applicant's new
+  messages are read on open and on Check, and by the Messages check.
+- **From an applicant:** the conversation (letters both ways), a status (one letter; kept on the
+  applicant), an interview (a message with the time and place or meeting link, then the
+  Interviewing status), and an offer (the existing offer flow, to their registered name).
+- Postings made before hiring keys can't read applications and say so.
+
+Tests: 890/890 (new: opening the letters under a posting, once per key, skipping known keys and
+what won't open; applicants kept on a posting with their status and the vault round trip; the
+status and interview wording).

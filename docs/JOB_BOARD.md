@@ -3,7 +3,8 @@
 Status: **`hewn_jobs_v1.aleo` merged in PNWBNW/pnw_mvp_v2 (#206, #207), deploying to testnet**
 (Joshua, 2026-10-19). In the app: posting from the business's Jobs page (#94), the public board
 (`/board`, with the worker's "Find work", #95), applying with a resume builder and the person's
-Applications list. Next: the business's applicants per posting.
+Applications list (#96), and the business's applicants per posting. The whole loop is built; what's
+left is on the way: PDF import, closing a posting telling everyone at once.
 
 ## What it is
 
@@ -123,14 +124,24 @@ The private part. The two have no key in common yet, so the first letter makes o
   then Seen, Interviewing, Offer sent, Hired, Not selected or Posting closed (a
   `application_status` message, business-only; the latest one counts).
 
-### Business: applicants (next)
+### Business: applicants
 
-Each posting lists its applicants: the business reads every letter under the posting's application
-lookup (`LetterBox.getAll`), opens each with the posting's hiring key (`unpackApplication`), and
-keeps a thread per applicant under the derived key. From an applicant:
-read the resume, message them (the existing conversation), set up an interview (a time and a place
-or a meeting link, sent as a letter; video calls happen on Teams or the like, not on chain), send
-an offer (the existing offer flow, pre-filled from the posting), or mark Not selected (a letter).
+From Jobs, each posting has **Applicants** (`chain/Applicants.tsx`, Shield-gated on the linked
+account). On open and on Check: every letter under the posting's application lookup
+(`LetterBox.getAll`) is opened with the posting's hiring key (`chain/applicants.ts`
+`openApplications`); each new key becomes an applicant (their account from the registry by their
+name hash; a name with no account yet is counted and left for later) with a conversation in the
+business's mailbox threads, filed under `applicant:<key>` as its team-member id, the application as
+its first message (slot 0 of their side, so their next message is slot 1). Then each applicant's new
+messages are read; the Messages check reads them too. From an applicant: the **conversation** (the
+usual one, letters both ways), a **status** (one letter: Seen, Interviewing, Offer sent, Hired, Not
+selected, Posting closed; kept on the applicant), an **interview** (a message with the time and the
+place or meeting link, then the Interviewing status: two letters), and an **offer** (the existing
+offer flow, to their registered name; they join the team when they accept). A posting made before
+hiring keys can't read applications; post it again.
+
+Not yet: telling every applicant at once when a posting closes (one letter each today), and
+"Import from PDF" for resumes.
 
 ## Decisions
 
