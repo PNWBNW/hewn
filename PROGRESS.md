@@ -3292,3 +3292,26 @@ before it is paid. The longest shift is in the work week of the offer's terms (t
 
 Tests: 943/943 (5 new; one expectation moved: an open shift now stops at the longest shift before
 midnight).
+
+## 2026-10-19: the sends of a week are combined, not replaced; the baseline week is Sunday to Saturday
+
+Joshua, after the earlier change today: a week sent again must not replace the earlier send. Someone
+who sends 35 hours thinking the week is done and is called in the next day sends the week again, and
+the week's one card must hold all of it. And the baseline work week is Sunday to Saturday, so sends
+inside it group together.
+- `books/mailbox.ts` `combinePerWeek` (replaces `latestPerWeek`): the sends of one week, same
+  agreement, fold in slot order into one card. The newer send is the person's latest word on any
+  stretch it covers: its entries go in whole, and from the earlier sends only the stretches the
+  newer ones don't overlap. So a week sent again whole stays as sent (nothing counted twice), a
+  day sent on its own is added, and a shift whose clock-out moved is counted once, as moved. The
+  card carries the latest slot, the sum of its entries and `sends` (how many it combines; `resent`
+  is gone), and is unread again. A vault saved with the sends apart loads as one card.
+- Payroll → Hours: "Ana sent more hours for the week of …" with "· 2 sends combined". The person's
+  Send panel says sending again adds anything new to that week's card on the other side.
+- The baseline calendar, for an agreement whose terms don't set a work week, is Sunday to Saturday
+  (`books/hours.ts` `deviceCalendar`, `weekStartOf`'s default), and a new offer's work week starts
+  from Sunday (`books/work_week.ts` `defaultWorkWeek`). The person's app sends weeks on that
+  calendar, so two sends inside one Sunday-to-Saturday week land on one card.
+
+Tests: 943/943 (the week-combining test rewritten for the new rule; Monday expectations moved to
+Sunday).

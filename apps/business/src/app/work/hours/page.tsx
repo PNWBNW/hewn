@@ -36,7 +36,7 @@ export default function HoursPage() {
   const [chosen, setChosen] = useState("");
   const agreementId = agreements.some((a) => a.agreementId === chosen) ? chosen : (agreements[0]?.agreementId ?? "");
   const agreement = agreements.find((a) => a.agreementId === agreementId);
-  // Days and weeks on the agreement's calendar (the work week in its terms; Monday and this device's zone without one).
+  // Days and weeks on the agreement's calendar (the work week in its terms; Sunday to Saturday in this device's zone without one).
   const calendar = calendarOf(agreement);
   const tz = calendar.timeZone;
   const longest = longestMinutesOf(agreement);

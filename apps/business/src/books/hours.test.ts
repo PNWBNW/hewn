@@ -15,12 +15,14 @@ const P = (id: string, kind: Punch["kind"], at: string): Punch => ({ id, agreeme
 const local = (date: string, hhmm: string) => new Date(`${date}T${hhmm}:00`).toISOString();
 
 describe("calendar", () => {
-  it("uses local dates and starts the week on Monday", () => {
+  it("uses local dates and starts the week on Sunday", () => {
     expect(localDate(new Date("2026-10-14T06:30:00.000Z"))).toBe("2026-10-13"); // still Tuesday evening in LA
-    expect(weekStartOf("2026-10-14")).toBe("2026-10-12");
-    expect(weekStartOf("2026-10-12")).toBe("2026-10-12");
-    expect(weekStartOf("2026-10-18")).toBe("2026-10-12"); // Sunday belongs to the week before
-    expect(weekStartOf("2026-10-19")).toBe("2026-10-19");
+    expect(weekStartOf("2026-10-14")).toBe("2026-10-11");
+    expect(weekStartOf("2026-10-11")).toBe("2026-10-11");
+    expect(weekStartOf("2026-10-17")).toBe("2026-10-11"); // Saturday ends the week
+    expect(weekStartOf("2026-10-18")).toBe("2026-10-18");
+    expect(weekStartOf("2026-10-12", { startsOn: "monday" })).toBe("2026-10-12");
+    expect(weekStartOf("2026-10-18", { startsOn: "monday" })).toBe("2026-10-12"); // Sunday belongs to the week before
     expect(addDays("2026-10-31", 1)).toBe("2026-11-01");
     expect(weekDays("2026-10-12")).toEqual(["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"]);
   });
@@ -78,12 +80,12 @@ describe("timesheet payload", () => {
     w = punch(w, AID, local("2026-10-15", "09:00"), "c").work;
     w = punch(w, AID, local("2026-10-15", "12:00"), "d").work;
     const now = new Date(local("2026-10-17", "18:00"));
-    const sheet = buildTimesheet(w, AID, "2026-10-12", now);
+    const sheet = buildTimesheet(w, AID, "2026-10-11", now);
     expect(sheet).toEqual({
       version: 1,
       kind: "timesheet",
       agreementId: AID,
-      weekStart: "2026-10-12",
+      weekStart: "2026-10-11",
       entries: [
         { date: "2026-10-13", in: local("2026-10-13", "08:00"), out: local("2026-10-13", "16:30"), minutes: 510 },
         { date: "2026-10-15", in: local("2026-10-15", "09:00"), out: local("2026-10-15", "12:00"), minutes: 180 },
@@ -94,11 +96,11 @@ describe("timesheet payload", () => {
     expect(Object.keys(sheet)).toEqual(["version", "kind", "agreementId", "weekStart", "entries", "totalMinutes", "sentAt"]);
   });
 
-  it("refuses a non-Monday, an unknown agreement and an empty week", () => {
+  it("refuses a non-Sunday, an unknown agreement and an empty week", () => {
     const now = new Date();
-    expect(() => buildTimesheet(base, AID, "2026-10-14", now)).toThrow(/Monday/);
-    expect(() => buildTimesheet(base, "ff", "2026-10-12", now)).toThrow(/No agreement/);
-    expect(() => buildTimesheet(base, AID, "2026-10-12", now)).toThrow(/Nothing to send/);
+    expect(() => buildTimesheet(base, AID, "2026-10-14", now)).toThrow(/Sunday/);
+    expect(() => buildTimesheet(base, "ff", "2026-10-11", now)).toThrow(/No agreement/);
+    expect(() => buildTimesheet(base, AID, "2026-10-11", now)).toThrow(/Nothing to send/);
   });
 });
 
@@ -138,9 +140,9 @@ describe("the calendar from the terms", () => {
     expect(weekStartOf("2026-10-18", { startsOn: "sunday" })).toBe("2026-10-18");
     expect(weekStartOf("2026-10-14", { startsOn: "wednesday" })).toBe("2026-10-14");
     expect(weekStartOf("2026-10-13", { startsOn: "wednesday" })).toBe("2026-10-07");
-    expect(calendarOf(undefined)).toEqual({ startsOn: "monday", timeZone: expect.any(String) });
-    expect(calendarOf({ terms: V2 })).toEqual({ startsOn: "monday", timeZone: expect.any(String) });
-    expect(calendarOf({ terms: { ...V2, workWeek: { ...defaultWorkWeek("Asia/Tokyo"), startsOn: "sunday" } } })).toEqual({ startsOn: "sunday", timeZone: "Asia/Tokyo" });
+    expect(calendarOf(undefined)).toEqual({ startsOn: "sunday", timeZone: expect.any(String) });
+    expect(calendarOf({ terms: V2 })).toEqual({ startsOn: "sunday", timeZone: expect.any(String) });
+    expect(calendarOf({ terms: { ...V2, workWeek: { ...defaultWorkWeek("Asia/Tokyo"), startsOn: "monday" } } })).toEqual({ startsOn: "monday", timeZone: "Asia/Tokyo" });
   });
 
   it("splits a shift at the work week's midnight, not the device's", () => {
@@ -153,14 +155,14 @@ describe("the calendar from the terms", () => {
   });
 
   it("builds the sheet for the agreement's own week, starting on its day", () => {
-    let w = upsertAgreement(emptyWork("Ana"), { ...AGREEMENT, terms: { ...V2, workWeek: { ...defaultWorkWeek("America/Los_Angeles"), startsOn: "sunday" } } });
-    w = punch(w, AID, local("2026-10-11", "09:00"), "a").work; // a Sunday
-    w = punch(w, AID, local("2026-10-11", "12:00"), "b").work;
+    let w = upsertAgreement(emptyWork("Ana"), { ...AGREEMENT, terms: { ...V2, workWeek: { ...defaultWorkWeek("America/Los_Angeles"), startsOn: "monday" } } });
+    w = punch(w, AID, local("2026-10-12", "09:00"), "a").work; // a Monday
+    w = punch(w, AID, local("2026-10-12", "12:00"), "b").work;
     const now = new Date(local("2026-10-17", "18:00"));
-    expect(buildTimesheet(w, AID, "2026-10-11", now)).toMatchObject({ weekStart: "2026-10-11", totalMinutes: 180 });
-    expect(() => buildTimesheet(w, AID, "2026-10-12", now)).toThrow(/starts on a Sunday/);
-    // Without a work week in the terms, Monday as before.
-    expect(() => buildTimesheet(upsertAgreement(emptyWork("Bo"), AGREEMENT), AID, "2026-10-11", now)).toThrow(/starts on a Monday/);
+    expect(buildTimesheet(w, AID, "2026-10-12", now)).toMatchObject({ weekStart: "2026-10-12", totalMinutes: 180 });
+    expect(() => buildTimesheet(w, AID, "2026-10-11", now)).toThrow(/starts on a Monday/);
+    // Without a work week in the terms, the baseline: Sunday to Saturday.
+    expect(() => buildTimesheet(upsertAgreement(emptyWork("Bo"), AGREEMENT), AID, "2026-10-12", now)).toThrow(/starts on a Sunday/);
   });
 });
 
@@ -230,28 +232,28 @@ describe("a forgotten clock-out (the longest shift)", () => {
     w = punch(w, AID, local("2026-10-14", "09:00"), "c").work;
     w = punch(w, AID, local("2026-10-14", "12:00"), "d").work;
     const later = new Date(local("2026-10-17", "18:00"));
-    expect(sendProblem(w, AID, "2026-10-12", later)).toMatch(/2026-10-13 is longer than 10h.*fix its clock-out time or confirm/);
-    expect(() => buildTimesheet(w, AID, "2026-10-12", later)).toThrow(/longer than 10h/);
+    expect(sendProblem(w, AID, "2026-10-11", later)).toMatch(/2026-10-13 is longer than 10h.*fix its clock-out time or confirm/);
+    expect(() => buildTimesheet(w, AID, "2026-10-11", later)).toThrow(/longer than 10h/);
     // Fixing the clock-out clears it.
     const fixed = updatePunch(w, "b", { at: local("2026-10-13", "16:00") });
-    expect(sendProblem(fixed, AID, "2026-10-12", later)).toBeNull();
-    expect(buildTimesheet(fixed, AID, "2026-10-12", later).entries.map((e) => e.long)).toEqual([undefined, undefined]);
+    expect(sendProblem(fixed, AID, "2026-10-11", later)).toBeNull();
+    expect(buildTimesheet(fixed, AID, "2026-10-11", later).entries.map((e) => e.long)).toEqual([undefined, undefined]);
     // Confirming it sends it, marked.
     const confirmed = confirmShift(w, "b");
-    expect(sendProblem(confirmed, AID, "2026-10-12", later)).toBeNull();
-    const sheet = buildTimesheet(confirmed, AID, "2026-10-12", later);
+    expect(sendProblem(confirmed, AID, "2026-10-11", later)).toBeNull();
+    const sheet = buildTimesheet(confirmed, AID, "2026-10-11", later);
     expect(sheet.entries).toEqual([
       { date: "2026-10-13", in: local("2026-10-13", "07:00"), out: local("2026-10-13", "18:30"), minutes: 690, long: true },
       { date: "2026-10-14", in: local("2026-10-14", "09:00"), out: local("2026-10-14", "12:00"), minutes: 180 },
     ]);
     expect(sheet.totalMinutes).toBe(870);
     // A confirmation doesn't survive the clock-out moving.
-    expect(sendProblem(updatePunch(confirmed, "b", { at: local("2026-10-13", "19:00") }), AID, "2026-10-12", later)).toMatch(/confirm/);
-    expect(sendProblem(updatePunch(confirmed, "a", { at: local("2026-10-13", "06:00") }), AID, "2026-10-12", later)).toMatch(/confirm/);
+    expect(sendProblem(updatePunch(confirmed, "b", { at: local("2026-10-13", "19:00") }), AID, "2026-10-11", later)).toMatch(/confirm/);
+    expect(sendProblem(updatePunch(confirmed, "a", { at: local("2026-10-13", "06:00") }), AID, "2026-10-11", later)).toMatch(/confirm/);
     // Still clocked in past the longest shift: set the time you left.
     const open = punch(ten, AID, local("2026-10-15", "06:00"), "e").work;
-    expect(sendProblem(open, AID, "2026-10-12", later)).toMatch(/clocked in since 2026-10-15, longer than 10h.*Set the time you left/);
-    expect(() => buildTimesheet(open, AID, "2026-10-12", later)).toThrow(/Set the time you left/);
-    expect(sendProblem(open, AID, "2026-10-12", new Date(local("2026-10-15", "10:00")))).toBeNull(); // not yet
+    expect(sendProblem(open, AID, "2026-10-11", later)).toMatch(/clocked in since 2026-10-15, longer than 10h.*Set the time you left/);
+    expect(() => buildTimesheet(open, AID, "2026-10-11", later)).toThrow(/Set the time you left/);
+    expect(sendProblem(open, AID, "2026-10-11", new Date(local("2026-10-15", "10:00")))).toBeNull(); // not yet
   });
 });

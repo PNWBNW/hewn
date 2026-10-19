@@ -37,8 +37,8 @@ export type ReceivedHours = {
   sentAt: string;
   /** Opened under Payroll → Hours. Missing means unread. */
   read?: boolean;
-  /** This send replaced an earlier send of the same week. Missing means it was the first. */
-  resent?: boolean;
+  /** How many sends of this week this card combines, when more than one (books/mailbox.ts `combinePerWeek`). */
+  sends?: number;
 };
 
 /** The conversation with one team member (books/thread.ts), and who they are in these books. */
@@ -124,7 +124,7 @@ function validateReceived(raw: unknown): ReceivedHours {
   if (h.totalMinutes !== entries.reduce((t, e) => t + e.minutes, 0)) throw new MailboxError("The hours don't add up");
   if (!isStamp(h.sentAt)) throw new MailboxError("Each week of hours needs the time it was sent");
   if (h.read !== undefined && typeof h.read !== "boolean") throw new MailboxError("Read must be true or false");
-  if (h.resent !== undefined && typeof h.resent !== "boolean") throw new MailboxError("Resent must be true or false");
+  if (h.sends !== undefined && (!Number.isInteger(h.sends) || (h.sends as number) < 2)) throw new MailboxError("Sends must be a whole number of at least 2");
   const clean: ReceivedHours = {
     agreementId: h.agreementId,
     seq: h.seq,
@@ -137,23 +137,37 @@ function validateReceived(raw: unknown): ReceivedHours {
     sentAt: h.sentAt,
   };
   if (h.read) clean.read = true;
-  if (h.resent) clean.resent = true;
+  if (h.sends) clean.sends = h.sends;
   return clean;
 }
 
+/** Two stretches of time that share a moment, or are the same stretch (two zero-length ones at one instant). */
+const overlaps = (a: { in: string; out: string }, b: { in: string; out: string }): boolean => (a.in < b.out && b.in < a.out) || (a.in === b.in && a.out === b.out);
+
 /**
- * One card per week: a week sent again (a later slot, same agreement and
- * week) replaces the earlier send, which is dropped; the survivor is marked
- * resent. An earlier slot that turns up after a later one changes nothing.
+ * One card per week (Joshua, 2026-10-19): the sends of one week, same
+ * agreement, are combined, nothing dropped. Someone who sends 35 hours and is
+ * called in the next day sends the week again; the week's card then holds
+ * both. The newer send is the person's latest word on any stretch it covers:
+ * its entries go in whole, and from the earlier sends only the stretches the
+ * newer ones don't overlap (a week sent again whole therefore stays as sent;
+ * a shift whose clock-out moved is counted once, as moved). The card carries
+ * the latest slot and says how many sends it combines. A combined card is new
+ * (unread) again. Slots are folded in order, so what arrives late is still
+ * the older word.
  */
-function latestPerWeek(items: ReceivedHours[]): ReceivedHours[] {
+function combinePerWeek(items: ReceivedHours[]): ReceivedHours[] {
   const byWeek = new Map<string, ReceivedHours>();
   for (const item of [...items].sort((a, b) => a.seq - b.seq)) {
     const key = `${item.agreementId}:${item.weekStart}`;
     const kept = byWeek.get(key);
-    if (kept && kept.seq === item.seq) byWeek.set(key, item);
-    else if (kept) byWeek.set(key, { ...item, resent: true });
-    else byWeek.set(key, item);
+    if (!kept || kept.seq === item.seq) {
+      byWeek.set(key, item);
+      continue;
+    }
+    const entries = [...item.entries, ...kept.entries.filter((e) => !item.entries.some((n) => overlaps(e, n)))].sort((a, b) => (a.in < b.in ? -1 : a.in > b.in ? 1 : 0));
+    const { read: _read, ...fresh } = item;
+    byWeek.set(key, { ...fresh, entries, totalMinutes: entries.reduce((t, e) => t + e.minutes, 0), sends: (kept.sends ?? 1) + 1 });
   }
   return [...byWeek.values()];
 }
@@ -165,7 +179,7 @@ export function validateMailbox(raw: unknown): Mailbox {
   if (!Array.isArray(m.hours)) throw new MailboxError("The mailbox's hours must be a list");
   const bySlot = new Map<string, ReceivedHours>();
   for (const item of m.hours.map(validateReceived)) bySlot.set(`${item.agreementId}:${item.seq}`, item);
-  const mailbox: Mailbox = { version: 1, hours: latestPerWeek([...bySlot.values()]) };
+  const mailbox: Mailbox = { version: 1, hours: combinePerWeek([...bySlot.values()]) };
   if (m.nextHours !== undefined) {
     const n = m.nextHours as Record<string, unknown> | null;
     if (!n || typeof n !== "object" || Array.isArray(n)) throw new MailboxError("The next slots must be an object");
@@ -215,13 +229,12 @@ export function bumpHoursSeq(m: Mailbox, agreementId: string, used: number): Mai
 
 /**
  * Keeps one week of hours and moves its agreement's next slot past it. One card per week: a week
- * sent again replaces the earlier send (`resent`); a slot already kept is replaced; an earlier
- * send that turns up after a later one is dropped.
+ * sent again is combined into its card (`combinePerWeek`); a slot already kept is replaced.
  */
 export function addHours(m: Mailbox, item: ReceivedHours): Mailbox {
   const fresh = validateReceived(item);
   const rest = m.hours.filter((h) => !(h.agreementId === fresh.agreementId && h.seq === fresh.seq));
-  return bumpHoursSeq({ ...m, hours: latestPerWeek([...rest, fresh]) }, fresh.agreementId, fresh.seq);
+  return bumpHoursSeq({ ...m, hours: combinePerWeek([...rest, fresh]) }, fresh.agreementId, fresh.seq);
 }
 
 /** Marks one week of hours as opened. Unknown slots leave the mailbox as it was. */

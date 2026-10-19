@@ -37,16 +37,16 @@ const now = () => new Date(local("2026-10-17", "18:00"));
 describe("sendTimesheet", () => {
   it("seals the week under the timesheet kind at the next slot, and only the employer's key opens it", async () => {
     const { client, puts } = fakeClient();
-    const { sent, payload, slotTaken } = await sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-12", client, now });
+    const { sent, payload, slotTaken } = await sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-11", client, now });
     expect(slotTaken).toBe(false);
     expect(puts).toHaveLength(1);
     expect(puts[0]!.lookup).toBe(lookupId(key, TIMESHEET_KIND, 0));
     expect(puts[0]!.envelope[0]).toBe(0x01);
-    expect(sent).toEqual({ agreementId: AID, weekStart: "2026-10-12", seq: 0, lookup: puts[0]!.lookup, totalMinutes: 510, sentAt: now().toISOString() });
+    expect(sent).toEqual({ agreementId: AID, weekStart: "2026-10-11", seq: 0, lookup: puts[0]!.lookup, totalMinutes: 510, sentAt: now().toISOString() });
     expect(puts[0]!.envelope.length).toBeLessThanOrEqual(LETTER_BYTES); // one letter, not a page
     const opened = JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, TIMESHEET_KIND, 0, puts[0]!.envelope))));
     expect(opened).toEqual(payload);
-    expect(opened).toMatchObject({ version: 1, kind: "timesheet", agreementId: AID, weekStart: "2026-10-12", totalMinutes: 510 });
+    expect(opened).toMatchObject({ version: 1, kind: "timesheet", agreementId: AID, weekStart: "2026-10-11", totalMinutes: 510 });
     await expect(open(partiesKeyFromHex("cd".repeat(32)), TIMESHEET_KIND, 0, puts[0]!.envelope)).rejects.toThrow();
     const wire = new TextDecoder("utf-8", { fatal: false }).decode(puts[0]!.envelope);
     expect(wire).not.toMatch(/2026-10-13|timesheet|510/);
@@ -55,25 +55,25 @@ describe("sendTimesheet", () => {
   it("takes the slot after the last one sent", async () => {
     const w = recordTimesheet(weekOfWork(), { agreementId: AID, weekStart: "2026-10-05", seq: 3, lookup: "e".repeat(64), totalMinutes: 1, sentAt: "2026-10-10T00:00:00.000Z" });
     const { client, puts } = fakeClient();
-    const { sent } = await sendTimesheet({ work: w, agreementId: AID, weekStart: "2026-10-12", client, now });
+    const { sent } = await sendTimesheet({ work: w, agreementId: AID, weekStart: "2026-10-11", client, now });
     expect(sent.seq).toBe(4);
     expect(puts[0]!.lookup).toBe(lookupId(key, TIMESHEET_KIND, 4));
   });
 
   it("counts a taken slot as sent, and passes other failures on", async () => {
-    const taken = await sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-12", client: fakeClient(new MailboxError("CONFLICT", "taken")).client, now });
+    const taken = await sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-11", client: fakeClient(new MailboxError("CONFLICT", "taken")).client, now });
     expect(taken.slotTaken).toBe(true);
-    const off = sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-12", client: fakeClient(new MailboxError("NOT_CONFIGURED", "off")).client, now });
+    const off = sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-11", client: fakeClient(new MailboxError("NOT_CONFIGURED", "off")).client, now });
     await expect(off).rejects.toMatchObject({ code: "NOT_CONFIGURED" });
-    await expect(sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-12", client: fakeClient(new MailboxError("REQUEST_FAILED", "502")).client, now })).rejects.toThrow(/502/);
+    await expect(sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-11", client: fakeClient(new MailboxError("REQUEST_FAILED", "502")).client, now })).rejects.toThrow(/502/);
   });
 
   it("refuses before any request when there is nothing to send or the agreement isn't active", async () => {
     const { client, puts } = fakeClient();
-    await expect(sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-19", client, now })).rejects.toThrow(/Nothing to send/);
+    await expect(sendTimesheet({ work: weekOfWork(), agreementId: AID, weekStart: "2026-10-18", client, now })).rejects.toThrow(/Nothing to send/);
     const paused = upsertAgreement(weekOfWork(), { agreementId: AID, partiesKey: KEY_HEX, employerAddress: "aleo1" + "k".repeat(58), employerNameHash: "1", status: "paused" });
-    await expect(sendTimesheet({ work: paused, agreementId: AID, weekStart: "2026-10-12", client, now })).rejects.toThrow(/isn't active/);
-    await expect(sendTimesheet({ work: weekOfWork(), agreementId: "ff", weekStart: "2026-10-12", client, now })).rejects.toThrow(/No agreement/);
+    await expect(sendTimesheet({ work: paused, agreementId: AID, weekStart: "2026-10-11", client, now })).rejects.toThrow(/isn't active/);
+    await expect(sendTimesheet({ work: weekOfWork(), agreementId: "ff", weekStart: "2026-10-11", client, now })).rejects.toThrow(/No agreement/);
     expect(puts).toEqual([]);
   });
 });

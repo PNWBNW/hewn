@@ -27,7 +27,7 @@ export default function WorkHomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agreementId = active.some((a) => a.agreementId === chosen) ? chosen : (active[0]?.agreementId ?? "");
-  // Days and weeks on the agreement's calendar (the work week in its terms; Monday and this device's zone without one).
+  // Days and weeks on the agreement's calendar (the work week in its terms; Sunday to Saturday in this device's zone without one).
   const agreement = active.find((a) => a.agreementId === agreementId);
   const calendar = calendarOf(agreement);
   const longest = longestMinutesOf(agreement);

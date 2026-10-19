@@ -64,7 +64,7 @@ function SendFlow({ agreementId, weekStart, onClose }: SendTimesheetPanelProps) 
         <>
           <p className="text-sm">
             Send {formatMinutes(minutes)} for the week of {weekStart} to <span className="font-medium">{employer}</span>?
-            {already && ` You sent this week before (${formatMinutes(already.totalMinutes)}); sending again replaces it.`}
+            {already && ` You sent this week before (${formatMinutes(already.totalMinutes)}); sending again adds anything new to that week's card on their side.`}
           </p>
           <p className="text-xs text-muted-foreground">
             It goes as a sealed letter on the network that only {employer} can open: one approval in Shield.

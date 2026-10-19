@@ -56,9 +56,9 @@ export function isTimeZone(v: unknown): v is string {
   }
 }
 
-/** Monday to Sunday in the given zone, overtime after 40 hours, a 12-hour shift at most: the usual starting point. */
+/** Sunday to Saturday (Joshua, 2026-10-19) in the given zone, overtime after 40 hours, a 12-hour shift at most: the usual starting point. */
 export function defaultWorkWeek(timeZone: string = deviceTimeZone()): WorkWeek {
-  return { startsOn: "monday", timeZone, overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12 };
+  return { startsOn: "sunday", timeZone, overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12 };
 }
 
 const isHalfHours = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max && Number.isInteger(v * 2);

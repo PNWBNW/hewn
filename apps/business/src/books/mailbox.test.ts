@@ -106,28 +106,44 @@ describe("the mailbox", () => {
     m = addHours(m, hours(3, { totalMinutes: 510, entries: [ENTRY] }));
     expect(m.hours.filter((h) => h.seq === 3)).toHaveLength(1);
     expect(m.hours.find((h) => h.seq === 3)?.totalMinutes).toBe(510);
-    expect(m.hours.find((h) => h.seq === 3)?.resent).toBeUndefined();
+    expect(m.hours.find((h) => h.seq === 3)?.sends).toBeUndefined();
     expect(nextHoursSeq(bumpHoursSeq(m, AGREEMENT, 1), AGREEMENT)).toBe(4);
   });
 
-  it("keeps one card per week: a week sent again replaces the earlier send, and is marked so", () => {
-    const first = addHours(addHours(emptyMailbox(), hours(0)), hours(1));
-    expect(first.hours).toHaveLength(2);
-    const again = addHours(markHoursRead(first, AGREEMENT, 0), hours(2, { weekStart: hours(0).weekStart, totalMinutes: 510, entries: [ENTRY], sentAt: "2026-10-13T08:00:00.000Z" }));
-    expect(again.hours.map((h) => [h.seq, h.weekStart, h.resent ?? false, h.read ?? false])).toEqual([
-      [1, hours(1).weekStart, false, false],
-      [2, hours(0).weekStart, true, false], // the replacement is new, unread
-    ]);
-    expect(nextHoursSeq(again, AGREEMENT)).toBe(3);
-    // Another agreement's week is its own card.
-    const other = addHours(again, hours(0, { agreementId: "ef".repeat(32) }));
-    expect(other.hours).toHaveLength(3);
-    // An earlier send turning up after the later one changes nothing but the slot.
-    const late = addHours(again, hours(0));
-    expect(late.hours.map((h) => h.seq)).toEqual([1, 2]);
-    // A vault saved with both sends loads as one card.
-    const loaded = mailboxFromJson(mailboxToJson({ ...first, hours: [...first.hours, hours(2, { weekStart: hours(0).weekStart })] }));
-    expect(loaded.hours.map((h) => [h.seq, h.resent ?? false])).toEqual([[1, false], [2, true]]);
+  it("keeps one card per week: the sends of a week are combined, nothing dropped", () => {
+    const week = hours(0).weekStart;
+    const monday = { date: "2026-10-05", in: "2026-10-05T15:00:00.000Z", out: "2026-10-05T23:30:00.000Z", minutes: 510 };
+    const tuesday = { date: "2026-10-06", in: "2026-10-06T15:00:00.000Z", out: "2026-10-06T19:00:00.000Z", minutes: 240 };
+    const wednesday = { date: "2026-10-07", in: "2026-10-07T15:00:00.000Z", out: "2026-10-07T23:00:00.000Z", minutes: 480 };
+    // 35 hours sent on Tuesday; called in on Wednesday, the week sent again whole.
+    const first = addHours(emptyMailbox(), hours(0, { entries: [monday, tuesday], totalMinutes: 750, sentAt: "2026-10-06T20:00:00.000Z" }));
+    const whole = addHours(markHoursRead(first, AGREEMENT, 0), hours(1, { weekStart: week, entries: [monday, tuesday, wednesday], totalMinutes: 1230, sentAt: "2026-10-08T00:00:00.000Z" }));
+    expect(whole.hours).toHaveLength(1);
+    expect(whole.hours[0]).toMatchObject({ seq: 1, weekStart: week, entries: [monday, tuesday, wednesday], totalMinutes: 1230, sends: 2, sentAt: "2026-10-08T00:00:00.000Z" });
+    expect(whole.hours[0]).not.toHaveProperty("read"); // new hours: unread again
+    expect(nextHoursSeq(whole, AGREEMENT)).toBe(2);
+    // Or only the new day sent: the card still holds the week.
+    const part = addHours(first, hours(1, { weekStart: week, entries: [wednesday], totalMinutes: 480, sentAt: "2026-10-08T00:00:00.000Z" }));
+    expect(part.hours[0]).toMatchObject({ entries: [monday, tuesday, wednesday], totalMinutes: 1230, sends: 2 });
+    // A clock-out moved: the newer word on that stretch counts, once.
+    const moved = { ...tuesday, out: "2026-10-06T20:00:00.000Z", minutes: 300 };
+    const corrected = addHours(first, hours(1, { weekStart: week, entries: [moved], totalMinutes: 300 }));
+    expect(corrected.hours[0]).toMatchObject({ entries: [monday, moved], totalMinutes: 810, sends: 2 });
+    // A third send combines again, counting on.
+    const third = addHours(part, hours(2, { weekStart: week, entries: [{ ...wednesday, date: "2026-10-08", in: "2026-10-08T15:00:00.000Z", out: "2026-10-08T19:00:00.000Z", minutes: 240 }], totalMinutes: 240 }));
+    expect(third.hours[0]).toMatchObject({ seq: 2, totalMinutes: 1470, sends: 3 });
+    expect(third.hours[0]!.entries.map((e) => e.date)).toEqual(["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"]);
+    // Another week, or another agreement, is its own card.
+    expect(addHours(whole, hours(2)).hours).toHaveLength(2);
+    expect(addHours(whole, hours(0, { agreementId: "ef".repeat(32) })).hours).toHaveLength(2);
+    // An earlier slot turning up after a later one is folded in as the older word.
+    const late = addHours(addHours(emptyMailbox(), hours(1, { weekStart: week, entries: [wednesday], totalMinutes: 480 })), hours(0, { entries: [monday], totalMinutes: 510 }));
+    expect(late.hours[0]).toMatchObject({ seq: 1, entries: [monday, wednesday], totalMinutes: 990, sends: 2 });
+    // A vault saved with the sends apart loads as one card.
+    const loaded = mailboxFromJson(mailboxToJson({ ...first, hours: [...first.hours, hours(1, { weekStart: week, entries: [wednesday], totalMinutes: 480 })] }));
+    expect(loaded.hours).toHaveLength(1);
+    expect(loaded.hours[0]).toMatchObject({ totalMinutes: 1230, sends: 2 });
+    expect(() => validateMailbox({ ...first, hours: [{ ...first.hours[0], sends: 1 }] })).toThrow(/at least 2/);
   });
 
   it("skips a slot that couldn't be kept without adding anything", () => {

@@ -22,7 +22,7 @@ export const TIMESHEET_KIND = "timesheet";
 export type SendInput = {
   work: Work;
   agreementId: string;
-  /** Monday, YYYY-MM-DD. */
+  /** The first day of the work week, YYYY-MM-DD. */
   weekStart: string;
   /** A letter box to the employer (chain/letters.ts); a fake with `put` does for tests. */
   client: { put(lookup: string, envelope: Uint8Array, options?: { keepUntil?: string; feeMode?: FeeMode }): Promise<unknown> };
