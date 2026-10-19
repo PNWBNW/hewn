@@ -12,6 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@noble/hashes": "2.0.1"
+    "@noble/hashes": "2.4.0"
   }
 }
