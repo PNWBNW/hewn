@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { useMemo, useState } from "react";
-import { MailboxClient } from "@pnw/mailbox";
+import { appMailbox } from "./mailbox_client";
 import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
@@ -35,7 +35,7 @@ export default function WithdrawOffer(props: WithdrawOfferProps) {
 function WithdrawFlow({ workerId, onClose }: WithdrawOfferProps) {
   const { rail, payroll, updateCompany, discardAttachment } = useOpenBooks();
   const { state, route, connect, error: shieldError, wallet } = useShield();
-  const client = useMemo(() => new MailboxClient(), []);
+  const client = useMemo(() => appMailbox(), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const link = rail ? linkFor(rail, workerId) : undefined;

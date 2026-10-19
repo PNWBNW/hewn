@@ -138,6 +138,15 @@ company and protocol namespace).
   in yet (Shield's app can't scan a pairing code). Over the relay the app answers reads only while
   it is open; `src/chain/shield.ts` exposes `route` and `away` for the wording and an "Open Shield"
   link. Not yet tried on a real phone.
+- **Two builds of the business app** (2026-10-19): the website (`pnpm build`) and the static
+  bundle for the installable app (`pnpm --filter @pnw/business build:static`, `HEWN_STATIC=1`:
+  `output: export`, pages as folders, the policy stamped into each page, `apps/business/out/`).
+  Server-only files end in `.server.ts` (the route handlers under `src/app/api`), an extension only
+  the website build sees; the proxy stays `proxy.ts` (the export tolerates it). Client code reaches
+  the server pieces through `src/api_base.ts` (`apiUrl("/api/…")`, the website by full address in
+  the bundle) and builds the mailbox client only through `src/chain/mailbox_client.ts`. Pathnames
+  may end in `/` in the bundle: compare them through `canonicalPath` (`shell/AppShell.tsx`). CI
+  builds both.
 - Security baseline: `docs/THREAT_MODEL.md`. CI blocks on tests, build and `pnpm audit` (moderate+).
   New dependencies must be at least 7 days old (`minimumReleaseAge`).
 - Leo programs (Leo v4 syntax) live in `pnw_mvp_v2/src/layer1`, `src/layer2`, `src/stubs`.

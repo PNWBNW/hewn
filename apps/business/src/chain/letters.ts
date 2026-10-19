@@ -31,6 +31,7 @@
 
 import { PROGRAMS } from "@pnw/config/programs";
 import { MailboxClient, MailboxError } from "@pnw/mailbox";
+import { appMailbox } from "./mailbox_client";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type ExecuteOptions, type WorkWallet, executeAndWait } from "./work/execute";
 
@@ -334,7 +335,7 @@ export function letterThread(
   to: string,
   {
     letters = new LetterBox({ wallet }),
-    mailbox = new MailboxClient(),
+    mailbox = appMailbox(),
     execute,
   }: { letters?: LetterBox; mailbox?: Pick<MailboxClient, "get" | "drop">; execute?: ExecuteOptions } = {},
 ) {

@@ -10,7 +10,7 @@
 // Nothing here logs a key, a lookup or a message.
 
 import { useEffect, useMemo, useRef } from "react";
-import { MailboxClient } from "@pnw/mailbox";
+import { appMailbox } from "../mailbox_client";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { useWork } from "@/books/BooksProvider";
 import { addReceivedPost, skipPost } from "@/books/channels";
@@ -36,7 +36,7 @@ export default function WorkMessagesCheck(props: WorkMessagesCheckProps) {
 function Check({ onFinished }: WorkMessagesCheckProps) {
   const { work, updateWork } = useWork();
   const { settled, letters, wallet } = useLetters();
-  const client = useMemo(() => new MailboxClient(), []);
+  const client = useMemo(() => appMailbox(), []);
   const started = useRef(false);
 
   useEffect(() => {

@@ -19,7 +19,7 @@
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Lock, RefreshCw, Send } from "lucide-react";
-import { MailboxClient } from "@pnw/mailbox";
+import { appMailbox } from "./mailbox_client";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
@@ -92,7 +92,7 @@ export default function Conversation(props: ConversationProps) {
 
 function MailboxConversation(props: ConversationProps) {
   const transport = useMemo<Transport>(() => {
-    const client = new MailboxClient();
+    const client = appMailbox();
     return { reader: client, writer: client, letters: false };
   }, []);
   return <ConversationView {...props} transport={transport} />;
@@ -185,7 +185,7 @@ function ConversationView({
       if (!r.off && !r.failed && !transport.letters) {
         const waiting = awaitingReceipts(latest.current, partiesKey, side, 20, kinds);
         if (waiting.length > 0) {
-          const client = new MailboxClient();
+          const client = appMailbox();
           await readReceipts(client, waiting, (heard) => update((t) => heard.reduce((acc, h) => markDelivered(acc, h.target, h.receivedAt), t)));
         }
       }

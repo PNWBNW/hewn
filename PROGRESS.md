@@ -3093,3 +3093,37 @@ modelled on MetaMask's Mobile Wallet Protocol, in the renamed adapter packages
 Tests: 905/905 (new: `shield_route.test.ts`, `wallet-provider.test.ts`, CSP test updated);
 build and audit pass.
 
+## 2026-10-19: the static bundle (Android app, step 1 of 3)
+
+Joshua: a true standalone Android app, not a website in a wrapper. Step 1 makes the business app
+build as plain files that an app can carry, beside the website build, from one codebase.
+- **Two builds** (`apps/business/next.config.ts`): `HEWN_STATIC=1` turns on `output: "export"`,
+  pages as folders (`trailingSlash`), and unoptimised images. `pnpm --filter @pnw/business
+  build:static` writes `apps/business/out/` (30 pages, ignored by git). CI builds it on every push.
+- **Server-only files** are named `.server.ts` (the four route handlers): the website build's
+  `pageExtensions` includes that extension, the static build's does not, so the export never sees
+  a route handler. The proxy keeps its name; the export tolerates it. The root layout waits on the
+  request (for the nonce) only in the website build; the web manifest is marked static.
+- **Reaching the server pieces** from the bundle: `src/api_base.ts` (`apiUrl`) prefixes `/api/…`
+  with the website's address when built static, and nothing otherwise; the visit counter, the
+  traction map and every mailbox client (now built only in `src/chain/mailbox_client.ts`) go
+  through it.
+- **The bundle's security policy**: no server, so no nonce. `src/security/static_csp.ts` names each
+  page's two inline scripts (Next's hydration payload) by SHA-256 digest and stamps the policy into
+  the page as a meta tag; `scripts/static_csp.mjs` runs it over the export (plain Node, type
+  stripping). Same allowances as the website plus the website itself in `connect-src`; no
+  `strict-dynamic` (needs a nonce), no `frame-ancestors` (a meta tag cannot carry it). The shared
+  builder in `@pnw/security` takes a nonce or hashes. Loaded in Chromium from a plain file server:
+  every page renders and hydrates with no policy violation.
+- **Dead code gone**: the `[section]` catch-all page generated no paths (every section has its own
+  screen), which the export refused; removed with its helpers.
+- **Paths** may end in `/` in the bundle; `canonicalPath` (`shell/AppShell.tsx`) strips it before
+  the shell and the gate compare them.
+- **Next:** step 2, the Android shell (`apps/android`, Capacitor 8.5.3): icon and splash from the
+  brand, the `shield://` hand-off, FLAG_SECURE; the WebView's origin set to the website's host so
+  the server pieces stay same-origin and Shield's approval screen shows the real name. Step 3, CI
+  builds a debug APK per PR and a signed release build.
+
+Tests: 910/910 (new: `static_csp.test.ts`; the mailbox route tests follow the renamed files);
+website build, static build and audit pass.
+

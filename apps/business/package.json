@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:static": "HEWN_STATIC=1 next build && node scripts/static_csp.mjs"
   },
   "dependencies": {
     "@pnw/brand": "workspace:*",

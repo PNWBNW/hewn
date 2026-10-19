@@ -9,7 +9,21 @@
 // ---------------------------------------------------------------------------
 
 export type CspOptions = {
-  nonce: string;
+  /** This request's nonce: the website's way. Scripts and styles run only when they carry it. */
+  nonce?: string;
+  /**
+   * The static bundle's way (no server, so no nonce): the SHA-256 digests, `sha256-…`, of the
+   * inline scripts the exported page carries, so exactly those run and nothing else inline.
+   * Scripts by file then come from the page's own origin alone, as there is no nonce to pass
+   * trust along ('strict-dynamic' needs one).
+   */
+  scriptHashes?: readonly string[];
+  /**
+   * The policy is stamped into the page as a meta tag rather than sent as a header. Browsers
+   * ignore `frame-ancestors` there (and say so on the console), so it is left out; the app's
+   * pages are never framed anyway, and the website still sends it as a header.
+   */
+  meta?: boolean;
   /** Next.js dev mode needs eval for React's debug stacks. Never in production. */
   dev?: boolean;
   /** Origins the page may fetch from besides its own. Default: none. */
@@ -21,17 +35,18 @@ export type CspOptions = {
   wasm?: boolean;
 };
 
-export function buildCsp({ nonce, dev = false, connect = [], wasm = false }: CspOptions): string {
+export function buildCsp({ nonce, scriptHashes, meta = false, dev = false, connect = [], wasm = false }: CspOptions): string {
+  if (nonce === undefined && scriptHashes === undefined) throw new Error("a policy needs a nonce or the inline script hashes");
+  const inline = nonce !== undefined ? [`'nonce-${nonce}'`, "'strict-dynamic'"] : scriptHashes!.map((h) => `'${h}'`);
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     "script-src": [
       "'self'",
-      `'nonce-${nonce}'`,
-      "'strict-dynamic'",
+      ...inline,
       ...(wasm ? ["'wasm-unsafe-eval'"] : []),
       ...(dev ? ["'unsafe-eval'"] : []),
     ],
-    "style-src": ["'self'", `'nonce-${nonce}'`],
+    "style-src": ["'self'", ...(nonce !== undefined ? [`'nonce-${nonce}'`] : [])],
     "img-src": ["'self'", "blob:", "data:"],
     "font-src": ["'self'"],
     // Own origin plus what the app named: no analytics, no CDNs, nothing else.
@@ -42,7 +57,7 @@ export function buildCsp({ nonce, dev = false, connect = [], wasm = false }: Csp
     "frame-src": ["'none'"],
     "base-uri": ["'none'"],
     "form-action": ["'self'"],
-    "frame-ancestors": ["'none'"],
+    ...(meta ? {} : { "frame-ancestors": ["'none'"] }),
   };
   const policy = Object.entries(directives).map(([k, v]) => `${k} ${v.join(" ")}`);
   if (!dev) policy.push("upgrade-insecure-requests");

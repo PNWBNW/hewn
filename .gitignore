@@ -33,3 +33,6 @@ node_modules/
 # Build output
 .next/
 *.tsbuildinfo
+
+# The static bundle of the app (HEWN_STATIC=1)
+apps/business/out/

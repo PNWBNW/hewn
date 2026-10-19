@@ -7,7 +7,7 @@
 // when the mailbox is on. Nothing here logs a key, a lookup or a document.
 
 import { useEffect, useRef, useState } from "react";
-import { MailboxClient } from "@pnw/mailbox";
+import { appMailbox } from "../mailbox_client";
 import { Button } from "@pnw/ui/button";
 import { FormError } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
@@ -36,7 +36,7 @@ function InboxFlow({ onClose }: InboxPanelProps) {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    const mailbox = new MailboxClient();
+    const mailbox = appMailbox();
     const letters = lettersThenMailbox(new LetterBox({ wallet }), mailbox);
     const awaiting = workAwaiting(work);
     void scanPaystubs({

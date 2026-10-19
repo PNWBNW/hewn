@@ -9,7 +9,7 @@
 // Nothing here logs a key, a lookup or a message.
 
 import { useEffect, useMemo, useRef } from "react";
-import { MailboxClient } from "@pnw/mailbox";
+import { appMailbox } from "./mailbox_client";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { applicantWorkerId } from "@/books/jobs";
@@ -32,7 +32,7 @@ export default function MessagesCheck(props: MessagesCheckProps) {
 function Check({ onFinished }: MessagesCheckProps) {
   const { rail, mailbox, jobs, updateCompany } = useOpenBooks();
   const { settled, letters, wallet } = useLetters();
-  const client = useMemo(() => new MailboxClient(), []);
+  const client = useMemo(() => appMailbox(), []);
   const started = useRef(false);
 
   useEffect(() => {

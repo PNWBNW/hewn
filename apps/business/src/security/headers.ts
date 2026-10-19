@@ -30,13 +30,24 @@ export const EXPLORER_ORIGIN = "https://api.explorer.provable.com";
  */
 export const SHIELD_RELAY_ORIGIN = "wss://relay.shield.app";
 
-export type CspOptions = Pick<SharedCspOptions, "nonce" | "dev">;
+export type CspOptions = { nonce: string } & Pick<SharedCspOptions, "dev">;
+
+const CONNECT = [EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN];
 
 /**
- * The explorer and the Shield relay in connect-src, and 'wasm-unsafe-eval' (the Shield code's
- * hashing and decryption libraries are WebAssembly; this allows compiling WebAssembly only, JS
- * eval stays refused).
+ * The website's policy, one per request: the explorer and the Shield relay in connect-src, and
+ * 'wasm-unsafe-eval' (the Shield code's hashing and decryption libraries are WebAssembly; this
+ * allows compiling WebAssembly only, JS eval stays refused).
  */
 export function buildCsp(options: CspOptions): string {
-  return buildSharedCsp({ ...options, connect: [EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN], wasm: true });
+  return buildSharedCsp({ ...options, connect: CONNECT, wasm: true });
+}
+
+/**
+ * The static bundle's policy, one per exported page (`scripts/static_csp.ts` stamps it in as a
+ * meta tag): the same allowances, with the page's inline scripts named by hash instead of a
+ * nonce, plus the website itself, where the bundle reaches the server pieces (src/api_base.ts).
+ */
+export function buildStaticCsp({ scriptHashes, apiOrigin }: { scriptHashes: readonly string[]; apiOrigin: string }): string {
+  return buildSharedCsp({ scriptHashes, meta: true, connect: [apiOrigin, ...CONNECT], wasm: true });
 }

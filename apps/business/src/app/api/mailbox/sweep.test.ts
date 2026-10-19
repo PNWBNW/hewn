@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeStore } from "./testing";
 import { sweepHandler } from "./sweep";
-import { GET } from "./sweep/route";
+import { GET } from "./sweep/route.server";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);

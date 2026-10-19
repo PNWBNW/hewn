@@ -9,6 +9,8 @@
 import { Analytics } from "@vercel/analytics/next";
 
 export function PageViews() {
+  // The static bundle (next.config.ts) is not served by Vercel, so its page-view script would 404 there.
+  if (process.env.NEXT_PUBLIC_HEWN_STATIC === "1") return null;
   return (
     <Analytics
       beforeSend={(event) => {

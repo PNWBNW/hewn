@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { useMemo, useState } from "react";
-import { MailboxClient } from "@pnw/mailbox";
+import { appMailbox } from "./mailbox_client";
 import { updateWorker } from "@pnw/payroll";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
@@ -139,7 +139,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
     // 1. The current offer comes off the chain.
     setStage("withdrawing");
     try {
-      await withdrawOffer({ link: old, employerNameHash: rail.businessNameHash, wallet: shield, client: new MailboxClient() });
+      await withdrawOffer({ link: old, employerNameHash: rail.businessNameHash, wallet: shield, client: appMailbox() });
       await updateCompany((c) => (c.rail ? { ...c, rail: removeLink(c.rail, workerId) } : c));
       // Its files (from before offers stopped carrying them) go with it.
       for (const ref of old.offerFiles ?? []) await discardAttachment(ref.attachmentId).catch(() => {});
