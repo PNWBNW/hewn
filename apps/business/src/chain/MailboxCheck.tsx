@@ -1,25 +1,35 @@
 "use client";
 
 // Reading what the team sent: once Shield has had its moment to reconnect
-// (letter_reader.ts), the weeks of hours (mailbox_scan.ts), then each
-// person's side of the conversation (thread.ts), both from letters on chain
-// and then the old mailbox; then the receipts for anything sent through the
-// old mailbox (receipts.ts). Reports back; it draws nothing itself. Each week of hours is written to the vault before its pin is
-// dropped. Nothing here logs a key, a lookup or an hour.
+// (letter_reader.ts), first which waiting offers have been accepted, from the
+// agreement records in the Shield account (acceptance.ts); then the weeks of
+// hours (mailbox_scan.ts), then each person's side of the conversation
+// (thread.ts), both from letters on chain and then the old mailbox; then the
+// receipts for anything sent through the old mailbox (receipts.ts). Reports
+// back; it draws nothing itself. Each week of hours is written to the vault
+// before its pin is dropped. Nothing here logs a key, a lookup or an hour.
 
 import { useEffect, useMemo, useRef } from "react";
 import { appMailbox } from "./mailbox_client";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { addHours, bumpHoursSeq, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
+import { hasWaitingOffer } from "@/books/mailbox_feed";
 import { addToThread, skipIncoming } from "@/books/thread";
+import { checkAcceptances } from "./acceptance";
 import { scanHours } from "./mailbox_scan";
 import { businessAwaiting, readReceipts, recordBusinessReceipts } from "./receipts";
 import { useLetters } from "./letter_reader";
 import { letterThread, lettersThenMailbox } from "./letters";
 import { readThread } from "./thread";
 
-export type CheckOutcome = { received: number; skipped: number; message?: string };
+export type CheckOutcome = {
+  received: number;
+  skipped: number;
+  /** Who accepted an offer during this check (their names), if anyone. */
+  accepted?: string[];
+  message?: string;
+};
 
 export type MailboxCheckProps = { onFinished: (outcome: CheckOutcome) => void };
 
@@ -42,6 +52,17 @@ function Check({ onFinished }: MailboxCheckProps) {
     started.current = true;
     const awaiting = businessAwaiting({ rail, payroll });
     (async () => {
+      // Acceptances first: the waiting offers whose final agreement is now in the Shield account.
+      // Shield has to be connected to read them; without it the check says so below.
+      let accepted: string[] = [];
+      let acceptFailed: string | null = null;
+      if (letters) {
+        try {
+          accepted = (await checkAcceptances({ rail, payroll, requestRecords: wallet.requestRecords, updateCompany })).accepted;
+        } catch (e) {
+          acceptFailed = e instanceof Error ? e.message : "The agreements couldn't be read";
+        }
+      }
       // Letters first (once Shield is connected), then the old mailbox; letters need no receipts.
       const reader = letters ? { get: lettersThenMailbox(letters, client).get, drop: (lookup: string) => client.drop(lookup).catch(() => {}) } : client;
       const r = await scanHours({
@@ -80,10 +101,21 @@ function Check({ onFinished }: MailboxCheckProps) {
           await updateCompany((c) => recordBusinessReceipts(c, heard));
         });
       }
+      const needsShield = !letters && hasWaitingOffer(rail);
+      const message = r.off
+        ? "Connect Shield to check for what your team sent."
+        : r.failed
+          ? `Couldn't finish checking: ${r.failed}`
+          : acceptFailed
+            ? `Couldn't check for a reply to your offer: ${acceptFailed}`
+            : needsShield
+              ? "Connect Shield to check for a reply to your offer."
+              : undefined;
       onFinished({
         received: r.received.length,
         skipped: r.skipped.length,
-        ...(r.off ? { message: "Connect Shield to check for what your team sent." } : r.failed ? { message: `Couldn't finish checking: ${r.failed}` } : {}),
+        ...(accepted.length > 0 ? { accepted } : {}),
+        ...(message ? { message } : {}),
       });
     })().catch((e: unknown) => onFinished({ received: 0, skipped: 0, message: e instanceof Error ? e.message : "The mailbox couldn't be read" }));
   }, [rail, payroll, mailbox, client, updateCompany, onFinished, settled, letters, wallet]);

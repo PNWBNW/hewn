@@ -3,9 +3,9 @@
 // Offers, under Jobs: hiring in one place. Send a job offer (to an applicant,
 // to someone found on the registry, or to a team member added by hand who has
 // no agreement yet), see the offers out and the acceptances, and answer a
-// request for changes. Replies and requests are read from the team's letters
-// when the tab opens and on "Check now"; only "Check for a reply" on a waiting
-// offer loads the Shield-backed panel, and only when tapped.
+// request for changes. Acceptances (from the agreement records in the Shield
+// account), replies and requests are all read by the one check, when the tab
+// opens and on "Check now" (chain/MailboxCheck.tsx).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -34,11 +34,10 @@ const loading = () => <p className="text-sm text-muted-foreground">Loading…</p
 const MailboxCheck = dynamic(() => import("@/chain/MailboxCheck"), { ssr: false });
 const OfferPanel = dynamic(() => import("@/chain/OfferPanel"), { ssr: false, loading });
 const WithdrawOffer = dynamic(() => import("@/chain/WithdrawOffer"), { ssr: false, loading });
-const RailPanel = dynamic(() => import("@/chain/RailPanel"), { ssr: false, loading });
 const KeepOffer = dynamic(() => import("@/chain/KeepOffer"), { ssr: false, loading });
 const ReviseOffer = dynamic(() => import("@/chain/ReviseOffer"), { ssr: false, loading });
 
-type Checking = { state: "idle" } | { state: "running"; run: number } | { state: "done"; received: number; skipped: number; message?: string };
+type Checking = { state: "idle" } | { state: "running"; run: number } | { state: "done"; received: number; skipped: number; accepted?: string[]; message?: string };
 
 export default function Offers() {
   const { rail, payroll, mailbox } = useOpenBooks();
@@ -47,12 +46,11 @@ export default function Offers() {
   const [hiring, setHiring] = useState(false);
   const [hiringWho, setHiringWho] = useState<Registered | undefined>(undefined);
   const [offering, setOffering] = useState<string | null>(null);
-  const [replying, setReplying] = useState(false);
   const feed = useMemo(() => offersFeed({ rail, payroll, mailbox }), [rail, payroll, mailbox]);
   // Added by hand, no agreement yet: an offer links them.
   const unlinked = payroll.workers.filter((w) => w.active && linkStatus(rail, "worker", w.id) === "typed");
 
-  const finished = useCallback((o: { received: number; skipped: number; message?: string }) => setCheck({ state: "done", ...o }), []);
+  const finished = useCallback((o: { received: number; skipped: number; accepted?: string[]; message?: string }) => setCheck({ state: "done", ...o }), []);
   useEffect(() => {
     if (canCheck) setCheck((c) => (c.state === "idle" ? { state: "running", run: 0 } : c));
   }, [canCheck]);
@@ -61,7 +59,13 @@ export default function Offers() {
     check.state === "running"
       ? "Checking for replies…"
       : check.state === "done"
-        ? (check.message ?? "Up to date.") + (check.skipped > 0 ? ` ${check.skipped} couldn't be read and ${check.skipped === 1 ? "was" : "were"} skipped.` : "")
+        ? [
+            ...(check.accepted?.length ? [`${acceptedLine(check.accepted)} accepted your offer.`] : []),
+            check.message ?? (check.accepted?.length ? "" : "Up to date."),
+            ...(check.skipped > 0 ? [`${check.skipped} couldn't be read and ${check.skipped === 1 ? "was" : "were"} skipped.`] : []),
+          ]
+            .filter(Boolean)
+            .join(" ")
         : null;
 
   return (
@@ -140,21 +144,6 @@ export default function Offers() {
         </Card>
       )}
 
-      {hasWaitingOffer(rail) && (
-        <Card>
-          <CardContent className="flex flex-col gap-3 pt-6">
-            <p className="text-sm">An offer is waiting for a reply. Once they accept, check here and they&apos;re linked.</p>
-            {replying ? (
-              <RailPanel mode="import" onClose={() => setReplying(false)} />
-            ) : (
-              <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={() => setReplying(true)}>
-                Check for a reply
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       <Card>
         <CardContent className="pt-6">
           {feed.length === 0 ? (
@@ -176,11 +165,17 @@ export default function Offers() {
   );
 }
 
+/** "Ana Ruiz", "Ana Ruiz and Bo", "Ana Ruiz, Bo and Cy". */
+function acceptedLine(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 /** Where a waiting offer stands, from its receipt and its expiry. */
 function offerDetail(item: Extract<OfferItem, { kind: "offer" }>): string {
   const expired = item.expiresAt !== undefined && isExpired(item.expiresAt);
-  if (item.receivedAt) return `Opened ${when(item.receivedAt)}. ${expired ? "It expired without an answer." : "Waiting for them to accept."}`;
-  return expired ? "It expired before they opened it." : "Not opened yet. Waiting for them to accept.";
+  if (item.receivedAt) return `Opened ${when(item.receivedAt)}. ${expired ? "It expired without an answer." : "Waiting for them to accept; Check now looks for their answer."}`;
+  return expired ? "It expired before they opened it." : "Not opened yet. Waiting for them to accept; Check now looks for their answer.";
 }
 
 function Row({ item }: { item: OfferItem }) {
