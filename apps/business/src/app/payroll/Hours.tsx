@@ -1,9 +1,9 @@
 "use client";
 
 // Hours, under Payroll: the weeks the team has sent from their Hours page,
-// newest first, each opening to its days. They are read from the team's
-// letters when the tab opens and on "Check now", kept in the encrypted vault,
-// and fill in the next pay run.
+// newest first, one card per week (a week sent again replaces the earlier
+// send), each opening to its days. They are read from the team's letters when
+// the tab opens and on "Check now" and kept in the encrypted vault.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -65,7 +65,7 @@ export function Hours() {
         <CardContent className="pt-6">
           {feed.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nothing yet. The weeks your team sends from their Hours page land here, and fill in the next pay run.
+              Nothing yet. The weeks your team sends from their Hours page land here.
               {!canCheck && " Someone has to be linked first: they accept an offer, from Jobs → Offers."}
             </p>
           ) : (
@@ -96,9 +96,11 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
     >
       <summary className="flex min-h-11 cursor-pointer list-none items-baseline justify-between gap-3 sm:min-h-0">
         <span className="min-w-0">
-          <span className={cn("font-medium", !h.read && "text-primary")}>{item.workerName}</span> sent hours for the week of {dayLabel(h.weekStart)}
+          <span className={cn("font-medium", !h.read && "text-primary")}>{item.workerName}</span> sent hours {h.resent && "again "}for the week of{" "}
+          {dayLabel(h.weekStart)}
           <span className="block text-xs text-muted-foreground">
             {formatMinutes(h.totalMinutes)} · {when(item.at)}
+            {h.resent && " · Replaces their earlier send"}
             {!h.read && " · New"}
           </span>
         </span>

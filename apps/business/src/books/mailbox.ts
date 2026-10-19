@@ -37,6 +37,8 @@ export type ReceivedHours = {
   sentAt: string;
   /** Opened under Payroll → Hours. Missing means unread. */
   read?: boolean;
+  /** This send replaced an earlier send of the same week. Missing means it was the first. */
+  resent?: boolean;
 };
 
 /** The conversation with one team member (books/thread.ts), and who they are in these books. */
@@ -120,6 +122,7 @@ function validateReceived(raw: unknown): ReceivedHours {
   if (h.totalMinutes !== entries.reduce((t, e) => t + e.minutes, 0)) throw new MailboxError("The hours don't add up");
   if (!isStamp(h.sentAt)) throw new MailboxError("Each week of hours needs the time it was sent");
   if (h.read !== undefined && typeof h.read !== "boolean") throw new MailboxError("Read must be true or false");
+  if (h.resent !== undefined && typeof h.resent !== "boolean") throw new MailboxError("Resent must be true or false");
   const clean: ReceivedHours = {
     agreementId: h.agreementId,
     seq: h.seq,
@@ -132,7 +135,25 @@ function validateReceived(raw: unknown): ReceivedHours {
     sentAt: h.sentAt,
   };
   if (h.read) clean.read = true;
+  if (h.resent) clean.resent = true;
   return clean;
+}
+
+/**
+ * One card per week: a week sent again (a later slot, same agreement and
+ * week) replaces the earlier send, which is dropped; the survivor is marked
+ * resent. An earlier slot that turns up after a later one changes nothing.
+ */
+function latestPerWeek(items: ReceivedHours[]): ReceivedHours[] {
+  const byWeek = new Map<string, ReceivedHours>();
+  for (const item of [...items].sort((a, b) => a.seq - b.seq)) {
+    const key = `${item.agreementId}:${item.weekStart}`;
+    const kept = byWeek.get(key);
+    if (kept && kept.seq === item.seq) byWeek.set(key, item);
+    else if (kept) byWeek.set(key, { ...item, resent: true });
+    else byWeek.set(key, item);
+  }
+  return [...byWeek.values()];
 }
 
 export function validateMailbox(raw: unknown): Mailbox {
@@ -142,7 +163,7 @@ export function validateMailbox(raw: unknown): Mailbox {
   if (!Array.isArray(m.hours)) throw new MailboxError("The mailbox's hours must be a list");
   const bySlot = new Map<string, ReceivedHours>();
   for (const item of m.hours.map(validateReceived)) bySlot.set(`${item.agreementId}:${item.seq}`, item);
-  const mailbox: Mailbox = { version: 1, hours: [...bySlot.values()] };
+  const mailbox: Mailbox = { version: 1, hours: latestPerWeek([...bySlot.values()]) };
   if (m.nextHours !== undefined) {
     const n = m.nextHours as Record<string, unknown> | null;
     if (!n || typeof n !== "object" || Array.isArray(n)) throw new MailboxError("The next slots must be an object");
@@ -190,11 +211,15 @@ export function bumpHoursSeq(m: Mailbox, agreementId: string, used: number): Mai
   return validateMailbox({ ...m, nextHours: { ...m.nextHours, [agreementId]: Math.max(nextHoursSeq(m, agreementId), used + 1) } });
 }
 
-/** Keeps one week of hours (a slot already kept is replaced) and moves its agreement's next slot past it. */
+/**
+ * Keeps one week of hours and moves its agreement's next slot past it. One card per week: a week
+ * sent again replaces the earlier send (`resent`); a slot already kept is replaced; an earlier
+ * send that turns up after a later one is dropped.
+ */
 export function addHours(m: Mailbox, item: ReceivedHours): Mailbox {
   const fresh = validateReceived(item);
   const rest = m.hours.filter((h) => !(h.agreementId === fresh.agreementId && h.seq === fresh.seq));
-  return bumpHoursSeq({ ...m, hours: [...rest, fresh] }, fresh.agreementId, fresh.seq);
+  return bumpHoursSeq({ ...m, hours: latestPerWeek([...rest, fresh]) }, fresh.agreementId, fresh.seq);
 }
 
 /** Marks one week of hours as opened. Unknown slots leave the mailbox as it was. */

@@ -3215,3 +3215,19 @@ and replies only and then said "Up to date."
   Import team for linking agreements made elsewhere.
 
 Tests: 921/921 (4 new).
+
+## 2026-10-19: a week sent again is one card
+
+Joshua sent a week twice from the worker's Hours page; the business showed both sends side by side.
+The worker's side already treated a resend as a replacement (`books/work.ts` `recordTimesheet`
+keeps one record per week) and said so ("sending again replaces it"); the business kept every
+slot as its own card.
+- `books/mailbox.ts`: one card per agreement and week. `addHours` and `validateMailbox` keep the
+  latest slot for a week and drop the earlier send, marking the survivor `resent`; an earlier
+  slot that turns up after a later one changes nothing but the next-slot counter. A vault saved
+  with both sends loads as one card. The replacement is new (unread) like any arrival.
+- Payroll → Hours says "Ana sent hours again for the week of …" with "Replaces their earlier
+  send". The tab's empty text no longer claims the weeks fill the next pay run (they don't yet;
+  the run's hours are typed).
+
+Tests: 923/923 (2 new, fixtures given a week per slot).

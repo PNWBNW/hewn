@@ -105,8 +105,14 @@ describe("the mailbox feed", () => {
   });
 
   it("orders ties the same way every time", () => {
-    const m = addHours(addHours(emptyMailbox(), hours(1, "2026-10-12T09:00:00.000Z")), hours(0, "2026-10-12T09:00:00.000Z"));
+    const m = addHours(addHours(emptyMailbox(), { ...hours(1, "2026-10-12T09:00:00.000Z"), weekStart: "2026-09-28" }), hours(0, "2026-10-12T09:00:00.000Z"));
     expect(buildFeed({ rail: null, payroll: payroll(), mailbox: m }).map((i) => i.key)).toEqual([`hours:${"ab".repeat(32)}:0`, `hours:${"ab".repeat(32)}:1`]);
+  });
+
+  it("shows a week sent again as one card, the latest send", () => {
+    const m = addHours(addHours(emptyMailbox(), hours(0, "2026-10-12T09:00:00.000Z")), hours(1, "2026-10-13T09:00:00.000Z"));
+    const feed = hoursFeed({ rail: null, payroll: payroll(), mailbox: m });
+    expect(feed.map((i) => [i.key, i.hours.resent ?? false])).toEqual([[`hours:${"ab".repeat(32)}:1`, true]]);
   });
 
   it("knows when an offer is still waiting", () => {
