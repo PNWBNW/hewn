@@ -3152,3 +3152,21 @@ The third statement, computed on the device from the vault like the other two.
   period, Cash at end of period. Empty sections stay out.
 
 Tests: 916/916 (ledger +5, business +1). Build and audit pass.
+
+## 2026-10-19: A/R and A/P aging in Reports (Phase 4 criterion ticked)
+
+`@pnw/sales` already computed both agings (`arAging`, `apAging`: open balances as of a date by
+days past due, five buckets, by customer or vendor) and the Sales and Expenses screens showed the
+bucket totals. This adds the reports themselves.
+- **`/reports`:** "A/R aging" and "A/P aging", as of a date like the balance sheet, one row per
+  customer or vendor (by name) with a column per bucket and a total, then the total row; CSV
+  download like the others (`agingLines`, `AGING_COLUMNS` in `reports/lines.ts`). The note under
+  each says what the total is on the balance sheet.
+- **The criterion**, "aging reports agree with open-invoice and open-bill lists": the package's
+  tests already held that the A/R aging's total equals the sum of the open invoices' balances and
+  the A/R account (a 200-run property over random invoices, payments and voids) and that the A/P
+  aging ties to A/P. The report test adds the same tie-out on the lines a reader sees: the total
+  row equals the open-invoice balances as of the date and Accounts Receivable on that date.
+
+Tests: 917/917 (business +1). Build and audit pass.
+

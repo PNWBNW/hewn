@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addAccount, applyTemplate, balanceSheet, cashFlow, createBooks, postEntry, profitAndLoss, trialBalance } from "@pnw/ledger";
+import { addAccount, applyTemplate, balanceSheet, cashFlow, createBooks, displayBalance, postEntry, profitAndLoss, systemAccount, trialBalance } from "@pnw/ledger";
+import { addCustomer, arAging, createInvoice, emptySales, invoiceBalance, sendInvoice } from "@pnw/sales";
 import { addMonths, compareDate, compareRange, presetRange, rangeLabel } from "./dates";
 import {
+  AGING_COLUMNS,
+  agingLines,
   balanceSheetLines,
   cashFlowLines,
   formatMargin,
@@ -114,6 +117,39 @@ describe("statement lines", () => {
     expect(pick("Net change in cash")).toMatchObject({ kind: "grand", amounts: [1_130_000n] });
     expect(pick("Cash at start of period")).toMatchObject({ amounts: [0n] });
     expect(lines.at(-1)).toMatchObject({ kind: "grand", label: "Cash at end of period", amounts: [1_130_000n] });
+  });
+
+  it("lays out an aging by party with a column per bucket, and its total is the open invoices and the A/R account", () => {
+    let books = applyTemplate(createBooks({ businessName: "T", fiscalYearStartMonth: 1 }), "service");
+    let sales = emptySales();
+    const income = books.accounts.find((a) => a.name === "Service Income")!.id;
+    const acme = addCustomer(sales, { name: "Acme", terms: "net_30" });
+    sales = acme.sales;
+    const zed = addCustomer(sales, { name: "Zed Co", terms: "net_15" });
+    sales = zed.sales;
+    const issue = (customerId: string, date: string, cents: bigint) => {
+      const c = createInvoice(books, sales, { customerId, date, lines: [{ description: "Work", quantity: "1", unitPrice: cents, accountId: income }] });
+      const sent = sendInvoice(books, c.sales, c.invoice.id);
+      books = sent.books;
+      sales = sent.sales;
+    };
+    issue(zed.customer.id, "2026-10-01", 50_000n); // due Oct 16: 15 days past due on Oct 31
+    issue(acme.customer.id, "2026-07-01", 20_000n); // due Jul 31: 92 days past due
+    issue(acme.customer.id, "2026-10-20", 10_000n); // due Nov 19: current
+
+    const asOf = "2026-10-31";
+    const aging = arAging(sales, asOf);
+    const lines = agingLines(aging, new Map(sales.customers.map((c) => [c.id, c.name])));
+    expect(AGING_COLUMNS).toEqual(["Current", "1–30 days", "31–60 days", "61–90 days", "Over 90 days", "Total"]);
+    expect(lines.map((l) => l.label)).toEqual(["Acme", "Zed Co", "Total"]);
+    expect(lines[0]).toMatchObject({ kind: "account", amounts: [10_000n, 0n, 0n, 0n, 20_000n, 30_000n], blankZero: true });
+    expect(lines[1]).toMatchObject({ amounts: [0n, 50_000n, 0n, 0n, 0n, 50_000n] });
+    expect(lines.at(-1)).toMatchObject({ kind: "grand", label: "Total", amounts: [10_000n, 50_000n, 0n, 0n, 20_000n, 80_000n] });
+
+    // The criterion: the report agrees with the open-invoice list and with the books.
+    const openList = sales.invoices.reduce((t, i) => t + invoiceBalance(sales, i, asOf), 0n);
+    expect(lines.at(-1)!.amounts!.at(-1)).toBe(openList);
+    expect(lines.at(-1)!.amounts!.at(-1)).toBe(displayBalance(books, systemAccount(books, "accounts_receivable").id, asOf));
   });
 
   it("writes a CSV a spreadsheet opens safely", () => {
