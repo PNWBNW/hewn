@@ -2931,3 +2931,22 @@ as is: a posting belongs to the name. Design: `docs/JOB_BOARD.md`.
 Tests: 872/872 (new: posting facts and words, the vault's postings and the company file, posting
 ids, the body codec with deflate and refusals, the calls' inputs, featuring maths and board order,
 parsing the explorer's postings and walking the newest with a fake read).
+
+## 2026-10-19: the job board page, public
+
+`/board`: every open posting, for anyone, with or without an account (hewn #95).
+- **Public path:** the first page that renders without open books. `BooksGate` lets `/board`
+  through, and `AppShell` shows a bare header (the brand, "Open Hewn") instead of the rail until
+  the books are open; neither role is redirected away from it. A worker gets "Find work" in the
+  navigation; a business reaches it from the address bar (its own postings are under Jobs).
+- **Not on the marketing site:** the site is a brochure with no chain reads and a security policy
+  naming no host, so the board lives in the app, which already reads the explorer.
+- **Reading:** `chain/board.ts` walks the newest 100 postings by index, reads the current height,
+  looks up each business's name once through the registry's reverse resolver, orders featured and
+  current first (latest window first) then newest, and filters on words (each must appear in the
+  title, location, description or business name) and on kind of work, place and pay.
+- **The page** (`chain/Board.tsx`, loaded dynamically): search, three filters, Refresh, each posting
+  opening to its description, how many days of featuring are left, and for a visitor "Open Hewn to
+  apply". A signed-in worker sees "Applying from here comes next" until the next PR.
+
+Tests: 875/875 (new: loading the board over fake reads with names and order, and the filters).

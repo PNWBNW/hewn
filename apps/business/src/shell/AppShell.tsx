@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeftRight, Briefcase, ChartColumn, Clock, CreditCard, Download, FileText, FolderKanban, Home, IdCard, Inbox, Landmark, LayoutDashboard, Lock, LogOut, Mailbox, Menu, MessageSquare, Settings, type LucideIcon, Users, X } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
-import { useOpenBooks } from "@/books/BooksProvider";
+import { useBooks, useOpenBooks } from "@/books/BooksProvider";
 import { SETUP_PATH, setupRedirect, setupStep } from "@/books/setup";
 import { unreadCount } from "@/books/mailbox";
 import { unreadIn } from "@/books/thread";
@@ -40,6 +40,7 @@ const BUSINESS_NAV: NavItem[] = [
 export const WORK_NAV: NavItem[] = [
   { href: "/work", label: "Home", icon: Home },
   { href: "/work/offers", label: "Offers", icon: Inbox },
+  { href: "/board", label: "Find work", icon: Briefcase },
   { href: "/work/messages", label: "Messages", icon: MessageSquare },
   { href: "/work/hours", label: "Hours", icon: Clock },
   { href: "/work/paystubs", label: "Paystubs", icon: Mailbox },
@@ -48,9 +49,12 @@ export const WORK_NAV: NavItem[] = [
 
 export const isWorkPath = (pathname: string) => pathname === "/work" || pathname.startsWith("/work/");
 
+/** Pages anyone can read without an account: the job board. */
+export const isPublicPath = (pathname: string) => pathname === "/board" || pathname.startsWith("/board/");
+
 /** Where a vault of this role belongs when it lands on the other role's pages; null when the path is fine. */
 export function redirectFor(role: Role, pathname: string): string | null {
-  if (pathname === "/settings" || pathname.startsWith("/settings/")) return null;
+  if (pathname === "/settings" || pathname.startsWith("/settings/") || isPublicPath(pathname)) return null;
   if (role === "worker") return isWorkPath(pathname) ? null : "/work";
   return isWorkPath(pathname) ? "/" : null;
 }
@@ -171,7 +175,31 @@ function Rail({
   );
 }
 
+/** The app around a page: the rail and header once the books are open; a bare header for a public page before then. */
 export function AppShell({ children }: { children: ReactNode }) {
+  const { status } = useBooks();
+  return status === "open" ? <OpenShell>{children}</OpenShell> : <PublicShell>{children}</PublicShell>;
+}
+
+/** Around a public page (the job board) for someone without open books: the brand, and a way in. */
+function PublicShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur sm:px-6">
+        <Link href="/" className="flex min-h-11 items-center" aria-label={`${BRAND.name}, front page`}>
+          <BrandLogo height={24} />
+        </Link>
+        <div className="flex-1" />
+        <Link href="/" className="inline-flex min-h-11 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 sm:min-h-9">
+          Open {BRAND.name}
+        </Link>
+      </header>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:py-8">{children}</main>
+    </div>
+  );
+}
+
+function OpenShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { books, role, rail, work, lock, downloadBackup } = useOpenBooks();
