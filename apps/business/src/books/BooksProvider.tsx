@@ -40,6 +40,7 @@ import {
   vaultIdFor,
 } from "./account";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
+import type { Jobs } from "./jobs";
 import type { Mailbox } from "./mailbox";
 import type { Review } from "./review";
 import type { Funds } from "./funds";
@@ -113,6 +114,8 @@ type BooksContextValue = {
   review: Review | null;
   /** Set-asides inside the Shield account; null before one was made. */
   funds: Funds | null;
+  /** The business's postings on the job board; null before one was posted. */
+  jobs: Jobs | null;
   /** Whose vault this is; "business" until the books are open. */
   role: Role;
   /** A person's own side (agreements, hours, paystubs), or null on a business's books. */
@@ -483,6 +486,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       mailbox: company?.mailbox ?? null,
       review: company?.review ?? null,
       funds: company?.funds ?? null,
+      jobs: company?.jobs ?? null,
       role: company ? roleOf(company) : "business",
       work: company?.work ?? null,
       create,

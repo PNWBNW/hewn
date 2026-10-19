@@ -17,6 +17,7 @@ import { type Sales, emptySales, salesFromJson, salesToJson } from "@pnw/sales";
 import { type Mailbox, mailboxFromJson, mailboxToJson } from "./mailbox";
 import { type Review, reviewFromJson, reviewToJson } from "./review";
 import { type Funds, fundsFromJson, fundsToJson } from "./funds";
+import { type Jobs, jobsFromJson, jobsToJson } from "./jobs";
 import { type Rail, railFromJson, railToJson } from "./rail";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
 
@@ -32,6 +33,8 @@ export type Company = {
   review?: Review;
   /** Set-asides inside the Shield account (books/funds.ts). Only once one was made. */
   funds?: Funds;
+  /** The business's job postings on the board (books/jobs.ts). Only once one was posted. */
+  jobs?: Jobs;
   /** Who this vault belongs to: a business (the default) or a person who works for one. */
   role?: Role;
   /** A person's own side: agreements, hours, paystubs. Only on a worker's file. */
@@ -56,6 +59,7 @@ export function companyToJson(c: Company): string {
     ...(c.mailbox ? { mailbox: mailboxToJson(c.mailbox) } : {}),
     ...(c.review ? { review: reviewToJson(c.review) } : {}),
     ...(c.funds ? { funds: fundsToJson(c.funds) } : {}),
+    ...(c.jobs ? { jobs: jobsToJson(c.jobs) } : {}),
     ...(c.role ? { role: c.role } : {}),
     ...(c.work ? { work: workToJson(c.work) } : {}),
     ...(c.email ? { email: c.email } : {}),
@@ -74,6 +78,7 @@ export function companyFromJson(text: string): Company {
     mailbox?: string;
     review?: string;
     funds?: string;
+    jobs?: string;
     role?: string;
     work?: string;
     email?: string;
@@ -89,6 +94,7 @@ export function companyFromJson(text: string): Company {
     if (typeof doc.mailbox === "string") company.mailbox = mailboxFromJson(doc.mailbox);
     if (typeof doc.review === "string") company.review = reviewFromJson(doc.review);
     if (typeof doc.funds === "string") company.funds = fundsFromJson(doc.funds);
+    if (typeof doc.jobs === "string") company.jobs = jobsFromJson(doc.jobs);
     if (doc.role !== undefined) {
       if (!ROLES.includes(doc.role as Role)) throw new Error("Unknown role in this company file");
       company.role = doc.role as Role;
