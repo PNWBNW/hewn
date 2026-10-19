@@ -10,6 +10,8 @@
 // live in chain/jobs.ts.
 // ---------------------------------------------------------------------------
 
+import { PUBLIC_KEY } from "./thread";
+
 export type PayType = "hidden" | "hourly" | "yearly";
 export type EmploymentType = "unstated" | "full_time" | "part_time" | "seasonal" | "temporary" | "contract";
 export type Place = "unstated" | "on_site" | "remote" | "hybrid";
@@ -39,8 +41,16 @@ export type PostingFacts = {
   place: Place;
 };
 
-/** The posting's words. */
-export type PostingBody = { title: string; location: string; description: string };
+/**
+ * The posting's words, and its hiring key: the public half of a key pair the
+ * business made for this posting, so an applicant can seal an application
+ * only the business can open (chain/applications.ts). An uncompressed P-256
+ * point in hex. Absent on a posting made before hiring keys.
+ */
+export type PostingBody = { title: string; location: string; description: string; hiringKey?: string };
+
+/** A posting's key pair, as the business's vault keeps it. The private half never leaves the vault. */
+export type HiringKey = { publicKey: string; privateKey: JsonWebKey };
 
 export const MAX_TITLE_CHARS = 80;
 export const MAX_LOCATION_CHARS = 80;
@@ -94,11 +104,27 @@ export function validateBody(raw: unknown): PostingBody {
     if (t.length > max) throw new JobsError(`The ${what} is too long (at most ${max.toLocaleString("en-US")} characters)`);
     return t;
   };
-  return {
+  const body: PostingBody = {
     title: text(b.title, "title", MAX_TITLE_CHARS, true),
     location: text(b.location, "location", MAX_LOCATION_CHARS, false),
     description: text(b.description, "description", MAX_DESCRIPTION_CHARS, true),
   };
+  if (b.hiringKey !== undefined) {
+    if (typeof b.hiringKey !== "string" || !PUBLIC_KEY.test(b.hiringKey)) throw new JobsError("The posting's hiring key isn't valid");
+    body.hiringKey = b.hiringKey;
+  }
+  return body;
+}
+
+export function validateHiringKey(raw: unknown): HiringKey {
+  if (!raw || typeof raw !== "object") throw new JobsError("A hiring key must be an object");
+  const k = raw as Record<string, unknown>;
+  if (typeof k.publicKey !== "string" || !PUBLIC_KEY.test(k.publicKey)) throw new JobsError("A hiring key needs its public half");
+  const jwk = k.privateKey as Record<string, unknown> | null;
+  if (!jwk || typeof jwk !== "object" || jwk.kty !== "EC" || jwk.crv !== "P-256" || typeof jwk.d !== "string" || typeof jwk.x !== "string" || typeof jwk.y !== "string") {
+    throw new JobsError("A hiring key needs its private half");
+  }
+  return { publicKey: k.publicKey, privateKey: { kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y, d: jwk.d } };
 }
 
 /** A posting as the business keeps it: what's on the board, plus when and how it got there. */
@@ -115,6 +141,8 @@ export type JobPosting = PostingBody & {
   closedAt?: string;
   /** The block height the featured window runs to, as last set; 0 or absent when never featured. */
   featuredUntil?: number;
+  /** The posting's key pair; its public half is in the posting's body on the board. */
+  hiring?: HiringKey;
 };
 
 export type Jobs = { version: 1; postings: JobPosting[] };
@@ -140,6 +168,7 @@ function validatePosting(raw: unknown): JobPosting {
     if (!isCount(p.featuredUntil, 0xffff_ffff)) throw new JobsError("A posting's featured height isn't valid");
     posting.featuredUntil = p.featuredUntil;
   }
+  if (p.hiring !== undefined) posting.hiring = validateHiringKey(p.hiring);
   return posting;
 }
 

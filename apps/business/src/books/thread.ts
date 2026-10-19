@@ -68,7 +68,24 @@ export type ThreadBody =
   /** Between coworkers: one message in a group chat, sent to each member with the same id. */
   | { type: "group_text"; groupId: string; text: string }
   /** Between coworkers: leaving a group chat. */
-  | { type: "group_leave"; groupId: string };
+  | { type: "group_leave"; groupId: string }
+  /** The person applies to the business's posting (docs/JOB_BOARD.md): their registered name, a message and their resume as text. The first message of the conversation. */
+  | { type: "application"; postingId: string; name: string; nameHash: string; message: string; resume: string }
+  /** The business says where an application stands. */
+  | { type: "application_status"; postingId: string; status: ApplicationStatus };
+
+/** Where an application stands, as the business tells the person; "applied" is the state before any of these. */
+export const APPLICATION_STATUSES = ["seen", "interviewing", "offer_sent", "hired", "not_selected", "closed"] as const;
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus | "applied", string> = {
+  applied: "Applied",
+  seen: "Seen",
+  interviewing: "Interviewing",
+  offer_sent: "Offer sent",
+  hired: "Hired",
+  not_selected: "Not selected",
+  closed: "Posting closed",
+};
 
 /** The messages that negotiate an offer. */
 export type OfferStep = Extract<ThreadBody, { type: "counter" | "stands" | "revised" }>;
@@ -106,6 +123,8 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   group: "either",
   group_text: "either",
   group_leave: "either",
+  application: "worker",
+  application_status: "business",
 };
 
 /** The kinds that only travel between coworkers. */
@@ -127,6 +146,14 @@ const publicKey = (v: unknown): string => {
 
 export const MAX_NOTE_CHARS = 2_000;
 export const MAX_TEXT_CHARS = 4_000;
+/** An application's message and resume: a page holds about 7.9 KB packed, and plain English deflates about 3:1. */
+export const MAX_APPLICATION_CHARS = 2_000;
+export const MAX_RESUME_CHARS = 15_000;
+const POSTING_ID = /^[0-9]{1,78}$/;
+const postingId = (v: unknown): string => {
+  if (typeof v !== "string" || !POSTING_ID.test(v) || /^0+$/.test(v)) throw new ThreadError("A message must name its posting");
+  return v;
+};
 const MAX_TERMS_CHARS = 20_000;
 const MAX_SEQ = 0xffff_ffff;
 const HEX = /^[0-9a-f]{16,64}$/;
@@ -247,6 +274,19 @@ function validateBody(raw: unknown): ThreadBody {
     case "group_leave":
       if (typeof raw.groupId !== "string" || !/^[0-9a-f]{16}$/.test(raw.groupId)) throw new ThreadError("Leaving needs the group");
       return { type: "group_leave", groupId: raw.groupId };
+    case "application": {
+      const { name, nameHash, message, resume } = raw;
+      if (typeof nameHash !== "string" || !POSTING_ID.test(nameHash)) throw new ThreadError("An application needs the applicant's registered name");
+      if (typeof message !== "string") throw new ThreadError("An application's message must be text");
+      if ([...message].length > MAX_APPLICATION_CHARS) throw new ThreadError(`An application's message can be at most ${MAX_APPLICATION_CHARS.toLocaleString("en-US")} characters`);
+      if (typeof resume !== "string" || !resume.trim()) throw new ThreadError("An application needs a resume");
+      if ([...resume].length > MAX_RESUME_CHARS) throw new ThreadError(`A resume can be at most ${MAX_RESUME_CHARS.toLocaleString("en-US")} characters`);
+      return { type: "application", postingId: postingId(raw.postingId), name: directoryName(name), nameHash, message: message.trim(), resume: resume.trim() };
+    }
+    case "application_status": {
+      if (!APPLICATION_STATUSES.includes(raw.status as ApplicationStatus)) throw new ThreadError("That application status isn't one this app knows");
+      return { type: "application_status", postingId: postingId(raw.postingId), status: raw.status as ApplicationStatus };
+    }
     case "text": {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
       if ([...raw.text].length > MAX_TEXT_CHARS) throw new ThreadError(`A message can be at most ${MAX_TEXT_CHARS.toLocaleString("en-US")} characters`);
@@ -398,6 +438,8 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "group") return `Group: ${b.name}`;
   if (b.type === "group_text") return (item.mine ? "You: " : "") + b.text.slice(0, 80);
   if (b.type === "group_leave") return "Left a group";
+  if (b.type === "application") return item.mine ? "You applied" : "Applied";
+  if (b.type === "application_status") return item.mine ? `You marked the application: ${APPLICATION_STATUS_LABEL[b.status]}` : `Your application: ${APPLICATION_STATUS_LABEL[b.status]}`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";
   return item.mine ? "You sent a revised offer" : "Sent a revised offer";

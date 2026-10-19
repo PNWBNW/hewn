@@ -2950,3 +2950,31 @@ parsing the explorer's postings and walking the newest with a fake read).
   apply". A signed-in worker sees "Applying from here comes next" until the next PR.
 
 Tests: 875/875 (new: loading the board over fake reads with names and order, and the filters).
+
+## 2026-10-19: applying from the board, with a resume builder
+
+The private half of the job board (hewn #96): a worker applies to a posting and keeps track of it.
+- **Hiring key:** every posting now carries the public half of an ECDH P-256 key pair the business
+  made for it (a fourth element in the body); the private half lives in the business's vault.
+  Changing a posting keeps its key.
+- **Applying** (`chain/applications.ts`, `chain/work/Apply.tsx`): the person's `.hewn` name, a
+  message and their resume as text. A one-time key pair and the hiring key make the pair's parties
+  key (HKDF over ECDH, salt `PNW::APPLICATION::v1`); the application goes as one letter to the
+  business's account under the posting's application lookup (SHA-256 of the salt and the posting
+  id, the same for every applicant): the one-time public key in the clear, then the application
+  sealed under the parties key as slot 0 of the person's side. One application per posting per
+  account (the letter box's slot check). The business will read every letter under that lookup
+  (`LetterBox.getAll`, new) and open each with its private half (`unpackApplication`).
+- **Resume builder** (`books/resume.ts`): a few questions (name, a line, contact, summary, jobs,
+  schooling, skills) become plain text the person edits before sending. PDF import is still to come.
+- **Applications** (`/work/applications`, in the navigation): each job applied to, with its status:
+  Applied, then whatever the business last said (Seen, Interviewing, Offer sent, Hired, Not
+  selected, Posting closed; a new `application_status` message, business-only). The conversation
+  is under Messages, named by the posting, and the Messages check reads it like any employer's.
+- Messages between the two: `application` (worker-only) and `application_status` (business-only)
+  join the thread kinds; an application shows as a card with the resume folded away.
+
+Tests: 887/887 (new: the key agreement from both sides, the application letter opening only with
+the posting's key and refusing tampering or another posting, a long resume deflated and one that
+won't fit, the thread kinds' side rules, the vault's applications and their status, the resume
+text, the body with a hiring key).

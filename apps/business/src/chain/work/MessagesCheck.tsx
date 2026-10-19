@@ -48,7 +48,7 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
         latest = await updateWork(op);
       };
       let off = false; // the mailbox, without Shield
-      const employers = new Map(work.agreements.map((a) => [a.partiesKey, a.employerAddress]));
+      const employers = new Map([...work.agreements.map((a) => [a.partiesKey, a.employerAddress] as const), ...(work.applications ?? []).map((a) => [a.partiesKey, a.employerAddress] as const)]);
       for (const [partiesKey, employer] of employers) {
         const r = await readThread({
           client: letters ? letterThread(wallet, employer, { letters, mailbox: client }).reader : client,

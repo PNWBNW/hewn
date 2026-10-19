@@ -230,6 +230,11 @@ export class LetterBox {
     return (await this.read()).received.get(lookup)?.envelope ?? null;
   }
 
+  /** Every letter received under `lookup`: a slot many people write to (applications to a posting), oldest first. */
+  async getAll(lookup: string): Promise<LetterRecord[]> {
+    return (await this.read()).all.get(lookup) ?? [];
+  }
+
   /** Whether this account has sent a letter under `lookup` (read afresh). */
   async hasSent(lookup: string): Promise<boolean> {
     this.refresh();
@@ -255,19 +260,23 @@ export class LetterBox {
   }
 
   private async load(): Promise<Letters> {
-    const out: Letters = { received: new Map(), sent: new Set() };
+    const out: Letters = { received: new Map(), all: new Map(), sent: new Set() };
     const raw = (await Promise.all(LETTER_PROGRAMS.map((p) => this.wallet.requestRecords(p, true)))).flatMap((r) => (Array.isArray(r) ? r : []));
     for (const r of raw) {
       const letter = parseLetterRecord(r);
       if (!letter) continue;
       if (letter.kind === "sent") out.sent.add(letter.lookup);
-      else if (!out.received.has(letter.lookup)) out.received.set(letter.lookup, letter);
+      else {
+        if (!out.received.has(letter.lookup)) out.received.set(letter.lookup, letter);
+        out.all.set(letter.lookup, [...(out.all.get(letter.lookup) ?? []), letter]);
+      }
     }
+    for (const list of out.all.values()) list.sort((a, b) => (a.blockHeight ?? 0) - (b.blockHeight ?? 0));
     return out;
   }
 }
 
-type Letters = { received: Map<string, LetterRecord>; sent: Set<string> };
+type Letters = { received: Map<string, LetterRecord>; all: Map<string, LetterRecord[]>; sent: Set<string> };
 
 /**
  * Sends one announcement to many accounts: one Shield approval for each

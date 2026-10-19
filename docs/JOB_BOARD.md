@@ -1,8 +1,9 @@
 # The job board: design
 
 Status: **`hewn_jobs_v1.aleo` merged in PNWBNW/pnw_mvp_v2 (#206, #207), deploying to testnet**
-(Joshua, 2026-10-19). In the app: posting from the business's Jobs page (#94), and the public board
-(`/board`, with the worker's "Find work"). Next: applying, the applications and applicants lists.
+(Joshua, 2026-10-19). In the app: posting from the business's Jobs page (#94), the public board
+(`/board`, with the worker's "Find work", #95), applying with a resume builder and the person's
+Applications list. Next: the business's applicants per posting.
 
 ## What it is
 
@@ -91,19 +92,42 @@ description or business name) and on the facts. `chain/Board.tsx` is the page: s
 filters, Refresh, each posting opening to its description, and for a visitor "Open Hewn to apply".
 A posting written for a newer app (a body this one can't unpack) is listed without its words.
 
-### Applying, and a person's applications (next)
+### Applying, and a person's applications
 
-Apply is the next PR; the board shows "Applying from here comes next" to a signed-in worker until then.
+The private part. The two have no key in common yet, so the first letter makes one
+(`chain/applications.ts`):
 
-An application is a letter to the business's account (looked up from its name on the registry):
-the person's `.hewn` name, a message, and a full resume as text. A resume builder guides people who
-don't have one; "Import from PDF" extracts the text locally (a PDF can't go on chain). The person's
-vault lists each application with its status: Applied, Seen, Interviewing, Offer sent, Hired, Not
-selected, Posting closed. Statuses arrive as letters from the business.
+- **Hiring key:** when a business posts, the app makes an ECDH P-256 key pair for that posting;
+  the public half rides in the posting's body on the board (a fourth element after the title,
+  location and description) and the private half stays in the business's vault (`hiring` on the
+  posting). Changing a posting keeps its key; a posting made before hiring keys can't take
+  applications from the board.
+- **Applying** (`chain/work/Apply.tsx`, from the board when a worker is signed in): the person's
+  registered `.hewn` name, a message (at most 2,000 characters) and their resume as text (at most
+  15,000). A resume builder (`books/resume.ts`) turns a few questions into text the person can
+  edit; "Import from PDF" is still to come. The app makes a one-time key pair, derives
+  HKDF-SHA256(ECDH(one-time, hiring), salt `PNW::APPLICATION::v1`, info = posting id ‖ one-time
+  public ‖ hiring public) as the pair's parties key, and sends one letter (a page, one approval) to
+  the business's account (from the registry) under the posting's **application lookup**,
+  SHA-256(`PNW::APPLICATION::v1` ‖ posting id): the one-time public key in the clear, then the
+  application sealed under the parties key (slot 0 of the person's side, kind `application`). The
+  letter record itself is already encrypted to the business, so the one-time key gives a view-key
+  holder nothing without the posting's private half. Each account can apply once to a posting
+  (the letter box refuses a second letter under the same lookup).
+- **After:** the business derives the same key from its private half and the one-time public key,
+  and the two talk in an ordinary thread under it: the person's side from slot 1, the business's
+  from slot 0. The person's vault keeps the application (`work.applications`: posting, business,
+  title, key, when) and the conversation under that key, so it shows in Messages, named by the
+  posting; the Messages check reads replies like any employer's. **Applications**
+  (`/work/applications`) lists each with its status: Applied until the business says otherwise,
+  then Seen, Interviewing, Offer sent, Hired, Not selected or Posting closed (a
+  `application_status` message, business-only; the latest one counts).
 
 ### Business: applicants (next)
 
-Each posting lists its applicants, from the application letters in the vault. From an applicant:
+Each posting lists its applicants: the business reads every letter under the posting's application
+lookup (`LetterBox.getAll`), opens each with the posting's hiring key (`unpackApplication`), and
+keeps a thread per applicant under the derived key. From an applicant:
 read the resume, message them (the existing conversation), set up an interview (a time and a place
 or a meeting link, sent as a letter; video calls happen on Teams or the like, not on chain), send
 an offer (the existing offer flow, pre-filled from the posting), or mark Not selected (a letter).

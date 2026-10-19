@@ -34,6 +34,7 @@ import {
 import { shortAddress } from "@/books/rail";
 import { FeeChoice } from "./FeeChoice";
 import { ShieldStatus } from "./ShieldStatus";
+import { newHiringKey } from "./applications";
 import { queryEmployerSuffix } from "./directory";
 import {
   MAX_FEATURE_DAYS,
@@ -158,7 +159,9 @@ function EditFlow({ posting, keyFor, wallet, onClose }: FlowProps & { posting?: 
       const h = hours.trim() ? Number(hours) : 0;
       if (!Number.isFinite(h) || h < 0) throw new Error("Hours a week must be a number");
       const facts = validateFacts({ payType, payMinCents: min, payMaxCents: max, employmentType, hoursPerWeekTenths: Math.round(h * 10), place });
-      const body = validateBody({ title, location, description });
+      // The posting's hiring key: applicants seal their application to its public half (chain/applications.ts).
+      const hiring = posting?.hiring ?? (await newHiringKey());
+      const body = validateBody({ title, location, description, hiringKey: hiring.publicKey });
       setProgress("Packing the posting…");
       const fields = await packBody(body);
       const id = posting?.id ?? newPostingId();
@@ -166,7 +169,7 @@ function EditFlow({ posting, keyFor, wallet, onClose }: FlowProps & { posting?: 
       setProgress("Approve it in Shield…");
       const { transactionId } = await executeAndWait(wallet, { ...call, feeMode });
       const now = new Date().toISOString();
-      const saved: JobPosting = editing ? { ...posting, ...body, facts, updatedAt: now } : { ...body, id, facts, postedAt: now, transactionId };
+      const saved: JobPosting = editing ? { ...posting, ...body, facts, hiring, updatedAt: now } : { ...body, id, facts, hiring, postedAt: now, transactionId };
       await updateCompany((c) => ({ ...c, jobs: putPosting(c.jobs, saved) }));
       onClose();
     } catch (e) {

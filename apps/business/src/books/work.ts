@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AttachmentRef } from "@pnw/sales";
-import { type Thread, emptyThread, validateThread } from "./thread";
+import { type ApplicationStatus, type Thread, emptyThread, validateThread } from "./thread";
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
 import { type CoworkerThread, type Identity, validateCoworkerThread, validateIdentity } from "./directory";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
@@ -109,6 +109,23 @@ export type Work = {
   identities?: Record<string, Identity>;
   /** Conversations with coworkers, by their public key. */
   coworkers?: Record<string, CoworkerThread>;
+  /** Jobs this person applied to on the board (docs/JOB_BOARD.md); the conversation is the thread under the application's key. */
+  applications?: Application[];
+};
+
+/** One application, as the person's vault keeps it. Its status is read from the thread (applicationStatus). */
+export type Application = {
+  /** The posting's id on the board: a decimal field, no suffix. */
+  postingId: string;
+  employerNameHash: string;
+  employerName?: string;
+  employerAddress: string;
+  /** The posting's title when applied, for the list. */
+  title: string;
+  /** The key only the two of them can make (chain/applications.ts); the thread's key. */
+  partiesKey: string;
+  sentAt: string;
+  transactionId?: string;
 };
 
 export class WorkError extends Error {
@@ -308,6 +325,32 @@ function validateSeq(raw: unknown): Record<string, MailboxSeq> {
   return out;
 }
 
+const POSTING_ID = /^[0-9]{1,78}$/;
+const NAME_HASH = /^[0-9]{1,78}$/;
+const TX = /^[a-z0-9_]{1,80}$/;
+
+function validateApplication(raw: unknown): Application {
+  if (!isObject(raw)) throw new WorkError("An application must be an object");
+  if (typeof raw.postingId !== "string" || !POSTING_ID.test(raw.postingId) || /^0+$/.test(raw.postingId)) throw new WorkError("An application needs its posting");
+  if (typeof raw.employerNameHash !== "string" || !NAME_HASH.test(raw.employerNameHash)) throw new WorkError("An application needs the business's name");
+  if (typeof raw.employerAddress !== "string" || !ADDRESS.test(raw.employerAddress)) throw new WorkError("An application needs the business's account");
+  if (typeof raw.partiesKey !== "string" || !PARTIES_KEY.test(raw.partiesKey)) throw new WorkError("An application needs its key");
+  const a: Application = {
+    postingId: raw.postingId,
+    employerNameHash: raw.employerNameHash,
+    employerAddress: raw.employerAddress,
+    title: text(raw.title, "The posting's title"),
+    partiesKey: raw.partiesKey,
+    sentAt: isoDate(raw.sentAt, "The time an application was sent"),
+  };
+  if (raw.employerName !== undefined) a.employerName = text(raw.employerName, "The business's name");
+  if (raw.transactionId !== undefined) {
+    if (typeof raw.transactionId !== "string" || !TX.test(raw.transactionId)) throw new WorkError("An application's transaction isn't valid");
+    a.transactionId = raw.transactionId;
+  }
+  return a;
+}
+
 /** Checks every field; later agreements with the same id replace earlier ones. */
 export function validateWork(raw: unknown): Work {
   if (!isObject(raw)) throw new WorkError("Work must be an object");
@@ -329,6 +372,12 @@ export function validateWork(raw: unknown): Work {
     mailboxSeq: validateSeq(raw.mailboxSeq ?? {}),
   };
   if (raw.profile !== undefined) work.profile = validateProfile(raw.profile);
+  if (raw.applications !== undefined) {
+    if (!Array.isArray(raw.applications)) throw new WorkError("The applications must be a list");
+    const apps = raw.applications.map(validateApplication);
+    if (new Set(apps.map((a) => a.postingId)).size !== apps.length) throw new WorkError("An application is listed twice");
+    if (apps.length > 0) work.applications = apps;
+  }
   if (raw.threads !== undefined) {
     if (!isObject(raw.threads)) throw new WorkError("The threads must be an object");
     const threads: Record<string, Thread> = {};
@@ -549,4 +598,21 @@ export function removePunch(work: Work, id: string): Work {
     checkPunches(punches);
   }
   return validateWork({ ...work, punches });
+}
+
+// ---- Applications ------------------------------------------------------------
+
+/** Keeps an application (one per posting; a later one for the same posting replaces it), newest first. */
+export function addApplication(work: Work, application: Application): Work {
+  const rest = (work.applications ?? []).filter((a) => a.postingId !== application.postingId);
+  return validateWork({ ...work, applications: [application, ...rest].sort((a, b) => (a.sentAt < b.sentAt ? 1 : -1)) });
+}
+
+export const applicationFor = (work: Work, postingId: string): Application | undefined => work.applications?.find((a) => a.postingId === postingId);
+
+/** Where an application stands: the business's latest word in the thread, else "applied". */
+export function applicationStatus(work: Work, application: Application): ApplicationStatus | "applied" {
+  const thread = workThread(work, application.partiesKey);
+  const latest = [...(thread?.items ?? [])].reverse().find((i) => !i.mine && i.body.type === "application_status" && i.body.postingId === application.postingId);
+  return latest && latest.body.type === "application_status" ? latest.body.status : "applied";
 }

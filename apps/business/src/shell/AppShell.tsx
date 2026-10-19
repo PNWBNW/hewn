@@ -41,6 +41,7 @@ export const WORK_NAV: NavItem[] = [
   { href: "/work", label: "Home", icon: Home },
   { href: "/work/offers", label: "Offers", icon: Inbox },
   { href: "/board", label: "Find work", icon: Briefcase },
+  { href: "/work/applications", label: "Applications", icon: FileText },
   { href: "/work/messages", label: "Messages", icon: MessageSquare },
   { href: "/work/hours", label: "Hours", icon: Clock },
   { href: "/work/paystubs", label: "Paystubs", icon: Mailbox },

@@ -9,18 +9,22 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronDown, ChevronUp, RefreshCw, Star } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { inputClass } from "@/books/AuthCard";
+import { useBooks } from "@/books/BooksProvider";
 import { EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABEL, PAY_TYPES, PAY_TYPE_LABEL, PLACES, PLACE_LABEL, factsLine, payLine } from "@/books/jobs";
 import { BRAND } from "@/brand";
 import { type BoardEntry, type BoardFilter, boardReads, filterBoard, loadBoard } from "./board";
 import { featuredDaysLeft } from "./jobs";
 
 export type BoardProps = { viewer: "visitor" | "worker" | "business" };
+
+const ApplyPanel = dynamic(() => import("./work/Apply"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 
 type Loaded = { entries: BoardEntry[]; height: number; total: number };
 
@@ -30,6 +34,8 @@ export default function Board({ viewer }: BoardProps) {
   const [run, setRun] = useState(0);
   const [filter, setFilter] = useState<BoardFilter>({ text: "", employmentType: "", place: "", payType: "" });
   const [open, setOpen] = useState<string | null>(null);
+  const [applying, setApplying] = useState<string | null>(null);
+  const { work } = useBooks();
 
   useEffect(() => {
     let live = true;
@@ -123,7 +129,14 @@ export default function Board({ viewer }: BoardProps) {
                             {e.featured ? `Featured for about ${featuredDaysLeft(e.featuredUntil, loaded.height)} more ${featuredDaysLeft(e.featuredUntil, loaded.height) === 1 ? "day" : "days"}. ` : ""}
                             Posted at block {e.postedHeight.toLocaleString("en-US")}.
                           </p>
-                          <Apply viewer={viewer} />
+                          <Apply
+                            viewer={viewer}
+                            entry={e}
+                            applied={!!work?.applications?.some((a) => a.postingId === e.id)}
+                            applying={applying === e.id}
+                            onApply={() => setApplying(e.id)}
+                            onClose={() => setApplying(null)}
+                          />
                         </div>
                       )}
                     </li>
@@ -143,7 +156,7 @@ export default function Board({ viewer }: BoardProps) {
   );
 }
 
-function Apply({ viewer }: BoardProps) {
+function Apply({ viewer, entry, applied, applying, onApply, onClose }: BoardProps & { entry: BoardEntry; applied: boolean; applying: boolean; onApply: () => void; onClose: () => void }) {
   if (viewer === "business") return null;
   if (viewer === "visitor") {
     return (
@@ -155,5 +168,21 @@ function Apply({ viewer }: BoardProps) {
       </div>
     );
   }
-  return <p className="text-xs text-muted-foreground">Applying from here comes next.</p>;
+  if (applied) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        You applied.{" "}
+        <Link href="/work/applications" className="font-medium text-primary underline underline-offset-4">
+          Your applications
+        </Link>
+      </p>
+    );
+  }
+  if (!entry.body?.hiringKey) return <p className="text-xs text-muted-foreground">This posting can't take applications from here.</p>;
+  if (applying) return <ApplyPanel entry={entry} onClose={onClose} />;
+  return (
+    <Button className="min-h-11 self-start sm:min-h-9" onClick={onApply}>
+      Apply
+    </Button>
+  );
 }

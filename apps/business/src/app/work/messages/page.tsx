@@ -17,6 +17,7 @@ import { markPostsRead, unreadPosts } from "@/books/channels";
 import { coworkerTag, coworkersFrom } from "@/books/directory";
 import { type Thread, preview, unreadIn } from "@/books/thread";
 import { updateWorkChannels, updateWorkThread, workThread } from "@/books/work";
+import { BRAND } from "@/brand";
 import { PageHeader } from "@/shell/SectionView";
 import { employerLabel } from "../shared";
 
@@ -52,6 +53,10 @@ function Messages() {
   for (const a of work.agreements) {
     if (a.status === "terminated" && !a.acceptedAt) continue;
     if (!byKey.has(a.partiesKey)) byKey.set(a.partiesKey, { partiesKey: a.partiesKey, name: employerLabel(a), ref: a.agreementId, address: a.employerAddress });
+  }
+  // A job applied to on the board is a conversation too, named by its posting.
+  for (const a of work.applications ?? []) {
+    if (!byKey.has(a.partiesKey)) byKey.set(a.partiesKey, { partiesKey: a.partiesKey, name: `${a.employerName ? `${a.employerName}.${BRAND.nameSuffix}` : "A business"} · ${a.title}`, ref: a.postingId, address: a.employerAddress });
   }
   const people = [...byKey.values()]
     .map((p) => ({ ...p, thread: workThread(work, p.partiesKey) }))

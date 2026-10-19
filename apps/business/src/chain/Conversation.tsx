@@ -330,6 +330,19 @@ function Bubble({ item, title, offersHref }: { item: ThreadItem; title: string; 
       </p>
     );
   }
+  if (b.type === "application") {
+    // The application that opened this conversation: the message, and the resume folded away.
+    return (
+      <div className="flex max-w-[90%] flex-col gap-2 rounded-xl border border-primary/40 bg-card px-3 py-2 text-sm">
+        <span className="font-medium">{item.mine ? "Your application" : `${b.name}'s application`}</span>
+        {b.message && <p className="whitespace-pre-wrap break-words">{b.message}</p>}
+        <details>
+          <summary className="cursor-pointer text-xs font-medium text-primary">Resume</summary>
+          <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{b.resume}</pre>
+        </details>
+      </div>
+    );
+  }
   if (!isOfferStep(b)) {
     // A channel key or a removal: a quiet line, not a bubble.
     return <p className="max-w-[90%] rounded-md bg-muted px-3 py-1 text-xs text-muted-foreground">{item.mine ? preview(item) : `${title}: ${lowerFirst(preview(item))}`}</p>;
