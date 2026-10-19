@@ -50,8 +50,9 @@ export const WORK_NAV: NavItem[] = [
 
 export const isWorkPath = (pathname: string) => pathname === "/work" || pathname.startsWith("/work/");
 
-/** Pages anyone can read without an account: the job board. */
-export const isPublicPath = (pathname: string) => pathname === "/board" || pathname.startsWith("/board/");
+/** Pages anyone can read without an account: the job board, and traction. */
+export const isPublicPath = (pathname: string) =>
+  ["/board", "/traction"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 /** Where a vault of this role belongs when it lands on the other role's pages; null when the path is fine. */
 export function redirectFor(role: Role, pathname: string): string | null {
