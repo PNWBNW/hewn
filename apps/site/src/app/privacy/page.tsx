@@ -63,6 +63,12 @@ export default function Privacy() {
               books, names, amounts and messages stay on your device. We may turn it off when{" "}
               {BRAND.name} moves to mainnet.
             </li>
+            <li>
+              For the public map of where {BRAND.name} is used, we also keep two running totals per
+              country: visits and visitors since launch. No dates, no addresses, nothing per person. Your
+              device remembers it has been counted and sends only yes or no. A country appears on the map
+              only once it has five visitors.
+            </li>
             <li>No tracking across sites, no advertising, no profiles. We do not know who you are.</li>
             <li>No cookies.</li>
             <li>No third-party scripts, fonts or embeds. Every page is served from our own address.</li>

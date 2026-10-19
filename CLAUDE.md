@@ -55,6 +55,11 @@ company and protocol namespace).
 - Public Aleo mappings hold only hashes, commitments and block heights. Never a plaintext amount,
   account name, memo or identity.
 - Aggregates publish only as proofs, with a minimum group size (no single-worker inference).
+- **One exception: testnet traction counts (Joshua, 2026-10-19).** Two totals per country since launch
+  (visits, visitors) in a small Upstash store, nothing else: no dates, no addresses, no ids. A
+  visitor is decided on the device (it remembers it was counted) and only yes/no is sent. Published
+  on `/traction` only for countries with at least 5 visitors, cached for a day
+  (`apps/business/src/app/api/traction/counts.ts`). Nothing else may be stored this way.
 
 **Keys and storage**
 - Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs.

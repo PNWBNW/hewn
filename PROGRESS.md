@@ -3035,3 +3035,24 @@ Joshua asked to see how much traffic the site gets, and chose Vercel Web Analyti
   but nothing is recorded.
 
 Tests: 890/890; typecheck, build and audit pass.
+
+## 2026-10-19: the traction map
+
+A public `/traction` page: where people have opened Hewn since launch, by country (Joshua: totals
+since launch only, never by day).
+- **Counting** (`app/api/count`, `app/api/traction/counts.ts`, `VisitCounter.tsx`): one count per
+  browser session; the device decides whether it is a first visit and sends only yes/no. The server
+  reads only Vercel's country header and adds to two totals per country in Upstash (REST, no client
+  library). Same-origin only; always answers 204.
+- **Publishing** (`app/api/traction`): countries with at least 5 visitors, plus overall totals and
+  how many countries are below the floor; cached a day at the edge.
+- **The page** (`traction/TractionMap.tsx`): a world map (Natural Earth outlines projected ahead of
+  time into `public/traction/world.json`, 120 KB, no map library), four binned steps of one green
+  (validated light and dark), a tooltip per country, stat tiles, a legend and a table. A public path
+  like `/board`.
+- **Rules:** CLAUDE.md now carries this as the one, narrow exception to "no database"; the threat
+  model and the privacy page say what is kept.
+- **To switch it on:** add **Upstash** (its "Upstash for Redis" database, free plan) from the Vercel
+  marketplace and connect it to the project (it sets the `KV_REST_API_*` settings). Not the separate
+  "Redis" (Redis Cloud) listing: that one gives only a TCP `REDIS_URL`, and the store talks to
+  Upstash's REST API. Until then nothing is counted and the map shows zeros.
