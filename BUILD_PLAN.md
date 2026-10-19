@@ -295,6 +295,8 @@ Exit criteria
 - [ ] The app registers both tiers through Shield, finds people by address or name, and shows a
   linked party's `name.hewn` read from the ANS registry
 - [ ] Mainnet deploy, with `config/mainnet.manifest.json` as its source of truth
+- [ ] Maybe: turn off the testnet page counts (Vercel Web Analytics, hewn #100) before mainnet, or keep
+  them; decide at launch (Joshua, 2026-10-19)
 
 ## Operating costs, fees and hosting (plan, Joshua 2026-10-16)
 

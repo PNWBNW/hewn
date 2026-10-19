@@ -3029,7 +3029,9 @@ Joshua asked to see how much traffic the site gets, and chose Vercel Web Analyti
   cookies, no third parties", saying exactly what is counted. The app's footer now says the books
   are never sent to a server (it said nothing is). The site's boundary test names the package as
   its one runtime addition.
-- **To switch it on:** Vercel → each project (the app, and the site) → Analytics → Enable. Until
-  then the script is served but nothing is recorded.
+- **Testnet only, for now:** the privacy page says the counts are for the testnet period and may be
+  turned off at mainnet; `BUILD_PLAN.md` carries it as a maybe on the mainnet list.
+- **To switch it on:** Vercel → the project → Analytics → Enable. Until then the script is served
+  but nothing is recorded.
 
 Tests: 890/890; typecheck, build and audit pass.

@@ -56,11 +56,12 @@ export default function Privacy() {
         <Block title="Page counts, no tracking, no cookies, no third parties">
           <ul className={list}>
             <li>
-              We count page views, in aggregate, so we know how many people visit and which pages they
-              read. The count is the page's address with nothing after it, the site that linked you here,
-              and your rough country, browser and device type. It uses no cookies and nothing that
-              identifies you, and it never sees anything inside the app: your books, names, amounts and
-              messages stay on your device.
+              While {BRAND.name} is on testnet, we count page views in aggregate, to see how many people
+              are trying it and which pages they read. The count is the page's address with nothing after
+              it, the site that linked you here, and your rough country, browser and device type. It uses
+              no cookies and nothing that identifies you, and it never sees anything inside the app: your
+              books, names, amounts and messages stay on your device. We may turn it off when{" "}
+              {BRAND.name} moves to mainnet.
             </li>
             <li>No tracking across sites, no advertising, no profiles. We do not know who you are.</li>
             <li>No cookies.</li>
