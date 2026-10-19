@@ -1,6 +1,8 @@
 // The marketing site is a brochure. It carries the brand, the shared security
 // policy and the UI tokens, and nothing else: no ledger, no vault, no chain
 // package, no third-party script. Its security policy names no host at all.
+// The one runtime addition is Vercel Web Analytics (Joshua, 2026-10-19):
+// aggregate page views, no cookies, served from the site's own address.
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -11,7 +13,7 @@ const APP_ROOT = join(__dirname, "..");
 const SRC = join(APP_ROOT, "src");
 
 const ALLOWED_WORKSPACE = ["@pnw/brand", "@pnw/security", "@pnw/ui"];
-const ALLOWED_THIRD_PARTY = ["lucide-react", "next", "react", "react-dom"];
+const ALLOWED_THIRD_PARTY = ["@vercel/analytics", "lucide-react", "next", "react", "react-dom"];
 
 const CHAIN_PACKAGES = ["@pnw/wallet", "@pnw/pnw-adapter", "@pnw/rail", "@pnw/records", "@pnw/config", "@pnw/commitments"];
 const CHAIN_SCOPES = ["@provablehq/", "aleo-adapters"];

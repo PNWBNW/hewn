@@ -3014,3 +3014,24 @@ Joshua, posting the test job, saw "Private" as a fee option and asked whether a 
 the posting private. It doesn't: the choice only decides which ALEO pays the network fee; the
 posting goes into public mappings either way, and the $1 USDCx is a public transfer. The Jobs
 panel now says so under the fee choice on post, change, feature and close (`chain/JobPanel.tsx`).
+
+## 2026-10-19: aggregate page views (Vercel Web Analytics)
+
+Joshua asked to see how much traffic the site gets, and chose Vercel Web Analytics.
+- **What's counted:** page views in aggregate, on the marketing site and the app. Vercel's
+  `@vercel/analytics` 2.0.1 (pinned) in each root layout (`src/PageViews.tsx`). No cookies, nothing
+  that identifies a person. The script and its endpoint are on each site's own address, so the
+  security policy is unchanged (still `'self'` only; the injected script runs under `strict-dynamic`).
+- **What's sent:** the path only. `beforeSend` strips the query string and hash, so nothing a link
+  carries (an agreement id, a filter) leaves the page. Books, names, amounts and messages never do:
+  they live in the vault, not in a URL.
+- **Wording:** the privacy page's "No analytics of any kind" became "Page counts, no tracking, no
+  cookies, no third parties", saying exactly what is counted. The app's footer now says the books
+  are never sent to a server (it said nothing is). The site's boundary test names the package as
+  its one runtime addition.
+- **Testnet only, for now:** the privacy page says the counts are for the testnet period and may be
+  turned off at mainnet; `BUILD_PLAN.md` carries it as a maybe on the mainnet list.
+- **To switch it on:** Vercel → the project → Analytics → Enable. Until then the script is served
+  but nothing is recorded.
+
+Tests: 890/890; typecheck, build and audit pass.

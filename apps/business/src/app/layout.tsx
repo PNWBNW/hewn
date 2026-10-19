@@ -4,6 +4,7 @@ import { BRAND } from "@/brand";
 import { AppShell } from "@/shell/AppShell";
 import { BooksGate } from "@/books/BooksGate";
 import { BooksProvider } from "@/books/BooksProvider";
+import { PageViews } from "@/PageViews";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <AppShell>{children}</AppShell>
           </BooksGate>
         </BooksProvider>
+        <PageViews />
       </body>
     </html>
   );
