@@ -20,6 +20,7 @@ import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./ch
 import { type CoworkerThread, type Identity, validateCoworkerThread, validateIdentity } from "./directory";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 import { type JobFields, validateJobFields } from "./terms_words";
+import { type WorkWeek, validateWorkWeek } from "./work_week";
 
 export type Role = "business" | "worker";
 
@@ -41,8 +42,11 @@ export type TermsV1 = {
   offeredAt: string;
 };
 
-/** Version 2, the offer letter: version 1 plus the letter's sections and the attached files (books/offer_letter.ts). */
-export type TermsV2 = Omit<TermsV1, "version"> & JobFields & { version: 2; expiresAt: string; letter: Letter; files: OfferFile[] };
+/**
+ * Version 2, the offer letter: version 1 plus the letter's sections and the attached files
+ * (books/offer_letter.ts), the job fields, and, on offers made since, the work week (books/work_week.ts).
+ */
+export type TermsV2 = Omit<TermsV1, "version"> & JobFields & { version: 2; expiresAt: string; letter: Letter; files: OfferFile[]; workWeek?: WorkWeek };
 
 export type Terms = TermsV1 | TermsV2;
 
@@ -65,7 +69,7 @@ export type Punch = { id: string; agreementId: string; at: string; kind: "in" | 
 
 export type SentTimesheet = {
   agreementId: string;
-  /** Monday, YYYY-MM-DD. */
+  /** The first day of the work week, YYYY-MM-DD (books/hours.ts `weekStartOf`). */
   weekStart: string;
   seq: number;
   lookup: string;
@@ -206,13 +210,15 @@ export function validateTerms(raw: unknown): Terms {
   };
   if (raw.version === 1) return { version: 1, ...common };
   let job: JobFields;
+  let workWeek: { workWeek: WorkWeek } | Record<string, never> = {};
   try {
     job = validateJobFields(raw);
+    if (raw.workWeek !== undefined) workWeek = { workWeek: validateWorkWeek(raw.workWeek) };
   } catch (e) {
     throw new WorkError(e instanceof Error ? e.message : "The job fields aren't valid");
   }
   try {
-    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, raw.expiresAt), letter: validateLetter(raw.letter), files: validateOfferFiles(raw.files), ...job };
+    return { version: 2, ...common, expiresAt: validateExpiry(common.offeredAt, raw.expiresAt), letter: validateLetter(raw.letter), files: validateOfferFiles(raw.files), ...job, ...workWeek };
   } catch (e) {
     throw e instanceof LetterError ? new WorkError(e.message) : e;
   }

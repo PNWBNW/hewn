@@ -95,3 +95,37 @@ describe("terms contract, version 2 with the job fields", () => {
     expect(() => workerCanonical({ ...v2, hoursPerWeek: "40.0" } as unknown as WorkerTerms)).toThrow(/Hours a week/);
   });
 });
+
+describe("terms contract, the work week (2026-10-19)", () => {
+  const v2 = {
+    ...terms,
+    version: 2 as const,
+    expiresAt: "2026-10-21T15:00:00.000Z",
+    letter: { description: "Framing crew lead.", requirements: "", handbook: "", other: "" },
+    files: [],
+    employmentType: "full_time" as const,
+    hoursPerWeek: "40",
+    workWeek: { longestShiftHours: 12, dailyOvertimeAfterHours: 8, overtimeAfterHours: 40, timeZone: "America/Los_Angeles", startsOn: "sunday" as const },
+  };
+
+  it("comes last, its own keys in their fixed order, the same bytes on both sides", () => {
+    const employer = employerCanonical(v2 as EmployerTerms);
+    expect(workerCanonical(v2 as WorkerTerms)).toBe(employer);
+    const parsed = JSON.parse(employer);
+    expect(Object.keys(parsed).slice(-3)).toEqual(["employmentType", "hoursPerWeek", "workWeek"]);
+    expect(Object.keys(parsed.workWeek)).toEqual(["startsOn", "timeZone", "overtimeAfterHours", "dailyOvertimeAfterHours", "longestShiftHours"]);
+    // An offer without one keeps its bytes.
+    const { workWeek: _w, ...without } = v2;
+    expect(JSON.parse(employerCanonical(without as EmployerTerms))).not.toHaveProperty("workWeek");
+    expect(workerCanonical(without as WorkerTerms)).toBe(employerCanonical(without as EmployerTerms));
+  });
+
+  it("is refused by both sides when it isn't right", () => {
+    const bad = { ...v2, workWeek: { ...v2.workWeek, timeZone: "Nowhere/Here" } };
+    expect(() => employerCanonical(bad as EmployerTerms)).toThrow(/time zone/);
+    expect(() => workerCanonical(bad as WorkerTerms)).toThrow(/time zone/);
+    const short = { ...v2, workWeek: { ...v2.workWeek, longestShiftHours: 0.25 } };
+    expect(() => employerCanonical(short as EmployerTerms)).toThrow(/longest shift/);
+    expect(() => workerCanonical(short as WorkerTerms)).toThrow(/longest shift/);
+  });
+});

@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import { formatMinutes, localDate, minutesOn, weekMinutes, weekStartOf } from "@/books/hours";
+import { calendarOf, formatMinutes, localDate, minutesOn, weekMinutes, weekStartOf } from "@/books/hours";
 import { paystubFromCanonical } from "@/books/paystub_document";
 import { activeAgreements, openPunch, punch } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
@@ -27,8 +27,10 @@ export default function WorkHomePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agreementId = active.some((a) => a.agreementId === chosen) ? chosen : (active[0]?.agreementId ?? "");
-  const today = localDate(now);
-  const weekStart = weekStartOf(today);
+  // Days and weeks on the agreement's calendar (the work week in its terms; Monday and this device's zone without one).
+  const calendar = calendarOf(active.find((a) => a.agreementId === agreementId));
+  const today = localDate(now, calendar.timeZone);
+  const weekStart = weekStartOf(today, calendar);
   const open = agreementId ? openPunch(work, agreementId) : undefined;
   const latest = [...work.paystubs].sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : -1))[0];
 
@@ -80,7 +82,7 @@ export default function WorkHomePage() {
               </Link>
             </p>
           ) : open ? (
-            <p className="text-sm text-muted-foreground">On the clock since {clock(open.at)}</p>
+            <p className="text-sm text-muted-foreground">On the clock since {clock(open.at, calendar.timeZone)}</p>
           ) : (
             <p className="text-sm text-muted-foreground">Off the clock</p>
           )}
@@ -88,11 +90,11 @@ export default function WorkHomePage() {
           <dl className="grid w-full grid-cols-2 gap-3 text-center">
             <div className="rounded-md border p-3">
               <dt className="text-xs text-muted-foreground">Today</dt>
-              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? minutesOn(work.punches, agreementId, today, now) : 0)}</dd>
+              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? minutesOn(work.punches, agreementId, today, now, calendar.timeZone) : 0)}</dd>
             </div>
             <div className="rounded-md border p-3">
               <dt className="text-xs text-muted-foreground">This week</dt>
-              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? weekMinutes(work.punches, agreementId, weekStart, now) : 0)}</dd>
+              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? weekMinutes(work.punches, agreementId, weekStart, now, calendar.timeZone) : 0)}</dd>
             </div>
           </dl>
           {agreementId && <SendWeek agreementId={agreementId} weekStart={weekStart} now={now} />}

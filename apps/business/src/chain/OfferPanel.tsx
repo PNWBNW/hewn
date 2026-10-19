@@ -10,8 +10,10 @@
 //   0. A short checklist of what the offer needs (Shield linked, the
 //      business's registered name) that fills in as each piece is done.
 //   1. Find them on the registry by name or account (NameLookup; public data).
-//   2. Pay (type, rate, how often), employment type, hours, dates, industry
-//      and a few plain fields (role, duties, notice) that draft the terms.
+//   2. Pay (type, rate, how often), employment type, hours, the work week
+//      (books/work_week.ts: the day it starts on, overtime, the longest
+//      shift; starts from the last offer sent), dates, industry and a few
+//      plain fields (role, duties, notice) that draft the terms.
 //      Pay starts from the team member's record and can be changed here; once
 //      the offer is sent, the books pay what it says. Pay, employment type,
 //      hours and start date are fields of their own in the terms, so a
@@ -43,6 +45,8 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { LetterSections } from "@/books/OfferLetterView";
 import { JobBoxes } from "@/books/ProposalEditor";
+import { WorkWeekBoxes } from "@/books/WorkWeekBoxes";
+import { type WorkWeek, type WorkWeekDraft, defaultWorkWeek, draftOfWorkWeek, workWeekFromDraft, workWeekSummary } from "@/books/work_week";
 import { type EmploymentType, cleanHours, employmentLabel, hoursLine } from "@/books/terms_words";
 import { DEFAULT_EXPIRY_DAYS, EXPIRY_DAYS, type ExpiryDays, LETTER_LABEL, MAX_SECTION_CHARS, letterFromText } from "@/books/offer_letter";
 import { hireByOffer } from "@/books/hiring";
@@ -85,6 +89,15 @@ const STAGE_COPY: Record<OfferStage, string> = {
 function daysFromToday(days: number): string {
   const [y, m, d] = todayIso().split("-").map(Number) as [number, number, number];
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** The work week of the latest offer this business sent, so the next starts from it. */
+function lastWorkWeek(rail: Rail | null): WorkWeek | undefined {
+  const sent = (rail?.links ?? [])
+    .map((l) => (l.terms?.version === 2 && l.terms.workWeek ? { at: l.terms.offeredAt, week: l.terms.workWeek } : null))
+    .filter((x): x is { at: string; week: WorkWeek } => x !== null)
+    .sort((a, b) => (a.at < b.at ? 1 : -1));
+  return sent[0]?.week;
 }
 
 function railOf(c: Company): Rail {
@@ -140,6 +153,7 @@ function OfferFlow(props: OfferPanelProps) {
   const [employmentType, setEmploymentType] = useState<EmploymentType | "">("");
   const [duties, setDuties] = useState("");
   const [hoursPerWeek, setHoursPerWeek] = useState("");
+  const [weekDraft, setWeekDraft] = useState<WorkWeekDraft>(() => draftOfWorkWeek(lastWorkWeek(rail) ?? defaultWorkWeek()));
   const [noticeDays, setNoticeDays] = useState("14");
   const [startDate, setStartDate] = useState(todayIso());
   const [reviewDate, setReviewDate] = useState(daysFromToday(90));
@@ -173,7 +187,10 @@ function OfferFlow(props: OfferPanelProps) {
       return null;
     }
   }, [rateText]);
-  const fieldProblem = rate === null ? "Pay must be an amount more than zero, like 32.50" : draftProblem({ hoursPerWeek, noticeDays });
+  const weekParsed = useMemo(() => workWeekFromDraft(weekDraft), [weekDraft]);
+  const workWeek = "workWeek" in weekParsed ? weekParsed.workWeek : undefined;
+  const fieldProblem =
+    rate === null ? "Pay must be an amount more than zero, like 32.50" : (draftProblem({ hoursPerWeek, noticeDays }) ?? ("problem" in weekParsed ? weekParsed.problem : null));
   const hours = hoursPerWeek.trim() ? (cleanHours(hoursPerWeek) ?? undefined) : undefined;
   const draft = useMemo(() => {
     if (!worker || fieldProblem || rate === null) return "";
@@ -191,8 +208,9 @@ function OfferFlow(props: OfferPanelProps) {
       duties,
       hoursPerWeek,
       noticeDays,
+      ...(workWeek ? { workWeek } : {}),
     });
-  }, [worker, fieldProblem, rate, payType, frequency, employmentType, businessName, startDate, reviewDate, endDate, jobTitle, duties, hoursPerWeek, noticeDays]);
+  }, [worker, fieldProblem, rate, payType, frequency, employmentType, businessName, startDate, reviewDate, endDate, jobTitle, duties, hoursPerWeek, noticeDays, workWeek]);
   const terms = termsEdited ? termsText : draft;
   const letter = letterFromText(letterText);
 
@@ -232,6 +250,7 @@ function OfferFlow(props: OfferPanelProps) {
         letter,
         ...(employmentType ? { employmentType } : {}),
         ...(hours ? { hoursPerWeek: hours } : {}),
+        ...(workWeek ? { workWeek } : {}),
         expiresInDays,
         startDate,
         reviewDate,
@@ -392,6 +411,12 @@ function OfferFlow(props: OfferPanelProps) {
               <dd>{hoursLine(hours)}</dd>
             </div>
           )}
+          {workWeek && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-muted-foreground">Work week</dt>
+              <dd>{workWeekSummary(workWeek)}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs text-muted-foreground">Starts</dt>
             <dd>{longDate(startDate)}</dd>
@@ -516,6 +541,7 @@ function OfferFlow(props: OfferPanelProps) {
             </select>
           </Field>
           <JobBoxes employmentType={employmentType} hoursText={hoursPerWeek} onEmploymentType={setEmploymentType} onHours={setHoursPerWeek} />
+          <WorkWeekBoxes draft={weekDraft} onChange={setWeekDraft} />
           <div className="sm:col-span-2">
             <Field label="Duties" hint="Optional. A sentence or two on what the job is.">
               <textarea className={`${inputClass} min-h-20`} value={duties} onChange={(e) => setDuties(e.target.value)} />

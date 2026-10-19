@@ -13,6 +13,7 @@ import { computeTermsDocHash } from "@pnw/handshake/engine";
 import { KINDS, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { validateLetter, validateOfferFiles } from "../../books/offer_letter";
 import { validateJobFields } from "../../books/terms_words";
+import { validateWorkWeek } from "../../books/work_week";
 import { unpackPayload } from "../compress";
 import { offerTermsKind } from "../offer_files";
 import { type Terms, WorkError, validateTerms } from "../../books/work";
@@ -21,7 +22,7 @@ import { type Terms, WorkError, validateTerms } from "../../books/work";
  * The exact bytes the employer hashed: keys in a fixed order, nothing else.
  * Version 2 adds the expiry, the letter's sections and the files at the end,
  * each in the order books/offer_letter.ts gives them, then the employment type
- * and the hours a week when the offer has them.
+ * and the hours a week when the offer has them, then the work week when it has one.
  */
 export function canonicalTerms(t: Terms): string {
   const v1 = {
@@ -38,7 +39,14 @@ export function canonicalTerms(t: Terms): string {
   };
   if (t.version === 1) return JSON.stringify(v1);
   // Then the job fields, each only when the offer has it (offers before them keep their bytes).
-  return JSON.stringify({ ...v1, expiresAt: t.expiresAt, letter: validateLetter(t.letter), files: validateOfferFiles(t.files), ...validateJobFields(t) });
+  return JSON.stringify({
+    ...v1,
+    expiresAt: t.expiresAt,
+    letter: validateLetter(t.letter),
+    files: validateOfferFiles(t.files),
+    ...validateJobFields(t),
+    ...(t.workWeek !== undefined ? { workWeek: validateWorkWeek(t.workWeek) } : {}),
+  });
 }
 
 const strip = (hex: string) => hex.replace(/^0x/i, "").toLowerCase();

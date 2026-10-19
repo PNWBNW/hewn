@@ -2,6 +2,7 @@
 // as block heights, the mailbox-first ordering with a fake client and a fake
 // wallet, and the link that comes out of it.
 import { describe, expect, it } from "vitest";
+import { defaultWorkWeek } from "../books/work_week";
 import { VERSIONS } from "@pnw/config/programs";
 import { computeAgreementValues, computeTermsDocHash } from "@pnw/handshake/engine";
 import { KINDS, MailboxError, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
@@ -541,5 +542,18 @@ describe("the parties key", () => {
     const sent = await sendOffer(input({ partiesKey: derived }));
     expect(sent.link.partiesKey).not.toBe(derived);
     await expect(sendOffer(input({ partiesKey: "abc" }))).rejects.toThrow(/64 hex/);
+  });
+});
+
+describe("the work week in an offer", () => {
+  it("goes into the terms when given, after the job fields, and not otherwise", async () => {
+    const week = { ...defaultWorkWeek("America/Los_Angeles"), startsOn: "sunday" as const };
+    const sent = await sendOffer(input({ hoursPerWeek: "40", workWeek: week }));
+    expect(sent.terms.version).toBe(2);
+    expect(sent.terms.version === 2 && sent.terms.workWeek).toEqual(week);
+    expect(Object.keys(sent.terms).slice(-2)).toEqual(["hoursPerWeek", "workWeek"]);
+    const plain = await sendOffer(input());
+    expect(plain.terms).not.toHaveProperty("workWeek");
+    await expect(sendOffer(input({ workWeek: { ...week, timeZone: "Nowhere/Here" } }))).rejects.toThrow(/time zone/);
   });
 });

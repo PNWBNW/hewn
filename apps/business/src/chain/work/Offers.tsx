@@ -29,6 +29,7 @@ import { addToThread, answerFor, openCounter, proposalChanges, proposalOf, revis
 import { BRAND } from "@/brand";
 import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { employmentLabel, hoursLine } from "@/books/terms_words";
+import { workWeekSummary } from "@/books/work_week";
 import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
 import { fetchOfferFile, offerFileLookups } from "../offer_files";
 import { offerReceiptSlot, sendReceipt } from "../receipts";
@@ -298,6 +299,12 @@ function OfferRow({
             <>
               <dt className="text-muted-foreground">Hours</dt>
               <dd>{hoursLine(t.hoursPerWeek)}</dd>
+            </>
+          )}
+          {t.version === 2 && t.workWeek && (
+            <>
+              <dt className="text-muted-foreground">Work week</dt>
+              <dd>{workWeekSummary(t.workWeek)}</dd>
             </>
           )}
           <dt className="text-muted-foreground">Starts</dt>

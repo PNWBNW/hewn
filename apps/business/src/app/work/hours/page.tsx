@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import { addDays, formatMinutes, localDate, shiftsOf, weekDays, weekMinutes, weekStartOf } from "@/books/hours";
+import { addDays, calendarOf, formatMinutes, localDate, overtimeSplit, shiftsOf, weekDays, weekMinutes, weekStartOf } from "@/books/hours";
 import { type Punch, removePunch, updatePunch } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { SendWeek } from "../SendWeek";
@@ -33,18 +33,28 @@ export default function HoursPage() {
   const agreements = work.agreements.filter((a) => a.status !== "pending");
   const [chosen, setChosen] = useState("");
   const agreementId = agreements.some((a) => a.agreementId === chosen) ? chosen : (agreements[0]?.agreementId ?? "");
-  const thisWeek = weekStartOf(localDate(now));
-  const [weekStart, setWeekStart] = useState(thisWeek);
+  const agreement = agreements.find((a) => a.agreementId === agreementId);
+  // Days and weeks on the agreement's calendar (the work week in its terms; Monday and this device's zone without one).
+  const calendar = calendarOf(agreement);
+  const tz = calendar.timeZone;
+  const today = localDate(now, tz);
+  const thisWeek = weekStartOf(today, calendar);
+  const [chosenWeek, setWeekStart] = useState(thisWeek);
+  const weekStart = weekStartOf(chosenWeek, calendar); // the chosen week, realigned should the agreement (and its calendar) change
   const [editing, setEditing] = useState<Punch | null>(null);
   const [removing, setRemoving] = useState<Punch | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const shifts = agreementId ? shiftsOf(work.punches, agreementId, now) : [];
+  const shifts = agreementId ? shiftsOf(work.punches, agreementId, now, tz) : [];
   const byDay = new Map<string, typeof shifts>();
   for (const s of shifts) byDay.set(s.date, [...(byDay.get(s.date) ?? []), s]);
   const punchById = new Map(work.punches.map((p) => [p.id, p]));
-  const total = agreementId ? weekMinutes(work.punches, agreementId, weekStart, now) : 0;
+  const total = agreementId ? weekMinutes(work.punches, agreementId, weekStart, now, tz) : 0;
   const weekLabel = `${dayLabel(weekStart)} – ${dayLabel(addDays(weekStart, 6))}`;
+  // Overtime under the agreement's work week, over this week's shifts (the same split the employer makes).
+  const workWeek = agreement?.terms?.version === 2 ? agreement.terms.workWeek : undefined;
+  const days = new Set(weekDays(weekStart));
+  const split = workWeek ? overtimeSplit(shifts.filter((s) => days.has(s.date)), workWeek) : null;
 
   async function change(op: (w: typeof work) => typeof work) {
     setError(null);
@@ -106,7 +116,7 @@ export default function HoursPage() {
                   return (
                     <li key={date} className="py-2">
                       <div className="flex items-baseline justify-between text-sm">
-                        <span className={cn("font-medium", date === localDate(now) && "text-primary")}>{dayLabel(date)}</span>
+                        <span className={cn("font-medium", date === today && "text-primary")}>{dayLabel(date)}</span>
                         <span className="tabular-nums text-muted-foreground">{minutes > 0 ? formatMinutes(minutes) : "—"}</span>
                       </div>
                       {day.map((s) => {
@@ -115,7 +125,7 @@ export default function HoursPage() {
                         return (
                           <div key={`${s.inId}:${s.in}`} className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 pl-3 text-xs text-muted-foreground">
                             <span className="tabular-nums">
-                              {clock(s.in)} – {s.open ? "now" : clock(s.out)}
+                              {clock(s.in, tz)} – {s.open ? "now" : clock(s.out, tz)}
                               {s.open && s.out !== now.toISOString() && new Date(s.out) < now && " (not clocked out; counted to midnight)"}
                             </span>
                             <span className="flex gap-1">
@@ -134,6 +144,12 @@ export default function HoursPage() {
                 <span className="font-medium">Week total</span>
                 <span className="font-semibold tabular-nums">{formatMinutes(total)}</span>
               </div>
+              {split && split.overtime > 0 && (
+                <div className="-mt-3 flex items-baseline justify-between text-xs text-muted-foreground">
+                  <span>Regular {formatMinutes(split.regular)}</span>
+                  <span className="tabular-nums">Overtime {formatMinutes(split.overtime)}</span>
+                </div>
+              )}
               <FormError message={error} />
               <SendWeek agreementId={agreementId} weekStart={weekStart} now={now} />
             </CardContent>

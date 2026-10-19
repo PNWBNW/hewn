@@ -164,6 +164,8 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
         letter: revised.letter,
         ...(revised.employmentType ? { employmentType: revised.employmentType } : {}),
         ...(revised.hoursPerWeek ? { hoursPerWeek: revised.hoursPerWeek } : {}),
+        // The work week isn't negotiated: the revised offer keeps the old one's.
+        ...(link.terms.version === 2 && link.terms.workWeek ? { workWeek: link.terms.workWeek } : {}),
         expiresInDays,
         feeMode,
         // The same secret key as before, so the conversation carries on (a key from before keys were random is replaced).
