@@ -10,7 +10,7 @@
 // live in chain/jobs.ts.
 // ---------------------------------------------------------------------------
 
-import { PUBLIC_KEY } from "./thread";
+import { APPLICATION_STATUSES, type ApplicationStatus, PUBLIC_KEY } from "./thread";
 
 export type PayType = "hidden" | "hourly" | "yearly";
 export type EmploymentType = "unstated" | "full_time" | "part_time" | "seasonal" | "temporary" | "contract";
@@ -51,6 +51,21 @@ export type PostingBody = { title: string; location: string; description: string
 
 /** A posting's key pair, as the business's vault keeps it. The private half never leaves the vault. */
 export type HiringKey = { publicKey: string; privateKey: JsonWebKey };
+
+/** Someone who applied to a posting, as the business's vault keeps them. Their conversation is the thread under `partiesKey`. */
+export type Applicant = {
+  /** The key the application made (chain/applications.ts), and the thread's key. */
+  partiesKey: string;
+  /** Their registered name, bare, and its hash. */
+  name: string;
+  nameHash: string;
+  /** Their account, from the registry, where replies go. */
+  address: string;
+  appliedAt: string;
+  /** The last status the business sent them; none means Applied. */
+  status?: ApplicationStatus;
+  statusAt?: string;
+};
 
 export const MAX_TITLE_CHARS = 80;
 export const MAX_LOCATION_CHARS = 80;
@@ -116,6 +131,30 @@ export function validateBody(raw: unknown): PostingBody {
   return body;
 }
 
+const PARTIES_KEY = /^[0-9a-f]{64}$/;
+const ALEO_ADDRESS = /^aleo1[02-9ac-hj-np-z]{58}$/;
+const MAX_APPLICANTS = 1_000;
+
+export function validateApplicant(raw: unknown): Applicant {
+  if (!raw || typeof raw !== "object") throw new JobsError("An applicant must be an object");
+  const a = raw as Record<string, unknown>;
+  if (typeof a.partiesKey !== "string" || !PARTIES_KEY.test(a.partiesKey)) throw new JobsError("An applicant needs their key");
+  if (typeof a.name !== "string" || !a.name.trim() || [...a.name].length > 60) throw new JobsError("An applicant needs their name");
+  if (typeof a.nameHash !== "string" || !FIELD.test(a.nameHash)) throw new JobsError("An applicant needs their name's hash");
+  if (typeof a.address !== "string" || !ALEO_ADDRESS.test(a.address)) throw new JobsError("An applicant needs their account");
+  if (!isStamp(a.appliedAt)) throw new JobsError("An applicant needs the time they applied");
+  const applicant: Applicant = { partiesKey: a.partiesKey, name: a.name.trim(), nameHash: a.nameHash, address: a.address, appliedAt: a.appliedAt };
+  if (a.status !== undefined) {
+    if (!APPLICATION_STATUSES.includes(a.status as ApplicationStatus)) throw new JobsError("An applicant's status isn't one this app knows");
+    applicant.status = a.status as ApplicationStatus;
+    if (a.statusAt !== undefined) {
+      if (!isStamp(a.statusAt)) throw new JobsError("An applicant's status time isn't a time");
+      applicant.statusAt = a.statusAt;
+    }
+  }
+  return applicant;
+}
+
 export function validateHiringKey(raw: unknown): HiringKey {
   if (!raw || typeof raw !== "object") throw new JobsError("A hiring key must be an object");
   const k = raw as Record<string, unknown>;
@@ -143,6 +182,8 @@ export type JobPosting = PostingBody & {
   featuredUntil?: number;
   /** The posting's key pair; its public half is in the posting's body on the board. */
   hiring?: HiringKey;
+  /** Who applied, newest first. Only once someone did. */
+  applicants?: Applicant[];
 };
 
 export type Jobs = { version: 1; postings: JobPosting[] };
@@ -169,6 +210,12 @@ function validatePosting(raw: unknown): JobPosting {
     posting.featuredUntil = p.featuredUntil;
   }
   if (p.hiring !== undefined) posting.hiring = validateHiringKey(p.hiring);
+  if (p.applicants !== undefined) {
+    if (!Array.isArray(p.applicants) || p.applicants.length > MAX_APPLICANTS) throw new JobsError("A posting's applicants must be a list");
+    const applicants = p.applicants.map(validateApplicant);
+    if (new Set(applicants.map((a) => a.partiesKey)).size !== applicants.length) throw new JobsError("An applicant is listed twice");
+    if (applicants.length > 0) posting.applicants = applicants;
+  }
   return posting;
 }
 
@@ -217,4 +264,28 @@ export function factsLine(f: PostingFacts): string {
   if (f.hoursPerWeekTenths > 0) parts.push(`${(f.hoursPerWeekTenths / 10).toLocaleString("en-US", { maximumFractionDigits: 1 })} hours a week`);
   if (f.place !== "unstated") parts.push(PLACE_LABEL[f.place]);
   return parts.join(" · ");
+}
+
+// ---- Applicants ----------------------------------------------------------------
+
+/** The thread id a business's vault files an applicant's conversation under (books/mailbox.ts wants a team member id). */
+export const applicantWorkerId = (partiesKey: string): string => `applicant:${partiesKey.slice(0, 16)}`;
+
+/** Keeps an applicant on a posting (the same key once), newest first. */
+export function addApplicant(jobs: Jobs, postingId: string, applicant: Applicant): Jobs {
+  const posting = postingById(jobs, postingId);
+  if (!posting) throw new JobsError("That posting isn't in the books");
+  const clean = validateApplicant(applicant);
+  const rest = (posting.applicants ?? []).filter((a) => a.partiesKey !== clean.partiesKey);
+  if (rest.length >= MAX_APPLICANTS) throw new JobsError("Too many applicants on one posting");
+  const applicants = [clean, ...rest].sort((a, b) => (a.appliedAt < b.appliedAt ? 1 : -1));
+  return putPosting(jobs, { ...posting, applicants });
+}
+
+/** Records the status the business sent an applicant. */
+export function setApplicantStatus(jobs: Jobs, postingId: string, partiesKey: string, status: ApplicationStatus, at: string): Jobs {
+  const posting = postingById(jobs, postingId);
+  const applicant = posting?.applicants?.find((a) => a.partiesKey === partiesKey);
+  if (!posting || !applicant) throw new JobsError("That applicant isn't in the books");
+  return addApplicant(jobs, postingId, { ...applicant, status, statusAt: at });
 }

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { MailboxClient } from "@pnw/mailbox";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { applicantWorkerId } from "@/books/jobs";
 import { emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { addToThread, skipIncoming } from "@/books/thread";
 import { useLetters } from "./letter_reader";
@@ -29,7 +30,7 @@ export default function MessagesCheck(props: MessagesCheckProps) {
 }
 
 function Check({ onFinished }: MessagesCheckProps) {
-  const { rail, mailbox, updateCompany } = useOpenBooks();
+  const { rail, mailbox, jobs, updateCompany } = useOpenBooks();
   const { settled, letters, wallet } = useLetters();
   const client = useMemo(() => new MailboxClient(), []);
   const started = useRef(false);
@@ -38,8 +39,12 @@ function Check({ onFinished }: MessagesCheckProps) {
     if (started.current || !rail || !settled) return;
     started.current = true;
     (async () => {
-      for (const link of rail.links) {
-        if (!link.partiesKey || (link.status !== "linked" && link.status !== "offered")) continue;
+      // Team members and people with an offer out, then everyone who applied to a posting (their conversations are filed under the posting).
+      const people = [
+        ...rail.links.filter((l) => l.partiesKey && (l.status === "linked" || l.status === "offered")).map((l) => ({ partiesKey: l.partiesKey!, address: l.address, workerId: l.workerId })),
+        ...(jobs?.postings ?? []).flatMap((p) => (p.applicants ?? []).map((a) => ({ partiesKey: a.partiesKey, address: a.address, workerId: applicantWorkerId(a.partiesKey) }))),
+      ];
+      for (const link of people) {
         const partiesKey = link.partiesKey;
         const r = await readThread({
           client: letters ? letterThread(wallet, link.address, { letters, mailbox: client }).reader : client,
@@ -58,7 +63,7 @@ function Check({ onFinished }: MessagesCheckProps) {
       }
       onFinished(null);
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
-  }, [rail, mailbox, client, updateCompany, onFinished, settled, letters, wallet]);
+  }, [rail, mailbox, jobs, client, updateCompany, onFinished, settled, letters, wallet]);
 
   return null;
 }
