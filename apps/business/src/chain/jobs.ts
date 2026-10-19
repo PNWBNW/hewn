@@ -90,10 +90,11 @@ const decoder = new TextDecoder("utf-8", { fatal: true });
 
 export const TOO_LONG = "The posting is too long to fit on the board; shorten the description";
 
-/** The words as the 40 field elements the program takes: JSON, deflated when smaller, packed. */
+/** The words (and the hiring key, when the posting has one) as the 40 field elements the program takes: JSON, deflated when smaller, packed. */
 export async function packBody(body: PostingBody): Promise<bigint[]> {
   const clean = validateBody(body);
-  const payload = await packPayload(encoder.encode(JSON.stringify([clean.title, clean.location, clean.description])));
+  const words = clean.hiringKey ? [clean.title, clean.location, clean.description, clean.hiringKey] : [clean.title, clean.location, clean.description];
+  const payload = await packPayload(encoder.encode(JSON.stringify(words)));
   if (payload.length > BODY_BYTES) throw new JobsError(TOO_LONG);
   try {
     return packParcel(payload, BODY_FIELDS);
@@ -111,8 +112,8 @@ export async function unpackBody(fields: readonly bigint[]): Promise<PostingBody
   } catch {
     throw new JobsError("A posting's body couldn't be read");
   }
-  if (!Array.isArray(parsed) || parsed.length !== 3) throw new JobsError("A posting's body couldn't be read");
-  return validateBody({ title: parsed[0], location: parsed[1], description: parsed[2] });
+  if (!Array.isArray(parsed) || (parsed.length !== 3 && parsed.length !== 4)) throw new JobsError("A posting's body couldn't be read");
+  return validateBody({ title: parsed[0], location: parsed[1], description: parsed[2], ...(parsed.length === 4 ? { hiringKey: parsed[3] } : {}) });
 }
 
 /** The `Body` struct as a transition input. */

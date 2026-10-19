@@ -50,6 +50,13 @@ describe("the body", () => {
     expect(await unpackBody(fields)).toEqual(body);
     expect(bodyInput(fields)).toMatch(/^\{ words: \[\d+field(, \d+field){39}\] \}$/);
   });
+  it("carries the posting's hiring key, and reads a body without one", async () => {
+    const key = "04" + "ab".repeat(64);
+    const fields = await packBody({ ...body, hiringKey: key });
+    expect(await unpackBody(fields)).toEqual({ ...body, hiringKey: key });
+    await expect(packBody({ ...body, hiringKey: "04ab" })).rejects.toThrow(/hiring key isn't valid/);
+    expect(await unpackBody(await packBody(body))).toEqual(body);
+  });
   it("deflates, so a long description still fits", async () => {
     const long = { ...body, description: "Cook, clean, repeat. ".repeat(180) }; // 3,780 chars
     expect(new TextEncoder().encode(long.description).length).toBeGreaterThan(BODY_BYTES);
