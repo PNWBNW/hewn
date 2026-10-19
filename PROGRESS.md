@@ -3007,3 +3007,10 @@ Joshua deployed `hewn_jobs_v1.aleo` on testnet (deploy-new-program).
   `close` 0.003964.
 - **Recorded in PNWBNW/pnw_mvp_v2:** the manifest names it under `program_ids.jobs`.
 - The app already names it (#94) and has it in Shield's program list; nothing to change here.
+
+## 2026-10-19: the fee choice on a posting says what it doesn't change
+
+Joshua, posting the test job, saw "Private" as a fee option and asked whether a private fee makes
+the posting private. It doesn't: the choice only decides which ALEO pays the network fee; the
+posting goes into public mappings either way, and the $1 USDCx is a public transfer. The Jobs
+panel now says so under the fee choice on post, change, feature and close (`chain/JobPanel.tsx`).
