@@ -75,7 +75,7 @@ const addDays = (date: string, days: number) => {
 
 function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOfferProps) {
   const { books, payroll, rail, mailbox, updateCompany, discardAttachment } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const link = rail ? linkFor(rail, workerId) : undefined;
   const worker = payroll.workers.find((w) => w.id === workerId);
   const current = useMemo(() => (link?.terms ? proposalOf(link.terms) : null), [link?.terms]);
@@ -104,7 +104,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
     );
   }
   const address = state.kind === "connected" ? state.address : null;
-  if (!address) return <ShieldStatus state={state} connect={connect} onClose={onClose} />;
+  if (!address) return <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />;
   if (address !== rail.address) {
     return (
       <>

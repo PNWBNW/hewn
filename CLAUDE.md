@@ -125,9 +125,19 @@ company and protocol namespace).
 ## Known facts about the existing stack
 
 - Portal: Next.js 16.1.6, React 19.2.3, pnpm, vitest (tests at `src/**/*.test.ts`; path aliases
-  `@/src`, `@/components`, `@/app`). Monorepo is on Next.js 16.3.8 (security fixes). Wallet adaptors
-  `@provablehq/aleo-wallet-adaptor-*` at `0.3.0-alpha.3` — pin exactly, expect breakage. **Shield is
-  the only wallet**; don't add other adaptors. `@provablehq/sdk` 0.10.1.
+  `@/src`, `@/components`, `@/app`). Monorepo is on Next.js 16.3.8 (security fixes). Wallet adapters
+  `@provablehq/aleo-wallet-adapter-*` (renamed from `-adaptor-` on 2026-10-19: core 1.1.2, react
+  1.3.1, shield 1.3.0, standard 1.4.0, types 1.1.0) — pin exactly. **Shield is the only wallet**;
+  don't add other adapters. `@provablehq/sdk` 0.10.1.
+- **Three ways in to Shield, one adapter** (`packages/wallet/src/wallet-provider.tsx`, Joshua,
+  2026-10-19): the extension on a computer and Shield's own browser on a phone both inject Shield
+  into the page; a plain phone browser (the third way) pairs with the Shield app over Shield's
+  relay: `connect()` opens the app with a `shield://` link, every approval opens it again, and
+  answers come back sealed end to end through `wss://relay.shield.app` (the one host besides the
+  explorer in the app's CSP; pinned in both places). A computer without the extension has no way
+  in yet (Shield's app can't scan a pairing code). Over the relay the app answers reads only while
+  it is open; `src/chain/shield.ts` exposes `route` and `away` for the wording and an "Open Shield"
+  link. Not yet tried on a real phone.
 - Security baseline: `docs/THREAT_MODEL.md`. CI blocks on tests, build and `pnpm audit` (moderate+).
   New dependencies must be at least 7 days old (`minimumReleaseAge`).
 - Leo programs (Leo v4 syntax) live in `pnw_mvp_v2/src/layer1`, `src/layer2`, `src/stubs`.

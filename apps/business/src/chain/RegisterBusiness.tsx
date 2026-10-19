@@ -52,7 +52,7 @@ function railOf(c: Company): Rail {
 /** The flow itself, for use inside a wallet provider (the offer panel already has one). */
 export function RegisterFlow({ onClose, onDone }: RegisterBusinessProps) {
   const { rail, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState(0);
@@ -176,7 +176,7 @@ export function RegisterFlow({ onClose, onDone }: RegisterBusinessProps) {
       </div>
 
       {!address ? (
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       ) : mismatch ? (
         <>
           <p className="text-sm">

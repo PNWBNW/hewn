@@ -46,6 +46,7 @@ import { decryptTransition, fetchExplorerTransaction } from "./decrypt";
 import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
 import { useShield } from "./shield";
+import { ShieldAway } from "./ShieldStatus";
 
 export default function ReviewPanel() {
   return (
@@ -60,7 +61,7 @@ type Tab = "new" | "reviewed" | "excluded";
 
 function ReviewFlow() {
   const { rail, review, sales, payroll, updateCompany } = useOpenBooks();
-  const { state, connect, error: connectError, wallet } = useShield();
+  const { state, away, connect, error: connectError, wallet } = useShield();
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [tab, setTab] = useState<Tab>("new");
   const [names, setNames] = useState<Record<string, string>>({});
@@ -187,6 +188,7 @@ function ReviewFlow() {
         ) : null}
       </div>
       <FormError message={connectError} />
+      {away ? <ShieldAway what="the check" /> : null}
 
       <div role="tablist" aria-label="Review" className="flex gap-2">
         {(

@@ -48,7 +48,7 @@ export default function Channel(props: ChannelProps) {
 
 function ChannelView({ channelId, onCreated, onClose }: ChannelProps) {
   const { rail, payroll, mailbox, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, address, mismatch, letters, wallet } = useLetters();
+  const { state, route, connect, error: shieldError, address, mismatch, letters, wallet } = useLetters();
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
   // Who can be in a channel: linked team members (there's a key to reach them with).
   const team = (rail?.links ?? [])
@@ -167,7 +167,7 @@ function ChannelView({ channelId, onCreated, onClose }: ChannelProps) {
     <p className="text-sm">Shield is on a different account than these books. Switch accounts in Shield, then try again.</p>
   ) : !letters ? (
     <>
-      <ShieldStatus state={state} connect={connect} onClose={onClose} />
+      <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       {shieldError && <p className="text-sm text-destructive">{shieldError}</p>}
     </>
   ) : null;

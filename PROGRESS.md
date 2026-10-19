@@ -3056,3 +3056,40 @@ since launch only, never by day).
   marketplace and connect it to the project (it sets the `KV_REST_API_*` settings). Not the separate
   "Redis" (Redis Cloud) listing: that one gives only a TCP `REDIS_URL`, and the store talks to
   Upstash's REST API. Until then nothing is counted and the map shows zeros.
+
+## 2026-10-19: Shield from a plain phone browser (the third way in)
+
+Joshua: a standalone way to use Hewn on a phone that opens Shield only when a signature is
+needed, instead of living inside Shield's browser. It turns out Shield shipped exactly that
+protocol in the last two months: a relay (`wss://relay.shield.app`) plus a `shield://` link,
+modelled on MetaMask's Mobile Wallet Protocol, in the renamed adapter packages
+`@provablehq/aleo-wallet-adapter-*` (12 Oct; they crossed `minimumReleaseAge` today).
+- **Upgrade** (`packages/wallet`): `aleo-wallet-adaptor-*` 0.3.0-alpha.3 → `aleo-wallet-adapter-*`
+  (core 1.1.2, react 1.3.1, shield 1.3.0, standard 1.4.0, types 1.1.0). Three new transitive
+  packages: `centrifuge` 5.7.4, `eciesjs` 0.4.18, `@noble/curves` 1.9.7. Audit clean.
+- **Three ways in, one adapter** (`wallet-provider.tsx`): the extension and Shield's own browser are
+  injected and win as before; a plain phone browser pairs over the relay. The adapter fires the
+  `shield://` link itself. The in-app-browser redirect is gone. The approval screen in Shield now
+  shows the product name and icon (from `@pnw/brand`) beside the origin. The relay is pinned in the
+  adapter config and named in the CSP (`SHIELD_RELAY_ORIGIN`, both places), with a test that the
+  pin equals the adapter's default.
+- **Route-aware wording** (`chain/shield_route.ts`, `shield.ts`, `ShieldStatus.tsx`): `route` is
+  `injected`, `relay` or `none`. On a phone the connect button says it opens the Shield app and the
+  connecting state offers the download if nothing opened; a computer without the extension is told
+  to install it (Shield's app can't scan a pairing code yet, so the relay is phone-only). Over the
+  relay the Shield app answers reads only while it is open, so `useShield` also returns `away`
+  (from the adapter's presence events), and the balances card and the review bar show an
+  "Open Shield" link (`shield://wake`) when it is in the background.
+- **Docs:** threat model T3 (what the relay sees, the 12-hour pairing in `localStorage`), CLAUDE.md
+  known facts, BUILD_PLAN decision, the site's privacy page (second CSP exception).
+- **To try on a phone** (not yet done, by us or by Provable): Hewn in Chrome/Safari → Connect →
+  Shield opens and asks → approve → back to the browser → pay or send a letter → Shield opens
+  again → approve → the answer arrives. Watch for: the link firing late (the connect runs one
+  render after the tap; browsers allow opening an app only shortly after a tap), reads stalling
+  with Shield in the background (the "Open Shield" link), and the 12-hour re-pair.
+- **Next:** the installable Android app is the same third route in a Capacitor wrapper, once this
+  is proven on a device (`BUILD_PLAN.md`, Decisions).
+
+Tests: 905/905 (new: `shield_route.test.ts`, `wallet-provider.test.ts`, CSP test updated);
+build and audit pass.
+

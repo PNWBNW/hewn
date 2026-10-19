@@ -394,6 +394,9 @@ handling); likely a Fable session for the key agreement.
 - [x] Wallet is the only signing path for new code; the CLI adapter / private-key fallback stays in `coordinator` until its tests are rewritten, then is removed (2026-10-13).
 - [x] Fiat is the primary product; chain rails are optional adapters the fiat path never imports (2026-10-13).
 - [x] Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed (2026-10-13).
+- [x] Three ways in to Shield: the extension, Shield's own browser, and a plain phone browser over
+  Shield's relay (2026-10-19). An installable Android app (Capacitor around the same code) is the
+  third route in a wrapper: next, once the phone flow is proven on a device.
 - [x] Greenlight for Phase 0 (2026-10-13).
 - [ ] Minimum group size for publishing aggregates (suggested 5). Gates Phase 3 public flag.
 - [x] Product name for the bookkeeping surface: **Hewn** (hewnaccounting.com; app at app.hewnaccounting.com) (2026-10-14). The name, tagline, colours and asset paths live in `packages/brand/src/index.ts`; art in `brand/source/`.

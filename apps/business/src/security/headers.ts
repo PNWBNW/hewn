@@ -21,12 +21,22 @@ export { SECURITY_HEADERS, newNonce } from "@pnw/security/headers";
  */
 export const EXPLORER_ORIGIN = "https://api.explorer.provable.com";
 
+/**
+ * Shield's relay: how a plain phone browser reaches the Shield app (2026-10-19). The page and the
+ * app exchange sealed messages through it; the relay forwards ciphertext and sees the page's
+ * origin and timing, nothing inside. The chain code pins the same origin where it sets the Shield
+ * adapter up (`SHIELD_RELAY_ORIGIN` in its provider module), so it can only ever dial what this
+ * policy allows.
+ */
+export const SHIELD_RELAY_ORIGIN = "wss://relay.shield.app";
+
 export type CspOptions = Pick<SharedCspOptions, "nonce" | "dev">;
 
 /**
- * The explorer in connect-src, and 'wasm-unsafe-eval' (the Shield code's hashing and decryption
- * libraries are WebAssembly; this allows compiling WebAssembly only, JS eval stays refused).
+ * The explorer and the Shield relay in connect-src, and 'wasm-unsafe-eval' (the Shield code's
+ * hashing and decryption libraries are WebAssembly; this allows compiling WebAssembly only, JS
+ * eval stays refused).
  */
 export function buildCsp(options: CspOptions): string {
-  return buildSharedCsp({ ...options, connect: [EXPLORER_ORIGIN], wasm: true });
+  return buildSharedCsp({ ...options, connect: [EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN], wasm: true });
 }

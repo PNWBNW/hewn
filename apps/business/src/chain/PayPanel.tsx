@@ -123,7 +123,7 @@ type Delivery = { kind: "sending" } | { kind: "sent" } | { kind: "failed"; messa
 
 function PayFlow({ runId, onClose }: PayPanelProps) {
   const { rail, payroll, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const sendPaystub = usePaystubDelivery(wallet);
   const run = payroll.runs.find((r) => r.id === runId);
   const names = useMemo(() => new Map(payroll.workers.map((w) => [w.id, w.name])), [payroll.workers]);
@@ -285,7 +285,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           </Button>
         </>
       ) : !address ? (
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       ) : mismatch ? (
         <>
           <p className="text-sm">

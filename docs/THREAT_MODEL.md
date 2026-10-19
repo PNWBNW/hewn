@@ -75,9 +75,21 @@ The highest risk for a browser app.
   session began elsewhere. A fresh load per page would apply the right one but lock the books (the
   unlocked session lives in memory only). Accepted: the widening is two allowances, the same on
   every page.
-- `connect-src 'self'` plus the explorer REST origin, and nothing else: injected code has nowhere
-  to send data but a public read-only API. Verified in a browser: third-party fetch, framing and
-  inline handlers are all refused. ✅
+- `connect-src 'self'` plus the explorer REST origin and Shield's relay (`wss://relay.shield.app`,
+  2026-10-19), and nothing else: injected code has nowhere to send data but a public read-only API
+  and a channel that forwards sealed messages to the Shield app. Verified in a browser: third-party
+  fetch, framing and inline handlers are all refused. ✅
+- ⚠️ A plain phone browser reaches the Shield app over Provable's relay
+  (`@provablehq/aleo-wallet-adapter-shield` 1.3.0, the third way in beside the extension and
+  Shield's own browser). The page and the app exchange messages sealed end to end (ECIES, signed,
+  sequence-numbered; the relay forwards them unread). The pairing secret rides only in the
+  `shield://` link that opens the app, never over the relay, and authenticates the app's key
+  handshake, so a relay cannot sit in the middle. What Provable's relay learns: the page's origin,
+  when it is used and how much; the Shield app already talks to Provable. The pairing (an ephemeral
+  key and the secret) lives in `localStorage` for up to 12 hours, so code injected into the page
+  could use that session until then; the CSP above is the backstop, and nothing in the session can
+  read the vault. The adapter's default relay is pinned in `packages/wallet` and named in the
+  policy, so the two cannot drift apart. Accepted (Joshua, 2026-10-19).
 - ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
   so the explorer's operator can tie the user's IP to that address. The address is already public
   (it owns a registered name). Private balances come from Shield's own records and touch no server

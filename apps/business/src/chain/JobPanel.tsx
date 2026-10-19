@@ -90,7 +90,7 @@ function PostingFee({ value, onChange }: { value: FeeMode; onChange: (mode: FeeM
 /** Shield connected to the linked account, and the business name's industry code read from the registry. */
 function Gate(props: JobPanelProps) {
   const { rail } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const [suffix, setSuffix] = useState<number | null | "reading">("reading");
   const address = state.kind === "connected" ? state.address : null;
   const mismatch = address !== null && rail !== null && address !== rail.address;
@@ -109,7 +109,7 @@ function Gate(props: JobPanelProps) {
   if (!address) {
     return (
       <>
-        <ShieldStatus state={state} connect={connect} onClose={props.onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={props.onClose} />
         {shieldError && <p className="text-sm text-destructive">{shieldError}</p>}
       </>
     );

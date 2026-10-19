@@ -121,7 +121,7 @@ function OfferFlow(props: OfferPanelProps) {
   const hire = "hire" in props ? props.hire : null;
   const workerId = "workerId" in props ? props.workerId : null;
   const { books, payroll, rail, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const existing = workerId ? payroll.workers.find((w) => w.id === workerId) : undefined;
   // Someone not on the team yet: the name these books will know them by (their registered name to start).
   const [hireName, setHireName] = useState(hire?.name ?? "");
@@ -446,7 +446,7 @@ function OfferFlow(props: OfferPanelProps) {
       </div>
 
       {!address ? (
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       ) : mismatch ? (
         <>
           <p className="text-sm">

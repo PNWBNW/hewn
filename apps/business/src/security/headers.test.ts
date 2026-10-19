@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXPLORER_ORIGIN, SECURITY_HEADERS, buildCsp, newNonce } from "./headers";
+import { EXPLORER_ORIGIN, SECURITY_HEADERS, SHIELD_RELAY_ORIGIN, buildCsp, newNonce } from "./headers";
 
 const directives = (csp: string) =>
   Object.fromEntries(
@@ -26,8 +26,8 @@ describe("content security policy", () => {
     expect(directives(buildCsp({ nonce: "n", dev: true }))["script-src"]).toContain("'unsafe-eval'");
   });
 
-  it("talks to its own origin and the explorer, nothing else", () => {
-    expect(policy["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN]);
+  it("talks to its own origin, the explorer and the Shield relay, nothing else", () => {
+    expect(policy["connect-src"]).toEqual(["'self'", EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN]);
     expect(policy["default-src"]).toEqual(["'self'"]);
   });
 
@@ -38,9 +38,11 @@ describe("content security policy", () => {
     expect(policy["base-uri"]).toEqual(["'none'"]);
   });
 
-  it("names the explorer once, in connect-src, and no other host anywhere", () => {
+  it("names the explorer and the relay once each, in connect-src, and no other host anywhere", () => {
     expect(EXPLORER_ORIGIN).toMatch(/^https:\/\/[a-z.]+$/);
-    expect(buildCsp({ nonce: "n" }).match(/https?:\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN]);
+    // Secure websocket only: the relay is never reached over a plain or an http(s) URL.
+    expect(SHIELD_RELAY_ORIGIN).toMatch(/^wss:\/\/[a-z.]+$/);
+    expect(buildCsp({ nonce: "n" }).match(/(?:https?|wss?):\/\/[^\s;]+/g)).toEqual([EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN]);
   });
 });
 
