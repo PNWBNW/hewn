@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { compileManifest, type CompilerInput } from "./compiler";
 import { PayrollValidationError } from "./types";
 import type { PayrollTableRow } from "./payroll-table/types";
@@ -33,6 +33,13 @@ function makeInput(rows: PayrollTableRow[]): CompilerInput {
 }
 
 describe("compileManifest", () => {
+  // The compiler stamps the compile time, to the second, into every row (compiler.ts, tag 0x01),
+  // so two compiles only agree when they share a clock. On a slow runner the two calls in a
+  // determinism test can straddle a second; a frozen clock makes "same rows, same batch_id" true
+  // as a statement about the inputs rather than about timing.
+  beforeEach(() => vi.useFakeTimers({ now: new Date("2026-03-02T12:00:00Z"), toFake: ["Date"] }));
+  afterEach(() => vi.useRealTimers());
+
   it("compiles a single valid row", () => {
     const manifest = compileManifest(makeInput([makeRow()]));
 
