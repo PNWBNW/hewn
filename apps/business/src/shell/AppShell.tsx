@@ -174,6 +174,10 @@ function Rail({
           <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-rail-active-foreground">
             Source code
           </a>
+          {" · "}
+          <Link href="/traction" className="underline underline-offset-4 hover:text-rail-active-foreground">
+            Traction map
+          </Link>
         </p>
       </div>
     </nav>

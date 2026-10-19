@@ -39,6 +39,9 @@ export function SiteFooter() {
           <Link href="/privacy" className="underline-offset-4 hover:text-foreground hover:underline">
             Privacy
           </Link>
+          <a href={`${BRAND.appUrl}/traction`} className="underline-offset-4 hover:text-foreground hover:underline">
+            Traction map
+          </a>
           <a href={BRAND.sourceUrl} className="underline-offset-4 hover:text-foreground hover:underline">
             Source code ({BRAND.licence})
           </a>
