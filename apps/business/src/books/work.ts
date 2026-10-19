@@ -65,7 +65,14 @@ export type WorkAgreement = {
   acceptedAt?: string;
 };
 
-export type Punch = { id: string; agreementId: string; at: string; kind: "in" | "out" };
+export type Punch = {
+  id: string;
+  agreementId: string;
+  at: string;
+  kind: "in" | "out";
+  /** On an out: the person looked at the long shift this closes and confirmed it is right (hours.ts). */
+  confirmed?: true;
+};
 
 export type SentTimesheet = {
   agreementId: string;
@@ -256,7 +263,10 @@ export function validatePunch(raw: unknown): Punch {
   if (kind !== "in" && kind !== "out") throw new WorkError("A punch is in or out");
   const id = text(raw.id, "Punch id");
   if (!id) throw new WorkError("Each punch needs an id");
-  return { id, agreementId: text(raw.agreementId, "Agreement id"), at: isoDate(raw.at, "Punch time"), kind };
+  if (raw.confirmed !== undefined && raw.confirmed !== true && raw.confirmed !== false) throw new WorkError("Confirmed must be true or false");
+  const p: Punch = { id, agreementId: text(raw.agreementId, "Agreement id"), at: isoDate(raw.at, "Punch time"), kind };
+  if (raw.confirmed === true && kind === "out") p.confirmed = true;
+  return p;
 }
 
 export function validateTimesheet(raw: unknown): SentTimesheet {
@@ -574,14 +584,37 @@ export function punch(work: Work, agreementId: string, at: string = new Date().t
   return { work: validateWork({ ...work, punches }), punch: p };
 }
 
-/** Moves one punch to a new time (and kind). The list must still alternate. */
+/**
+ * Moves one punch to a new time (and kind). The list must still alternate. A
+ * shift whose end moves loses its confirmation: the person looks again.
+ */
 export function updatePunch(work: Work, id: string, changes: Partial<Pick<Punch, "at" | "kind">>): Work {
   const existing = work.punches.find((p) => p.id === id);
   if (!existing) throw new WorkError("No punch with that id");
-  const next = validatePunch({ ...existing, ...changes });
-  const punches = work.punches.map((p) => (p.id === id ? next : p));
+  const { confirmed: _was, ...rest } = existing;
+  const next = validatePunch({ ...rest, ...changes });
+  // The other end of the same shift, if the moved punch is its in: its confirmation goes too.
+  const sorted = work.punches.filter((p) => p.agreementId === existing.agreementId).sort(byTime);
+  const after = existing.kind === "in" ? sorted[sorted.findIndex((p) => p.id === id) + 1] : undefined;
+  const punches = work.punches.map((p) => {
+    if (p.id === id) return next;
+    if (after && p.id === after.id && p.kind === "out" && p.confirmed) {
+      const { confirmed: _c, ...plain } = p;
+      return plain;
+    }
+    return p;
+  });
   checkPunches(punches);
   return validateWork({ ...work, punches });
+}
+
+/** The person confirms the long shift that ends at out punch `id` is right as it stands. */
+export function confirmShift(work: Work, id: string): Work {
+  const existing = work.punches.find((p) => p.id === id);
+  if (!existing) throw new WorkError("No punch with that id");
+  if (existing.kind !== "out") throw new WorkError("Only a clock-out closes a shift");
+  if (existing.confirmed) return work;
+  return validateWork({ ...work, punches: work.punches.map((p) => (p.id === id ? { ...p, confirmed: true } : p)) });
 }
 
 /**

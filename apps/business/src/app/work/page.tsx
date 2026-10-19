@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import { calendarOf, formatMinutes, localDate, minutesOn, weekMinutes, weekStartOf } from "@/books/hours";
+import { calendarOf, formatMinutes, localDate, longestMinutesOf, minutesOn, weekMinutes, weekStartOf } from "@/books/hours";
 import { paystubFromCanonical } from "@/books/paystub_document";
 import { activeAgreements, openPunch, punch } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
@@ -28,10 +28,15 @@ export default function WorkHomePage() {
   const [error, setError] = useState<string | null>(null);
   const agreementId = active.some((a) => a.agreementId === chosen) ? chosen : (active[0]?.agreementId ?? "");
   // Days and weeks on the agreement's calendar (the work week in its terms; Monday and this device's zone without one).
-  const calendar = calendarOf(active.find((a) => a.agreementId === agreementId));
+  const agreement = active.find((a) => a.agreementId === agreementId);
+  const calendar = calendarOf(agreement);
+  const longest = longestMinutesOf(agreement);
   const today = localDate(now, calendar.timeZone);
   const weekStart = weekStartOf(today, calendar);
   const open = agreementId ? openPunch(work, agreementId) : undefined;
+  // Clocked in past the longest shift: most likely a forgotten clock-out.
+  const openFor = open ? Math.floor((now.getTime() - Date.parse(open.at)) / 60_000) : 0;
+  const overlong = !!open && openFor > longest;
   const latest = [...work.paystubs].sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : -1))[0];
 
   async function clockInOut() {
@@ -81,6 +86,15 @@ export default function WorkHomePage() {
                 Offers
               </Link>
             </p>
+          ) : open && overlong ? (
+            <p className="text-center text-sm text-warning" role="status">
+              On the clock since {clock(open.at, calendar.timeZone)}: {formatMinutes(openFor)}, longer than your longest shift ({formatMinutes(longest).replace(/ 00m$/, "")}).
+              Forgot to clock out? Set the time you left under{" "}
+              <Link href="/work/hours" className="underline underline-offset-4">
+                Hours
+              </Link>
+              ; until then the hours stop counting there.
+            </p>
           ) : open ? (
             <p className="text-sm text-muted-foreground">On the clock since {clock(open.at, calendar.timeZone)}</p>
           ) : (
@@ -90,11 +104,11 @@ export default function WorkHomePage() {
           <dl className="grid w-full grid-cols-2 gap-3 text-center">
             <div className="rounded-md border p-3">
               <dt className="text-xs text-muted-foreground">Today</dt>
-              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? minutesOn(work.punches, agreementId, today, now, calendar.timeZone) : 0)}</dd>
+              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? minutesOn(work.punches, agreementId, today, now, calendar.timeZone, longest) : 0)}</dd>
             </div>
             <div className="rounded-md border p-3">
               <dt className="text-xs text-muted-foreground">This week</dt>
-              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? weekMinutes(work.punches, agreementId, weekStart, now, calendar.timeZone) : 0)}</dd>
+              <dd className="text-lg font-semibold tabular-nums">{formatMinutes(agreementId ? weekMinutes(work.punches, agreementId, weekStart, now, calendar.timeZone, longest) : 0)}</dd>
             </div>
           </dl>
           {agreementId && <SendWeek agreementId={agreementId} weekStart={weekStart} now={now} />}

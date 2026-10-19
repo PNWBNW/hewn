@@ -93,6 +93,7 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
   // Overtime under the work week in their offer's terms: the same split their own Hours page shows.
   const terms = rail ? linkFor(rail, item.workerId)?.terms : undefined;
   const split = terms?.version === 2 && terms.workWeek ? overtimeSplit(h.entries, terms.workWeek) : null;
+  const longShifts = h.entries.filter((e) => e.long).length;
   return (
     <details
       onToggle={(e) => {
@@ -107,6 +108,7 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
             {formatMinutes(h.totalMinutes)}
             {split && split.overtime > 0 && ` (${formatMinutes(split.overtime)} overtime)`} · {when(item.at)}
             {h.resent && " · Replaces their earlier send"}
+            {longShifts > 0 && <span className="text-warning"> · {longShifts === 1 ? "1 long shift" : `${longShifts} long shifts`} to review</span>}
             {!h.read && " · New"}
           </span>
         </span>
@@ -115,7 +117,10 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
       <ul className="mt-2 flex flex-col gap-1 rounded-md bg-muted/40 p-3 text-xs">
         {h.entries.map((e, i) => (
           <li key={i} className="flex justify-between gap-3">
-            <span>{dayLabel(e.date)}</span>
+            <span>
+              {dayLabel(e.date)}
+              {e.long && <span className="ml-2 rounded-sm bg-warning/15 px-1.5 py-0.5 text-warning">Long shift, confirmed by {item.workerName}: review before paying</span>}
+            </span>
             <span className="text-muted-foreground">
               {clock(e.in)} – {clock(e.out)}
             </span>

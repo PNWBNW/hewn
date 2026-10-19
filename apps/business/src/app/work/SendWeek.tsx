@@ -8,7 +8,7 @@ import dynamic from "next/dynamic";
 import { Send } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { useWork } from "@/books/BooksProvider";
-import { calendarOf, formatMinutes, weekMinutes } from "@/books/hours";
+import { calendarOf, formatMinutes, longestMinutesOf, sendProblem, weekMinutes } from "@/books/hours";
 import { sentWeek } from "@/books/work";
 import { employerLabel, when } from "./shared";
 
@@ -22,19 +22,25 @@ export function SendWeek({ agreementId, weekStart, now }: { agreementId: string;
   const [open, setOpen] = useState(false);
   const agreement = work.agreements.find((a) => a.agreementId === agreementId);
   if (!agreement || agreement.status !== "active") return null;
-  const minutes = weekMinutes(work.punches, agreementId, weekStart, now, calendarOf(agreement).timeZone);
+  const minutes = weekMinutes(work.punches, agreementId, weekStart, now, calendarOf(agreement).timeZone, longestMinutesOf(agreement));
   const sent = sentWeek(work, agreementId, weekStart);
+  // A shift open past the longest shift, or a long one not yet confirmed, holds the week back.
+  const problem = minutes > 0 ? sendProblem(work, agreementId, weekStart, now) : null;
   return (
     <div className="flex flex-col gap-2">
       {open ? (
         <SendTimesheetPanel agreementId={agreementId} weekStart={weekStart} onClose={() => setOpen(false)} />
       ) : (
         <div className="flex flex-wrap items-center gap-3">
-          <Button className="min-h-11 sm:min-h-9" disabled={minutes === 0} onClick={() => setOpen(true)}>
+          <Button className="min-h-11 sm:min-h-9" disabled={minutes === 0 || problem !== null} onClick={() => setOpen(true)}>
             <Send aria-hidden />
             {sent ? "Send this week again" : `Send this week to ${employerLabel(agreement)}`}
           </Button>
-          {sent ? (
+          {problem ? (
+            <span className="text-xs text-warning" role="status">
+              {problem}
+            </span>
+          ) : sent ? (
             <span className="text-xs text-muted-foreground">
               Sent {when(sent.sentAt)} · {formatMinutes(sent.totalMinutes)}
               {sent.receivedAt ? ` · Received ${when(sent.receivedAt)}` : " · Not picked up yet"}

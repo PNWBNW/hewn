@@ -3267,3 +3267,28 @@ paid (the guard itself is the next task; its number travels here).
 
 Tests: 938/938 (15 new). No change to what goes on chain: the terms hash covers the work week as it
 covers the rest of the terms.
+
+## 2026-10-19: a forgotten clock-out is caught before the week goes out
+
+Joshua: people forget to clock out; a shift that runs past a standard length should be reviewed
+before it is paid. The longest shift is in the work week of the offer's terms (the previous entry;
+12 hours for an agreement without one).
+- `books/hours.ts`: every shift knows whether it is `long` (the whole shift runs past the longest
+  shift) and `confirmed`. An open shift stops counting at the longest shift (or at midnight, whichever
+  comes first) and is long once that has passed. `sendProblem(work, agreementId, weekStart, now)`:
+  a shift still open past the longest shift ("Forgot to clock out? Set the time you left, under
+  Hours.") or a long shift not yet confirmed ("fix its clock-out time or confirm it's right") holds
+  the week back; `buildTimesheet` refuses with the same words, and a confirmed long shift goes out
+  with `long: true` on its entry (`TimesheetEntry`). `weekShifts`, `longestMinutesOf`.
+- `books/work.ts`: an out punch can carry `confirmed: true` (`confirmShift`; only a clock-out; kept
+  through a save); moving either end of the shift drops it, so the person looks again.
+- Home: clocked in past the longest shift shows "On the clock since 6:00 AM: 13h 10m, longer than
+  your longest shift (12h). Forgot to clock out? Set the time you left under Hours; until then the
+  hours stop counting there." Hours: a long shift is badged "Longer than 12h" with "It's right" to
+  confirm (then "· confirmed"); an open one says it is counted to there. Send this week is held back
+  with the reason beside it, before Shield is ever asked.
+- Payroll → Hours (`books/mailbox.ts` keeps the flag): a card says "1 long shift to review" and the
+  day reads "Long shift, confirmed by Ana: review before paying".
+
+Tests: 943/943 (5 new; one expectation moved: an open shift now stops at the longest shift before
+midnight).
