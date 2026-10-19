@@ -59,7 +59,7 @@ type Stage = "withdrawing" | "files" | OfferStage | "noting";
 
 const STAGE_COPY: Record<Stage, string> = {
   withdrawing: "Approve withdrawing the current offer in Shield (1 of 4)…",
-  files: "Putting the files in their mailbox…",
+  files: "Preparing…",
   sealing: "Sealing the revised terms…",
   mailbox: "Approve the revised terms in Shield (2 of 4): they go as a sealed page on the network…",
   approving: "Approve the revised offer in Shield (3 of 4)…",
@@ -200,7 +200,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
           body: { type: "revised", agreementId: old.agreementId, newAgreementId: sent.link.agreementId, note },
         });
         await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, workerId, (t) => addToThread(t, item)) }));
-        setDone(`Revised offer sent to ${worker.name}. It's in their mailbox; once they accept, they're linked.`);
+        setDone(`Revised offer sent to ${worker.name}. It's waiting in their Offers; once they accept, they're linked.`);
       } catch {
         setDone(`Revised offer sent to ${worker.name}. The note saying it replaces the old one didn't go out, but the offer itself is there for them to accept.`);
       }

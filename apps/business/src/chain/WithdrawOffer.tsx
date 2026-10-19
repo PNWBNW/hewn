@@ -91,7 +91,7 @@ function WithdrawFlow({ workerId, onClose }: WithdrawOfferProps) {
     <>
       <p className="text-sm">
         {expired ? `The offer to ${name} expired without an answer.` : `Take back the offer to ${name}?`} Withdrawing closes it for good: they
-        can&apos;t accept it anywhere, its documents are cleared from the mailbox, and you can send a new offer.
+        can&apos;t accept it anywhere, and you can send a new offer. The sealed terms they received stay unreadable to anyone else.
       </p>
       <p className="text-xs text-muted-foreground">Shield asks you to approve one transaction; the business pays its network fee.</p>
       <FormError message={error ?? shieldError} />
