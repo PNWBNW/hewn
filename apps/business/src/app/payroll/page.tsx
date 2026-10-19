@@ -31,6 +31,7 @@ import { type Registered, linkFor, linkStatus, registeredFor, setRegistered } fr
 import { expiryLabel, isExpired } from "@/books/offer_letter";
 import { threadFor } from "@/books/mailbox";
 import { openCounter } from "@/books/thread";
+import { paidByRun, shiftCount } from "@/books/timecard_pay";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Hours } from "./Hours";
@@ -150,7 +151,9 @@ function nextStep(run: PayRun): "Continue" | "Retry" | null {
 }
 
 function RunCard({ run, payNow }: { run: PayRun; payNow: boolean }) {
-  const { payroll, dimensions } = useOpenBooks();
+  const { payroll, dimensions, mailbox } = useOpenBooks();
+  // The stretches from timecards each paycheck paid (books/timecard_pay.ts), when it was made from them.
+  const fromCards = paidByRun(mailbox, run.id);
   const [open, setOpen] = useState(payNow);
   const [paying, setPaying] = useState(payNow);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -221,7 +224,11 @@ function RunCard({ run, payNow }: { run: PayRun; payNow: boolean }) {
                 <tr key={p.workerId}>
                   <td className="py-1">
                     {names.get(p.workerId) ?? p.workerId}
-                    {p.hours !== undefined && <span className="ml-1 text-xs text-muted-foreground">{p.hours} h</span>}
+                    {p.hours !== undefined && (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        {p.hours} h{fromCards.has(p.workerId) && ` · from timecards (${shiftCount(fromCards.get(p.workerId)!.length)})`}
+                      </span>
+                    )}
                     {p.tags?.project && <span className="block text-xs text-muted-foreground">{projects.get(p.tags.project) ?? p.tags.project}</span>}
                     {p.settlement.status !== "settled" && (
                       <span className="block text-xs text-muted-foreground">

@@ -108,6 +108,7 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
             {formatMinutes(h.totalMinutes)}
             {split && split.overtime > 0 && ` (${formatMinutes(split.overtime)} overtime)`} · {when(item.at)}
             {h.sends && ` · ${h.sends} sends combined`}
+            {h.entries.some((e) => e.paid) && (h.entries.every((e) => e.paid) ? " · Paid" : ` · ${h.entries.filter((e) => e.paid).length} of ${h.entries.length} stretches paid`)}
             {longShifts > 0 && <span className="text-warning"> · {longShifts === 1 ? "1 long shift" : `${longShifts} long shifts`} to review</span>}
             {!h.read && " · New"}
           </span>
@@ -120,6 +121,7 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
             <span>
               {dayLabel(e.date)}
               {e.long && <span className="ml-2 rounded-sm bg-warning/15 px-1.5 py-0.5 text-warning">Long shift, confirmed by {item.workerName}: review before paying</span>}
+              {e.paid && <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5">Paid {dayLabel(e.paid.payDate)}</span>}
             </span>
             <span className="text-muted-foreground">
               {clock(e.in)} – {clock(e.out)}

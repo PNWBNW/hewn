@@ -3338,3 +3338,25 @@ now the weekly timecard, updated as often as they like.
   business questioning hours it has, which changes nothing until the person agrees.
 
 Tests: 945/945 (2 new; the send tests know the punches sent).
+
+## 2026-10-19: the hours on timecards pay the paycheck
+
+Joshua: the week's card showed the right 45 minutes, but Run payroll still wanted the hours typed.
+The hours a run pays should be the stretches the team sent, and the run should say which.
+- `books/timecard_pay.ts`: `unpaidHours(mailbox, workerId, periodStart, periodEnd)` gathers every
+  stretch on the person's cards dated inside the period that no run has paid (minutes, the stretches,
+  the weeks); `markPaid(mailbox, stretches, runId, payDate)` writes the run on each, so a stretch is
+  never paid twice and the card says which paycheck covered it; `paidByRun`; `hoursText` (minutes to
+  the hundredth of an hour, "0.75"). `ReceivedEntry.paid` (`books/mailbox.ts`; kept through a save,
+  never read off the wire); a paid stretch keeps its mark when the week is sent again over it, and
+  the newer send isn't counted again there.
+- Run payroll: an hourly paycheck's hours come from the timecards: the box is filled and read-only,
+  with "From their timecards: 45m across 2 shifts, week of Sun, Oct 18. Those stretches are marked
+  paid when this run posts." and "Type the hours instead" to override (then "Pay the timecards" to
+  go back). With nothing unpaid in the period: "type the hours". Posting marks the stretches paid.
+- Pay runs: a paycheck made from timecards reads "0.75 h · from timecards (2 shifts)". Payroll →
+  Hours: each paid stretch reads "Paid Mon, Oct 19"; the card "· Paid" or "1 of 3 stretches paid".
+- Not yet: overtime pay (the engine pays every hour at the rate; the split is shown, not priced),
+  and the stretches on the paystub itself.
+
+Tests: 949/949 (4 new).

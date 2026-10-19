@@ -19,6 +19,9 @@ import type { TimesheetPayload } from "./hours";
 import { type Thread, emptyThread, validateThread } from "./thread";
 import { type BusinessChannel, validateBusinessChannel } from "./channels";
 
+/** One stretch as received, and, once a pay run has paid it, which run and when (books/timecard_pay.ts). */
+export type ReceivedEntry = TimesheetPayload["entries"][number] & { paid?: { runId: string; payDate: string } };
+
 /** A week of hours a team member sent, as it arrived. */
 export type ReceivedHours = {
   agreementId: string;
@@ -31,7 +34,7 @@ export type ReceivedHours = {
   workerId: string;
   /** The first day of the work week, YYYY-MM-DD, on the agreement's calendar (books/hours.ts). */
   weekStart: string;
-  entries: TimesheetPayload["entries"];
+  entries: ReceivedEntry[];
   totalMinutes: number;
   /** When the sender sent it. */
   sentAt: string;
@@ -78,18 +81,25 @@ const isSeq = (v: unknown): v is number => typeof v === "number" && Number.isInt
 const isMinutes = (v: unknown, max: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= max;
 
 /** The entries of a timesheet: bounded, well-formed, in whole minutes. */
-function validateEntries(raw: unknown): TimesheetPayload["entries"] {
+/** The entries of a week; `kept` ones (from this vault, not the wire) may carry which pay run paid them. */
+function validateEntries(raw: unknown, kept = false): ReceivedEntry[] {
   if (!Array.isArray(raw) || raw.length === 0) throw new MailboxError("The hours have no entries");
   if (raw.length > MAX_ENTRIES) throw new MailboxError("The hours have too many entries");
   return raw.map((e) => {
-    const x = e as Partial<TimesheetPayload["entries"][number]> | null;
+    const x = e as Partial<ReceivedEntry> | null;
     if (!x || typeof x !== "object") throw new MailboxError("Every entry must be an object");
     if (!isDate(x.date)) throw new MailboxError("Every entry needs a date");
     if (!isStamp(x.in) || !isStamp(x.out)) throw new MailboxError("Every entry needs a start and an end time");
     if (!isMinutes(x.minutes, MINUTES_IN_DAY)) throw new MailboxError("An entry's minutes must be a whole number within one day");
     if (x.long !== undefined && x.long !== true) throw new MailboxError("An entry's long flag can only be true");
     // `long`: a shift past the longest shift in the terms, which the sender confirmed (books/hours.ts).
-    return { date: x.date, in: x.in, out: x.out, minutes: x.minutes, ...(x.long ? { long: true as const } : {}) };
+    const entry: ReceivedEntry = { date: x.date, in: x.in, out: x.out, minutes: x.minutes, ...(x.long ? { long: true as const } : {}) };
+    if (kept && x.paid !== undefined) {
+      const p = x.paid as Partial<NonNullable<ReceivedEntry["paid"]>> | null;
+      if (!p || typeof p !== "object" || typeof p.runId !== "string" || !p.runId || !isDate(p.payDate)) throw new MailboxError("A paid entry names the pay run and its date");
+      entry.paid = { runId: p.runId, payDate: p.payDate };
+    }
+    return entry;
   });
 }
 
@@ -120,7 +130,7 @@ function validateReceived(raw: unknown): ReceivedHours {
   if (typeof h.lookup !== "string" || !LOOKUP.test(h.lookup)) throw new MailboxError("A lookup must be 64 hex characters");
   if (!isStamp(h.receivedAt)) throw new MailboxError("Each week of hours needs the time it arrived");
   if (!isDate(h.weekStart)) throw new MailboxError("Each week of hours needs a week");
-  const entries = validateEntries(h.entries);
+  const entries = validateEntries(h.entries, true);
   if (h.totalMinutes !== entries.reduce((t, e) => t + e.minutes, 0)) throw new MailboxError("The hours don't add up");
   if (!isStamp(h.sentAt)) throw new MailboxError("Each week of hours needs the time it was sent");
   if (h.read !== undefined && typeof h.read !== "boolean") throw new MailboxError("Read must be true or false");
@@ -165,7 +175,10 @@ function combinePerWeek(items: ReceivedHours[]): ReceivedHours[] {
       byWeek.set(key, item);
       continue;
     }
-    const entries = [...item.entries, ...kept.entries.filter((e) => !item.entries.some((n) => overlaps(e, n)))].sort((a, b) => (a.in < b.in ? -1 : a.in > b.in ? 1 : 0));
+    // A stretch a pay run has already paid stays as paid; a newer send over it is not counted again.
+    const paid = kept.entries.filter((e) => e.paid);
+    const fresh_ = item.entries.filter((n) => !paid.some((p) => overlaps(p, n)));
+    const entries = [...fresh_, ...kept.entries.filter((e) => e.paid || !item.entries.some((n) => overlaps(e, n)))].sort((a, b) => (a.in < b.in ? -1 : a.in > b.in ? 1 : 0));
     const { read: _read, ...fresh } = item;
     byWeek.set(key, { ...fresh, entries, totalMinutes: entries.reduce((t, e) => t + e.minutes, 0), sends: (kept.sends ?? 1) + 1 });
   }
