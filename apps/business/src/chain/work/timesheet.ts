@@ -13,7 +13,7 @@
 
 import { MailboxError, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
-import { type TimesheetPayload, buildTimesheet } from "../../books/hours";
+import { type TimesheetPayload, buildTimesheet, timecardPunchIds } from "../../books/hours";
 import { type SentTimesheet, type Work, WorkError, agreementFor, nextWorkSeq } from "../../books/work";
 import { packPayload } from "../compress";
 
@@ -55,6 +55,6 @@ export async function sendTimesheet({ work, agreementId, weekStart, client, now,
     if (e instanceof MailboxError && e.code === "CONFLICT") slotTaken = true;
     else throw e;
   }
-  const sent: SentTimesheet = { agreementId, weekStart, seq, lookup: sealed.lookup, totalMinutes: payload.totalMinutes, sentAt: payload.sentAt };
+  const sent: SentTimesheet = { agreementId, weekStart, seq, lookup: sealed.lookup, totalMinutes: payload.totalMinutes, sentAt: payload.sentAt, punchIds: timecardPunchIds(work, agreementId, weekStart, at) };
   return { sent, payload, slotTaken };
 }

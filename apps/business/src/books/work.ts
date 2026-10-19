@@ -84,6 +84,11 @@ export type SentTimesheet = {
   sentAt: string;
   /** When the business's app picked it up, from its receipt. Absent until one arrives. */
   receivedAt?: string;
+  /**
+   * The punches of the shifts it carried (Joshua, 2026-10-19): those shifts are sent, confirmed by
+   * the person and the employer's to change; they can't be edited or removed here any more.
+   */
+  punchIds?: string[];
 };
 
 export type ReceivedPaystub = {
@@ -281,7 +286,13 @@ export function validateTimesheet(raw: unknown): SentTimesheet {
     totalMinutes: minutes(raw.totalMinutes, "Total"),
     sentAt: isoDate(raw.sentAt, "Sent at"),
     ...(raw.receivedAt !== undefined ? { receivedAt: isoDate(raw.receivedAt, "Received at") } : {}),
+    ...(raw.punchIds !== undefined ? { punchIds: punchIdList(raw.punchIds) } : {}),
   };
+}
+
+function punchIdList(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.some((id) => typeof id !== "string" || !id)) throw new WorkError("The punches sent must be a list of ids");
+  return [...new Set(raw as string[])];
 }
 
 export function validatePaystub(raw: unknown): ReceivedPaystub {
@@ -489,13 +500,28 @@ export function addPaystub(work: Work, paystub: ReceivedPaystub): Work {
   return bumpWorkSeq({ ...work, paystubs: [...work.paystubs, fresh] }, fresh.agreementId, "paystub", fresh.seq);
 }
 
-/** Records a week sent to an employer and moves the slot past it. A week sent again replaces the earlier record here; the employer's side combines the sends. */
+/**
+ * Records a week sent to an employer and moves the slot past it. A week sent again replaces the
+ * earlier record here (the employer's side combines the sends); the punches sent add up.
+ */
 export function recordTimesheet(work: Work, sent: SentTimesheet): Work {
   const fresh = validateTimesheet(sent);
   if (!agreementFor(work, fresh.agreementId)) throw new WorkError("No agreement with that id");
-  const others = work.timesheets.filter((t) => !(t.agreementId === fresh.agreementId && t.weekStart === fresh.weekStart));
-  return bumpWorkSeq({ ...work, timesheets: [...others, fresh] }, fresh.agreementId, "timesheet", fresh.seq);
+  const before = work.timesheets.find((t) => t.agreementId === fresh.agreementId && t.weekStart === fresh.weekStart);
+  const punchIds = [...new Set([...(before?.punchIds ?? []), ...(fresh.punchIds ?? [])])];
+  const kept: SentTimesheet = punchIds.length > 0 ? { ...fresh, punchIds } : fresh;
+  const others = work.timesheets.filter((t) => t !== before);
+  return bumpWorkSeq({ ...work, timesheets: [...others, kept] }, fresh.agreementId, "timesheet", fresh.seq);
 }
+
+/** The punches of every shift sent to an employer: theirs to change now. */
+export function sentPunchIds(work: Work, agreementId: string): Set<string> {
+  const ids = new Set<string>();
+  for (const t of work.timesheets) if (t.agreementId === agreementId) for (const id of t.punchIds ?? []) ids.add(id);
+  return ids;
+}
+
+const SENT_MESSAGE = "This shift has been sent to the employer and is theirs to change now";
 
 /** Records when the business's app picked up the week in slot `seq` (its receipt). The first time sticks. */
 export function markTimesheetReceived(work: Work, agreementId: string, seq: number, receivedAt: string): Work {
@@ -591,6 +617,7 @@ export function punch(work: Work, agreementId: string, at: string = new Date().t
 export function updatePunch(work: Work, id: string, changes: Partial<Pick<Punch, "at" | "kind">>): Work {
   const existing = work.punches.find((p) => p.id === id);
   if (!existing) throw new WorkError("No punch with that id");
+  if (sentPunchIds(work, existing.agreementId).has(id)) throw new WorkError(SENT_MESSAGE);
   const { confirmed: _was, ...rest } = existing;
   const next = validatePunch({ ...rest, ...changes });
   // The other end of the same shift, if the moved punch is its in: its confirmation goes too.
@@ -625,6 +652,7 @@ export function confirmShift(work: Work, id: string): Work {
 export function removePunch(work: Work, id: string): Work {
   const existing = work.punches.find((p) => p.id === id);
   if (!existing) throw new WorkError("No punch with that id");
+  if (sentPunchIds(work, existing.agreementId).has(id)) throw new WorkError(SENT_MESSAGE);
   let punches = work.punches.filter((p) => p.id !== id);
   try {
     checkPunches(punches);
@@ -633,6 +661,7 @@ export function removePunch(work: Work, id: string): Work {
     const at = sorted.findIndex((p) => p.id === id);
     // The other half of the same shift: the next punch after an in, the one before an out.
     const partner = existing.kind === "in" ? sorted[at + 1] : sorted[at - 1];
+    if (partner && sentPunchIds(work, existing.agreementId).has(partner.id)) throw new WorkError(SENT_MESSAGE);
     punches = punches.filter((p) => p.id !== partner?.id);
     checkPunches(punches);
   }

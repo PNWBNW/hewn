@@ -9,7 +9,7 @@ import { Button } from "@pnw/ui/button";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import { calendarOf, formatMinutes, weekMinutes } from "@/books/hours";
+import { formatMinutes, sendableMinutes } from "@/books/hours";
 import { shortAddress } from "@/books/rail";
 import { agreementFor, recordTimesheet, sentWeek } from "@/books/work";
 import { BRAND } from "@/brand";
@@ -37,7 +37,7 @@ function SendFlow({ agreementId, weekStart, onClose }: SendTimesheetPanelProps) 
   const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const agreement = agreementFor(work, agreementId);
   const already = sentWeek(work, agreementId, weekStart);
-  const minutes = weekMinutes(work.punches, agreementId, weekStart, new Date(), calendarOf(agreement ?? undefined).timeZone);
+  const minutes = sendableMinutes(work, agreementId, weekStart, new Date());
   const employer = agreement?.employerName ? `${agreement.employerName}.${BRAND.nameSuffix}` : agreement ? shortAddress(agreement.employerAddress) : "";
 
   async function send() {
@@ -59,12 +59,15 @@ function SendFlow({ agreementId, weekStart, onClose }: SendTimesheetPanelProps) 
   return (
     <>
       {done ? (
-        <p className="text-sm">Sent to {employer}: {formatMinutes(minutes)} for the week of {weekStart}.</p>
+        <p className="text-sm">
+          Sent to {employer}: {formatMinutes(minutes)} for the week of {weekStart}. These shifts are confirmed and theirs to change now.
+        </p>
       ) : (
         <>
           <p className="text-sm">
-            Send {formatMinutes(minutes)} for the week of {weekStart} to <span className="font-medium">{employer}</span>?
-            {already && ` You sent this week before (${formatMinutes(already.totalMinutes)}); sending again adds anything new to that week's card on their side.`}
+            {already ? "Update" : "Send"} the weekly timecard for the week of {weekStart} to <span className="font-medium">{employer}</span>: {formatMinutes(minutes)}?
+            {already && ` You sent it before (${formatMinutes(already.totalMinutes)}); this update adds what's new to that week's card on their side.`} Once sent,
+            these shifts are confirmed and theirs to change.
           </p>
           <p className="text-xs text-muted-foreground">
             It goes as a sealed letter on the network that only {employer} can open: one approval in Shield.
@@ -76,7 +79,7 @@ function SendFlow({ agreementId, weekStart, onClose }: SendTimesheetPanelProps) 
       <div className="flex flex-wrap gap-3">
         {!done && (
           <Button className="min-h-11 sm:min-h-9" disabled={busy || minutes === 0} onClick={() => void send()}>
-            {busy ? "Sending…" : already ? "Send again" : "Send"}
+            {busy ? "Sending…" : already ? "Update" : "Send"}
           </Button>
         )}
         <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={onClose}>

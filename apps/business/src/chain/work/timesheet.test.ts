@@ -42,7 +42,7 @@ describe("sendTimesheet", () => {
     expect(puts).toHaveLength(1);
     expect(puts[0]!.lookup).toBe(lookupId(key, TIMESHEET_KIND, 0));
     expect(puts[0]!.envelope[0]).toBe(0x01);
-    expect(sent).toEqual({ agreementId: AID, weekStart: "2026-10-11", seq: 0, lookup: puts[0]!.lookup, totalMinutes: 510, sentAt: now().toISOString() });
+    expect(sent).toEqual({ agreementId: AID, weekStart: "2026-10-11", seq: 0, lookup: puts[0]!.lookup, totalMinutes: 510, sentAt: now().toISOString(), punchIds: ["a", "b"] });
     expect(puts[0]!.envelope.length).toBeLessThanOrEqual(LETTER_BYTES); // one letter, not a page
     const opened = JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, TIMESHEET_KIND, 0, puts[0]!.envelope))));
     expect(opened).toEqual(payload);

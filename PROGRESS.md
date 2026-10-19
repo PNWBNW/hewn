@@ -3315,3 +3315,26 @@ inside it group together.
 
 Tests: 943/943 (the week-combining test rewritten for the new rule; Monday expectations moved to
 Sunday).
+
+## 2026-10-19: the weekly timecard; a sent shift is the employer's
+
+Joshua: people will send the timecard right after clocking out so the shift can't be lost or deleted
+on their side; once sent, they've confirmed the hours and the business has them. "Send this week" is
+now the weekly timecard, updated as often as they like.
+- "Send weekly timecard to brothers.hewn", then "Update weekly timecard" (`app/work/SendWeek.tsx`;
+  the panel says "Send/Update the weekly timecard for the week of … : 8h 00m? Once sent, these shifts
+  are confirmed and theirs to change."). An update adds what's new to the week's card on the other
+  side (the previous entry).
+- A timecard carries closed shifts only (`books/hours.ts` `sendableShifts`, `sendableMinutes`,
+  `timecardPunchIds`); an open shift goes once it's clocked out ("A shift goes on the timecard once
+  you've clocked out"), long or not, so the open-shift block in `sendProblem` is gone (Home still
+  warns past the longest shift).
+- `books/work.ts`: the sent record keeps `punchIds` (adding up across updates); a punch on it can't
+  be edited or removed ("This shift has been sent to the employer and is theirs to change now"),
+  nor its partner through the other end. A shift knows it (`Shift.sent`); Hours shows a lock and
+  "Sent" instead of the edit and remove buttons, and says what that means. A week sent before this
+  existed locks nothing.
+- Next: "Ask for a revision" on an unsent shift (a note to the business, which adjusts it), and the
+  business questioning hours it has, which changes nothing until the person agrees.
+
+Tests: 945/945 (2 new; the send tests know the punches sent).

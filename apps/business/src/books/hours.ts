@@ -22,7 +22,7 @@
 // side of the app: keep the field names exactly.
 // ---------------------------------------------------------------------------
 
-import { type Punch, type Work, type WorkAgreement, WorkError } from "./work";
+import { type Punch, type Work, type WorkAgreement, WorkError, sentPunchIds } from "./work";
 import { WEEKDAY_INDEX, type Weekday, type WorkWeek, deviceTimeZone, weekdayLabel } from "./work_week";
 
 export type DayDate = string; // YYYY-MM-DD, in the calendar's zone
@@ -32,9 +32,10 @@ export type Calendar = { startsOn: Weekday; timeZone: string };
 
 /**
  * One worked stretch inside a single day. `long`: the whole shift it belongs to runs past the
- * longest shift (open: it has already); `confirmed`: the person confirmed that long shift.
+ * longest shift (open: it has already); `confirmed`: the person confirmed that long shift;
+ * `sent`: the shift has gone to the employer in a timecard and is theirs to change now.
  */
-export type Shift = { date: DayDate; in: string; out: string; minutes: number; open: boolean; inId: string; outId?: string; long: boolean; confirmed: boolean };
+export type Shift = { date: DayDate; in: string; out: string; minutes: number; open: boolean; inId: string; outId?: string; long: boolean; confirmed: boolean; sent: boolean };
 
 export type TimesheetEntry = { date: DayDate; in: string; out: string; minutes: number; long?: true };
 
@@ -126,7 +127,7 @@ const wholeMinutes = (fromMs: number, toMs: number) => Math.max(0, Math.floor((t
  * passed, or at the longest shift, whichever comes first). Assumes the punches
  * keep the alternating rule (work.ts enforces it).
  */
-export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Date, timeZone: string = deviceTimeZone(), longestMinutes: number = DEFAULT_LONGEST_MINUTES): Shift[] {
+export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Date, timeZone: string = deviceTimeZone(), longestMinutes: number = DEFAULT_LONGEST_MINUTES, sentIds: ReadonlySet<string> = new Set()): Shift[] {
   const mine = punches.filter((p) => p.agreementId === agreementId).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   const out: Shift[] = [];
   for (let i = 0; i < mine.length; i++) {
@@ -148,16 +149,17 @@ export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Da
       long = now.getTime() > cap;
     }
     const confirmed = !open && next?.confirmed === true;
+    const sent = !open && sentIds.has(p.id);
     // Split at each midnight the shift crosses.
     let cursor = start;
     while (cursor.getTime() < end.getTime()) {
       const boundary = startOfDay(addDays(localDate(cursor, timeZone), 1), timeZone);
       const segmentEnd = boundary.getTime() < end.getTime() ? boundary : end;
-      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed });
+      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent });
       cursor = segmentEnd;
     }
     if (start.getTime() === end.getTime()) {
-      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed });
+      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent });
     }
   }
   return out;
@@ -182,30 +184,39 @@ export function weekMinutes(punches: readonly Punch[], agreementId: string, week
   return total;
 }
 
-/** The shifts of one week for one agreement, on the agreement's own calendar and longest shift. */
+/** The shifts of one week for one agreement, on the agreement's own calendar and longest shift, each knowing whether it was sent. */
 export function weekShifts(work: Work, agreementId: string, weekStart: DayDate, now: Date): Shift[] {
   const agreement = work.agreements.find((a) => a.agreementId === agreementId);
   const days = new Set(weekDays(weekStart));
-  return shiftsOf(work.punches, agreementId, now, calendarOf(agreement).timeZone, longestMinutesOf(agreement)).filter((s) => days.has(s.date));
+  return shiftsOf(work.punches, agreementId, now, calendarOf(agreement).timeZone, longestMinutesOf(agreement), sentPunchIds(work, agreementId)).filter((s) => days.has(s.date));
 }
 
+/** The closed shifts of the week: what a timecard carries (an open shift goes once it's clocked out). */
+export const sendableShifts = (work: Work, agreementId: string, weekStart: DayDate, now: Date): Shift[] => weekShifts(work, agreementId, weekStart, now).filter((s) => !s.open);
+
+/** The minutes a timecard for the week would carry. */
+export const sendableMinutes = (work: Work, agreementId: string, weekStart: DayDate, now: Date): number =>
+  sendableShifts(work, agreementId, weekStart, now).reduce((t, s) => t + s.minutes, 0);
+
 /**
- * Why a week can't be sent yet, or null: a shift still open past the longest
- * shift (set its clock-out time), or a long shift the person hasn't confirmed.
+ * Why the week's timecard can't go yet, or null: a long shift the person
+ * hasn't confirmed. An open shift doesn't hold it back; it just isn't on it.
  */
 export function sendProblem(work: Work, agreementId: string, weekStart: DayDate, now: Date): string | null {
   const agreement = work.agreements.find((a) => a.agreementId === agreementId);
   if (!agreement) return "No agreement with that id";
   const hours = formatMinutes(longestMinutesOf(agreement)).replace(/ 00m$/, "");
-  for (const s of weekShifts(work, agreementId, weekStart, now)) {
-    if (!s.long) continue;
-    if (s.open) return `You've been clocked in since ${s.date}, longer than ${hours}. Forgot to clock out? Set the time you left, under Hours.`;
-    if (!s.confirmed) return `A shift on ${s.date} is longer than ${hours}. Under Hours, fix its clock-out time or confirm it's right.`;
+  for (const s of sendableShifts(work, agreementId, weekStart, now)) {
+    if (s.long && !s.confirmed) return `A shift on ${s.date} is longer than ${hours}. Under Hours, fix its clock-out time or confirm it's right.`;
   }
   return null;
 }
 
-/** The week's shifts for one agreement, as the employer will receive them, on the agreement's calendar. */
+/** The punches of the shifts a timecard for the week carries now: what `recordTimesheet` locks once it has gone. */
+export const timecardPunchIds = (work: Work, agreementId: string, weekStart: DayDate, now: Date): string[] =>
+  sendableShifts(work, agreementId, weekStart, now).flatMap((s) => (s.outId ? [s.inId, s.outId] : [s.inId]));
+
+/** The week's closed shifts for one agreement, as the employer will receive them, on the agreement's calendar. */
 export function buildTimesheet(work: Work, agreementId: string, weekStart: DayDate, now: Date): TimesheetPayload {
   const agreement = work.agreements.find((a) => a.agreementId === agreementId);
   if (!agreement) throw new WorkError("No agreement with that id");
@@ -213,8 +224,8 @@ export function buildTimesheet(work: Work, agreementId: string, weekStart: DayDa
   if (weekStartOf(weekStart, calendar) !== weekStart) throw new WorkError(`A week starts on a ${weekdayLabel(calendar.startsOn)}`);
   const problem = sendProblem(work, agreementId, weekStart, now);
   if (problem) throw new WorkError(problem);
-  const entries: TimesheetEntry[] = weekShifts(work, agreementId, weekStart, now).map(({ date, in: i, out, minutes, long }) => ({ date, in: i, out, minutes, ...(long ? { long: true as const } : {}) }));
-  if (entries.length === 0) throw new WorkError("Nothing to send: no hours this week");
+  const entries: TimesheetEntry[] = sendableShifts(work, agreementId, weekStart, now).map(({ date, in: i, out, minutes, long }) => ({ date, in: i, out, minutes, ...(long ? { long: true as const } : {}) }));
+  if (entries.length === 0) throw new WorkError("Nothing to send yet: a shift goes on the timecard once you've clocked out");
   return {
     version: 1,
     kind: "timesheet",
