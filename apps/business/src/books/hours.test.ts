@@ -2,9 +2,9 @@
 process.env.TZ = "America/Los_Angeles";
 
 import { describe, expect, it } from "vitest";
-import { addDays, buildTimesheet, calendarOf, formatMinutes, localDate, longestMinutesOf, minutesByDay, overtimeSplit, sendProblem, shiftsOf, startOfDay, weekDays, weekMinutes, weekStartOf } from "./hours";
+import { addDays, buildTimesheet, calendarOf, formatMinutes, localDate, longestMinutesOf, minutesByDay, overtimeSplit, sendProblem, sendableMinutes, shiftsOf, startOfDay, timecardPunchIds, weekDays, weekMinutes, weekShifts, weekStartOf } from "./hours";
 import { emptyLetter } from "./offer_letter";
-import { type Punch, type TermsV2, confirmShift, emptyWork, punch, updatePunch, upsertAgreement } from "./work";
+import { type Punch, type TermsV2, confirmShift, emptyWork, punch, recordTimesheet, removePunch, updatePunch, upsertAgreement, workFromJson, workToJson } from "./work";
 import { defaultWorkWeek } from "./work_week";
 
 const AID = "01".repeat(32);
@@ -250,10 +250,54 @@ describe("a forgotten clock-out (the longest shift)", () => {
     // A confirmation doesn't survive the clock-out moving.
     expect(sendProblem(updatePunch(confirmed, "b", { at: local("2026-10-13", "19:00") }), AID, "2026-10-11", later)).toMatch(/confirm/);
     expect(sendProblem(updatePunch(confirmed, "a", { at: local("2026-10-13", "06:00") }), AID, "2026-10-11", later)).toMatch(/confirm/);
-    // Still clocked in past the longest shift: set the time you left.
+    // Still clocked in: that shift isn't on the timecard yet, long or not; alone, there is nothing to send.
     const open = punch(ten, AID, local("2026-10-15", "06:00"), "e").work;
-    expect(sendProblem(open, AID, "2026-10-11", later)).toMatch(/clocked in since 2026-10-15, longer than 10h.*Set the time you left/);
-    expect(() => buildTimesheet(open, AID, "2026-10-11", later)).toThrow(/Set the time you left/);
-    expect(sendProblem(open, AID, "2026-10-11", new Date(local("2026-10-15", "10:00")))).toBeNull(); // not yet
+    expect(sendProblem(open, AID, "2026-10-11", later)).toBeNull();
+    expect(sendableMinutes(open, AID, "2026-10-11", later)).toBe(0);
+    expect(() => buildTimesheet(open, AID, "2026-10-11", later)).toThrow(/Nothing to send yet/);
+    const openToo = punch(confirmed, AID, local("2026-10-15", "06:00"), "e").work;
+    expect(buildTimesheet(openToo, AID, "2026-10-11", later).entries.map((e) => e.date)).toEqual(["2026-10-13", "2026-10-14"]);
+  });
+});
+
+describe("the weekly timecard (sent shifts are the employer's)", () => {
+  const later = new Date(local("2026-10-17", "18:00"));
+  const sent = (w: ReturnType<typeof emptyWork>, ids: string[], seq = 0) =>
+    recordTimesheet(w, { agreementId: AID, weekStart: "2026-10-11", seq, lookup: "e".repeat(64), totalMinutes: 1, sentAt: later.toISOString(), punchIds: ids });
+
+  it("carries the closed shifts and names their punches; an open shift waits for its clock-out", () => {
+    let w = punch(base, AID, local("2026-10-13", "08:00"), "a").work;
+    w = punch(w, AID, local("2026-10-13", "16:00"), "b").work;
+    w = punch(w, AID, local("2026-10-14", "09:00"), "c").work;
+    expect(sendableMinutes(w, AID, "2026-10-11", later)).toBe(480);
+    expect(timecardPunchIds(w, AID, "2026-10-11", later)).toEqual(["a", "b"]);
+    expect(buildTimesheet(w, AID, "2026-10-11", later).entries).toHaveLength(1);
+    expect(weekShifts(w, AID, "2026-10-11", later).map((s) => [s.inId, s.open, s.sent])).toEqual([["a", false, false], ["c", true, false]]);
+  });
+
+  it("locks a sent shift: it shows as sent and can't be edited or removed; the rest can", () => {
+    let w = punch(base, AID, local("2026-10-13", "08:00"), "a").work;
+    w = punch(w, AID, local("2026-10-13", "16:00"), "b").work;
+    // Sent on Tuesday, straight after clocking out; Wednesday's shift comes after.
+    let locked = sent(w, timecardPunchIds(w, AID, "2026-10-11", new Date(local("2026-10-13", "17:00"))));
+    expect(locked.timesheets[0]?.punchIds).toEqual(["a", "b"]);
+    locked = punch(locked, AID, local("2026-10-14", "09:00"), "c").work;
+    locked = punch(locked, AID, local("2026-10-14", "12:00"), "d").work;
+    expect(weekShifts(locked, AID, "2026-10-11", later).map((s) => [s.inId, s.sent])).toEqual([["a", true], ["c", false]]);
+    expect(() => updatePunch(locked, "a", { at: local("2026-10-13", "07:00") })).toThrow(/sent to the employer/);
+    expect(() => updatePunch(locked, "b", { at: local("2026-10-13", "17:00") })).toThrow(/sent to the employer/);
+    expect(() => removePunch(locked, "a")).toThrow(/sent to the employer/);
+    expect(() => removePunch(locked, "b")).toThrow(/sent to the employer/);
+    expect(updatePunch(locked, "c", { at: local("2026-10-14", "08:30") }).punches.find((p) => p.id === "c")?.at).toBe(local("2026-10-14", "08:30"));
+    expect(removePunch(locked, "c").punches.map((p) => p.id)).toEqual(["a", "b"]);
+    // An update later in the week adds the new shift's punches to the lock.
+    const updated = sent(locked, timecardPunchIds(locked, AID, "2026-10-11", later), 1);
+    expect(updated.timesheets).toHaveLength(1);
+    expect(updated.timesheets[0]?.punchIds).toEqual(["a", "b", "c", "d"]);
+    expect(() => removePunch(updated, "d")).toThrow(/sent to the employer/);
+    // The lock survives a save; a week sent before locks existed locks nothing.
+    expect(workFromJson(workToJson(updated)).timesheets[0]?.punchIds).toEqual(["a", "b", "c", "d"]);
+    const old = recordTimesheet(w, { agreementId: AID, weekStart: "2026-10-11", seq: 0, lookup: "f".repeat(64), totalMinutes: 1, sentAt: later.toISOString() });
+    expect(weekShifts(old, AID, "2026-10-11", later).every((s) => !s.sent)).toBe(true);
   });
 });

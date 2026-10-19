@@ -1,21 +1,22 @@
 "use client";
 
 // Hours: the week's punches by day, each one editable or removable with a
-// confirm, the weekly total, and Send to the employer. Earlier weeks are a
-// tap away. A shift longer than the work week's longest shift is marked: an
+// confirm until it has been sent (then it is confirmed and the employer's to
+// change), the weekly total, and the weekly timecard to the employer. Earlier
+// weeks are a tap away. A shift longer than the work week's longest shift is marked: an
 // open one stops counting there; a closed one is confirmed ("It's right")
 // or its clock-out fixed before the week can be sent. Everything here is the
 // vault; nothing leaves the device until the person taps Send.
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
-import { addDays, calendarOf, formatMinutes, localDate, longestMinutesOf, overtimeSplit, shiftsOf, weekDays, weekMinutes, weekStartOf } from "@/books/hours";
+import { addDays, calendarOf, formatMinutes, localDate, longestMinutesOf, overtimeSplit, weekDays, weekMinutes, weekShifts, weekStartOf } from "@/books/hours";
 import { type Punch, confirmShift, removePunch, updatePunch } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { SendWeek } from "../SendWeek";
@@ -49,7 +50,7 @@ export default function HoursPage() {
   const [removing, setRemoving] = useState<Punch | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const shifts = agreementId ? shiftsOf(work.punches, agreementId, now, tz, longest) : [];
+  const shifts = agreementId ? weekShifts(work, agreementId, weekStart, now) : [];
   const byDay = new Map<string, typeof shifts>();
   for (const s of shifts) byDay.set(s.date, [...(byDay.get(s.date) ?? []), s]);
   const punchById = new Map(work.punches.map((p) => [p.id, p]));
@@ -58,8 +59,8 @@ export default function HoursPage() {
   const weekLabel = `${dayLabel(weekStart)} – ${dayLabel(addDays(weekStart, 6))}`;
   // Overtime under the agreement's work week, over this week's shifts (the same split the employer makes).
   const workWeek = agreement?.terms?.version === 2 ? agreement.terms.workWeek : undefined;
-  const days = new Set(weekDays(weekStart));
-  const split = workWeek ? overtimeSplit(shifts.filter((s) => days.has(s.date)), workWeek) : null;
+  const split = workWeek ? overtimeSplit(shifts, workWeek) : null;
+  const anySent = shifts.some((s) => s.sent);
 
   async function change(op: (w: typeof work) => typeof work) {
     setError(null);
@@ -74,7 +75,7 @@ export default function HoursPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Hours" summary="Your punches by day. Send the week when it's done." />
+      <PageHeader title="Hours" summary="Your punches by day. Update the weekly timecard whenever you've clocked out." />
 
       {agreements.length === 0 ? (
         <p className="text-sm text-muted-foreground">Accept an offer first; your hours for that employer will show here.</p>
@@ -149,11 +150,18 @@ export default function HoursPage() {
                                 It&apos;s right
                               </Button>
                             )}
-                            <span className="flex gap-1">
-                              {inPunch && <PunchButton icon={Pencil} label={`Edit clock-in at ${clock(inPunch.at)}`} onClick={() => setEditing(inPunch)} />}
-                              {outPunch && <PunchButton icon={Pencil} label={`Edit clock-out at ${clock(outPunch.at)}`} onClick={() => setEditing(outPunch)} />}
-                              {inPunch && <PunchButton icon={Trash2} label={`Remove shift from ${clock(s.in)}`} onClick={() => setRemoving(inPunch)} />}
-                            </span>
+                            {s.sent ? (
+                              <span className="flex items-center gap-1" title="Sent: confirmed, and the employer's to change">
+                                <Lock aria-hidden className="size-3" />
+                                Sent
+                              </span>
+                            ) : (
+                              <span className="flex gap-1">
+                                {inPunch && <PunchButton icon={Pencil} label={`Edit clock-in at ${clock(inPunch.at)}`} onClick={() => setEditing(inPunch)} />}
+                                {outPunch && <PunchButton icon={Pencil} label={`Edit clock-out at ${clock(outPunch.at)}`} onClick={() => setEditing(outPunch)} />}
+                                {inPunch && <PunchButton icon={Trash2} label={`Remove shift from ${clock(s.in)}`} onClick={() => setRemoving(inPunch)} />}
+                              </span>
+                            )}
                           </div>
                         );
                       })}
@@ -171,6 +179,7 @@ export default function HoursPage() {
                   <span className="tabular-nums">Overtime {formatMinutes(split.overtime)}</span>
                 </div>
               )}
+              {anySent && <p className="text-xs text-muted-foreground">A shift marked Sent is on the employer&apos;s timecard: confirmed by you, and theirs to change.</p>}
               <FormError message={error} />
               <SendWeek agreementId={agreementId} weekStart={weekStart} now={now} />
             </CardContent>
