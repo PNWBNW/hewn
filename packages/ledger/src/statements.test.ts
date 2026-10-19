@@ -2,7 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { type Books, addAccount, postEntry, systemAccount } from "./books";
 import { netIncome, trialBalance } from "./reports";
-import { type StatementRow, type StatementSection, balanceSheet, fiscalYearOf, profitAndLoss } from "./statements";
+import { type StatementRow, type StatementSection, balanceSheet, cashFlow, fiscalYearOf, profitAndLoss } from "./statements";
 import { clock, sampleBooks } from "./test_helpers";
 
 /** sampleBooks plus one account of each statement type, sub-accounts, and two years of activity. */
@@ -146,6 +146,57 @@ describe("balance sheet", () => {
   });
 });
 
+describe("cash flow", () => {
+  const { books, ids } = twoYears();
+  const fy2026 = { from: "2026-01-01", to: "2026-12-31" };
+  const fy2025 = { from: "2025-01-01", to: "2025-12-31" };
+  const cf = cashFlow(books, fy2026, fy2025);
+  const bankTotal = (asOf: string) => {
+    const bs = balanceSheet(books, asOf);
+    return bs.assets.groups.find((g) => g.id === "current_assets")!.groups.find((g) => g.id === "bank")!.total[0]!;
+  };
+
+  it("starts from net income and adjusts for the other current accounts, as their effect on cash", () => {
+    expect(cf.netIncome).toEqual([37_734n, 240_000n]);
+    // 2026: storage rent went on the card (cash kept); 2025: nothing current moved.
+    expect(find(cf.operating, ids.card!)?.total).toEqual([30_000n, 0n]);
+    expect(cf.operating.rows.map((r) => r.name)).toEqual(["Net income"]);
+    expect(cf.operating.total).toEqual([67_734n, 240_000n]);
+  });
+
+  it("puts fixed assets under investing and debt and equity under financing", () => {
+    // 2025: the truck bought on a loan, and its depreciation (a contra fixed asset, so investing).
+    expect(find(cf.investing, ids.equipment!)?.total).toEqual([0n, -500_000n]);
+    expect(find(cf.investing, ids.depreciation!)?.total).toEqual([0n, 10_000n]);
+    expect(cf.investing.total).toEqual([0n, -490_000n]);
+    expect(find(cf.financing, ids.loan!)?.total).toEqual([0n, 500_000n]);
+    expect(find(cf.financing, ids.owner!)?.total).toEqual([0n, 1_000_000n]);
+    expect(find(cf.financing, ids.draw!)?.total).toEqual([-25_000n, 0n]);
+    expect(cf.financing.total).toEqual([-25_000n, 1_500_000n]);
+  });
+
+  it("reconciles to the other two statements: net income is the P&L's, and the net change is the change in the bank balances", () => {
+    expect(cf.netIncome).toEqual([profitAndLoss(books, fy2026).netIncome[0], profitAndLoss(books, fy2025).netIncome[0]]);
+    expect(cf.netIncome[0]).toBe(balanceSheet(books, "2026-12-31").netIncome[0]);
+    expect(cf.netChange).toEqual([42_734n, 1_250_000n]);
+    expect(cf.cashAtStart).toEqual([1_250_000n, 0n]);
+    expect(cf.cashAtEnd).toEqual([1_292_734n, 1_250_000n]);
+    expect(cf.cashAtEnd[0]).toBe(bankTotal("2026-12-31"));
+    expect(cf.cashAtStart[0]).toBe(bankTotal("2025-12-31"));
+    expect(cf.netChange[0]).toBe(bankTotal("2026-12-31") - bankTotal("2025-12-31"));
+  });
+
+  it("has an empty shape for books with no entries", () => {
+    const empty = cashFlow(sampleBooks().books, fy2026);
+    expect(empty.netIncome).toEqual([0n]);
+    expect(empty.operating.groups).toEqual([]);
+    expect(empty.investing.rows).toEqual([]);
+    expect(empty.financing.rows).toEqual([]);
+    expect(empty.netChange).toEqual([0n]);
+    expect(empty.cashAtEnd).toEqual([0n]);
+  });
+});
+
 describe("fiscal years", () => {
   it("covers twelve months from the start month", () => {
     const { books } = sampleBooks();
@@ -188,6 +239,27 @@ describe("statements (property-based)", () => {
         expect(find(bs.equity, retained)?.own[0] ?? 0n).toBe(rolled);
         const tbRow = trialBalance(books, asOf).rows.find((r) => r.accountId === retained);
         expect(tbRow ? tbRow.credit - tbRow.debit : 0n).toBe(rolled);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("cash flow: the net change is the change in the bank accounts, and the statements agree, for any activity and range", () => {
+    fc.assert(
+      fc.property(fc.array(entry, { minLength: 1, maxLength: 25 }), fc.integer({ min: 1, max: 12 }), date, date, (entries, startMonth, d1, d2) => {
+        let books: Books = { ...base, entries: [], settings: { ...base.settings, fiscalYearStartMonth: startMonth } };
+        for (const e of entries) books = postEntry(books, e, clock).books;
+        const [from, to] = d1 <= d2 ? [d1, d2] : [d2, d1];
+
+        const cf = cashFlow(books, { from, to });
+        const bank = (asOf: string) =>
+          balanceSheet(books, asOf).assets.groups.find((g) => g.id === "current_assets")?.groups.find((g) => g.id === "bank")?.total[0] ?? 0n;
+        expect(cf.netChange[0]).toBe(cf.cashAtEnd[0]! - cf.cashAtStart[0]!);
+        expect(cf.cashAtEnd[0]).toBe(bank(to));
+        expect(cf.cashAtStart[0]).toBe(bank(dayBefore(from)));
+        expect(cf.netIncome[0]).toBe(profitAndLoss(books, { from, to }).netIncome[0]);
+        expect(cf.operating.total[0]).toBe(cf.netIncome[0]! + (cf.operating.groups[0]?.total[0] ?? 0n));
+        expect(cf.netChange[0]).toBe(cf.operating.total[0]! + cf.investing.total[0]! + cf.financing.total[0]!);
       }),
       { numRuns: 300 },
     );

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { addAccount, applyTemplate, balanceSheet, createBooks, postEntry, profitAndLoss, trialBalance } from "@pnw/ledger";
+import { addAccount, applyTemplate, balanceSheet, cashFlow, createBooks, postEntry, profitAndLoss, trialBalance } from "@pnw/ledger";
 import { addMonths, compareDate, compareRange, presetRange, rangeLabel } from "./dates";
 import {
   balanceSheetLines,
+  cashFlowLines,
   formatMargin,
   isEmptyReport,
   profitAndLossLines,
@@ -87,6 +88,32 @@ describe("statement lines", () => {
     expect(lines.map((l) => l.label).slice(0, 4)).toEqual(["Assets", "Current assets", "Bank accounts", "1000 Checking"]);
     expect(lines.find((l) => l.label === "Total assets")).toMatchObject({ kind: "grand", amounts: [1_130_000n] });
     expect(lines.at(-1)).toMatchObject({ label: "Total liabilities and equity", amounts: [1_130_000n] });
+  });
+
+  it("lays out the cash flow from net income down to the cash on hand", () => {
+    const lines = cashFlowLines(cashFlow(books, { from: "2026-10-01", to: "2026-10-31" }));
+    expect(lines.map((l) => l.label)).toEqual([
+      "Operating activities",
+      "Net income",
+      "Adjustments to reconcile net income to net cash",
+      "2100 Business Credit Card",
+      "Total adjustments",
+      "Net cash from operating activities",
+      "Financing activities",
+      "3000 Owner's Investment",
+      "Net cash from financing activities",
+      "Net change in cash",
+      "Cash at start of period",
+      "Cash at end of period",
+    ]);
+    const pick = (label: string) => lines.find((l) => l.label === label);
+    expect(pick("Net income")).toMatchObject({ kind: "account", depth: 1, amounts: [128_950n] });
+    expect(pick("2100 Business Credit Card")).toMatchObject({ depth: 2, amounts: [1_050n] });
+    expect(pick("Net cash from operating activities")).toMatchObject({ kind: "total", amounts: [130_000n] });
+    expect(pick("Net cash from financing activities")).toMatchObject({ amounts: [1_000_000n] });
+    expect(pick("Net change in cash")).toMatchObject({ kind: "grand", amounts: [1_130_000n] });
+    expect(pick("Cash at start of period")).toMatchObject({ amounts: [0n] });
+    expect(lines.at(-1)).toMatchObject({ kind: "grand", label: "Cash at end of period", amounts: [1_130_000n] });
   });
 
   it("writes a CSV a spreadsheet opens safely", () => {

@@ -154,7 +154,7 @@ All reports compute client-side from the vault. Nothing leaves the browser.
 
 **Exit criteria**
 
-- [ ] P&L + balance sheet + cash flow for the sample ledger reconcile to each other (net income flows to equity, cash flow ties to cash balance change)
+- [x] P&L + balance sheet + cash flow for the sample ledger reconcile to each other (net income flows to equity, cash flow ties to cash balance change) (2026-10-19)
 - [ ] Aging reports agree with open-invoice and open-bill lists
 - [ ] Budget vs actual shows correct variance for a two-month sample
 - [ ] A proof of "revenue > X" verifies on testnet with a true X and fails with a false X

@@ -7,6 +7,7 @@ import {
   type DateRange,
   assertDate,
   balanceSheet,
+  cashFlow,
   formatCents,
   marginBp,
   profitAndLoss,
@@ -26,6 +27,7 @@ import { type Comparison, type Preset, PRESETS, compareDate, compareRange, forma
 import {
   type Report,
   balanceSheetLines,
+  cashFlowLines,
   formatMargin,
   profitAndLossLines,
   projectSummaryLines,
@@ -35,18 +37,19 @@ import {
 } from "./lines";
 import { Statement } from "./Statement";
 
-type ReportId = "profit_and_loss" | "balance_sheet" | "trial_balance" | "project_profitability" | "sales_tax";
+type ReportId = "profit_and_loss" | "balance_sheet" | "cash_flow" | "trial_balance" | "project_profitability" | "sales_tax";
 
 const REPORTS: { id: ReportId; label: string; file: string }[] = [
   { id: "profit_and_loss", label: "Profit and loss", file: "profit-and-loss" },
   { id: "balance_sheet", label: "Balance sheet", file: "balance-sheet" },
+  { id: "cash_flow", label: "Cash flow", file: "cash-flow" },
   { id: "trial_balance", label: "Trial balance", file: "trial-balance" },
   { id: "project_profitability", label: "Project profitability", file: "project-profitability" },
   { id: "sales_tax", label: "Sales tax liability", file: "sales-tax-liability" },
 ];
 
 /** Reports over a date range (the rest are "as of" a date). */
-const RANGED: ReportId[] = ["profit_and_loss", "project_profitability", "sales_tax"];
+const RANGED: ReportId[] = ["profit_and_loss", "cash_flow", "project_profitability", "sales_tax"];
 
 const isDate = (d: string) => {
   try {
@@ -121,6 +124,16 @@ export default function ReportsPage() {
         subtitle,
         columns: pl.columns.map(rangeLabel),
         lines: profitAndLossLines(pl),
+      };
+    }
+    if (reportId === "cash_flow") {
+      const cf = cashFlow(books, range, compareRange(range, comparison));
+      return {
+        title: "Cash flow",
+        subtitle,
+        columns: cf.columns.map(rangeLabel),
+        lines: cashFlowLines(cf),
+        note: "Indirect method: net income, adjusted for the change in every other account over the period. Cash is the bank accounts.",
       };
     }
     if (!isDate(asOf)) return "Choose a date.";

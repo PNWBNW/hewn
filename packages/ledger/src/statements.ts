@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
-// Financial statements: profit and loss, and the balance sheet.
+// Financial statements: profit and loss, the balance sheet, and cash flow.
 //
-// Both are views over the same numbers as the trial balance. The P&L sums
+// All are views over the same numbers as the trial balance. The P&L sums
 // income and expense accounts over a date range; the balance sheet takes the
 // trial balance as of a date, so prior-year profit sits in Retained Earnings
 // by the same rule, and this fiscal year's profit shows as one "Net income"
@@ -17,7 +17,7 @@ import { type Account, type AccountType, ACCOUNT_TYPES, normalSide } from "./acc
 import type { Books } from "./books";
 import type { Cents } from "./money";
 import { type IsoDate, assertDate, fiscalYearStart } from "./periods";
-import { netByAccount, trialBalance } from "./reports";
+import { netByAccount, netIncome as netIncomeOver, trialBalance } from "./reports";
 
 /** One amount per column: the main period first, then the comparison. */
 export type Amounts = Cents[];
@@ -234,6 +234,94 @@ export function balanceSheet(books: Books, asOf: IsoDate, compareTo?: IsoDate): 
   };
 
   return { columns, assets, liabilities, equity, netIncome, liabilitiesAndEquity: add(liabilities.total, equity.total) };
+}
+
+// ---- Cash flow -------------------------------------------------------------------
+
+export type CashFlow = {
+  columns: DateRange[];
+  netIncome: Amounts;
+  /** Net income, then (as a group) the changes in the other current accounts as their effect on cash. */
+  operating: StatementSection;
+  investing: StatementSection;
+  financing: StatementSection;
+  /** Operating + investing + financing: the change in the bank accounts over the column. */
+  netChange: Amounts;
+  cashAtStart: Amounts;
+  cashAtEnd: Amounts;
+};
+
+const OPERATING: AccountType[] = ["accounts_receivable", "other_current_asset", "credit_card", "accounts_payable", "other_current_liability"];
+const INVESTING: AccountType[] = ["fixed_asset", "other_asset"];
+const FINANCING: AccountType[] = ["long_term_liability", "equity"];
+
+/**
+ * Where the cash went over `range`, by the indirect method: net income,
+ * adjusted for the change in every other balance sheet account, since each
+ * such change is cash that did not follow the profit (a sale still owed is
+ * income without cash; a bill not yet paid is expense without cash; an owner's
+ * draw is cash without expense). Accounts are placed by type, as a bookkeeper
+ * expects: the current accounts under operating, fixed and other assets under
+ * investing, long-term debt and equity under financing. A contra fixed asset
+ * (accumulated depreciation) therefore shows under investing rather than as an
+ * operating add-back; the net change is the same either way.
+ *
+ * The net change equals the change in the bank accounts by construction: every
+ * entry balances, so whatever did not land in a bank account landed in one of
+ * the others. Cash is the bank accounts.
+ */
+export function cashFlow(books: Books, range: DateRange, compare?: DateRange): CashFlow {
+  const columns = compare ? [range, compare] : [range];
+  for (const c of columns) {
+    assertDate(c.from);
+    assertDate(c.to);
+  }
+  const starts = columns.map((c) => netByAccount(books, { to: dayBefore(c.from) }));
+  const ends = columns.map((c) => netByAccount(books, { to: c.to }));
+  // Each account's change over the column, turned so that accountSection's sign
+  // (positive on the normal side) comes out as the effect on cash: an asset
+  // going up is cash out, a liability or equity going up is cash in.
+  const effects = columns.map((_, i) =>
+    new Map(
+      books.accounts.map((a) => {
+        const delta = (ends[i]!.get(a.id) ?? 0n) - (starts[i]!.get(a.id) ?? 0n);
+        return [a.id, normalSide(ACCOUNT_TYPES[a.type].base) === "credit" ? delta : -delta];
+      }),
+    ),
+  );
+  const section = (id: string, label: string, types: AccountType[]) => accountSection(books, id, label, types, effects);
+
+  const netIncome = columns.map((c) => netIncomeOver(books, c.from, c.to));
+  const adjustments = section("adjustments", "Adjustments to reconcile net income to net cash", OPERATING);
+  const netIncomeRow: StatementRow = { accountId: null, name: "Net income", own: netIncome, total: netIncome, children: [] };
+  const operating: StatementSection = {
+    id: "operating",
+    label: "Operating activities",
+    rows: [netIncomeRow],
+    groups: adjustments.rows.length > 0 ? [adjustments] : [],
+    total: add(netIncome, adjustments.total),
+  };
+  const investing = section("investing", "Investing activities", INVESTING);
+  const financing = section("financing", "Financing activities", FINANCING);
+
+  const banks = books.accounts.filter((a) => a.type === "bank");
+  const cash = (nets: Map<string, Cents>[]) => nets.map((m) => banks.reduce((s, a) => s + (m.get(a.id) ?? 0n), 0n));
+  return {
+    columns,
+    netIncome,
+    operating,
+    investing,
+    financing,
+    netChange: add(add(operating.total, investing.total), financing.total),
+    cashAtStart: cash(starts),
+    cashAtEnd: cash(ends),
+  };
+}
+
+/** The day before `date` (ISO), so a balance "as of" it is the opening balance of `date`. */
+function dayBefore(date: IsoDate): IsoDate {
+  const [y, m, d] = assertDate(date).split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
 }
 
 /** First and last day of the fiscal year that contains `date`. */
