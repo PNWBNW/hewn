@@ -1,19 +1,23 @@
 "use client";
 
-// Jobs: the business's postings on the public board, who applied to each,
-// and what happens to a posting (change it, feature it, close it). The list
-// comes from the vault; posting, applicants and the rest load their sending
-// and reading code only when used.
+// Jobs: hiring, in one place. Postings on the public board, who applied to
+// each, and what happens to a posting (change it, feature it, close it); and,
+// on the Offers tab, the offers sent and the conversation around each
+// (Offers.tsx). The list comes from the vault; posting, applicants and the
+// rest load their sending and reading code only when used.
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { Plus, Star, Users } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pnw/ui/tabs";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { type JobPosting, factsLine, listPostings, payLine } from "@/books/jobs";
 import { PageHeader } from "@/shell/SectionView";
+import Offers from "./Offers";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
 const JobPanel = dynamic(() => import("@/chain/JobPanel"), { ssr: false, loading });
@@ -22,6 +26,39 @@ const Applicants = dynamic(() => import("@/chain/Applicants"), { ssr: false, loa
 type Open = { mode: "new" } | { mode: "edit" | "feature" | "close" | "applicants"; posting: JobPosting };
 
 export default function JobsPage() {
+  return (
+    <Suspense>
+      <JobsScreen />
+    </Suspense>
+  );
+}
+
+function JobsScreen() {
+  const params = useSearchParams();
+  const asked = params.get("tab");
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Jobs" summary="Your postings on the public job board, who applied, and the offers you've sent." />
+      <Tabs defaultValue={asked === "offers" ? "offers" : "postings"} className="flex flex-col gap-4">
+        <div className="overflow-x-auto">
+          <TabsList>
+            <TabsTrigger value="postings" className="min-h-9">Postings</TabsTrigger>
+            <TabsTrigger value="offers" className="min-h-9">Offers</TabsTrigger>
+          </TabsList>
+        </div>
+        <TabsContent value="postings">
+          <Postings />
+        </TabsContent>
+        <TabsContent value="offers">
+          <Offers />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+/** The board side: postings, applicants, and what happens to a posting. */
+function Postings() {
   const { jobs, rail } = useOpenBooks();
   const [open, setOpen] = useState<Open | null>(null);
   const postings = listPostings(jobs ?? undefined);
@@ -29,18 +66,12 @@ export default function JobsPage() {
   const close = () => setOpen(null);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Jobs"
-        summary="Your postings on the public job board. Anyone can read them; applications come to you privately."
-        action={
-          open === null ? (
-            <Button className="min-h-11 sm:min-h-9" disabled={!named} onClick={() => setOpen({ mode: "new" })}>
-              <Plus aria-hidden /> New posting
-            </Button>
-          ) : undefined
-        }
-      />
+    <div className="flex flex-col gap-4">
+      {open === null && (
+        <Button className="min-h-11 self-start sm:min-h-9" disabled={!named} onClick={() => setOpen({ mode: "new" })}>
+          <Plus aria-hidden /> New posting
+        </Button>
+      )}
       {!named && <p className="text-sm text-muted-foreground">Register your business name in Settings first; postings go on the board under it.</p>}
       {open?.mode === "new" && <JobPanel mode="new" onClose={close} />}
 

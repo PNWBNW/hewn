@@ -32,7 +32,6 @@ const BUSINESS_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText })),
   { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/mailbox", label: "Mailbox", icon: Mailbox },
   { href: "/messages", label: "Messages", icon: MessageSquare },
 ];
 
@@ -136,8 +135,8 @@ function Rail({
                 {unreadMessages}
               </span>
             )}
-            {href === "/mailbox" && unread > 0 && (
-              <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unread} unread`}>
+            {href === "/payroll" && unread > 0 && (
+              <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unread} unread weeks of hours`}>
                 {unread}
               </span>
             )}

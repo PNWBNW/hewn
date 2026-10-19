@@ -226,7 +226,7 @@ function ApplicantConversation({ applicant }: { applicant: Applicant }) {
       title={`${applicant.name}.${BRAND.nameSuffix}`}
       thread={threadFor(mailbox, applicant.partiesKey)}
       update={update}
-      offersHref="/payroll"
+      offersHref="/jobs?tab=offers"
       peer={applicant.address}
     />
   );
