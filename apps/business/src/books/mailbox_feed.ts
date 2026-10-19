@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
-// The Mailbox page's feed: one list, newest first, of everything that has
-// passed between this business and its team. Offers sent and paystubs
-// delivered are read from the rail links and the pay runs, where they are
-// already kept; hours come from the mailbox itself. Nothing is copied, so
-// nothing can drift.
+// What has passed between this business and its team, newest first, in two
+// homes (the Mailbox page is gone, 2026-10-19): the offers and the
+// conversation around each under Jobs → Offers, the weeks of hours under
+// Payroll → Hours. Offers are read from the rail links, where they are
+// already kept; hours and threads from the mailbox store. Nothing is copied,
+// so nothing can drift. Paystubs delivered show on each paycheck.
 // ---------------------------------------------------------------------------
 
 import type { Payroll } from "@pnw/payroll";
@@ -14,7 +15,6 @@ import { type ThreadItem, isOfferStep } from "./thread";
 export type FeedItem =
   | { kind: "offer"; key: string; at: string; workerId: string; workerName: string; receivedAt?: string; expiresAt?: string }
   | { kind: "accepted"; key: string; at: string; workerId: string; workerName: string }
-  | { kind: "paystub"; key: string; at: string; workerId: string; workerName: string; payDate: string; runId: string; receivedAt?: string }
   | { kind: "hours"; key: string; at: string; workerId: string; workerName: string; hours: ReceivedHours }
   /** A message in the conversation with one person (books/thread.ts): theirs or this business's answer. */
   | { kind: "thread"; key: string; at: string; workerId: string; workerName: string; partiesKey: string; item: ThreadItem };
@@ -26,7 +26,7 @@ const time = (iso: string) => {
   return Number.isNaN(t) ? 0 : t;
 };
 
-/** Everything in the mailbox's feed, newest first. */
+/** Everything that has passed between the business and its team, newest first. */
 export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox: Mailbox | null }): FeedItem[] {
   const { rail, payroll, mailbox } = input;
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
@@ -50,22 +50,6 @@ export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox:
     }
   }
 
-  for (const run of payroll.runs) {
-    for (const check of run.paychecks) {
-      if (!check.delivery) continue;
-      items.push({
-        kind: "paystub",
-        key: `paystub:${run.id}:${check.workerId}`,
-        at: check.delivery.sentAt,
-        workerId: check.workerId,
-        workerName: nameOf(check.workerId),
-        payDate: run.payDate,
-        runId: run.id,
-        ...(check.delivery.receivedAt ? { receivedAt: check.delivery.receivedAt } : {}),
-      });
-    }
-  }
-
   for (const h of mailbox?.hours ?? []) {
     items.push({ kind: "hours", key: `hours:${h.agreementId}:${h.seq}`, at: h.receivedAt, workerId: h.workerId, workerName: nameOf(h.workerId), hours: h });
   }
@@ -80,6 +64,17 @@ export function buildFeed(input: { rail: Rail | null; payroll: Payroll; mailbox:
   // Newest first; the key keeps ties in a stable order.
   return items.sort((a, b) => time(b.at) - time(a.at) || a.key.localeCompare(b.key));
 }
+
+export type OfferItem = Extract<FeedItem, { kind: "offer" | "accepted" | "thread" }>;
+export type HoursItem = Extract<FeedItem, { kind: "hours" }>;
+
+/** Jobs → Offers: the offers sent, the acceptances, and the conversation around each. */
+export const offersFeed = (input: Parameters<typeof buildFeed>[0]): OfferItem[] =>
+  buildFeed(input).filter((i): i is OfferItem => i.kind !== "hours");
+
+/** Payroll → Hours: the weeks the team has sent. */
+export const hoursFeed = (input: Parameters<typeof buildFeed>[0]): HoursItem[] =>
+  buildFeed(input).filter((i): i is HoursItem => i.kind === "hours");
 
 /** True while at least one offer is still waiting for the other side. */
 export const hasWaitingOffer = (rail: Rail | null): boolean => !!rail?.links.some((l) => l.status === "offered");

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyPayroll, type Payroll } from "@pnw/payroll";
 import { addHours, emptyMailbox } from "./mailbox";
-import { buildFeed, hasWaitingOffer } from "./mailbox_feed";
+import { buildFeed, hasWaitingOffer, hoursFeed, offersFeed } from "./mailbox_feed";
 import type { Rail, RailLink } from "./rail";
 
 const ADDRESS = "aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n";
@@ -32,35 +32,34 @@ describe("the mailbox feed", () => {
     expect(buildFeed({ rail: null, payroll: payroll(), mailbox: null })).toEqual([]);
   });
 
-  it("lists offers, acceptances, paystubs and hours together, newest first", () => {
+  it("lists offers, acceptances and hours together, newest first; paystubs delivered stay on their paychecks", () => {
     const runs = [
       {
         id: "run-1",
         payDate: "2026-10-09",
-        paychecks: [
-          { workerId: "wkr-1", delivery: { seq: 0, lookup: "ee".repeat(32), sentAt: "2026-10-09T12:00:00.000Z" } },
-          { workerId: "wkr-2" }, // never delivered: not in the feed
-        ],
+        paychecks: [{ workerId: "wkr-1", delivery: { seq: 0, lookup: "ee".repeat(32), sentAt: "2026-10-09T12:00:00.000Z" } }],
       },
     ] as unknown as Payroll["runs"];
-    const feed = buildFeed({
+    const input = {
       rail: rail(
         link({ workerId: "wkr-2", agreementId: "ff".repeat(32), status: "offered", offeredAt: "2026-10-02T08:00:00.000Z" }),
         link({ linkedAt: "2026-10-03T08:00:00.000Z" }),
       ),
       payroll: payroll({ runs }),
       mailbox: addHours(emptyMailbox(), hours(0, "2026-10-12T09:00:00.000Z")),
-    });
+    };
+    const feed = buildFeed(input);
     expect(feed.map((i) => [i.kind, i.workerName])).toEqual([
       ["hours", "Ana Ruiz"],
-      ["paystub", "Ana Ruiz"],
       ["accepted", "Ana Ruiz"],
       ["offer", "Bo Lind"],
     ]);
-    expect(feed[1]).toMatchObject({ kind: "paystub", payDate: "2026-10-09", runId: "run-1" });
+    // The two homes: offers and the conversation under Jobs, hours under Payroll.
+    expect(offersFeed(input).map((i) => i.kind)).toEqual(["accepted", "offer"]);
+    expect(hoursFeed(input).map((i) => i.kind)).toEqual(["hours"]);
   });
 
-  it("carries what the receipts said, and an offer's expiry", () => {
+  it("carries what the receipt said, and an offer's expiry", () => {
     const terms = {
       version: 2 as const,
       kind: "terms" as const,
@@ -76,16 +75,12 @@ describe("the mailbox feed", () => {
       letter: { description: "", requirements: "", handbook: "", other: "" },
       files: [],
     };
-    const runs = [
-      { id: "run-1", payDate: "2026-10-09", paychecks: [{ workerId: "wkr-1", delivery: { seq: 0, lookup: "ee".repeat(32), sentAt: "2026-10-09T12:00:00.000Z", receivedAt: "2026-10-10T07:00:00.000Z" } }] },
-    ] as unknown as Payroll["runs"];
     const feed = buildFeed({
       rail: rail(link({ workerId: "wkr-2", agreementId: "ff".repeat(32), status: "offered", offeredAt: terms.offeredAt, terms, offerReceivedAt: "2026-10-03T08:00:00.000Z" }), link({})),
-      payroll: payroll({ runs }),
+      payroll: payroll(),
       mailbox: null,
     });
     expect(feed.find((i) => i.kind === "offer")).toMatchObject({ receivedAt: "2026-10-03T08:00:00.000Z", expiresAt: terms.expiresAt });
-    expect(feed.find((i) => i.kind === "paystub")).toMatchObject({ receivedAt: "2026-10-10T07:00:00.000Z" });
   });
 
   it("lists the conversation with each person, by when each message was sent", () => {

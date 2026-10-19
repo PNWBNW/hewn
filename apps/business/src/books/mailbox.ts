@@ -35,7 +35,7 @@ export type ReceivedHours = {
   totalMinutes: number;
   /** When the sender sent it. */
   sentAt: string;
-  /** Opened in the Mailbox. Missing means unread. */
+  /** Opened under Payroll → Hours. Missing means unread. */
   read?: boolean;
 };
 

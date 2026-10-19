@@ -78,7 +78,7 @@ function Messages() {
         <Link href="/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
         </Link>
-        <Conversation key={open.partiesKey} side="business" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/mailbox" peer={open.address} />
+        <Conversation key={open.partiesKey} side="business" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/jobs?tab=offers" peer={open.address} />
       </div>
     );
   }

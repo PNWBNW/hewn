@@ -394,6 +394,9 @@ handling); likely a Fable session for the key agreement.
 - [x] Wallet is the only signing path for new code; the CLI adapter / private-key fallback stays in `coordinator` until its tests are rewritten, then is removed (2026-10-13).
 - [x] Fiat is the primary product; chain rails are optional adapters the fiat path never imports (2026-10-13).
 - [x] Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed (2026-10-13).
+- [x] The Mailbox page is retired (2026-10-19, Joshua): Messages is the line of communication. Offers
+  and the conversation around each live under Jobs → Offers; the weeks of hours a team sends land under
+  Payroll → Hours; a paystub's delivery shows on its paycheck.
 - [x] Three ways in to Shield: the extension, Shield's own browser, and a plain phone browser over
   Shield's relay (2026-10-19). An installable Android app (Capacitor around the same code) is the
   third route in a wrapper. Step 1 done (2026-10-19): the app builds as a static bundle beside the

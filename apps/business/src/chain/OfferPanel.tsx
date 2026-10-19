@@ -277,12 +277,12 @@ function OfferFlow(props: OfferPanelProps) {
     return (
       <>
         <p className="text-sm">
-          Offer sent to <span className="font-medium">{sentTo}</span>. It&apos;s waiting in their Offers now. Once they accept, check for the reply in your
-          Mailbox and they&apos;re linked.
+          Offer sent to <span className="font-medium">{sentTo}</span>. It&apos;s waiting in their Offers now. Once they accept, check for the reply under
+          Jobs → Offers and they&apos;re linked.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/mailbox" className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4 sm:min-h-9">
-            Open Mailbox
+          <Link href="/jobs?tab=offers" className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4 sm:min-h-9">
+            Open Offers
           </Link>
           <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={onClose}>
             Done

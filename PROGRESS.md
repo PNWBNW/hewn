@@ -3170,3 +3170,27 @@ bucket totals. This adds the reports themselves.
 
 Tests: 917/917 (business +1). Build and audit pass.
 
+## 2026-10-19: offers under Jobs, hours under Payroll; the Mailbox page retired
+
+Joshua, after sending a week of hours as a worker and not finding it: time cards belong with payroll,
+job offers belong with jobs, and the Mailbox has no use now that Messages carries the conversation.
+- **Jobs → Offers** (`app/jobs/Offers.tsx`): send a job offer (to anyone found on the registry, or
+  to a team member added by hand who has no agreement yet), the offers out with Withdraw and View
+  offer, the acceptances, and the conversation around each offer (a request for changes, answered
+  with Accept / Counter back / Keep as it is). Replies are read when the tab opens and on Check
+  now; "Check for a reply" on a waiting offer is unchanged. Jobs has two tabs now, Postings and
+  Offers (`?tab=offers`); "New posting" moved into the Postings tab.
+- **Payroll → Hours** (`app/payroll/Hours.tsx`): the weeks the team sends, newest first, unread
+  highlighted, each opening to its days; read on open and on Check now. The unread badge in the rail
+  moved from Mailbox to Payroll. The Team tab keeps the people: Add someone already working here,
+  Edit, Deactivate, Remove; hiring points to Jobs → Offers.
+- **Gone:** `app/mailbox/page.tsx` and its nav entry. Paystubs delivered already show on each
+  paycheck (`Paystub.tsx`), so the feed no longer carries them. Every link that pointed at the
+  Mailbox (offer sent, asked for changes, the conversation's "See the offer") points at
+  Jobs → Offers.
+- `books/mailbox_feed.ts`: `offersFeed` and `hoursFeed` split the one feed for the two homes. The
+  store under `books/mailbox.ts` (hours, threads, channels) and the courier function keep their
+  names: they are the plumbing, not the page.
+
+Tests: 917/917 (feed test reshaped). Build, static build and audit pass.
+

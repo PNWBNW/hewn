@@ -56,7 +56,7 @@ export type ConversationProps = {
   thread: Thread | undefined;
   /** Applies a change to this thread in the vault. */
   update: (change: (t: Thread) => Thread) => Promise<void>;
-  /** Where offers are answered on this side (the Mailbox, or Offers). */
+  /** Where offers are answered on this side (Jobs → Offers, or the worker's Offers). */
   offersHref: string;
   /** For a coworker conversation: its own slots, and plain messages only. */
   kinds?: ThreadKinds;

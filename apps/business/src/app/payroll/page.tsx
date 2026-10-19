@@ -28,14 +28,12 @@ import { AccountSelect, Money, todayIso } from "@/books/display";
 import { RegistryField } from "@/books/RegistryField";
 import { BRAND } from "@/brand";
 import { type Registered, linkFor, linkStatus, registeredFor, setRegistered } from "@/books/rail";
-import type { Terms } from "@/books/work";
-import type { AttachmentRef } from "@pnw/sales";
-import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { expiryLabel, isExpired } from "@/books/offer_letter";
 import { threadFor } from "@/books/mailbox";
 import { openCounter } from "@/books/thread";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
+import { Hours } from "./Hours";
 import { Paystub } from "./Paystub";
 import { WorkerForm } from "./WorkerForm";
 
@@ -45,19 +43,9 @@ const PayPanel = dynamic(() => import("@/chain/PayPanel"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
-// Likewise, only when an offer is sent to a typed team member.
-const OfferPanel = dynamic(() => import("@/chain/OfferPanel"), {
-  ssr: false,
-  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
-});
-const WithdrawOffer = dynamic(() => import("@/chain/WithdrawOffer"), {
-  ssr: false,
-  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
-});
-
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, 0n);
 
-const TABS = ["runs", "team", "owed"];
+const TABS = ["runs", "team", "hours", "owed"];
 
 export default function PayrollPage() {
   return (
@@ -94,6 +82,7 @@ function PayrollScreen() {
           <TabsList>
             <TabsTrigger value="runs" className="min-h-9">Pay runs</TabsTrigger>
             <TabsTrigger value="team" className="min-h-9">Team</TabsTrigger>
+            <TabsTrigger value="hours" className="min-h-9">Hours</TabsTrigger>
             <TabsTrigger value="owed" className="min-h-9 whitespace-nowrap">Withholding owed</TabsTrigger>
           </TabsList>
         </div>
@@ -102,6 +91,9 @@ function PayrollScreen() {
         </TabsContent>
         <TabsContent value="team">
           <Team />
+        </TabsContent>
+        <TabsContent value="hours">
+          <Hours />
         </TabsContent>
         <TabsContent value="owed">
           <WithholdingOwed />
@@ -283,55 +275,26 @@ function payLabel(w: Worker): string {
 function Team() {
   const { payroll, rail, mailbox, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(null);
-  // Sending a job offer to someone not on the team yet: open, and who was found (books/hiring.ts).
-  const [hiring, setHiring] = useState(payroll.workers.length === 0);
-  const [hiringWho, setHiringWho] = useState<Registered | undefined>(undefined);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [offering, setOffering] = useState<string | null>(null);
-  const [offerShown, setOfferShown] = useState<string | null>(null);
-  const [withdrawing, setWithdrawing] = useState<string | null>(null);
   // The person found on the registry for the team member being added.
   const [adding, setAdding] = useState<Registered | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  // The offer panel itself says what is still missing (Shield linked, the business's registered name).
 
   return (
     <div className="flex flex-col gap-4">
-      {editing !== "new" && !hiring && (
-        <div className="flex flex-wrap gap-3">
-          <Button className="min-h-11 sm:min-h-9" onClick={() => setHiring(true)}>
-            <Plus aria-hidden />
-            Send a job offer
-          </Button>
+      {editing !== "new" && (
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setEditing("new")}>
+            <Plus aria-hidden />
             Add someone already working here
           </Button>
-        </div>
-      )}
-      {hiring && (
-        <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
-          {!hiringWho ? (
-            <>
-              <RegistryField
-                allow={["worker"]}
-                value={undefined}
-                onChange={setHiringWho}
-                label="Who's the offer for?"
-                hint={`Their registered name, like ana.${BRAND.nameSuffix}, or their account. They join your team when they accept the offer.`}
-              />
-              <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={() => setHiring(false)}>
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <OfferPanel
-              hire={hiringWho}
-              onClose={() => {
-                setHiring(false);
-                setHiringWho(undefined);
-              }}
-            />
-          )}
+          <span className="text-xs text-muted-foreground">
+            Hiring?{" "}
+            <Link href="/jobs?tab=offers" className="font-medium text-primary underline underline-offset-4">
+              Send a job offer
+            </Link>{" "}
+            under Jobs; they join the team when they accept.
+          </span>
         </div>
       )}
       {editing === "new" && (
@@ -376,7 +339,7 @@ function Team() {
             const sentTerms = sentLink?.terms;
             // A waiting offer's window: every offer expires (offers sent before expiry existed have none).
             const expiresAt = status === "offered" && sentTerms?.version === 2 ? sentTerms.expiresAt : undefined;
-            // They asked for changes and it's waiting on this business (answered from the Mailbox).
+            // They asked for changes and it's waiting on this business (answered under Jobs → Offers).
             const askedForChanges = status === "offered" && sentLink?.partiesKey ? !!openCounter(threadFor(mailbox, sentLink.partiesKey), sentLink.agreementId) : false;
             const registered = registeredFor(rail, "worker", w.id);
             // An offer out to someone not on the team yet: they join when they accept.
@@ -428,43 +391,29 @@ function Team() {
                       {payLabel(w)} · {FILING_STATUSES.find((f) => f.id === w.w4.filingStatus)?.label}
                       {!w.active && !offerOut && " · Inactive"}
                     </div>
-                    {offerOut && <div className="text-xs text-muted-foreground">Offer out: they join the team when they accept</div>}
+                    {offerOut && (
+                      <div className="text-xs text-muted-foreground">
+                        Offer out: they join the team when they accept.{" "}
+                        <Link href="/jobs?tab=offers" className="font-medium text-primary underline underline-offset-4">
+                          See it under Jobs
+                        </Link>
+                      </div>
+                    )}
                     {expiresAt && (
                       <div className={cn("text-xs", isExpired(expiresAt) ? "text-destructive" : "text-muted-foreground")}>
                         {isExpired(expiresAt) ? "Offer expired without an answer" : `Offer ${expiryLabel(expiresAt).toLowerCase()}`}
                       </div>
                     )}
                     {askedForChanges && (
-                      <Link href="/mailbox" className="text-xs font-medium text-primary underline underline-offset-4">
-                        Asked for changes: answer in Mailbox
+                      <Link href="/jobs?tab=offers" className="text-xs font-medium text-primary underline underline-offset-4">
+                        Asked for changes: answer under Jobs → Offers
                       </Link>
                     )}
                   </div>
-                  {status === "typed" && w.active && offering !== w.id && (
-                    <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setOffering(w.id)}>
+                  {status === "typed" && w.active && (
+                    <Link href="/jobs?tab=offers" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 sm:min-h-8")}>
                       Send offer
-                    </Button>
-                  )}
-                  {status === "offered" && withdrawing !== w.id && (
-                    <Button
-                      variant={expiresAt && isExpired(expiresAt) ? "outline" : "ghost"}
-                      size="sm"
-                      className="min-h-11 sm:min-h-8"
-                      onClick={() => setWithdrawing(w.id)}
-                    >
-                      Withdraw offer
-                    </Button>
-                  )}
-                  {sentTerms && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="min-h-11 sm:min-h-8"
-                      aria-expanded={offerShown === w.id}
-                      onClick={() => setOfferShown(offerShown === w.id ? null : w.id)}
-                    >
-                      {offerShown === w.id ? "Hide offer" : "View offer"}
-                    </Button>
+                    </Link>
                   )}
                   <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEditing(w.id)}>
                     Edit
@@ -519,21 +468,6 @@ function Team() {
                     </Button>
                   </div>
                 )}
-                {offering === w.id && (
-                  <div className="border-t p-3">
-                    <OfferPanel workerId={w.id} onClose={() => setOffering(null)} />
-                  </div>
-                )}
-                {withdrawing === w.id && (
-                  <div className="border-t p-3">
-                    <WithdrawOffer workerId={w.id} onClose={() => setWithdrawing(null)} />
-                  </div>
-                )}
-                {sentTerms && offerShown === w.id && (
-                  <div className="border-t p-3">
-                    <SentOffer terms={sentTerms} files={sentLink?.offerFiles} />
-                  </div>
-                )}
               </li>
             );
           })}
@@ -542,40 +476,8 @@ function Team() {
       <p className="text-xs text-muted-foreground">
         Names, pay rates and W-4 details are stored only in your encrypted books on this device. People are added by their registered name.{" "}
         <span className="font-medium">Linked</span>: an agreement approved by both sides, so they can be paid on the rail and receive paystubs.
-        Tap Send a job offer to hire someone: they join the team when they accept. Someone never paid can be removed.
+        Hire from Jobs → Offers: they join the team when they accept. Someone never paid can be removed.
       </p>
-    </div>
-  );
-}
-
-const FREQUENCY_LABEL: Record<Terms["frequency"], string> = {
-  weekly: "every week",
-  biweekly: "every two weeks",
-  semimonthly: "twice a month",
-  monthly: "every month",
-};
-
-/** The offer this business sent, as the person received it: the books' own copy, files included. */
-function SentOffer({ terms, files }: { terms: Terms; files: AttachmentRef[] | undefined }) {
-  const { readAttachment } = useOpenBooks();
-  const rate = formatCents(BigInt(terms.rate));
-  const offered = terms.version === 2 ? terms.files : [];
-  const saved = new Map((files ?? []).map((f) => [f.sha256, f]));
-  const allSaved = offered.length > 0 && offered.every((f) => saved.has(f.sha256));
-  return (
-    <div className="flex flex-col gap-2 text-sm">
-      <div className="text-xs text-muted-foreground">
-        Sent {terms.offeredAt.slice(0, 10)} · {terms.payType === "hourly" ? `${rate} an hour` : `${rate} a year`}, paid {FREQUENCY_LABEL[terms.frequency]} · starts{" "}
-        {terms.startDate}
-      </div>
-      {terms.version === 2 && <div className="text-xs text-muted-foreground">Open until {terms.expiresAt.slice(0, 10)}</div>}
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 font-sans text-sm">{terms.termsText}</pre>
-      {terms.version === 2 && <LetterSections letter={terms.letter} />}
-      <OfferFileList
-        files={offered}
-        {...(allSaved ? { read: (i: number) => readAttachment(saved.get(offered[i]!.sha256)!) } : {})}
-        missing="The files aren't saved on this device."
-      />
     </div>
   );
 }
