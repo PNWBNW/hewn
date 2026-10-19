@@ -34,7 +34,7 @@ export default function WithdrawOffer(props: WithdrawOfferProps) {
 
 function WithdrawFlow({ workerId, onClose }: WithdrawOfferProps) {
   const { rail, payroll, updateCompany, discardAttachment } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const client = useMemo(() => new MailboxClient(), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ function WithdrawFlow({ workerId, onClose }: WithdrawOfferProps) {
   if (!rail || !link || link.status !== "offered") return <FormError message="There's no waiting offer to withdraw." />;
   const expired = link.terms?.version === 2 && isExpired(link.terms.expiresAt);
   const address = state.kind === "connected" ? state.address : null;
-  if (!address) return <ShieldStatus state={state} connect={connect} onClose={onClose} />;
+  if (!address) return <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />;
   if (address !== rail.address) {
     return (
       <>

@@ -74,7 +74,7 @@ async function lookupBusinessName(address: string): Promise<{ businessNameHash?:
 
 function ConnectFlow({ onClose }: { onClose: () => void }) {
   const { books, vaultId, role, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,7 +127,7 @@ function ConnectFlow({ onClose }: { onClose: () => void }) {
           </div>
         </>
       ) : (
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       )}
       <FormError message={error ?? shieldError} />
     </>
@@ -151,7 +151,7 @@ const REIMPORT_HINT = "Re-import to enable paystub delivery";
 
 function ImportFlow({ onClose }: { onClose: () => void }) {
   const { rail, payroll, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, wallet } = useShield();
+  const { state, route, connect, error: shieldError, wallet } = useShield();
   const [rows, setRows] = useState<WorkerRecord[] | null>(null);
   const [keys, setKeys] = useState<Map<string, string>>(new Map()); // agreement id → parties key
   const [error, setError] = useState<string | null>(null);
@@ -196,7 +196,7 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
   return (
     <>
       {!address ? (
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       ) : mismatch ? (
         <>
           <p className="text-sm">

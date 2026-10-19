@@ -1,14 +1,17 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
-import {
-  AleoWalletProvider,
-  useWallet,
-} from "@provablehq/aleo-wallet-adaptor-react";
+import { type ReactNode, useMemo } from "react";
+import { AleoWalletProvider, useWallet } from "@provablehq/aleo-wallet-adapter-react";
 import { WalletReadyState } from "@provablehq/aleo-wallet-standard";
 import { Network } from "@provablehq/aleo-types";
-import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
-import { ShieldWalletAdapter } from "@provablehq/aleo-wallet-adaptor-shield";
+import { DecryptPermission } from "@provablehq/aleo-wallet-adapter-core";
+import {
+  DEFAULT_SHIELD_DEEPLINK_BASE,
+  DEFAULT_SHIELD_RELAY_URL,
+  ShieldWalletAdapter,
+  type ShieldWalletAdapterConfig,
+} from "@provablehq/aleo-wallet-adapter-shield";
+import { BRAND } from "@pnw/brand";
 import { PROGRAMS } from "@pnw/config/programs";
 
 // Re-exported so src/chain in the app needs no direct dependency on the adaptor packages.
@@ -54,75 +57,53 @@ export const WALLET_PROGRAMS: string[] = [
 ];
 
 /**
- * Mobile wallet connection works via the wallet's in-app browser:
- * the dApp opens inside the wallet app's webview, where window.shield
- * gets injected and the adapter detects INSTALLED.
- *
- * When a LOADABLE wallet fails to connect from a regular mobile browser,
- * this component redirects to the wallet's in-app browser URL, loading
- * our dApp inside the wallet so the normal connect flow can proceed.
+ * Shield's relay, the one host its released app dials. Pinned here rather
+ * than left to the adapter's default so the app's security policy and the
+ * adapter can never disagree: `apps/business/src/security/headers.ts` names
+ * this same origin in connect-src. A test checks it against the adapter.
  */
-function WalletMobileRedirectHandler() {
-  const { wallet, connected } = useWallet();
-  const lastWalletRef = useRef<{
-    name: string;
-    url: string | undefined;
-    readyState: WalletReadyState;
-  } | null>(null);
+export const SHIELD_RELAY_ORIGIN = "wss://relay.shield.app";
+/** The adapter's own default, re-exported for the test that pins the two together. */
+export const SHIELD_RELAY_DEFAULT = DEFAULT_SHIELD_RELAY_URL;
 
-  useEffect(() => {
-    if (wallet && wallet.readyState === WalletReadyState.LOADABLE) {
-      lastWalletRef.current = {
-        name: wallet.adapter.name,
-        url: wallet.adapter.url,
-        readyState: wallet.readyState,
-      };
-    }
-
-    // Wallet was deselected after a LOADABLE selection → connect failed
-    if (!wallet && !connected && lastWalletRef.current) {
-      const { name, url } = lastWalletRef.current;
-      lastWalletRef.current = null;
-
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (!isMobile) return;
-
-      // Build the in-app browser URL so our dApp loads inside the wallet
-      const dAppUrl = encodeURIComponent(window.location.href);
-      const redirectUrl = getMobileWalletUrl(name, dAppUrl, url);
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-      }
-    }
-
-    if (connected) {
-      lastWalletRef.current = null;
-    }
-  }, [wallet, connected]);
-
-  return null;
-}
+/** Where to get the Shield app or extension. */
+export const SHIELD_APP_URL = "https://www.shield.app/";
 
 /**
- * Returns the in-app browser URL for a given wallet on mobile.
- * Each wallet app has its own URL scheme to load a dApp in its webview.
+ * A link that brings the Shield app to the front on a phone (`shield://wake`).
+ * Shows an "Open Shield" button when the app is in the background and a read
+ * is waiting on it; builds that predate the route ignore the link, so it is
+ * safe on every version.
  */
-function getMobileWalletUrl(
-  walletName: string,
-  encodedDAppUrl: string,
-  fallbackUrl: string | undefined,
-): string | undefined {
-  const name = walletName.toLowerCase();
+export const SHIELD_OPEN_URL = `${new URL(DEFAULT_SHIELD_DEEPLINK_BASE).protocol}//wake`;
 
-  if (name.includes("shield")) {
-    // Shield: use Android intent to open the app directly.
-    // If the Shield app is installed, this deep-links into it.
-    // The user can then navigate to the dApp URL in Shield's browser.
-    // Fallback: open Shield website to download
-    return fallbackUrl || "https://www.shield.app/";
-  }
-
-  return fallbackUrl;
+/**
+ * Three ways in, one adapter (Joshua, 2026-10-19):
+ *
+ * 1. The browser extension on a computer: Shield is injected into the page
+ *    and wins (`preferExtension`, the default).
+ * 2. Shield's own browser on a phone: injected the same way; nothing changes.
+ * 3. A plain phone browser, the new route: nothing is injected, so the adapter
+ *    pairs with the Shield app over Shield's relay. `connect()` opens the app
+ *    with a `shield://` link; every approval afterwards opens it again, and the
+ *    answer comes back over the relay, sealed end to end (the relay forwards
+ *    ciphertext between the page and the app; the pairing secret travels only
+ *    in the link). Sessions last 12 hours, then one tap pairs again.
+ *
+ * Reads over the relay are answered only while the Shield app is open: it
+ * leaves the relay whenever it is in the background. `src/chain/shield.ts`
+ * watches for that and offers an "Open Shield" link.
+ *
+ * The approval screen in Shield shows the name and icon declared here beside
+ * the page's origin (it has no page to read over the relay). Display only: the
+ * origin stays primary.
+ */
+export function shieldAdapterConfig(): ShieldWalletAdapterConfig {
+  return {
+    appName: BRAND.name,
+    appIconUrl: `${BRAND.appUrl}${BRAND.assets.icon512}`,
+    remote: { relayUrl: SHIELD_RELAY_ORIGIN },
+  };
 }
 
 /**
@@ -131,14 +112,17 @@ function getMobileWalletUrl(
  *
  * Adapter: Shield only (decision 2026-10-13; other Aleo wallets dropped), so
  * there is no picker modal: the official react-ui package (and its stylesheet,
- * which pulls a Google font and so trips a strict CSP) is not used.
+ * which pulls a Google font and so trips a strict CSP) is not used. On a phone
+ * the adapter fires the Shield link itself, so no pairing screen is needed
+ * either; a computer without the extension is told to install it
+ * (`src/chain/shield.ts`), since Shield's app cannot scan a pairing code yet.
  */
 export function AleoWalletProviderWrapper({
   children,
 }: {
   children: ReactNode;
 }) {
-  const wallets = useMemo(() => [new ShieldWalletAdapter()], []);
+  const wallets = useMemo(() => [new ShieldWalletAdapter(shieldAdapterConfig())], []);
 
   return (
     <AleoWalletProvider
@@ -152,7 +136,6 @@ export function AleoWalletProviderWrapper({
       programs={WALLET_PROGRAMS}
       onError={(error) => console.error("[Wallet]", error.message)}
     >
-      <WalletMobileRedirectHandler />
       {children}
     </AleoWalletProvider>
   );

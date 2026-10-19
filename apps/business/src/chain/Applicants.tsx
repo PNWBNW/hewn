@@ -54,7 +54,7 @@ type Open = { kind: "talk" | "status" | "interview" | "offer"; partiesKey: strin
 
 function Flow({ posting: given, onClose }: ApplicantsProps) {
   const { jobs, mailbox, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, letters, wallet, mismatch, settled } = useLetters();
+  const { state, route, connect, error: shieldError, letters, wallet, mismatch, settled } = useLetters();
   const [status, setStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [open, setOpen] = useState<Open | null>(null);
@@ -133,7 +133,7 @@ function Flow({ posting: given, onClose }: ApplicantsProps) {
   if (!letters) {
     return (
       <>
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
         {shieldError && <p className="text-sm text-destructive">{shieldError}</p>}
       </>
     );

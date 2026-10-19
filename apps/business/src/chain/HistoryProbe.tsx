@@ -39,7 +39,7 @@ async function openTransition(transition: unknown, tvk: string): Promise<Opened>
 
 function ProbeFlow({ onClose }: { onClose: () => void }) {
   const { rail } = useOpenBooks();
-  const { state, connect, error: connectError, wallet } = useShield();
+  const { state, route, connect, error: connectError, wallet } = useShield();
   const [report, setReport] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +92,7 @@ function ProbeFlow({ onClose }: { onClose: () => void }) {
       </div>
 
       {!address ? (
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       ) : mismatch && rail ? (
         <>
           <p className="text-sm">

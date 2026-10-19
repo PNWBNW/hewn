@@ -43,6 +43,7 @@ import {
   totalOf,
 } from "./balances";
 import { useShield } from "./shield";
+import { ShieldAway } from "./ShieldStatus";
 
 export type AccountBalancesProps = { address: string };
 
@@ -58,7 +59,7 @@ type Public = { aleo: bigint; usdcx: bigint };
 type Private = { aleo: bigint; usdcx: bigint };
 
 function BalancesCard({ address }: AccountBalancesProps) {
-  const { state, connect, error: connectError, wallet } = useShield();
+  const { state, away, connect, error: connectError, wallet } = useShield();
   const [pub, setPub] = useState<Public | null>(null);
   const [priv, setPriv] = useState<Private | null>(null);
   const [pubError, setPubError] = useState<string | null>(null);
@@ -159,6 +160,8 @@ function BalancesCard({ address }: AccountBalancesProps) {
             </Button>
             <span className="text-xs text-muted-foreground">to see the private balances</span>
           </div>
+        ) : away ? (
+          <ShieldAway what="the private balances" />
         ) : null}
       </CardContent>
     </Card>

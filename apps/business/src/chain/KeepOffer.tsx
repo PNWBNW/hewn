@@ -36,7 +36,7 @@ export default function KeepOffer(props: KeepOfferProps) {
 
 function KeepFlow({ workerId, workerName, partiesKey, agreementId, onClose }: KeepOfferProps) {
   const { rail, mailbox, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, address, mismatch, letters, wallet } = useLetters();
+  const { state, route, connect, error: shieldError, address, mismatch, letters, wallet } = useLetters();
   const [note, setNote] = useState("");
   const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const [busy, setBusy] = useState(false);
@@ -59,7 +59,7 @@ function KeepFlow({ workerId, workerName, partiesKey, agreementId, onClose }: Ke
   if (!letters) {
     return (
       <>
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
         {shieldError && <p className="text-sm text-destructive">{shieldError}</p>}
       </>
     );

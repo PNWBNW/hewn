@@ -37,7 +37,7 @@ export default function SendDirectory({ onClose }: { onClose: () => void }) {
 
 function SendFlow({ onClose }: { onClose: () => void }) {
   const { rail, mailbox, updateCompany } = useOpenBooks();
-  const { state, connect, error: shieldError, letters, wallet, mismatch } = useLetters();
+  const { state, route, connect, error: shieldError, letters, wallet, mismatch } = useLetters();
   const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +47,7 @@ function SendFlow({ onClose }: { onClose: () => void }) {
   if (!letters) {
     return (
       <>
-        <ShieldStatus state={state} connect={connect} onClose={onClose} />
+        <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
         {shieldError && <p className="text-sm text-destructive">{shieldError}</p>}
       </>
     );

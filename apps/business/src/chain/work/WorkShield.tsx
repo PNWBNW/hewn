@@ -31,7 +31,7 @@ export function useWorkShield() {
 
 /** Rendered until the linked account is connected; `children` only then. */
 export function ShieldGate({ onClose, children }: { onClose: () => void; children: (address: string) => ReactNode }) {
-  const { state, connect, error, address, mismatch, linked } = useWorkShield();
+  const { state, route, connect, error, address, mismatch, linked } = useWorkShield();
   if (address) return <>{children(address)}</>;
   if (mismatch && state.kind === "connected") {
     return (
@@ -48,7 +48,7 @@ export function ShieldGate({ onClose, children }: { onClose: () => void; childre
   }
   return (
     <>
-      <ShieldStatus state={state} connect={connect} onClose={onClose} />
+      <ShieldStatus state={state} route={route} connect={connect} onClose={onClose} />
       {error && <p className="text-sm text-destructive">{error}</p>}
     </>
   );

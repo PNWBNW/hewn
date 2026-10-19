@@ -74,9 +74,10 @@ export default function Privacy() {
             <li>No third-party scripts, fonts or embeds. Every page is served from our own address.</li>
             <li>
               Each page tells your browser, through its security policy, that it may only talk to the
-              address it came from. The app adds one exception: a public, read-only lookup of the
+              address it came from. The app adds two exceptions: a public, read-only lookup of the
               payment network, used only if you choose private payments and only when you start a
-              lookup yourself.
+              lookup yourself; and, on a phone, Shield&apos;s own relay, which carries sealed messages
+              between the app and Shield and can read none of them.
             </li>
           </ul>
         </Block>
@@ -123,7 +124,7 @@ export default function Privacy() {
         <p className="text-sm text-muted-foreground">
           The full threat model behind this page is kept with the source code as{" "}
           <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">docs/THREAT_MODEL.md</code>.
-          Last reviewed 14 October 2026.
+          Last reviewed 19 October 2026.
         </p>
       </div>
     </article>
