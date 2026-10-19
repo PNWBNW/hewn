@@ -1,7 +1,8 @@
 # The job board: design
 
-Status: **`hewn_jobs_v1.aleo` merged in PNWBNW/pnw_mvp_v2 (#206, #207), deploying to testnet**
-(Joshua, 2026-10-19). In the app: posting from the business's Jobs page (#94), the public board
+Status: **`hewn_jobs_v1.aleo` deployed on testnet** (Joshua, 2026-10-19): deploy transaction
+`at1354m4j9wxc9st3ukwcl2082s6429ddgx27kfekz500rpzcne4qqse80q4n`, 8.924 credits (PNWBNW/pnw_mvp_v2 #206, #207).
+Per call, on top of the USDCx fee: `post` 0.020269, `update` 0.014193, `feature` 0.006927, `close` 0.003964 ALEO. In the app: posting from the business's Jobs page (#94), the public board
 (`/board`, with the worker's "Find work", #95), applying with a resume builder and the person's
 Applications list (#96), and the business's applicants per posting. The whole loop is built; what's
 left is on the way: PDF import, closing a posting telling everyone at once.
