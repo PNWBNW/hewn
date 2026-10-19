@@ -2996,3 +2996,14 @@ The last piece of the job board loop (hewn #97): from Jobs, each posting has **A
 Tests: 890/890 (new: opening the letters under a posting, once per key, skipping known keys and
 what won't open; applicants kept on a posting with their status and the vault round trip; the
 status and interview wording).
+
+## 2026-10-19: hewn_jobs_v1 deployed
+
+Joshua deployed `hewn_jobs_v1.aleo` on testnet (deploy-new-program).
+- **Deploy:** transaction `at1354m4j9wxc9st3ukwcl2082s6429ddgx27kfekz500rpzcne4qqse80q4n`, fee
+  transaction `at1m7ngn79cd0kpuj92zkkv05lx7aq0wwgzh0sdc9df6dmc6ghvmgpse2cz0s`.
+- **Cost:** 8.924390 credits (storage 6.628, synthesis 1.294, namespace 1, constructor 0.002). Per
+  call, in ALEO on top of the USDCx fees: `post` 0.020269, `update` 0.014193, `feature` 0.006927,
+  `close` 0.003964.
+- **Recorded in PNWBNW/pnw_mvp_v2:** the manifest names it under `program_ids.jobs`.
+- The app already names it (#94) and has it in Shield's program list; nothing to change here.
