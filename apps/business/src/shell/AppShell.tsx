@@ -184,6 +184,21 @@ function Rail({
   );
 }
 
+/** Under every page: the source and the traction map. On a phone the rail is a drawer, so its links are out of sight. */
+function PageFooter() {
+  return (
+    <footer className="mx-auto w-full max-w-6xl px-4 pb-6 text-xs text-muted-foreground sm:px-6">
+      <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-foreground">
+        Source code
+      </a>
+      {" · "}
+      <Link href="/traction" className="underline underline-offset-4 hover:text-foreground">
+        Traction map
+      </Link>
+    </footer>
+  );
+}
+
 /** The app around a page: the rail and header once the books are open; a bare header for a public page before then. */
 export function AppShell({ children }: { children: ReactNode }) {
   const { status } = useBooks();
@@ -204,6 +219,7 @@ function PublicShell({ children }: { children: ReactNode }) {
         </Link>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:py-8">{children}</main>
+      <PageFooter />
     </div>
   );
 }
@@ -279,6 +295,7 @@ function OpenShell({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:py-8">
           {redirect ? <p className="text-sm text-muted-foreground">{setupDone ? "Taking you home…" : "Finishing setup…"}</p> : children}
         </main>
+        <PageFooter />
       </div>
     </div>
   );
