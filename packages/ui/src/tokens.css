@@ -158,6 +158,22 @@
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/*
+ * Tell the browser which scheme the page is drawn in, so what it paints itself
+ * (form-control defaults, autofill, scrollbars, a <dialog>'s own colours) follows
+ * the theme instead of staying light: an autofilled email box on the dark theme
+ * used to turn white. "light dark" follows the device; a forced theme pins it.
+ */
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 /* In the base layer so Tailwind utilities (e.g. border-rail-border) can override. */
 @layer base {
   body {
