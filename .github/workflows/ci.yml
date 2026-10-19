@@ -33,5 +33,7 @@ jobs:
         run: pnpm test
       - name: Typecheck and build every workspace project
         run: pnpm build
+      - name: Static bundle of the app (the installable app's files)
+        run: pnpm --filter @pnw/business build:static
       - name: Dependency audit (fails on moderate or worse)
         run: pnpm audit --audit-level=moderate

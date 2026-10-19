@@ -240,7 +240,3 @@ export const SECTIONS: Section[] = [
     ],
   },
 ];
-
-export function findSection(id: string): Section | undefined {
-  return SECTIONS.find((s) => s.id === id);
-}

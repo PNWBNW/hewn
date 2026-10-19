@@ -26,7 +26,9 @@ export const viewport: Viewport = {
 
 // Render per request so every page gets a fresh CSP nonce (src/proxy.ts).
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  await connection();
+  // The static bundle (next.config.ts) has no request to wait for and no nonce to stamp: its
+  // policy goes into each page after the export (scripts/static_csp.ts).
+  if (process.env.NEXT_PUBLIC_HEWN_STATIC !== "1") await connection();
   return (
     <html lang="en">
       <body className="antialiased">

@@ -100,6 +100,14 @@ The highest risk for a browser app.
   its own transitions; everything read stays in the browser session and the vault, and nothing is
   sent anywhere but the read-only explorer. The permission is the user's to grant or revoke in
   Shield. Accepted (Joshua, 2026-10-15).
+- The static bundle (`HEWN_STATIC=1`, the files the installable app carries, 2026-10-19) has no
+  server to send headers, so each exported page carries the same policy in a meta tag, with the
+  page's two inline scripts (Next.js's hydration payload) named by SHA-256 digest instead of a
+  nonce (`apps/business/src/security/static_csp.ts`, stamped by `scripts/static_csp.mjs`; the
+  stamping refuses a page with an inline style). No `'strict-dynamic'` there (it needs a nonce),
+  so scripts by file come from the bundle's own origin alone; `connect-src` adds the website,
+  where the bundle reaches the server pieces (`src/api_base.ts`). `frame-ancestors` cannot travel
+  in a meta tag and is left out; the website still sends it. ✅
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
 - React escapes all rendered text; `dangerouslySetInnerHTML` is not used. ✅ (add a lint rule 🔜)

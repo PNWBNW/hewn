@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from "vitest";
-import { DELETE, GET, POST } from "./[lookup]/route";
+import { DELETE, GET, POST } from "./[lookup]/route.server";
 
 const LOOKUP = "8a45f32884aa20563afb9535932161b51369dfddce1d952bc1e8f5341b14416e";
 const context = (lookup: string) => ({ params: Promise.resolve({ lookup }) });

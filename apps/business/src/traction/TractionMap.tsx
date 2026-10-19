@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "../api_base";
 // The traction map: a choropleth of visitors since launch by country, four
 // binned steps of one green (validated ramps, light and dark), with a tooltip
 // per country, totals as stat tiles, a legend and a table. Reads two
@@ -67,7 +68,7 @@ export function TractionMap() {
 
   useEffect(() => {
     let live = true;
-    Promise.all([fetch("/api/traction").then((r) => r.json() as Promise<Published>), fetch("/traction/world.json").then((r) => r.json() as Promise<World>)])
+    Promise.all([fetch(apiUrl("/api/traction")).then((r) => r.json() as Promise<Published>), fetch("/traction/world.json").then((r) => r.json() as Promise<World>)])
       .then(([d, w]) => {
         if (!live) return;
         setData(d);

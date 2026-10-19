@@ -48,6 +48,9 @@ export const WORK_NAV: NavItem[] = [
   { href: "/work/profile", label: "Profile", icon: IdCard },
 ];
 
+/** The pathname without a trailing slash: the static bundle's pages are folders (next.config.ts), the website's are not. */
+export const canonicalPath = (pathname: string) => (pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname);
+
 export const isWorkPath = (pathname: string) => pathname === "/work" || pathname.startsWith("/work/");
 
 /** Pages anyone can read without an account: the job board, and traction. */
@@ -202,7 +205,7 @@ function PublicShell({ children }: { children: ReactNode }) {
 }
 
 function OpenShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const pathname = canonicalPath(usePathname());
   const router = useRouter();
   const { books, role, rail, work, lock, downloadBackup } = useOpenBooks();
   const [drawerOpen, setDrawerOpen] = useState(false);

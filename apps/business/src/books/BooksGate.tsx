@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useBooks } from "./BooksProvider";
-import { isPublicPath } from "@/shell/AppShell";
+import { canonicalPath, isPublicPath } from "@/shell/AppShell";
 import { FrontPage } from "./FrontPage";
 import { RestoreScreen } from "./RestoreScreen";
 import { SetupScreen } from "./SetupScreen";
@@ -13,7 +13,7 @@ type View = "front" | "setup" | "restore";
 /** Nothing inside renders until the books are open, apart from public pages. Until then: the front page, or the screen it leads to. */
 export function BooksGate({ children }: { children: ReactNode }) {
   const { status } = useBooks();
-  const pathname = usePathname();
+  const pathname = canonicalPath(usePathname());
   const [view, setView] = useState<View>("front");
 
   // Once the books are open, the next time they close (Lock, idle) the front page comes back.

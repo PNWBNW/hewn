@@ -18,3 +18,6 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
   };
 }
+
+// The static bundle (next.config.ts) needs this said explicitly; the website build ignores it.
+export const dynamic = "force-static";

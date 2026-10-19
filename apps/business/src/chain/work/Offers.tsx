@@ -16,7 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { AttachmentRef } from "@pnw/sales";
-import { MailboxClient } from "@pnw/mailbox";
+import { appMailbox } from "../mailbox_client";
 import { checkAgreementStatus } from "@pnw/records/agreement_reader";
 import { queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
@@ -90,7 +90,7 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // agreement id being accepted
   const [note, setNote] = useState<string | null>(null);
-  const client = useRef(new MailboxClient());
+  const client = useRef(appMailbox());
   // Offers' terms come as sealed pages on the network; older offers' from the mailbox.
   const letters = useRef(new LetterBox({ wallet }));
   const started = useRef(false);
