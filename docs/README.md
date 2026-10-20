@@ -1,0 +1,19 @@
+# docs/
+
+Hewn's design documents. The build plan (`BUILD_PLAN.md`) and the progress log (`PROGRESS.md`)
+are at the repository root; this folder holds the thinking behind particular pieces.
+
+| File | Status | What it answers |
+|---|---|---|
+| [`THREAT_MODEL.md`](THREAT_MODEL.md) | Living | What Hewn protects, from whom, how, and what it can't. Every PR checks its changes against it; new features add rows. |
+| [`LETTERS.md`](LETTERS.md) | Living | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
+| [`JOB_BOARD.md`](JOB_BOARD.md) | Living | The public job board: what is public on purpose, how applications stay sealed, fees. |
+| [`AUDIT_DESIGN.md`](AUDIT_DESIGN.md) | Plan, approved | How a paycheck, a run or a period is provable to an auditor without the chain ever showing a wage. |
+| [`NAME_REGISTRY_MAP.md`](NAME_REGISTRY_MAP.md) | Plan | Where the app depends on the name registry, and how mainnet names under the Aleo Name Service slot in. |
+| [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | Reference | Who the app is for and the principles its screens follow. Clean-room: from what bookkeepers do, not from any other product. |
+| [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | Report, 2026-10-14 | The network's limits checked against the settlement design before it was built. |
+| [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | Report, 2026-10-14 | The read-only pass over the three codebases that decided what to keep, what to rebuild and in what order. Most of its list is done. |
+| [`grants/`](grants/) | Reference | The Aleo SCALE grant proposal, as submitted. |
+
+The Leo programs' own documents (the architecture spec, migration notes) live with the programs
+in [`pnw_mvp_v2/docs`](https://github.com/PNWBNW/pnw_mvp_v2/tree/main/docs).

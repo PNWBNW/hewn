@@ -28,20 +28,21 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 **Reused as-is from `pnw_mvp_v2` and `pnw_employment_portal_v1`**
 
 - Privacy architecture: records for identifying data, mappings hold only hashes and block heights, commitment-based authorization (`parties_key` commitments).
-- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. The CLI adapter / private-key path is legacy: kept in `coordinator` for its tests, unused by new code, removed later. The app never calls `snarkos` directly. Extensions hang off this seam.
+- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. The CLI adapter / private-key path is legacy: kept in `coordinator` for its tests, unused by new code, removed later (removed 2026-10-14). The app never calls `snarkos` directly. Extensions hang off this seam.
 - `paystub_receipts` + `payroll_audit_log` as the pattern for all ledger postings (dual records + hash anchor).
 - `.pnw` name registry, credential NFTs, employer license gate, wallet-signature session model.
 - TypeScript tax engine (`src/lib/tax-engine.ts`, IRS annualization method).
 
 **Retired**
 
-- The Julia tax service (`pnw_payroll_engine/`). One tax engine, in TS.
+- The Julia tax service (`pnw_payroll_engine/`, now `archive/pnw_payroll_engine/`). One tax engine, in TS.
 - localStorage as a book of record (see Phase 1 vault).
 - The portal as an app: `pnw_employment_portal_v1` is rebuilt as a QB-shaped shell in Phase 0. Its libraries survive as packages; its screens do not.
 
 **Frozen**
 
-- Every superseded Leo program version (`pnw_name_registrar` v1-v4, `pnw_router` v2-v3, `employer_agreement` v2-v3, `credential_nft` v1-v2, `payroll_core` v1, `payroll_nfts` v1) moves to `programs/archive/`. `config/testnet.manifest.json` stays the single source of truth for what is live.
+- Every superseded Leo program version (`pnw_name_registrar` v1-v4, `pnw_router` v2-v3, `employer_agreement` v2-v3, `credential_nft` v1-v2, `payroll_core` v1, `payroll_nfts` v1) moves to `src/layer1/archive/` or `src/layer2/archive/` in
+  `pnw_mvp_v2` (done 2026-10-20). `config/testnet.manifest.json` stays the single source of truth for what is live.
 - Deployed programs are immutable on Aleo. Changes ship as new versions plus a migration path; nothing is edited in place.
 
 **Conventions**
@@ -428,6 +429,8 @@ handling); likely a Fable session for the key agreement.
 
 - [x] Default mode on first launch: fiat (2026-10-13). Anchored and settled are opt-in upgrades.
 - [x] Repo layout: monorepo — `apps/business`, `apps/worker`, `packages/`, `programs/` (2026-10-13).
+  As built: the worker side lives inside `apps/business` (one app, two kinds of account), and the
+  programs stay in `pnw_mvp_v2`, attached as a submodule.
 - [x] Reference wallet for vault key derivation: Shield (2026-10-13).
 - [x] Tax engine: TypeScript only; Julia service retired (2026-10-13).
 - [x] Wallet is the only signing path for new code; the CLI adapter / private-key fallback stays in `coordinator` until its tests are rewritten, then is removed (2026-10-13).

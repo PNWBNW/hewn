@@ -189,13 +189,14 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 | [`apps/site`](apps/site) | The marketing site, hewnaccounting.com |
 | [`packages/`](packages) | Shared libraries: the ledger, vault, payroll, tax engine, wallet, Aleo adapter and more. Layering map in [`packages/README.md`](packages/README.md) |
 | [`brand/`](brand) | Logo source art and the script that builds the brand assets. The name and colours live in [`packages/brand`](packages/brand) |
-| [`docs/`](docs) | [Threat model](docs/THREAT_MODEL.md), [Aleo constraints](docs/ALEO_CONSTRAINTS.md), [integration audit](docs/INTEGRATION_AUDIT.md), [design brief](docs/DESIGN_BRIEF.md) |
+| [`docs/`](docs/README.md) | Design documents with their status: the [threat model](docs/THREAT_MODEL.md), [letters](docs/LETTERS.md), the [job board](docs/JOB_BOARD.md), the [audit design](docs/AUDIT_DESIGN.md), and the grant proposal |
+| [`archive/`](archive/README.md) | Retired code, kept as it was: the Julia tax engine, the salvage script, four salvaged packages nothing uses |
 | [`BUILD_PLAN.md`](BUILD_PLAN.md) | The spec: phases, deliverables and exit criteria |
 | [`PROGRESS.md`](PROGRESS.md) | A dated log of every change, with test counts |
 | [`CLAUDE.md`](CLAUDE.md) | The project's rules: privacy floor, key handling, boundaries |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md) | Running it, the rules in short, forking, and how to report a problem privately |
 | [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2) (submodule) | **The Leo programs** (the on-chain side) and the deployed-program manifest |
-| [`pnw_employment_portal_v1`](https://github.com/PNWBNW/pnw_employment_portal_v1) (submodule) | The original PNW portal. Legacy: its libraries now live in `packages/`, its screens are retired |
-| `pnw_payroll_engine/`, `salvage/` | Retired: the old Julia tax service, and the one-time script that moved the portal into `packages/` |
+| [`pnw_employment_portal_v1`](https://github.com/PNWBNW/pnw_employment_portal_v1) (submodule) | The original PNW portal, retired on 2026-10-13. Its libraries became `packages/`; its README points here |
 
 Two rules worth knowing before you change code:
 
@@ -222,8 +223,8 @@ The app needs no settings to run. The optional ones are the courier's pinning ke
 the Upstash store behind the traction map (`KV_REST_API_URL` and `KV_REST_API_TOKEN`, set by
 Vercel when the store is connected). Never commit a `.env` file or any key.
 
-The submodules are only needed for the Leo programs and the legacy portal. Their `.gitmodules`
-URLs use SSH; clone them over HTTPS if you have no GitHub SSH key.
+The submodules are fetched over HTTPS and only needed for the chain side:
+`git submodule update --init pnw_mvp_v2` brings in the Leo programs.
 
 To use the app fully you'll need the Shield wallet on Aleo testnet. Open the app inside Shield's
 browser on a phone, or with the Shield extension on desktop.

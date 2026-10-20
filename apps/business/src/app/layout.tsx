@@ -4,8 +4,8 @@ import { BRAND } from "@/brand";
 import { AppShell } from "@/shell/AppShell";
 import { BooksGate } from "@/books/BooksGate";
 import { BooksProvider } from "@/books/BooksProvider";
-import { PageViews } from "@/PageViews";
-import { VisitCounter } from "@/VisitCounter";
+import { PageViews } from "@/shell/PageViews";
+import { VisitCounter } from "@/traction/VisitCounter";
 import "./globals.css";
 
 export const metadata: Metadata = {

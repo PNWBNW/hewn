@@ -25,25 +25,19 @@ company and protocol namespace).
 
 ## Session start
 
-1. Read `BUILD_PLAN.md` and `PROGRESS.md`.
-2. If `PROGRESS.md` does not exist, this is the first session: run **First session** below.
-3. Otherwise: find the current phase (first phase with an unchecked exit criterion). Report to Joshua in
+1. Read `BUILD_PLAN.md` and the last few entries of `PROGRESS.md` (it is long; the newest entries
+   are at the end).
+2. Find the current phase (first phase with an unchecked exit criterion). Report to Joshua in
    10 lines or fewer: current phase, what's done, what's next, any blocker. Then propose **one** task
    aimed at **one** exit criterion, and wait for his go-ahead before writing code.
 
-## First session (bootstrap)
+## Where to look
 
-1. Work on branch `monorepo` in `PNWBNW/pnw`. Create it if it doesn't exist.
-2. Clone the source repos over **HTTPS** into a scratch dir (the `.gitmodules` URLs are SSH and fail here):
-   - https://github.com/PNWBNW/pnw_employment_portal_v1 (Next.js portal, ~33k lines TS)
-   - https://github.com/PNWBNW/pnw_mvp_v2 (Leo programs, adapters, scripts; has its own CLAUDE.md
-     and docs/NOTES.md worth reading for on-chain detail)
-3. Baseline: install the portal with **pnpm** using its `pnpm-lock.yaml` (`npm ci` fails — there is
-   no package-lock) and run its vitest suite unchanged. Record pass/fail counts in `PROGRESS.md`.
-4. Inspect `src/persistence/` in the portal (`draft_encryptor`, `key_provider`, `draft_integrity`,
-   with tests). Report how much of the Phase 1 encrypted vault it already covers.
-5. Create `PROGRESS.md` with the baseline results and the persistence findings.
-6. Stop and report. Do not start scaffolding until Joshua says go.
+Every folder with more than a few files has a README saying what is in it and how it fits: the
+root `README.md` has the map, `docs/README.md` indexes the design documents, `packages/README.md`
+the layering, `apps/business/README.md` the app and its two builds, `archive/README.md` what was
+retired and why. `CONTRIBUTING.md` and `SECURITY.md` are for people arriving from outside. The Leo
+programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its own `CLAUDE.md`.
 
 ## Non-negotiable rules
 
@@ -104,7 +98,8 @@ company and protocol namespace).
 **Leo programs**
 - Deployed programs are immutable. Never edit a deployed program in place; ship a new version and a
   migration. `config/testnet.manifest.json` is the source of truth for what's live.
-- Superseded program versions go to `programs/archive/`, unchanged.
+- Superseded program versions go to `src/layer1/archive/` or `src/layer2/archive/` in
+  `pnw_mvp_v2`, unchanged, with a row in that folder's README.
 - Any new or changed Leo program: say so explicitly before starting, so Joshua can switch the session
   to Fable 5.1 at high effort. Include negative tests (inputs that must fail).
 
@@ -162,8 +157,12 @@ company and protocol namespace).
   need `--network 1` for testnet.
 - The double-pay item in `pnw_mvp_v2/docs/NOTES.md` is stale per Joshua; ignore it unless a test
   shows otherwise.
-- The Julia tax service (`pnw_payroll_engine/`) is retired. The TypeScript engine
-  (`src/lib/tax-engine.ts`) is the only tax engine.
+- The Julia tax service is retired (`archive/pnw_payroll_engine/`). `packages/tax-engine` is the
+  only tax engine.
+- Retired code goes to `archive/` with a row in `archive/README.md`, never deleted silently
+  (2026-10-20): the Julia engine, the salvage script, and four salvaged packages nothing uses
+  (`persistence`, `w4-crypto`, `pdf`, `nft-art`). The old portal repository is retired; its README
+  and `CLAUDE.md` point here.
 - Licence: **AGPL-3.0-only** since 2026-10-15 (Joshua), for this repo and `pnw_mvp_v2`; text in `LICENSE`.
   Every package says `"license": "AGPL-3.0-only"`. The app and the site link to the source
   (`BRAND.sourceUrl`); keep that link. The Hewn name and logo are not licensed.

@@ -1,4 +1,4 @@
-# PNW Ledger — Progress Log
+# Hewn — Progress Log
 
 Dated entries, newest last. Detail lives here; chat reports stay short.
 
@@ -3610,3 +3610,35 @@ CI's `pnpm/action-setup` goes from v4 to v6, the last of the four dependency upd
 (Dependabot's #13 conflicted with the setup-node update next to it). pnpm itself stays pinned at
 10.28.0 by `packageManager`. TypeScript 7 (#19), checkout v7 (#15) and setup-node v7 (#14) are
 already merged, and main is green with them. CI only.
+
+## 2026-10-20: housekeeping across the three repositories
+
+Joshua: a clean, friendly tree; floating files in folders; retired code clearly archived; a README
+wherever a folder needs explaining; the context files accurate for anyone who forks.
+
+**This repository**
+- `archive/` (with a README saying what each thing was, when it retired and what replaced it):
+  the Julia tax engine, the salvage script and patch, and the four salvaged packages nothing
+  imports (`persistence`, `w4-crypto`, `pdf`, `nft-art`). They leave the workspace, so the lockfile
+  drops their dependencies (442 lines) and the audit surface shrinks. 986 tests remain (the 17
+  that left were `persistence`'s).
+- The grant proposal moves to `docs/grants/`. `VisitCounter.tsx` joins `src/traction/`,
+  `PageViews.tsx` joins `src/shell/`.
+- `.gitmodules` fetches over HTTPS, so a fork needs no SSH key.
+- New: `CONTRIBUTING.md`, `SECURITY.md`, `docs/README.md` (an index with each document's status),
+  `archive/README.md`, `apps/business/README.md` (the two builds and the source map),
+  `apps/business/src/books/README.md`, `apps/business/src/chain/README.md`; `packages/README.md`
+  rewritten with all 17 packages and the fiat boundary.
+- `CLAUDE.md`: the bootstrap section is gone (it happened on 2026-10-13); "Where to look" replaces
+  it; the archive paths are the real ones. `BUILD_PLAN.md` says where the frozen programs went and
+  how the repo layout was built. The README map is current.
+
+**`pnw_mvp_v2`** (PR "tidy"): 15 superseded program versions into `src/layer1/archive/` and
+`src/layer2/archive/`, unchanged, each archive with a README; six stale documents into
+`docs/archive/`; READMEs for every layer, folder and the six live programs that had none;
+`README.md` and `CLAUDE.md` rewritten for what is on chain and how Hewn uses it.
+
+**`pnw_employment_portal_v1`** (#200, merged): retired. The README opens with where things went;
+`CLAUDE.md` says not to build there; the old context is kept under `docs/archive/`.
+
+No code behaviour changed. Tests 986/986, every package and both apps build.

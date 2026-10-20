@@ -1,6 +1,6 @@
 "use client";
 
-import { apiUrl } from "./api_base";
+import { apiUrl } from "../api_base";
 // One count per browser session (app/api/traction/counts.ts): a visit, and
 // whether this device has ever been counted before. The device keeps that
 // answer itself; nothing about it is sent but yes or no. No cookies.
