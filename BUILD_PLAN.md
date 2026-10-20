@@ -232,6 +232,32 @@ No seat cap; the wallet is the user.
 - [ ] An extension that attempts an unlisted `gl_core` call fails to compile; one that attempts to read the vault key fails at the plugin boundary
 - [ ] A second developer builds the empty template into a working tips module using only the README and the interface doc
 
+## Phase 9 — Scheduling (Joshua, 2026-10-20)
+
+Built into the app, not sold separately. Every day has two layers: shift blocks with their hours,
+and an on-call layer covering the whole 24 hours, independent of each other. The business publishes
+each person's week, the person confirms it or asks for a change, and nothing counts until it is
+confirmed. A schedule is private like wages: the vault and sealed letters only.
+
+**Deliverables**
+
+1. Week view for the business (Payroll → Schedule): per person, per day, shifts and on call; copy
+   last week; publish; the person's answer. The person's Schedule page: the week, confirm or ask for
+   a change.
+2. On-call pay and callouts: the on-call amount per day and the callout minimum (paid as overtime)
+   in the offer's terms; a callout clocked in on an on-call day; both as lines on Run payroll.
+3. Schedule against the clock: today's shift on Home; early, late and unscheduled time flagged on
+   the business's timecards.
+4. Later: shift swaps between coworkers, availability, open shifts.
+
+**Exit criteria**
+
+- [x] A week with a shift and an on-call day on the same date publishes, is confirmed by the person, and both sides show it as confirmed (2026-10-20)
+- [ ] A confirmed on-call week and one callout pay the agreed on-call amount and the callout minimum at the overtime rate on the next run
+- [ ] A shift clocked in 20 minutes late shows as late on the business's timecard
+
+---
+
 ## Mainnet names: `.hewn` under the Aleo Name Service (design, Joshua 2026-10-15)
 
 Mainnet names move onto the **Aleo Name Service** (ANS, [ARC-137](https://github.com/ProvableHQ/ARCs/discussions/45),
@@ -352,6 +378,9 @@ real traffic before mainnet.
 Features that could sit behind a paid tier once Hewn is on mainnet (Joshua, 2026-10-16). Nothing
 here is gated today, and the tier itself (what's in it, its price) is an open decision below. The
 free product never loses what it has: books, payroll, paystubs, agreements and the mailbox stay free.
+
+**Scheduling** (Phase 9; Joshua, 2026-10-20): included for now, a possible premium feature; where
+the line falls is decided before mainnet.
 
 **Private messaging within an organization.** An organization is a business plus everyone with an
 accepted agreement with it, so the circle is already defined on chain and nobody outside it can be

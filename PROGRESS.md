@@ -3388,3 +3388,31 @@ hours); it's agreed in the offer and follows the person for the life of the agre
 - Proposed, not built: on-call days and callouts (see the reply to Joshua on 2026-10-19).
 
 Tests: 961/961 (12 new).
+
+## 2026-10-20: scheduling, phase 9 step 1: two layers, published and confirmed
+
+Joshua: an on-call calendar is a schedule, so build a schedule. Two layers on every day: shift blocks
+with their hours, and an on-call layer covering the whole 24 hours, independent of each other. Built
+in, not an add-on (a possible premium feature, decided before mainnet). Added to BUILD_PLAN.md as
+Phase 9, with its deliverables and exit criteria.
+- `books/schedule.ts`: `ScheduleWeek` (Sunday to Saturday; days with `shifts` as "HH:MM" blocks,
+  a block ending at or before its start runs into the next day, and `onCall`), validated (no
+  overlaps, at most 6 shifts a day, days inside their week, empty days dropped). The business's
+  drafts (`Schedule`, `Company.schedule`, per person and week). What was published and how it was
+  answered are read from the conversation each side already keeps (`publishedWeek`), so neither
+  side holds a second copy; `weekStatus`: nothing, not published, changed since published,
+  waiting, confirmed, asked for a change.
+- Two conversation messages (`books/thread.ts`): `schedule` (the business: the week and a note) and
+  `schedule_answer` (the person: confirmed, or a change with a note saying what, naming the week's
+  message). Each is one sealed letter on chain, one Shield approval (`chain/PublishSchedule.tsx`,
+  `chain/work/AnswerSchedule.tsx`). In Messages they show as quiet lines ("Sent your schedule for
+  the week of Oct 25").
+- Payroll → Schedule: the week, one card per team member, each day with its shift chips (remove
+  with ×), "+ Shift" (start and end times), and an On call box; "Copy last week" on an empty week;
+  Publish / Publish the changes / Undo changes; the status and, when they asked for a change, their
+  note. Someone without an accepted offer can be drafted but not published.
+- The person's Schedule page (new menu item): the week, day by day ("Off", shift chips, "On call ·
+  24 h"), the employer's note, "Confirm this week" or "Ask for a change"; new weeks arrive with
+  their messages (read on open and on Check now).
+
+Tests: 968/968 (7 new). Website build passes.

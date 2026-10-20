@@ -35,6 +35,7 @@ import { paidByRun, shiftCount } from "@/books/timecard_pay";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 import { Hours } from "./Hours";
+import { Schedule } from "./Schedule";
 import { Paystub } from "./Paystub";
 import { WorkerForm } from "./WorkerForm";
 
@@ -46,7 +47,7 @@ const PayPanel = dynamic(() => import("@/chain/PayPanel"), {
 
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, 0n);
 
-const TABS = ["runs", "team", "hours", "owed"];
+const TABS = ["runs", "team", "schedule", "hours", "owed"];
 
 export default function PayrollPage() {
   return (
@@ -83,6 +84,7 @@ function PayrollScreen() {
           <TabsList>
             <TabsTrigger value="runs" className="min-h-9">Pay runs</TabsTrigger>
             <TabsTrigger value="team" className="min-h-9">Team</TabsTrigger>
+            <TabsTrigger value="schedule" className="min-h-9">Schedule</TabsTrigger>
             <TabsTrigger value="hours" className="min-h-9">Hours</TabsTrigger>
             <TabsTrigger value="owed" className="min-h-9 whitespace-nowrap">Withholding owed</TabsTrigger>
           </TabsList>
@@ -92,6 +94,9 @@ function PayrollScreen() {
         </TabsContent>
         <TabsContent value="team">
           <Team />
+        </TabsContent>
+        <TabsContent value="schedule">
+          <Schedule />
         </TabsContent>
         <TabsContent value="hours">
           <Hours />
