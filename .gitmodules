@@ -1,8 +1,8 @@
 [submodule "pnw_mvp_v2"]
 	path = pnw_mvp_v2
-	url = git@github.com:PNWBNW/pnw_mvp_v2.git
+	url = https://github.com/PNWBNW/pnw_mvp_v2.git
 	branch = main
 [submodule "pnw_employment_portal_v1"]
 	path = pnw_employment_portal_v1
-	url = git@github.com:PNWBNW/pnw_employment_portal_v1.git
+	url = https://github.com/PNWBNW/pnw_employment_portal_v1.git
 	branch = main

@@ -1,0 +1,24 @@
+# src/books — the books, without the chain
+
+The models behind every screen, as pure TypeScript: given the vault's contents, what does the
+screen show, and what does a tap change. No network, no wallet, no Aleo. If a function here needed
+the chain it would live in `../chain` instead, and the boundary test would say so.
+
+Naming: `thing.ts` holds the model, `thing.test.ts` its tests, `Thing.tsx` a component built on it.
+Most files pair up that way. The ones worth knowing first:
+
+| File | What it holds |
+|---|---|
+| `account.ts`, `setup.ts`, `BooksProvider.tsx`, `BooksGate.tsx` | Opening the vault with email and passphrase; the setup flow; the React context every page reads |
+| `company.ts` | The business's record: books, payroll, rail links, mailbox, schedule, all in one |
+| `work.ts` | The worker's record: agreements, punches, sent timecards, paystubs, threads |
+| `thread.ts` | The conversation between a business and one person: every kind of message, who may send which, how offers are negotiated |
+| `mailbox.ts`, `mailbox_feed.ts` | What arrived for the business: weeks of hours, combined per week; the feed the screens show |
+| `hours.ts`, `work_week.ts`, `timecard_pay.ts`, `hours_change.ts` | Shifts from punches on the agreement's calendar; overtime and callouts; timecards into pay; changing hours by agreement |
+| `schedule.ts`, `team_schedule.ts`, `team_sources.ts`, `TeamCalendar.tsx` | Drafts, publishing a week, the team calendar everyone sees |
+| `offer_letter.ts`, `terms_words.ts`, `review.ts`, `hiring.ts`, `jobs.ts`, `applications.ts`, `resume.ts` | Offers and their terms in words; hiring and the job board as the vault keeps them |
+| `channels.ts`, `directory.ts`, `groups.ts` | Announcement channels, the coworker directory, group chats |
+| `paystub_document.ts` | The paystub as a document: the canonical form whose hash the chain sees |
+| `rail.ts`, `funds.ts`, `opening.ts`, `tags.tsx`, `display.tsx` | Links to people on the rail; set-asides; opening balances; dimensions; formatting |
+
+Everything here is covered by tests; run them with `pnpm --filter @pnw/business test`.
