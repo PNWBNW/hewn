@@ -92,8 +92,10 @@ function validateEntries(raw: unknown, kept = false): ReceivedEntry[] {
     if (!isStamp(x.in) || !isStamp(x.out)) throw new MailboxError("Every entry needs a start and an end time");
     if (!isMinutes(x.minutes, MINUTES_IN_DAY)) throw new MailboxError("An entry's minutes must be a whole number within one day");
     if (x.long !== undefined && x.long !== true) throw new MailboxError("An entry's long flag can only be true");
+    if (x.callout !== undefined && x.callout !== true) throw new MailboxError("An entry's callout flag can only be true");
     // `long`: a shift past the longest shift in the terms, which the sender confirmed (books/hours.ts).
-    const entry: ReceivedEntry = { date: x.date, in: x.in, out: x.out, minutes: x.minutes, ...(x.long ? { long: true as const } : {}) };
+    // `callout`: clocked in as a callout, paid at the overtime rate with the agreed minimum (books/timecard_pay.ts).
+    const entry: ReceivedEntry = { date: x.date, in: x.in, out: x.out, minutes: x.minutes, ...(x.long ? { long: true as const } : {}), ...(x.callout ? { callout: true as const } : {}) };
     if (kept && x.paid !== undefined) {
       const p = x.paid as Partial<NonNullable<ReceivedEntry["paid"]>> | null;
       if (!p || typeof p !== "object" || typeof p.runId !== "string" || !p.runId || !isDate(p.payDate)) throw new MailboxError("A paid entry names the pay run and its date");

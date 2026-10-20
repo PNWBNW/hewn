@@ -91,6 +91,23 @@ describe("gross pay", () => {
     expect(() => grossFor(ben, 40, { hours: 1, rate: 1.555 })).toThrow(/from 1 to 3/);
   });
 
+  it("pays callouts like overtime but apart, and on-call days as a flat amount, for any pay type", () => {
+    const { ana, ben } = setup();
+    // 40 h at 25.50 + 3 h overtime at 1.5 + 2 h callout at 1.5 + 7 days on call at $25 = 1,020 + 114.75 + 76.50 + 175
+    const gross = grossFor(ben, 40, { hours: 3, rate: 1.5 }, { callout: { hours: 2, rate: 1.5 }, onCall: { days: 7, perDay: 2_500n } });
+    expect(gross).toBe(138_625n);
+    expect(grossFor(ben, 40, undefined, { callout: { hours: 2, rate: 1.5 } })).toBe(109_650n);
+    expect(grossFor(ana, undefined, undefined, { onCall: { days: 3, perDay: 2_500n } })).toBe(207_500n); // salary + on call
+    expect(grossFor(ben, 40, undefined, { onCall: { days: 0, perDay: 2_500n } })).toBe(grossFor(ben, 40));
+    expect(() => grossFor(ben, 40, undefined, { onCall: { days: 1.5, perDay: 2_500n } })).toThrow(/whole number/);
+    expect(() => grossFor(ben, 40, undefined, { onCall: { days: 1, perDay: -1n } })).toThrow(/negative/);
+    expect(() => grossFor(ben, 40, undefined, { callout: { hours: 2, rate: 0.5 } })).toThrow(/from 1 to 3/);
+    const s = setup();
+    const [draft] = previewPayRun(s.payroll(), { ...run(s), lines: [{ workerId: s.ben.id, hours: 40, callout: { hours: 2, rate: 1.5 }, onCall: { days: 7, perDay: 2_500n } }] });
+    expect(draft).toMatchObject({ hours: 40, calloutHours: 2, calloutRate: 1.5, onCallDays: 7, onCallPay: 17_500n, gross: 127_150n });
+    expect(draft).not.toHaveProperty("overtimeHours");
+  });
+
   it("carries the overtime on the paycheck, and in a run", () => {
     const s = setup();
     const drafts = previewPayRun(s.payroll(), { ...run(s), lines: [{ workerId: s.ben.id, hours: 80, overtime: { hours: 3, rate: 1.5 } }, { workerId: s.cy.id, hours: 72 }] });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type ReceivedHours, addHours, emptyMailbox, mailboxFromJson, mailboxToJson } from "./mailbox";
-import { hoursText, markPaid, paidByRun, payRulesFor, unpaidHours } from "./timecard_pay";
+import { calloutsOf, hoursText, markPaid, paidByRun, payRulesFor, unpaidHours } from "./timecard_pay";
 import { labelOvertime, overtimeSplit } from "./hours";
 
 const AGREEMENT = "ab".repeat(32);
@@ -37,7 +37,7 @@ describe("hours from timecards into a pay run", () => {
     expect(all.minutes).toBe(765);
     expect(all.weeks).toEqual(["2026-10-18", "2026-10-25"]);
     expect(unpaidHours(m, "wkr-2", "2026-10-01", "2026-10-31").minutes).toBe(480);
-    expect(unpaidHours(m, "wkr-9", "2026-10-01", "2026-10-31")).toEqual({ minutes: 0, regularMinutes: 0, overtimeMinutes: 0, overtimeRate: 1.5, shifts: [], weeks: [] });
+    expect(unpaidHours(m, "wkr-9", "2026-10-01", "2026-10-31")).toEqual({ minutes: 0, regularMinutes: 0, overtimeMinutes: 0, overtimeRate: 1.5, callouts: [], calloutPaidMinutes: 0, shifts: [], weeks: [] });
     expect(unpaidHours(null, "wkr-1", "2026-10-01", "2026-10-31").minutes).toBe(0);
   });
 
@@ -84,7 +84,7 @@ describe("hours from timecards into a pay run", () => {
 });
 
 describe("overtime from timecards", () => {
-  const rules = { timeZone: "UTC", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: 1.5 };
+  const rules = { timeZone: "UTC", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: 1.5, onCallPayCents: 0n, calloutMinimumMinutes: 0 };
   const day = (date: string, hours: number) => stretch(date, "08:00", `${String(8 + hours).padStart(2, "0")}:00`, hours * 60);
   // Sunday the 18th to Saturday the 24th: five 9-hour days, then 4 hours Saturday = 49 hours.
   const week = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"].map((d) => day(d, 9));
@@ -135,5 +135,39 @@ describe("overtime from timecards", () => {
   it("takes the rules from the offer's work week, or the baseline without one", () => {
     expect(payRulesFor(null, "wkr-1").overtimeRate).toBe(1.5);
     expect(payRulesFor(null, "wkr-1").overtimeAfterHours).toBe(40);
+  });
+});
+
+describe("callouts from timecards", () => {
+  const rules = { timeZone: "UTC", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: 1.5, onCallPayCents: 2500n, calloutMinimumMinutes: 120 };
+  const day = (date: string, hours: number) => stretch(date, "08:00", `${String(8 + hours).padStart(2, "0")}:00`, hours * 60);
+  const week = ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"].map((d) => day(d, 9)); // 36 h
+  const callout = { ...stretch("2026-10-21", "22:00", "23:00", 60), callout: true as const }; // 1 h, paid 2
+  const night = [
+    { ...stretch("2026-10-22", "23:00", "24:00", 60), out: "2026-10-23T00:00:00.000Z", callout: true as const },
+    { ...stretch("2026-10-23", "00:00", "03:00", 180), callout: true as const },
+  ]; // one callout across midnight: 4 h
+
+  it("keeps callouts out of regular and overtime, and pays each at least the minimum", () => {
+    const m = addHours(emptyMailbox(), card(0, [...week, callout, ...night]));
+    const u = unpaidHours(m, "wkr-1", "2026-10-18", "2026-10-24", rules);
+    // The 36 regular hours stay regular: callout time doesn't push the week past 40.
+    expect(u).toMatchObject({ regularMinutes: 2160, overtimeMinutes: 0, calloutPaidMinutes: 120 + 240 });
+    expect(u.callouts.map((c) => [c.date, c.workedMinutes, c.paidMinutes])).toEqual([
+      ["2026-10-21", 60, 120],
+      ["2026-10-22", 240, 240], // across midnight, one callout: the minimum applies once
+    ]);
+    expect(u.shifts.filter((s) => s.callout).every((s) => s.regular === 0 && s.overtime === 0)).toBe(true);
+    // Without a minimum, a callout pays its time.
+    expect(unpaidHours(m, "wkr-1", "2026-10-18", "2026-10-24", { ...rules, calloutMinimumMinutes: 0 }).calloutPaidMinutes).toBe(300);
+    // Marked paid with the run, they don't come back.
+    const paid = markPaid(m, u.shifts.filter((s) => s.callout), "run-1", "2026-10-24");
+    expect(unpaidHours(paid, "wkr-1", "2026-10-18", "2026-10-24", rules)).toMatchObject({ calloutPaidMinutes: 0, regularMinutes: 2160 });
+  });
+
+  it("groups stretches that meet into one callout", () => {
+    const s = (inAt: string, out: string, minutes: number) => ({ agreementId: AGREEMENT, seq: 0, weekStart: "2026-10-18", date: inAt.slice(0, 10), in: inAt, out, minutes, regular: 0, overtime: 0, callout: true as const });
+    const groups = calloutsOf([s("2026-10-22T23:00:00.000Z", "2026-10-23T00:00:00.000Z", 60), s("2026-10-23T00:00:00.000Z", "2026-10-23T01:00:00.000Z", 60), s("2026-10-23T05:00:00.000Z", "2026-10-23T05:30:00.000Z", 30)], 120);
+    expect(groups.map((g) => [g.workedMinutes, g.paidMinutes])).toEqual([[120, 120], [30, 120]]);
   });
 });

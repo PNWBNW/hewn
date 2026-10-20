@@ -28,6 +28,12 @@ export function WorkWeekBoxes({ draft, onChange }: { draft: WorkWeekDraft; onCha
       <Field label="Daily overtime after (hours a day)" hint="Some businesses and states count overtime by the day, like after 8 or 10. 0 for none.">
         <input className={inputClass} inputMode="decimal" placeholder="0" value={draft.dailyText} onChange={(e) => onChange({ ...draft, dailyText: e.target.value })} />
       </Field>
+      <Field label="On-call pay ($ a day)" hint="Optional. Paid for each day they're scheduled on call and confirmed it.">
+        <input className={inputClass} inputMode="decimal" placeholder="0.00" value={draft.onCallText ?? ""} onChange={(e) => onChange({ ...draft, onCallText: e.target.value })} />
+      </Field>
+      <Field label="Callout minimum (hours)" hint="Optional. A callout pays at least this, at the overtime rate, on its own paystub line.">
+        <input className={inputClass} inputMode="decimal" placeholder="2" value={draft.calloutText ?? ""} onChange={(e) => onChange({ ...draft, calloutText: e.target.value })} />
+      </Field>
       <Field label="Longest shift (hours)" hint="A shift longer than this is reviewed before it's paid.">
         <input className={inputClass} inputMode="decimal" placeholder="12" value={draft.longestText} onChange={(e) => onChange({ ...draft, longestText: e.target.value })} />
       </Field>

@@ -253,7 +253,7 @@ confirmed. A schedule is private like wages: the vault and sealed letters only.
 **Exit criteria**
 
 - [x] A week with a shift and an on-call day on the same date publishes, is confirmed by the person, and both sides show it as confirmed (2026-10-20)
-- [ ] A confirmed on-call week and one callout pay the agreed on-call amount and the callout minimum at the overtime rate on the next run
+- [x] A confirmed on-call week and one callout pay the agreed on-call amount and the callout minimum at the overtime rate on the next run (2026-10-20)
 - [ ] A shift clocked in 20 minutes late shows as late on the business's timecard
 
 ---

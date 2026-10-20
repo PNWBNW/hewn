@@ -301,3 +301,19 @@ describe("the weekly timecard (sent shifts are the employer's)", () => {
     expect(weekShifts(old, AID, "2026-10-11", later).every((s) => !s.sent)).toBe(true);
   });
 });
+
+describe("a callout on the clock", () => {
+  it("is marked on its clock-in, travels on the timecard, and only starts with a clock-in", () => {
+    let w = punch(base, AID, local("2026-10-14", "22:00"), "a", { callout: true }).work;
+    expect(w.punches[0]).toMatchObject({ kind: "in", callout: true });
+    expect(() => punch(w, AID, local("2026-10-14", "23:30"), "x", { callout: true })).toThrow(/starts with a clock-in/);
+    w = punch(w, AID, local("2026-10-14", "23:30"), "b").work;
+    w = punch(w, AID, local("2026-10-15", "08:00"), "c").work;
+    w = punch(w, AID, local("2026-10-15", "12:00"), "d").work;
+    const now = new Date(local("2026-10-17", "18:00"));
+    expect(weekShifts(w, AID, "2026-10-11", now).map((s) => [s.inId, s.callout])).toEqual([["a", true], ["c", false]]);
+    const sheet = buildTimesheet(w, AID, "2026-10-11", now);
+    expect(sheet.entries.map((e) => e.callout)).toEqual([true, undefined]);
+    expect(workFromJson(workToJson(w)).punches.find((p) => p.id === "a")?.callout).toBe(true);
+  });
+});

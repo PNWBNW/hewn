@@ -4,11 +4,10 @@
 // payment line only; it never knows where either came from.
 
 import { X } from "lucide-react";
-import { formatCents } from "@pnw/ledger";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { Money, formatCredits } from "@/books/display";
-import { paystubFromCanonical } from "@/books/paystub_document";
+import { payLines, paystubFromCanonical } from "@/books/paystub_document";
 import { shortAddress } from "@/books/rail";
 import type { ReceivedPaystub } from "@/books/work";
 
@@ -23,13 +22,6 @@ export function PaystubView({ paystub, onClose }: { paystub: ReceivedPaystub; on
       </section>
     );
   }
-  const pay =
-    doc.payType === "hourly"
-      ? `${formatCents(doc.rate)} per hour × ${doc.hours ?? 0} hours` +
-        (doc.overtimeHours !== undefined && doc.overtimeRate !== undefined
-          ? `, plus ${doc.overtimeHours} overtime hours at ${doc.overtimeRate}× (${formatCents((doc.rate * BigInt(Math.round(doc.overtimeRate * 100)) + 50n) / 100n)} per hour)`
-          : "")
-      : `${formatCents(doc.rate)} per year, paid ${doc.periodStart} to ${doc.periodEnd}`;
   const { transactionId, feeMicrocredits } = paystub.settlement;
 
   return (
@@ -47,7 +39,9 @@ export function PaystubView({ paystub, onClose }: { paystub: ReceivedPaystub; on
       </div>
       <dl className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm sm:grid-cols-2">
         <Row label="Pay period" value={`${doc.periodStart} to ${doc.periodEnd}`} />
-        <Row label="Pay" value={pay} />
+        {payLines(doc).map((l) => (
+          <Row key={l.label} label={l.label} value={l.value} />
+        ))}
         <Row label="Gross pay" cents={doc.gross} />
         <Row label="Federal income tax" cents={doc.federalIncomeTax} />
         <Row label="Social Security" cents={doc.socialSecurity} />

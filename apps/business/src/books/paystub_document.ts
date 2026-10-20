@@ -4,6 +4,7 @@
 // read back into a typed document so it can be hashed again and shown.
 // ---------------------------------------------------------------------------
 
+import { formatCents } from "@pnw/ledger";
 import { type PaystubDocument, paystubHash } from "@pnw/payroll";
 
 export class PaystubDocumentError extends Error {
@@ -42,6 +43,20 @@ export function paystubFromCanonical(raw: unknown): PaystubDocument {
     doc.overtimeHours = r.overtimeHours as number;
     doc.overtimeRate = r.overtimeRate as number;
   }
+  if (r.calloutHours !== undefined || r.calloutRate !== undefined) {
+    if (typeof r.calloutHours !== "number" || !Number.isFinite(r.calloutHours) || typeof r.calloutRate !== "number" || !Number.isFinite(r.calloutRate)) {
+      throw new PaystubDocumentError("Callouts need their hours and their rate, as numbers");
+    }
+    doc.calloutHours = r.calloutHours;
+    doc.calloutRate = r.calloutRate;
+  }
+  if (r.onCallDays !== undefined || r.onCallPay !== undefined) {
+    if (typeof r.onCallDays !== "number" || !Number.isInteger(r.onCallDays) || typeof r.onCallPay !== "string" || !/^\d+$/.test(r.onCallPay)) {
+      throw new PaystubDocumentError("On call needs its days and what they paid");
+    }
+    doc.onCallDays = r.onCallDays;
+    doc.onCallPay = BigInt(r.onCallPay);
+  }
   return doc;
 }
 
@@ -50,4 +65,22 @@ export function receivedPaystubHash(raw: unknown): { document: PaystubDocument; 
   const document = paystubFromCanonical(raw);
   // paystubHash canonicalises the typed document, so extra or reordered keys in what arrived change nothing.
   return { document, hash: paystubHash(document) };
+}
+
+/**
+ * What the paycheck paid for, one line each (Joshua, 2026-10-20: callouts and on call are lines of
+ * their own): regular hours or salary, overtime, callouts, days on call. Hourly lines say the rate
+ * and hours; gross pay is rounded once over all of them.
+ */
+export function payLines(doc: PaystubDocument): { label: string; value: string }[] {
+  const at = (mult: number) => formatCents((doc.rate * BigInt(Math.round(mult * 100)) + 50n) / 100n);
+  const lines: { label: string; value: string }[] = [];
+  if (doc.payType === "salary") lines.push({ label: "Salary", value: `${formatCents(doc.rate)} a year, for ${doc.periodStart} to ${doc.periodEnd}` });
+  else lines.push({ label: "Regular hours", value: `${doc.hours ?? 0} h × ${formatCents(doc.rate)}` });
+  if (doc.overtimeHours !== undefined && doc.overtimeRate !== undefined) lines.push({ label: `Overtime (${doc.overtimeRate}×)`, value: `${doc.overtimeHours} h × ${at(doc.overtimeRate)}` });
+  if (doc.calloutHours !== undefined && doc.calloutRate !== undefined) lines.push({ label: `Callouts (${doc.calloutRate}×)`, value: `${doc.calloutHours} h × ${at(doc.calloutRate)}` });
+  if (doc.onCallDays !== undefined && doc.onCallPay !== undefined) {
+    lines.push({ label: "On call", value: `${doc.onCallDays} ${doc.onCallDays === 1 ? "day" : "days"}, ${formatCents(doc.onCallPay)}` });
+  }
+  return lines;
 }

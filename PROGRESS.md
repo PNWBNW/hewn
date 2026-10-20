@@ -3433,3 +3433,36 @@ green.
   and Profile have no tile yet and keep their line icons, centred in the same space.
 
 Tests: 968/968. Website build passes.
+
+## 2026-10-20: scheduling, phase 9 step 2: on-call pay and callouts
+
+Joshua: the callout minimum is agreed in each job offer (businesses differ); callout hours pay and are
+taxed as overtime but are their own line on the paystub; on-call days pay a set amount.
+- The offer's work week (`books/work_week.ts`) gains `onCallPay` (cents, as a string) and
+  `calloutMinimumHours` (whole or half hours), last and only when set, so earlier offers keep their
+  bytes. Form boxes "On-call pay ($ a day)" and "Callout minimum (hours)"; the draft terms say "On
+  call: $25.00 for each day on call." and "Callouts: a callout pays at least 2 hours, at the overtime
+  rate." `PayRules` carries both.
+- A callout is clocked in as one (`books/work.ts` `punch(…, { callout: true })`, only on a clock-in);
+  the mark travels on the shift (`Shift.callout`), the timecard entry and the business's copy
+  (`books/mailbox.ts`). Home offers "Clock in for a callout" on a day the person is on call in a week
+  they confirmed, then "On a callout since…" and "End callout". Both Hours screens badge it.
+- `books/timecard_pay.ts`: callouts are kept out of regular and overtime (their time doesn't push a
+  week past its threshold); `calloutsOf` groups stretches that meet (a callout past midnight is one)
+  and pays each the greater of its time and the minimum; `unpaidHours` returns `callouts` and
+  `calloutPaidMinutes`.
+- `books/schedule.ts`: `confirmedOnCallDates` (on-call days in the period, in weeks the person
+  confirmed; a week republished pays nothing until confirmed again), `unpaidOnCallDates`, and
+  `Schedule.onCallPaid` / `markOnCallPaid` so a day is paid once.
+- `packages/payroll`: a run line takes `callout` (hours and multiplier) and `onCall` (days and the
+  amount a day); `grossFor` adds them (on call for any pay type); the paycheck and the paystub carry
+  `calloutHours`, `calloutRate`, `onCallDays`, `onCallPay`, last and only when present, so earlier
+  paystubs keep their hash (tested). Both paystubs show one line per kind of pay (`payLines`:
+  Regular hours, Overtime (1.5×), Callouts (1.5×), On call).
+- Run payroll adds "Callouts: 1, paid 2h 00m at 1.5× (at least 2h 00m each)" and "On call: 3 days ×
+  $25.00 = $75.00, from the schedule they confirmed", and marks both paid when the run posts. The
+  pay-runs list notes them.
+- `books/oncall_pay.test.ts` runs the exit criterion end to end: a confirmed week with three on-call
+  days and a 1-hour callout pays $360 regular + $67.50 callout (2 h minimum at 1.5×) + $75 on call.
+
+Tests: 978/978 (10 new). Website build passes. BUILD_PLAN Phase 9 second criterion ticked.

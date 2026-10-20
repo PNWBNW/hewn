@@ -27,8 +27,11 @@ export type ScheduleDay = { date: string; shifts: ShiftBlock[]; onCall: boolean 
 /** One person's week: only the days with something on them, in date order. */
 export type ScheduleWeek = { weekStart: string; days: ScheduleDay[] };
 
-/** The business's working copies, per team member and week. */
-export type Schedule = { version: 1; drafts: Record<string, Record<string, ScheduleWeek>> };
+/**
+ * The business's working copies, per team member and week, and which pay run paid each confirmed
+ * on-call day (per team member, date → run id), so no day is paid twice.
+ */
+export type Schedule = { version: 1; drafts: Record<string, Record<string, ScheduleWeek>>; onCallPaid?: Record<string, Record<string, string>> };
 
 export const MAX_SHIFTS_A_DAY = 6;
 export const MAX_SCHEDULE_NOTE = 500;
@@ -142,7 +145,7 @@ export function setDraft(s: Schedule, workerId: string, week: ScheduleWeek): Sch
   const drafts = { ...s.drafts };
   if (Object.keys(mine).length === 0) delete drafts[workerId];
   else drafts[workerId] = mine;
-  return { version: 1, drafts };
+  return { ...s, version: 1, drafts };
 }
 
 export function validateSchedule(raw: unknown): Schedule {
@@ -150,6 +153,18 @@ export function validateSchedule(raw: unknown): Schedule {
   if (!s || typeof s !== "object" || s.version !== 1) throw new ScheduleError("Unknown schedule version");
   if (!s.drafts || typeof s.drafts !== "object" || Array.isArray(s.drafts)) throw new ScheduleError("The schedule's drafts must be an object");
   let out = emptySchedule();
+  if (s.onCallPaid !== undefined) {
+    if (!s.onCallPaid || typeof s.onCallPaid !== "object" || Array.isArray(s.onCallPaid)) throw new ScheduleError("The paid on-call days must be an object");
+    const paid: Record<string, Record<string, string>> = {};
+    for (const [workerId, days] of Object.entries(s.onCallPaid)) {
+      if (!days || typeof days !== "object" || Array.isArray(days)) throw new ScheduleError("Each person's paid on-call days must be an object");
+      for (const [date, runId] of Object.entries(days)) {
+        if (!isDate(date) || typeof runId !== "string" || !runId) throw new ScheduleError("A paid on-call day names its date and the run");
+        (paid[workerId] ??= {})[date] = runId;
+      }
+    }
+    if (Object.keys(paid).length > 0) out.onCallPaid = paid;
+  }
   for (const [workerId, weeks] of Object.entries(s.drafts)) {
     if (!workerId || !weeks || typeof weeks !== "object" || Array.isArray(weeks)) throw new ScheduleError("Each person's weeks must be an object");
     for (const [weekStart, week] of Object.entries(weeks)) {
@@ -206,6 +221,36 @@ export function publishedWeek(thread: Thread | undefined, weekStart: string): Pu
     mine: last.mine,
     ...(answer ? { answer: { answer: answer.body.answer, note: answer.body.note, at: answer.sentAt, mine: answer.mine } } : {}),
   };
+}
+
+/**
+ * The days in [start, end] (inclusive) a person is on call in a week they confirmed: what on-call
+ * pay is for. A week published but not confirmed, or confirmed then republished and not yet
+ * confirmed again, pays nothing until it is.
+ */
+export function confirmedOnCallDates(thread: Thread | undefined, start: string, end: string): string[] {
+  const dates: string[] = [];
+  for (let week = scheduleWeekOf(start); week <= end; week = addDays(week, 7)) {
+    const p = publishedWeek(thread, week);
+    if (p?.answer?.answer !== "confirmed") continue;
+    for (const d of p.week.days) if (d.onCall && start <= d.date && d.date <= end) dates.push(d.date);
+  }
+  return dates;
+}
+
+/** The confirmed on-call days in the period no pay run has paid yet. */
+export function unpaidOnCallDates(thread: Thread | undefined, s: Schedule | null | undefined, workerId: string, start: string, end: string): string[] {
+  const paid = s?.onCallPaid?.[workerId] ?? {};
+  return confirmedOnCallDates(thread, start, end).filter((d) => !paid[d]);
+}
+
+/** Records the run that paid these on-call days. A day already paid keeps its run. */
+export function markOnCallPaid(s: Schedule, workerId: string, dates: readonly string[], runId: string): Schedule {
+  if (!runId) throw new ScheduleError("A pay run needs an id");
+  if (dates.length === 0) return s;
+  const mine = { ...(s.onCallPaid?.[workerId] ?? {}) };
+  for (const d of dates) if (!mine[d]) mine[d] = runId;
+  return validateSchedule({ ...s, onCallPaid: { ...(s.onCallPaid ?? {}), [workerId]: mine } });
 }
 
 export type WeekStatus = "none" | "draft" | "changed" | "waiting" | "confirmed" | "change_asked";

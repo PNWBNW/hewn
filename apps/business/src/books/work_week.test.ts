@@ -18,7 +18,7 @@ const LA = defaultWorkWeek("America/Los_Angeles");
 describe("a work week", () => {
   it("starts from Sunday to Saturday, overtime after 40 at time and a half, shifts up to 12", () => {
     expect(LA).toEqual({ startsOn: "sunday", timeZone: "America/Los_Angeles", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12, overtimeRate: 1.5 });
-    expect(Object.keys(LA)).toEqual([...WORK_WEEK_KEYS]);
+    expect(Object.keys(LA)).toEqual(WORK_WEEK_KEYS.slice(0, 6));
     expect(defaultWorkWeek().timeZone).toBeTruthy();
   });
 
@@ -29,7 +29,9 @@ describe("a work week", () => {
     expect(Object.keys(w)).toEqual(WORK_WEEK_KEYS.slice(0, 5));
     expect(w).toEqual({ startsOn: "sunday", timeZone: "America/New_York", overtimeAfterHours: 40, dailyOvertimeAfterHours: 8, longestShiftHours: 10 });
     const withRate = validateWorkWeek({ overtimeRate: 2, ...shuffled });
-    expect(Object.keys(withRate)).toEqual([...WORK_WEEK_KEYS]);
+    expect(Object.keys(withRate)).toEqual(WORK_WEEK_KEYS.slice(0, 6));
+    const withAll = validateWorkWeek({ calloutMinimumHours: 2, onCallPay: "2500", overtimeRate: 2, ...shuffled });
+    expect(Object.keys(withAll)).toEqual([...WORK_WEEK_KEYS]);
     expect(withRate.overtimeRate).toBe(2);
   });
 
@@ -43,8 +45,16 @@ describe("a work week", () => {
   });
 
   it("pays by the agreement's rules, or by the baseline without a work week", () => {
-    expect(payRulesOf(undefined, "UTC")).toEqual({ timeZone: "UTC", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: 1.5 });
-    expect(payRulesOf({ ...LA, dailyOvertimeAfterHours: 10, overtimeRate: 2 })).toEqual({ timeZone: "America/Los_Angeles", overtimeAfterHours: 40, dailyOvertimeAfterHours: 10, overtimeRate: 2 });
+    expect(payRulesOf(undefined, "UTC")).toEqual({ timeZone: "UTC", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: 1.5, onCallPayCents: 0n, calloutMinimumMinutes: 0 });
+    expect(payRulesOf({ ...LA, dailyOvertimeAfterHours: 10, overtimeRate: 2 })).toEqual({
+      timeZone: "America/Los_Angeles",
+      overtimeAfterHours: 40,
+      dailyOvertimeAfterHours: 10,
+      overtimeRate: 2,
+      onCallPayCents: 0n,
+      calloutMinimumMinutes: 0,
+    });
+    expect(payRulesOf({ ...LA, onCallPay: "2500", calloutMinimumHours: 2 })).toMatchObject({ onCallPayCents: 2500n, calloutMinimumMinutes: 120 });
     const { overtimeRate: _r, ...older } = LA;
     expect(payRulesOf(older).overtimeRate).toBe(1.5);
   });
@@ -86,7 +96,7 @@ describe("a work week", () => {
 
   it("round-trips through the form and names what's wrong", () => {
     const draft = draftOfWorkWeek({ ...LA, dailyOvertimeAfterHours: 8, longestShiftHours: 10.5 });
-    expect(draft).toEqual({ startsOn: "sunday", timeZone: "America/Los_Angeles", overtimeText: "40", dailyText: "8", longestText: "10.5", rateText: "1.5" });
+    expect(draft).toEqual({ startsOn: "sunday", timeZone: "America/Los_Angeles", overtimeText: "40", dailyText: "8", longestText: "10.5", rateText: "1.5", onCallText: "", calloutText: "" });
     expect(workWeekFromDraft({ ...draft, rateText: "2" })).toEqual({ workWeek: { ...LA, dailyOvertimeAfterHours: 8, longestShiftHours: 10.5, overtimeRate: 2 } });
     expect(workWeekFromDraft({ ...draft, rateText: "" })).toEqual({ workWeek: { ...LA, dailyOvertimeAfterHours: 8, longestShiftHours: 10.5 } });
     expect(workWeekFromDraft({ ...draft, rateText: "1.5x" })).toEqual({ problem: expect.stringMatching(/1 to 3 times/) });
@@ -99,5 +109,24 @@ describe("a work week", () => {
     expect(cleanHalfHours(" 37.5 ", 0, 168)).toBe(37.5);
     expect(cleanHalfHours("37.25", 0, 168)).toBeNull();
     expect(cleanHalfHours("200", 0, 168)).toBeNull();
+  });
+
+  it("carries on-call pay and a callout minimum when the offer sets them, and says so", () => {
+    const w = validateWorkWeek({ ...LA, onCallPay: "2500", calloutMinimumHours: 2 });
+    expect(w).toMatchObject({ onCallPay: "2500", calloutMinimumHours: 2 });
+    expect(workWeekLines(w).slice(-2)).toEqual(["On call: $25.00 for each day on call.", "Callouts: a callout pays at least 2 hours, at the overtime rate."]);
+    expect(workWeekLines({ ...LA, onCallPay: "2500" }).at(-1)).toBe("Callouts: paid at the overtime rate for the time worked.");
+    expect(workWeekLines(LA).join(" ")).not.toMatch(/On call|Callouts/);
+    expect(workWeekSummary(w)).toContain("on call $25.00 a day · callouts at least 2 hours");
+    expect(() => validateWorkWeek({ ...LA, onCallPay: "25.00" })).toThrow(/dollars and cents/);
+    expect(() => validateWorkWeek({ ...LA, onCallPay: 2500 })).toThrow(/dollars and cents/);
+    expect(() => validateWorkWeek({ ...LA, calloutMinimumHours: 2.25 })).toThrow(/callout minimum/);
+    const draft = draftOfWorkWeek(w);
+    expect(draft).toMatchObject({ onCallText: "25.00", calloutText: "2" });
+    expect(workWeekFromDraft(draft)).toEqual({ workWeek: w });
+    expect(workWeekFromDraft({ ...draft, onCallText: "$30" })).toEqual({ workWeek: { ...w, onCallPay: "3000" } });
+    expect(workWeekFromDraft({ ...draft, onCallText: "", calloutText: "" })).toEqual({ workWeek: LA });
+    expect(workWeekFromDraft({ ...draft, onCallText: "lots" })).toEqual({ problem: expect.stringMatching(/dollars and cents/) });
+    expect(workWeekFromDraft({ ...draft, calloutText: "2.2" })).toEqual({ problem: expect.stringMatching(/callout minimum/) });
   });
 });

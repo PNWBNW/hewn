@@ -38,6 +38,16 @@ describe("a paystub as it arrives", () => {
     expect(received.hash).not.toBe(paystubHash(DOC));
   });
 
+  it("reads callouts and on-call days back to the same hash, and refuses them half given", () => {
+    const full: PaystubDocument = { ...DOC, calloutHours: 2, calloutRate: 1.5, onCallDays: 7, onCallPay: 17_500n };
+    const received = receivedPaystubHash(JSON.parse(canonicalPaystub(full)));
+    expect(received.document).toMatchObject({ calloutHours: 2, calloutRate: 1.5, onCallDays: 7, onCallPay: 17_500n });
+    expect(received.hash).toBe(paystubHash(full));
+    const plain = JSON.parse(canonicalPaystub(DOC));
+    expect(() => paystubFromCanonical({ ...plain, calloutHours: 2 })).toThrow(/Callouts need/);
+    expect(() => paystubFromCanonical({ ...plain, onCallDays: 7, onCallPay: 17500 })).toThrow(/On call needs/);
+  });
+
   it("refuses overtime without both its hours and its rate as numbers", () => {
     const plain = JSON.parse(canonicalPaystub(DOC));
     expect(() => paystubFromCanonical({ ...plain, overtimeHours: 9 })).toThrow(/hours and its rate/);

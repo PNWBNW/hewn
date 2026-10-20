@@ -14,7 +14,8 @@ import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { calendarOf, formatMinutes, localDate, longestMinutesOf, minutesOn, weekMinutes, weekStartOf } from "@/books/hours";
 import { paystubFromCanonical } from "@/books/paystub_document";
-import { activeAgreements, openPunch, punch } from "@/books/work";
+import { dayOf, publishedWeek, scheduleWeekOf } from "@/books/schedule";
+import { activeAgreements, openPunch, punch, workThread } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { SendWeek } from "./SendWeek";
 import { STATUS_LABEL, clock, dollars, employerLabel, payLine, useNow } from "./shared";
@@ -39,11 +40,16 @@ export default function WorkHomePage() {
   const overlong = !!open && openFor > longest;
   const latest = [...work.paystubs].sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : -1))[0];
 
-  async function clockInOut() {
+  // On call today, in a week they confirmed: they can clock in for a callout (paid at the overtime rate, with the agreed minimum).
+  const confirmedWeek = agreement ? publishedWeek(workThread(work, agreement.partiesKey), scheduleWeekOf(today)) : undefined;
+  const onCallToday = confirmedWeek?.answer?.answer === "confirmed" && dayOf(confirmedWeek.week, today).onCall;
+  const openIsCallout = open?.callout === true;
+
+  async function clockInOut(callout = false) {
     setBusy(true);
     setError(null);
     try {
-      await updateWork((w) => punch(w, agreementId).work);
+      await updateWork((w) => punch(w, agreementId, undefined, undefined, { callout }).work);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -77,8 +83,14 @@ export default function WorkHomePage() {
             aria-label={open ? "Clock out" : "Clock in"}
           >
             <Clock aria-hidden className="size-6" />
-            {busy ? "Saving…" : open ? "Clock out" : "Clock in"}
+            {busy ? "Saving…" : open ? (openIsCallout ? "End callout" : "Clock out") : "Clock in"}
           </Button>
+          {!open && onCallToday && (
+            <Button variant="outline" className="min-h-11 w-full max-w-xs" disabled={busy} onClick={() => void clockInOut(true)}>
+              Clock in for a callout
+            </Button>
+          )}
+          {!open && onCallToday && <p className="-mt-2 text-center text-xs text-muted-foreground">You&apos;re on call today.</p>}
           {active.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground">
               Accept an offer first, then clock in.{" "}
@@ -96,7 +108,9 @@ export default function WorkHomePage() {
               ; until then the hours stop counting there.
             </p>
           ) : open ? (
-            <p className="text-sm text-muted-foreground">On the clock since {clock(open.at, calendar.timeZone)}</p>
+            <p className="text-sm text-muted-foreground">
+              {openIsCallout ? "On a callout since" : "On the clock since"} {clock(open.at, calendar.timeZone)}
+            </p>
           ) : (
             <p className="text-sm text-muted-foreground">Off the clock</p>
           )}

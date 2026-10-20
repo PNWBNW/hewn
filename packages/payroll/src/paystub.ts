@@ -12,8 +12,9 @@
 //
 // canonical() is JSON with every key in a fixed order, amounts as decimal
 // strings and absent fields as null, mirroring the ledger's entry hash. The
-// overtime fields (2026-10-19) come last and only when the paycheck has
-// overtime, so every paystub from before them keeps its exact bytes and hash.
+// overtime fields (2026-10-19), then the callout and on-call fields
+// (2026-10-20), come last and only when the paycheck has them, so every
+// paystub from before them keeps its exact bytes and hash.
 // ---------------------------------------------------------------------------
 
 import { blake3 } from "@noble/hashes/blake3.js";
@@ -39,6 +40,12 @@ export type PaystubDocument = {
   /** Hours paid at the overtime rate, and its multiplier (1.5 for time and a half), when there were any. */
   overtimeHours?: number;
   overtimeRate?: number;
+  /** Hours paid for callouts (minimums included) and their multiplier: a line of their own. */
+  calloutHours?: number;
+  calloutRate?: number;
+  /** Days on call, and what they paid in all. */
+  onCallDays?: number;
+  onCallPay?: Cents;
   gross: Cents;
   federalIncomeTax: Cents;
   socialSecurity: Cents;
@@ -83,6 +90,8 @@ export function paystubDocument(
     rate: worker.rate,
     ...(paycheck.hours !== undefined ? { hours: paycheck.hours } : {}),
     ...(paycheck.overtimeHours !== undefined && paycheck.overtimeRate !== undefined ? { overtimeHours: paycheck.overtimeHours, overtimeRate: paycheck.overtimeRate } : {}),
+    ...(paycheck.calloutHours !== undefined && paycheck.calloutRate !== undefined ? { calloutHours: paycheck.calloutHours, calloutRate: paycheck.calloutRate } : {}),
+    ...(paycheck.onCallDays !== undefined && paycheck.onCallPay !== undefined ? { onCallDays: paycheck.onCallDays, onCallPay: paycheck.onCallPay } : {}),
     gross: paycheck.gross,
     federalIncomeTax: paycheck.federalIncomeTax,
     socialSecurity: paycheck.socialSecurity,
@@ -127,6 +136,8 @@ export function canonicalPaystub(doc: PaystubDocument): string {
     runId: doc.runId,
     position: doc.position,
     ...(doc.overtimeHours !== undefined && doc.overtimeRate !== undefined ? { overtimeHours: doc.overtimeHours, overtimeRate: doc.overtimeRate } : {}),
+    ...(doc.calloutHours !== undefined && doc.calloutRate !== undefined ? { calloutHours: doc.calloutHours, calloutRate: doc.calloutRate } : {}),
+    ...(doc.onCallDays !== undefined && doc.onCallPay !== undefined ? { onCallDays: doc.onCallDays, onCallPay: str(doc.onCallPay) } : {}),
   });
 }
 

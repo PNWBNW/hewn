@@ -233,7 +233,13 @@ function RunCard({ run, payNow }: { run: PayRun; payNow: boolean }) {
                       <span className="ml-1 text-xs text-muted-foreground">
                         {p.hours} h
                         {p.overtimeHours !== undefined && ` + ${p.overtimeHours} h overtime at ${p.overtimeRate}×`}
+                        {p.calloutHours !== undefined && ` + ${p.calloutHours} h callouts at ${p.calloutRate}×`}
                         {fromCards.has(p.workerId) && ` · from timecards (${shiftCount(fromCards.get(p.workerId)!.length)})`}
+                      </span>
+                    )}
+                    {p.onCallDays !== undefined && p.onCallPay !== undefined && (
+                      <span className="block text-xs text-muted-foreground">
+                        On call {p.onCallDays} {p.onCallDays === 1 ? "day" : "days"}: <Money cents={p.onCallPay} />
                       </span>
                     )}
                     {p.tags?.project && <span className="block text-xs text-muted-foreground">{projects.get(p.tags.project) ?? p.tags.project}</span>}

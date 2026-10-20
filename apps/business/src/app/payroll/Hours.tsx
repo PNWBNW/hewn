@@ -122,6 +122,7 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
             <span>
               {dayLabel(e.date)}
               {e.long && <span className="ml-2 rounded-sm bg-warning/15 px-1.5 py-0.5 text-warning">Long shift, confirmed by {item.workerName}: review before paying</span>}
+              {e.callout && <span className="ml-2 rounded-sm bg-primary/15 px-1.5 py-0.5 font-medium text-primary">Callout</span>}
               {e.paid && <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5">Paid {dayLabel(e.paid.payDate)}</span>}
             </span>
             <span className="text-muted-foreground">

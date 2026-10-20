@@ -35,9 +35,23 @@ export type Calendar = { startsOn: Weekday; timeZone: string };
  * longest shift (open: it has already); `confirmed`: the person confirmed that long shift;
  * `sent`: the shift has gone to the employer in a timecard and is theirs to change now.
  */
-export type Shift = { date: DayDate; in: string; out: string; minutes: number; open: boolean; inId: string; outId?: string; long: boolean; confirmed: boolean; sent: boolean };
+export type Shift = {
+  date: DayDate;
+  in: string;
+  out: string;
+  minutes: number;
+  open: boolean;
+  inId: string;
+  outId?: string;
+  long: boolean;
+  confirmed: boolean;
+  sent: boolean;
+  /** Clocked in as a callout (work.ts `punch` with `callout`). */
+  callout: boolean;
+};
 
-export type TimesheetEntry = { date: DayDate; in: string; out: string; minutes: number; long?: true };
+/** One stretch on a timecard. `long`: past the longest shift, confirmed. `callout`: clocked in as a callout. */
+export type TimesheetEntry = { date: DayDate; in: string; out: string; minutes: number; long?: true; callout?: true };
 
 export type TimesheetPayload = {
   version: 1;
@@ -150,16 +164,17 @@ export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Da
     }
     const confirmed = !open && next?.confirmed === true;
     const sent = !open && sentIds.has(p.id);
+    const callout = p.callout === true;
     // Split at each midnight the shift crosses.
     let cursor = start;
     while (cursor.getTime() < end.getTime()) {
       const boundary = startOfDay(addDays(localDate(cursor, timeZone), 1), timeZone);
       const segmentEnd = boundary.getTime() < end.getTime() ? boundary : end;
-      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent });
+      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent, callout });
       cursor = segmentEnd;
     }
     if (start.getTime() === end.getTime()) {
-      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent });
+      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent, callout });
     }
   }
   return out;
@@ -224,7 +239,14 @@ export function buildTimesheet(work: Work, agreementId: string, weekStart: DayDa
   if (weekStartOf(weekStart, calendar) !== weekStart) throw new WorkError(`A week starts on a ${weekdayLabel(calendar.startsOn)}`);
   const problem = sendProblem(work, agreementId, weekStart, now);
   if (problem) throw new WorkError(problem);
-  const entries: TimesheetEntry[] = sendableShifts(work, agreementId, weekStart, now).map(({ date, in: i, out, minutes, long }) => ({ date, in: i, out, minutes, ...(long ? { long: true as const } : {}) }));
+  const entries: TimesheetEntry[] = sendableShifts(work, agreementId, weekStart, now).map(({ date, in: i, out, minutes, long, callout }) => ({
+    date,
+    in: i,
+    out,
+    minutes,
+    ...(long ? { long: true as const } : {}),
+    ...(callout ? { callout: true as const } : {}),
+  }));
   if (entries.length === 0) throw new WorkError("Nothing to send yet: a shift goes on the timecard once you've clocked out");
   return {
     version: 1,
