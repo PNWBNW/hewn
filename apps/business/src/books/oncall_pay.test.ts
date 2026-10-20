@@ -4,7 +4,8 @@
 import { describe, expect, it } from "vitest";
 import { addWorker, emptyPayroll, previewPayRun } from "@pnw/payroll";
 import { addHours, emptyMailbox } from "./mailbox";
-import { emptySchedule, unpaidOnCallDates, type ScheduleWeek } from "./schedule";
+import type { ScheduleWeek } from "./schedule";
+import { unpaidOnCallDates } from "./team_schedule";
 import { type Thread, addToThread, emptyThread, validateMessage } from "./thread";
 import { hoursText, unpaidHours } from "./timecard_pay";
 import { defaultWorkWeek, payRulesOf } from "./work_week";
@@ -61,7 +62,7 @@ describe("on call and a callout, on the next run", () => {
 
     const period = { start: "2026-10-25", end: "2026-10-31" };
     const cards = unpaidHours(mailbox, worker.id, period.start, period.end, rules);
-    const onCallDates = unpaidOnCallDates(thread, emptySchedule(), worker.id, period.start, period.end);
+    const onCallDates = unpaidOnCallDates(thread, undefined, worker.id, period.start, period.end);
     expect(cards).toMatchObject({ regularMinutes: 960, overtimeMinutes: 0, calloutPaidMinutes: 120 });
     expect(onCallDates).toEqual(["2026-10-27", "2026-10-28", "2026-10-29"]);
 

@@ -7,11 +7,9 @@ import {
   draftOf,
   emptySchedule,
   emptyWeek,
-  confirmedOnCallDates,
   markOnCallPaid,
   onCallDays,
   publishedWeek,
-  unpaidOnCallDates,
   sameWeek,
   scheduleFromJson,
   scheduleToJson,
@@ -24,6 +22,7 @@ import {
   withDay,
 } from "./schedule";
 import { type Thread, type ThreadItem, addToThread, emptyThread, validateMessage } from "./thread";
+import { confirmedOnCallDates, unpaidOnCallDates } from "./team_schedule";
 
 const SUN = "2026-10-25";
 const WEEK: ScheduleWeek = {
@@ -174,16 +173,19 @@ describe("on-call days for pay", () => {
     expect(confirmedOnCallDates(t, "2026-10-25", "2026-10-31")).toEqual(["2026-10-27", "2026-10-31"]);
     expect(confirmedOnCallDates(t, "2026-10-20", "2026-10-28")).toEqual(["2026-10-27"]); // a period across two weeks
     let s = setDraft(emptySchedule(), "wkr-1", shiftWeek(WEEK, "2026-11-01"));
-    expect(unpaidOnCallDates(t, s, "wkr-1", "2026-10-25", "2026-10-31")).toEqual(["2026-10-27", "2026-10-31"]);
+    expect(unpaidOnCallDates(t, s.onCallPaid, "wkr-1", "2026-10-25", "2026-10-31")).toEqual(["2026-10-27", "2026-10-31"]);
     s = markOnCallPaid(s, "wkr-1", ["2026-10-27"], "run-1");
-    expect(unpaidOnCallDates(t, s, "wkr-1", "2026-10-25", "2026-10-31")).toEqual(["2026-10-31"]);
+    expect(unpaidOnCallDates(t, s.onCallPaid, "wkr-1", "2026-10-25", "2026-10-31")).toEqual(["2026-10-31"]);
     expect(markOnCallPaid(s, "wkr-1", ["2026-10-27"], "run-2").onCallPaid).toEqual({ "wkr-1": { "2026-10-27": "run-1" } });
     // Drafts and paid days both survive a save, and a draft edit keeps the paid days.
     const saved = scheduleFromJson(scheduleToJson(setDraft(s, "wkr-1", WEEK)));
     expect(saved.onCallPaid).toEqual({ "wkr-1": { "2026-10-27": "run-1" } });
     expect(draftOf(saved, "wkr-1", "2026-11-01")).toBeDefined();
-    // Republished and not yet confirmed again: that week pays nothing until it is.
+    // Republished with the same days: the confirmation stands.
     t = addToThread(t, item(3, "business", { type: "schedule", week: WEEK, note: "Same week, sent again." }, true));
+    expect(confirmedOnCallDates(t, "2026-10-25", "2026-10-31")).toEqual(["2026-10-27", "2026-10-31"]);
+    // Republished with their days changed: nothing pays until they confirm again.
+    t = addToThread(t, item(4, "business", { type: "schedule", week: withDay(WEEK, { date: "2026-10-28", shifts: [], onCall: true }), note: "" }, true));
     expect(confirmedOnCallDates(t, "2026-10-25", "2026-10-31")).toEqual([]);
     expect(() => markOnCallPaid(s, "wkr-1", ["2026-10-31"], "")).toThrow(/needs an id/);
   });

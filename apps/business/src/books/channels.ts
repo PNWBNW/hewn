@@ -14,6 +14,8 @@
 // Pure: no I/O, no React. The mailbox side is chain/channels.ts.
 // ---------------------------------------------------------------------------
 
+import { type TeamPart, validateTeamPart } from "./team_schedule";
+
 export const MAX_POST_CHARS = 4_000;
 export const MAX_CHANNEL_NAME = 60;
 const HEX16 = /^[0-9a-f]{16}$/;
@@ -27,8 +29,8 @@ export class ChannelError extends Error {
   }
 }
 
-/** What a post says, as sealed. */
-export type ChannelPost = { version: 1; id: string; sentAt: string; text: string };
+/** What a post says, as sealed. A post in a "Team schedule" channel also carries part of a published week (books/team_schedule.ts). */
+export type ChannelPost = { version: 1; id: string; sentAt: string; text: string; schedule?: TeamPart };
 
 /** A post as a vault keeps it: under which key and in which slot it went. */
 export type PostItem = ChannelPost & {
@@ -102,7 +104,15 @@ export function validatePost(raw: unknown): ChannelPost {
   if (!isStamp(raw.sentAt)) throw new ChannelError("A post needs the time it was sent");
   if (typeof raw.text !== "string" || !raw.text.trim()) throw new ChannelError("A post can't be empty");
   if ([...raw.text].length > MAX_POST_CHARS) throw new ChannelError(`A post can be at most ${MAX_POST_CHARS.toLocaleString("en-US")} characters`);
-  return { version: 1, id: raw.id, sentAt: raw.sentAt, text: raw.text };
+  const post: ChannelPost = { version: 1, id: raw.id, sentAt: raw.sentAt, text: raw.text };
+  if (raw.schedule !== undefined) {
+    try {
+      post.schedule = validateTeamPart(raw.schedule);
+    } catch (e) {
+      throw new ChannelError(e instanceof Error ? e.message : "The schedule in the post isn't valid");
+    }
+  }
+  return post;
 }
 
 function validatePostItem(raw: unknown): PostItem {
