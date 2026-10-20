@@ -30,6 +30,12 @@ const LetterCheck = dynamic(() => import("@/chain/LetterCheck"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
+// Hewn's own report inbox; shown only to the account reports go to, fetched only when tapped.
+const ReportInbox = dynamic(() => import("@/chain/ReportInbox"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function SettingsPage() {
@@ -81,7 +87,7 @@ export default function SettingsPage() {
 function PrivatePayments() {
   const { rail, payroll, role, updateCompany } = useOpenBooks();
   const worker = role === "worker";
-  const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | "letter" | null>(null);
+  const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | "letter" | "reports" | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,6 +112,8 @@ function PrivatePayments() {
           <HistoryProbe onClose={() => setPanel(null)} />
         ) : panel === "letter" ? (
           <LetterCheck onClose={() => setPanel(null)} />
+        ) : panel === "reports" ? (
+          <ReportInbox onClose={() => setPanel(null)} />
         ) : panel ? (
           <RailPanel mode={panel} onClose={() => setPanel(null)} />
         ) : rail ? (
@@ -128,6 +136,11 @@ function PrivatePayments() {
             <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setPanel("letter")}>
               Send a test letter
             </Button>
+            {rail.address === BRAND.reportsAccount && (
+              <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setPanel("reports")}>
+                Reports
+              </Button>
+            )}
             <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmUnlink(true)}>
               Unlink
             </Button>

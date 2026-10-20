@@ -154,6 +154,8 @@ export type LetterRecord = {
   /** What Shield says about it, when it says. */
   blockHeight?: number;
   transactionId?: string;
+  /** Who sent it: the record's sender, which only its owner can read, when Shield gives it. */
+  sender?: string;
 };
 
 const RECORD_KINDS: Record<string, LetterRecord["kind"]> = { Letter: "letter", Page: "page", SentLetter: "sent" };
@@ -179,6 +181,7 @@ export function parseLetterRecord(raw: unknown): LetterRecord | null {
     const height = r.blockHeight ?? r.block_height;
     if (typeof height === "number" && Number.isInteger(height)) out.blockHeight = height;
     if (typeof r.transactionId === "string") out.transactionId = r.transactionId;
+    if (typeof r.sender === "string" && ADDRESS.test(r.sender)) out.sender = r.sender;
     return out;
   } catch {
     return null; // not a letter this app wrote

@@ -22,8 +22,8 @@ import type { ThreadKinds } from "./thread";
 
 export const COWORKER_KINDS: ThreadKinds = { business: "cw_a", worker: "cw_b" };
 
-/** Between coworkers: plain messages and group chats, nothing a business or an offer sends. */
-export const coworkerAccepts = (body: ThreadBody): boolean => body.type === "text" || GROUP_TYPES.includes(body.type);
+/** Between coworkers: plain messages, report notices and group chats, nothing a business or an offer sends. */
+export const coworkerAccepts = (body: ThreadBody): boolean => body.type === "text" || body.type === "report_notice" || GROUP_TYPES.includes(body.type);
 
 const subtle = () => globalThis.crypto.subtle;
 const hexToBytes = (h: string): Uint8Array<ArrayBuffer> => new Uint8Array(h.match(/../g)!.map((b) => parseInt(b, 16)));

@@ -18,7 +18,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Lock, RefreshCw, Send } from "lucide-react";
+import { Flag, Lock, RefreshCw, Send, TriangleAlert } from "lucide-react";
 import { appMailbox } from "./mailbox_client";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
@@ -27,6 +27,8 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { shortAddress } from "@/books/rail";
 import { QuotedNote } from "@/books/NegotiationView";
+import { REPORT_AS, REPORT_LABEL } from "@/books/report";
+import { BRAND } from "@/brand";
 import {
   MAX_TEXT_CHARS,
   type Side,
@@ -37,13 +39,15 @@ import {
   isOfferStep,
   markDelivered,
   markItemsRead,
+  markReported,
   markThreadRead,
   preview,
   skipIncoming,
 } from "@/books/thread";
 import { FeeChoice } from "./FeeChoice";
 import { useLetters } from "./letter_reader";
-import { LETTER_BYTES, letterThread } from "./letters";
+import { LETTER_BYTES, type LetterWallet, letterThread } from "./letters";
+import { Report } from "./Report";
 import { readReceipts } from "./receipts";
 import { type PostInput, type ReadInput, type ThreadKinds, awaitingReceipts, postToThread, readThread } from "./thread";
 
@@ -76,6 +80,8 @@ type Transport = {
   letters: boolean;
   /** Reads the wallet's letters afresh on the next check. */
   refresh?: () => void;
+  /** Shield, connected to this account: what a report to Hewn goes through. */
+  wallet?: LetterWallet;
 };
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -101,7 +107,7 @@ function MailboxConversation(props: ConversationProps) {
 function LetterConversation(props: ConversationProps & { peer: string }) {
   const { state, connect, error, address, mismatch, letters, wallet } = useLetters();
   const { peer } = props;
-  const transport = useMemo<Transport | null>(() => (letters ? { ...letterThread(wallet, peer, { letters }), letters: true } : null), [letters, wallet, peer]);
+  const transport = useMemo<Transport | null>(() => (letters ? { ...letterThread(wallet, peer, { letters }), letters: true, wallet } : null), [letters, wallet, peer]);
 
   let gate: ReactNode = null;
   if (mismatch && address) {
@@ -147,6 +153,7 @@ function ConversationView({
   accept,
   subtitle,
   show,
+  peer,
   transport,
   gate,
 }: ConversationProps & { transport: Transport | null; gate?: ReactNode }) {
@@ -159,6 +166,8 @@ function ConversationView({
   latest.current = thread;
   const bottom = useRef<HTMLDivElement>(null);
   const started = useRef(false);
+  /** The message being reported, by id. */
+  const [reporting, setReporting] = useState<string | null>(null);
 
   // This send's fee, starting from the device's switch.
   const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
@@ -263,10 +272,34 @@ function ConversationView({
         {items.map((item) => (
           <li key={item.id} className={cn("flex flex-col gap-0.5", item.mine ? "items-end" : "items-start")}>
             <Bubble item={item} title={title} offersHref={offersHref} />
-            <span className="text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
               {stamp(item.sentAt)}
               {item === lastMine && (item.receivedAt ? ` · Received ${stamp(item.receivedAt)}` : transport?.letters ? " · On the network" : " · Sent")}
+              {item.reported && <span title={REPORT_LABEL[item.reported.category]}> · Reported</span>}
+              {reportable(item) && !item.reported && reporting !== item.id && (
+                <button type="button" className="inline-flex min-h-8 items-center gap-1 px-1 hover:text-foreground" onClick={() => setReporting(item.id)}>
+                  · <Flag aria-hidden className="size-3" /> Report
+                </button>
+              )}
             </span>
+            {reporting === item.id && (
+              <Report
+                item={item}
+                name={title}
+                {...(peer ? { account: peer } : {})}
+                place={kinds ? "coworker" : item.body.type === "application" ? "application" : "conversation"}
+                wallet={transport?.wallet ?? null}
+                notice={transport ? { client: transport.writer, partiesKey, side, nextOut: latest.current?.nextOut ?? 0, ...(kinds ? { kinds } : {}) } : null}
+                feeMode={feeMode}
+                onDone={(category, notice) =>
+                  update((t) => {
+                    const marked = markReported(t, item.id, { category, at: new Date().toISOString() });
+                    return notice ? addToThread(marked, notice) : marked;
+                  })
+                }
+                onClose={() => setReporting(null)}
+              />
+            )}
           </li>
         ))}
         <div ref={bottom} />
@@ -313,6 +346,9 @@ function ConversationView({
   );
 }
 
+/** Their messages a person can report: words someone wrote to them. */
+const reportable = (item: ThreadItem) => !item.mine && (item.body.type === "text" || item.body.type === "application");
+
 /** Roughly whether a message will need a page rather than a letter (its JSON and seal add about 150 bytes; text may compress). */
 const longText = (text: string) => new TextEncoder().encode(text.trim()).length > LETTER_BYTES - 150;
 
@@ -340,6 +376,21 @@ function Bubble({ item, title, offersHref }: { item: ThreadItem; title: string; 
           <summary className="cursor-pointer text-xs font-medium text-primary">Resume</summary>
           <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{b.resume}</pre>
         </details>
+      </div>
+    );
+  }
+  if (b.type === "report_notice" && !item.mine) {
+    // Someone reported a message this account sent: the real owner should know, in case it wasn't them.
+    return (
+      <div className="flex max-w-[90%] items-start gap-2 rounded-xl border border-amber-500/50 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+        <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+        <span>
+          {title} reported a message from you as {REPORT_AS[b.category]}. If you didn&apos;t send it, someone else may be using your account: tell Hewn at{" "}
+          <a className="font-medium underline underline-offset-4" href={`mailto:${BRAND.supportEmail}`}>
+            {BRAND.supportEmail}
+          </a>
+          .
+        </span>
       </div>
     );
   }

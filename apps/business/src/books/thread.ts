@@ -22,6 +22,7 @@ import { LETTER_LABEL, type Letter, letterText, validateLetter } from "./offer_l
 import { type EmploymentType, type JobFields, cleanHours, employmentLabel, hoursLine, longDate, payLine, validateJobFields } from "./terms_words";
 import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./schedule";
 import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, validateHoursChange } from "./hours_change";
+import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from "./report";
 
 export type Side = "business" | "worker";
 
@@ -82,7 +83,9 @@ export type ThreadBody =
   /** A change to a shift's hours, asked by either side (books/hours_change.ts). */
   | HoursChangeBody
   /** The other side's answer to it. */
-  | HoursAnswerBody;
+  | HoursAnswerBody
+  /** The other side reported message `messageId` to Hewn (books/report.ts). Never sent for harassment. */
+  | { type: "report_notice"; messageId: string; category: Exclude<ReportCategory, "harassment"> };
 
 /** Where an application stands, as the business tells the person; "applied" is the state before any of these. */
 export const APPLICATION_STATUSES = ["seen", "interviewing", "offer_sent", "hired", "not_selected", "closed"] as const;
@@ -109,7 +112,10 @@ export type ThreadMessage = { version: 1; id: string; from: Side; sentAt: string
  * this device did; for mine, from the other side's receipt. `read` marks one
  * of theirs as seen here.
  */
-export type ThreadItem = ThreadMessage & { mine: boolean; seq: number; receivedAt?: string; read?: true };
+export type ThreadItem = ThreadMessage & { mine: boolean; seq: number; receivedAt?: string; read?: true; reported?: Reported };
+
+/** One of their messages this side reported, and when (books/report.ts). Kept only on this device. */
+export type Reported = { category: ReportCategory; at: string };
 
 export type Thread = {
   items: ThreadItem[];
@@ -139,6 +145,7 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   schedule_answer: "worker",
   hours_change: "either",
   hours_change_answer: "either",
+  report_notice: "either",
 };
 
 /** The kinds that only travel between coworkers. */
@@ -340,6 +347,11 @@ function validateBody(raw: unknown): ThreadBody {
       } catch (e) {
         throw new ThreadError(e instanceof Error ? e.message : "The change to the hours isn't valid");
       }
+    case "report_notice": {
+      if (typeof raw.messageId !== "string" || !/^[0-9a-f]{32}$/.test(raw.messageId)) throw new ThreadError("A report notice names the message");
+      if (!isReportCategory(raw.category) || !notifiesSender(raw.category)) throw new ThreadError("That kind of report isn't one the sender is told about");
+      return { type: "report_notice", messageId: raw.messageId, category: raw.category };
+    }
     default:
       throw new ThreadError("That kind of message isn't one this app knows");
   }
@@ -375,6 +387,11 @@ function validateItem(raw: unknown): ThreadItem {
   if (raw.read !== undefined) {
     if (raw.read !== true || raw.mine) throw new ThreadError("Only their messages can be marked read");
     item.read = true;
+  }
+  if (raw.reported !== undefined) {
+    const r = raw.reported;
+    if (raw.mine || !isObject(r) || !isReportCategory(r.category) || !isStamp(r.at)) throw new ThreadError("Only their messages can be marked reported");
+    item.reported = { category: r.category, at: r.at };
   }
   return item;
 }
@@ -467,6 +484,12 @@ export function markThreadRead(thread: Thread): Thread {
   return { ...thread, items: thread.items.map((i) => (i.mine || i.read ? i : { ...i, read: true as const })) };
 }
 
+/** Marks one of their messages as reported. The first report sticks. */
+export function markReported(thread: Thread, id: string, reported: Reported): Thread {
+  if (!thread.items.some((i) => i.id === id && !i.mine && !i.reported)) return thread;
+  return { ...thread, items: thread.items.map((i) => (i.id === id && !i.mine && !i.reported ? { ...i, reported: { category: reported.category, at: reported.at } } : i)) };
+}
+
 /** Records the other side's receipt for my message in slot `seq`. The first time sticks. */
 export function markDelivered(thread: Thread, seq: number, receivedAt: string): Thread {
   if (!isStamp(receivedAt)) throw new ThreadError("A receipt needs the time it was received");
@@ -495,6 +518,7 @@ export function preview(item: ThreadItem | undefined): string {
     const what = b.answer === "confirmed" ? "confirmed the schedule" : "asked for a change to the schedule";
     return `${item.mine ? "You" : "They"} ${what} for the week of ${shortDay(b.weekStart)}`;
   }
+  if (b.type === "report_notice") return item.mine ? `You reported their message as ${REPORT_AS[b.category]}` : `Reported your message as ${REPORT_AS[b.category]}`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";
   return item.mine ? "You sent a revised offer" : "Sent a revised offer";

@@ -155,6 +155,27 @@ Primary sources: snarkVM `console/network/src/lib.rs`, `synthesizer/process/src/
 4. **Shield setup:** the program joins `WALLET_PROGRAMS`; people disconnect and reconnect Hewn in
    Shield once, as with the history permission.
 
+## Reports
+
+A person can report a message they received (Joshua, 2026-10-20; `books/report.ts`,
+`chain/report.ts`, `chain/Report.tsx`). The report is an ordinary letter to Hewn's account
+(`BRAND.reportsAccount`), so nothing new is deployed:
+
+- **What it carries:** what's wrong (harassment, not really from them, a scam, spam, a threat,
+  something else), the reporter's note, the message as received (its id, when it was sent, its
+  words) and who sent it as the app names them. Nothing else from the conversation.
+- **One lock, not two.** There is no key between a reporter and Hewn, so the parcel is the marker
+  `HEWN-REPORT-1` and the report itself; the record, sealed to Hewn's account, is the lock. The
+  lookup is SHA-256(`PNW::REPORT::v1` ‖ report id), new for every report. The record's sender says
+  who reported, and only Hewn's account can read it.
+- **The sender:** a harassment report tells them nothing. Any other kind sends them a
+  `report_notice` in the conversation (a second approval), so someone whose account was taken over
+  learns it is being used.
+- **Email too.** After a report, or instead of one when Shield isn't connected, the app offers to
+  email it to `BRAND.supportEmail` or copy it, with the same report id.
+- **Reading them:** Settings shows a Reports button only when the books are linked to Hewn's
+  account; it reads the reports from Shield each time and keeps nothing.
+
 ## What doesn't fit, and the open questions
 
 - **A Shield approval per send.** Fine for offers, counter-offers, announcements; heavier for

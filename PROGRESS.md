@@ -3685,3 +3685,33 @@ it opens their letters. Applications and coworker chats stay closed to it. The t
 of agreements is listed too (it holds parties keys, never letters), with the mainnet plan.
 
 Docs only; no code changed.
+
+## 2026-10-20: the Report button
+
+A person can report a message they received (Joshua: harassment tells the sender nothing; other
+kinds tell them, in case their account was taken over; reports also go to hewnsupport@gmail.com).
+- **Where:** a small "Report" under each received message and application in a conversation
+  (business and person, applicant, coworker). The reporter picks what's wrong (harassment, not
+  really from them, a scam, spam, a threat, something else) and may add a note.
+- **To Hewn:** one letter to Hewn's account (`BRAND.reportsAccount`, the account the job board's
+  fees go to) through `hewn_letters_v2`; nothing new deployed. Its own lookup per report
+  (SHA-256 of `PNW::REPORT::v1` and the report id), the parcel is a marker and the report. The
+  record is the only lock: there is no key between a reporter and Hewn. `chain/report.ts`.
+- **By email:** afterwards the app suggests emailing it to `BRAND.supportEmail`
+  (hewnsupport@gmail.com) as well, with Email and Copy buttons; without Shield, email is the way.
+  Long reports are cut short in the email link and the copy has all of it.
+- **The sender:** unless it's harassment, a `report_notice` goes in the conversation (a second
+  approval). They see a warning: if they didn't send it, someone may be using their account, and
+  to tell Hewn.
+- **The reporter's copy:** the message is marked "Reported" in their vault (`ThreadItem.reported`),
+  so it isn't reported twice.
+- **Reading reports:** Settings → Private payments shows "Reports" only when the books are linked
+  to Hewn's account; it reads them from Shield each time, newest first, with who reported each.
+- `packages/brand` gains `supportEmail` and `reportsAccount`; `docs/LETTERS.md` and
+  `docs/THREAT_MODEL.md` get a "Reports" section.
+
+Not yet tried with a real Shield; group chat messages aren't reportable yet (they show in the group,
+not the conversation).
+
+Tests: app 611/611 (12 new: `books/report.test.ts`, `chain/report.test.ts`); every package passes,
+and both builds of the app pass.
