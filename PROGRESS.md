@@ -3415,4 +3415,4 @@ Phase 9, with its deliverables and exit criteria.
   24 h"), the employer's note, "Confirm this week" or "Ask for a change"; new weeks arrive with
   their messages (read on open and on Check now).
 
-Tests: 977/977 (8 new). Website build passes.
+Tests: 968/968 (7 new). Website build passes.
