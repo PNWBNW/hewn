@@ -3713,5 +3713,5 @@ kinds tell them, in case their account was taken over; reports also go to hewnsu
 Not yet tried with a real Shield; group chat messages aren't reportable yet (they show in the group,
 not the conversation).
 
-Tests: app 611/611 (12 new: `books/report.test.ts`, `chain/report.test.ts`); every package passes,
+Tests: app 611/611 (13 new: `books/report.test.ts`, `chain/report.test.ts`); every package passes,
 and both builds of the app pass.
