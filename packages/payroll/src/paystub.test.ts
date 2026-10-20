@@ -113,6 +113,23 @@ describe("paystub document", () => {
   });
 });
 
+describe("paystub document, overtime", () => {
+  it("carries the overtime hours and rate last, only when there are any, so older paystubs keep their hash", () => {
+    const s = setup();
+    const posted = postPayRun(s.books, s.payroll, { ...s.input, lines: [{ workerId: s.ben.id, hours: 80, overtime: { hours: 3, rate: 1.5 } }] }, clock);
+    const ben = posted.run.paychecks[0]!;
+    const doc = paystubDocument(posted.run, ben, s.ben, posted.books.settings, yearToDate(posted.payroll, s.ben.id, posted.run.payDate, posted.run.id));
+    expect(doc).toMatchObject({ hours: 80, overtimeHours: 3, overtimeRate: 1.5 });
+    expect(paystubHash(doc)).toBe(ben.paystubHash);
+    const keys = Object.keys(JSON.parse(canonicalPaystub(doc)));
+    expect(keys.slice(-4)).toEqual(["runId", "position", "overtimeHours", "overtimeRate"]);
+    // Without overtime the document has no such keys at all: the bytes from before.
+    const { overtimeHours: _h, overtimeRate: _r, ...plain } = doc;
+    expect(Object.keys(JSON.parse(canonicalPaystub(plain))).at(-1)).toBe("position");
+    expect(canonicalPaystub(plain)).not.toContain("overtime");
+  });
+});
+
 describe("settlement on pay runs", () => {
   it("an external run is settled as it posts, with the reference on every paycheck", () => {
     const s = setup();

@@ -24,9 +24,30 @@ export type WorkWeek = {
   dailyOvertimeAfterHours: number;
   /** A shift longer than this is questioned before it is sent. Whole or half hours, at least 1. */
   longestShiftHours: number;
+  /**
+   * What an overtime hour pays, as a multiple of the hourly rate: 1.5 for time and a half
+   * (Joshua, 2026-10-19), 1 to 3 to the hundredth. Absent on work weeks from before it was asked,
+   * which pay time and a half.
+   */
+  overtimeRate?: number;
 };
 
-export const WORK_WEEK_KEYS = ["startsOn", "timeZone", "overtimeAfterHours", "dailyOvertimeAfterHours", "longestShiftHours"] as const;
+export const WORK_WEEK_KEYS = ["startsOn", "timeZone", "overtimeAfterHours", "dailyOvertimeAfterHours", "longestShiftHours", "overtimeRate"] as const;
+
+/** Time and a half: the overtime rate when the terms don't say. */
+export const DEFAULT_OVERTIME_RATE = 1.5;
+
+/** The rules hours are paid by: the agreement's work week, or the baseline (40 hours a week, time and a half) without one. */
+export type PayRules = Pick<WorkWeek, "timeZone" | "overtimeAfterHours" | "dailyOvertimeAfterHours"> & { overtimeRate: number };
+export function payRulesOf(w: WorkWeek | undefined, timeZone: string = deviceTimeZone()): PayRules {
+  if (!w) return { timeZone, overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: DEFAULT_OVERTIME_RATE };
+  return { timeZone: w.timeZone, overtimeAfterHours: w.overtimeAfterHours, dailyOvertimeAfterHours: w.dailyOvertimeAfterHours, overtimeRate: w.overtimeRate ?? DEFAULT_OVERTIME_RATE };
+}
+
+/** 1.5 → "1.5×". */
+export const rateText = (r: number): string => `${r}×`;
+
+const isRate = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= 3 && Math.round(v * 100) === v * 100;
 
 /** JavaScript's day numbers (Sunday 0) for each weekday. */
 export const WEEKDAY_INDEX: Record<Weekday, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
@@ -58,7 +79,7 @@ export function isTimeZone(v: unknown): v is string {
 
 /** Sunday to Saturday (Joshua, 2026-10-19) in the given zone, overtime after 40 hours, a 12-hour shift at most: the usual starting point. */
 export function defaultWorkWeek(timeZone: string = deviceTimeZone()): WorkWeek {
-  return { startsOn: "sunday", timeZone, overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12 };
+  return { startsOn: "sunday", timeZone, overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12, overtimeRate: DEFAULT_OVERTIME_RATE };
 }
 
 const isHalfHours = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max && Number.isInteger(v * 2);
@@ -72,7 +93,16 @@ export function validateWorkWeek(raw: unknown): WorkWeek {
   if (!isHalfHours(w.overtimeAfterHours, 0, 168)) throw new Error("Overtime after must be whole or half hours in a week, up to 168 (0 for none)");
   if (!isHalfHours(w.dailyOvertimeAfterHours, 0, 24)) throw new Error("Daily overtime after must be whole or half hours in a day, up to 24 (0 for none)");
   if (!isHalfHours(w.longestShiftHours, 1, 24)) throw new Error("The longest shift must be whole or half hours, from 1 to 24");
-  return { startsOn: w.startsOn, timeZone: w.timeZone, overtimeAfterHours: w.overtimeAfterHours, dailyOvertimeAfterHours: w.dailyOvertimeAfterHours, longestShiftHours: w.longestShiftHours };
+  if (w.overtimeRate !== undefined && !isRate(w.overtimeRate)) throw new Error("Overtime pay must be 1 to 3 times the hourly rate, like 1.5");
+  return {
+    startsOn: w.startsOn,
+    timeZone: w.timeZone,
+    overtimeAfterHours: w.overtimeAfterHours,
+    dailyOvertimeAfterHours: w.dailyOvertimeAfterHours,
+    longestShiftHours: w.longestShiftHours,
+    // Last, and only when given: a work week from before it was asked keeps its exact bytes.
+    ...(w.overtimeRate !== undefined ? { overtimeRate: w.overtimeRate } : {}),
+  };
 }
 
 /** "40", "37.5": whole or half hours as a number, or null when the text isn't that. */
@@ -102,9 +132,10 @@ export const weekEndsOn = (startsOn: Weekday): Weekday => WEEKDAYS[(WEEKDAYS.ind
 /** The sentences an offer's terms say about the work week, one fact each. */
 export function workWeekLines(w: WorkWeek): string[] {
   const lines = [`Work week: ${weekdayLabel(w.startsOn)} to ${weekdayLabel(weekEndsOn(w.startsOn))}, ${timeZoneLabel(w.timeZone)} (${w.timeZone}).`];
-  if (w.overtimeAfterHours > 0 && w.dailyOvertimeAfterHours > 0) lines.push(`Overtime: after ${hoursText(w.dailyOvertimeAfterHours)} hours in a day or ${hoursText(w.overtimeAfterHours)} hours in a week.`);
-  else if (w.overtimeAfterHours > 0) lines.push(`Overtime: after ${hoursText(w.overtimeAfterHours)} hours in a week.`);
-  else if (w.dailyOvertimeAfterHours > 0) lines.push(`Overtime: after ${hoursText(w.dailyOvertimeAfterHours)} hours in a day.`);
+  const paid = `, paid at ${w.overtimeRate ?? DEFAULT_OVERTIME_RATE} times the hourly rate`;
+  if (w.overtimeAfterHours > 0 && w.dailyOvertimeAfterHours > 0) lines.push(`Overtime: after ${hoursText(w.dailyOvertimeAfterHours)} hours in a day or ${hoursText(w.overtimeAfterHours)} hours in a week${paid}.`);
+  else if (w.overtimeAfterHours > 0) lines.push(`Overtime: after ${hoursText(w.overtimeAfterHours)} hours in a week${paid}.`);
+  else if (w.dailyOvertimeAfterHours > 0) lines.push(`Overtime: after ${hoursText(w.dailyOvertimeAfterHours)} hours in a day${paid}.`);
   else lines.push("Overtime: none.");
   lines.push(`Shifts: a shift longer than ${hoursText(w.longestShiftHours)} hours is reviewed before it is paid.`);
   return lines;
@@ -120,12 +151,13 @@ export function workWeekSummary(w: WorkWeek): string {
         : w.dailyOvertimeAfterHours > 0
           ? `overtime after ${hoursText(w.dailyOvertimeAfterHours)} hours a day`
           : "no overtime";
-  return `${weekdayLabel(w.startsOn)} to ${weekdayLabel(weekEndsOn(w.startsOn))} · ${overtime} · shifts up to ${hoursText(w.longestShiftHours)} hours`;
+  const rate = overtime === "no overtime" ? "" : ` at ${rateText(w.overtimeRate ?? DEFAULT_OVERTIME_RATE)}`;
+  return `${weekdayLabel(w.startsOn)} to ${weekdayLabel(weekEndsOn(w.startsOn))} · ${overtime}${rate} · shifts up to ${hoursText(w.longestShiftHours)} hours`;
 }
 
 // ---- The form's view of it --------------------------------------------------------------------
 
-export type WorkWeekDraft = { startsOn: Weekday; timeZone: string; overtimeText: string; dailyText: string; longestText: string };
+export type WorkWeekDraft = { startsOn: Weekday; timeZone: string; overtimeText: string; dailyText: string; longestText: string; rateText: string };
 
 export const draftOfWorkWeek = (w: WorkWeek): WorkWeekDraft => ({
   startsOn: w.startsOn,
@@ -133,6 +165,7 @@ export const draftOfWorkWeek = (w: WorkWeek): WorkWeekDraft => ({
   overtimeText: hoursText(w.overtimeAfterHours),
   dailyText: hoursText(w.dailyOvertimeAfterHours),
   longestText: hoursText(w.longestShiftHours),
+  rateText: String(w.overtimeRate ?? DEFAULT_OVERTIME_RATE),
 });
 
 /** The work week the form describes, or why it can't be one. */
@@ -143,8 +176,13 @@ export function workWeekFromDraft(d: WorkWeekDraft): { workWeek: WorkWeek } | { 
   if (daily === null) return { problem: "Daily overtime after must be whole or half hours, like 8 (0 for none)" };
   const longest = cleanHalfHours(d.longestText, 1, 24);
   if (longest === null) return { problem: "The longest shift must be whole or half hours, from 1 to 24" };
+  const rateIn = (d.rateText ?? "").trim() || String(DEFAULT_OVERTIME_RATE);
+  const rate = /^\d(\.\d{1,2})?$/.test(rateIn) ? Number(rateIn) : NaN;
+  if (!isRate(rate)) return { problem: "Overtime pay must be 1 to 3 times the hourly rate, like 1.5" };
   try {
-    return { workWeek: validateWorkWeek({ startsOn: d.startsOn, timeZone: d.timeZone, overtimeAfterHours: overtime, dailyOvertimeAfterHours: daily, longestShiftHours: longest }) };
+    return {
+      workWeek: validateWorkWeek({ startsOn: d.startsOn, timeZone: d.timeZone, overtimeAfterHours: overtime, dailyOvertimeAfterHours: daily, longestShiftHours: longest, overtimeRate: rate }),
+    };
   } catch (e) {
     return { problem: e instanceof Error ? e.message : "The work week isn't valid" };
   }

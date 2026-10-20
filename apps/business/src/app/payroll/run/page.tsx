@@ -24,7 +24,8 @@ import { AccountSelect, Money, todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
 import { emptyMailbox } from "@/books/mailbox";
 import { TagFields } from "@/books/tags";
-import { type UnpaidHours, hoursText, markPaid, shiftCount, unpaidHours } from "@/books/timecard_pay";
+import { type UnpaidHours, hoursText, markPaid, payRulesFor, shiftCount, unpaidHours } from "@/books/timecard_pay";
+import { rateText } from "@/books/work_week";
 import { PageHeader } from "@/shell/SectionView";
 import { dayLabel } from "../../work/shared";
 
@@ -37,7 +38,7 @@ function daysBefore(iso: string, days: number): string {
  * One optional project per paycheck: its wages and employer taxes count as that job's labour.
  * `typed`: the person chose to type the hours instead of paying the timecards (books/timecard_pay.ts).
  */
-type Row = { include: boolean; hours: string; project?: string; typed?: boolean };
+type Row = { include: boolean; hours: string; overtimeHours?: string; project?: string; typed?: boolean };
 
 /** The "Paid from" choice that isn't a bank account: the business's own rail balance. */
 const RAIL = "rail";
@@ -70,10 +71,14 @@ export default function RunPayrollPage() {
         const row = rows[w.id] ?? { include: false, hours: "" };
         // The hours sent on timecards inside the period and not yet paid: what an hourly paycheck pays,
         // unless the person chose to type the hours instead.
-        const timecard: UnpaidHours | null = w.payType === "hourly" ? unpaidHours(mailbox, w.id, periodStart, periodEnd) : null;
+        // Overtime follows the work week in their offer's terms (time and a half after 40 a week without one).
+        const rules = payRulesFor(rail, w.id);
+        const timecard: UnpaidHours | null = w.payType === "hourly" ? unpaidHours(mailbox, w.id, periodStart, periodEnd, rules) : null;
         const fromCards = !!timecard && timecard.minutes > 0 && !row.typed;
-        const hoursValue = fromCards ? hoursText(timecard.minutes) : row.hours;
-        const base = { worker: w, timecard, fromCards, hoursValue };
+        const hoursValue = fromCards ? hoursText(timecard.regularMinutes) : row.hours;
+        const overtimeValue = fromCards ? (timecard.overtimeMinutes > 0 ? hoursText(timecard.overtimeMinutes) : "") : (row.overtimeHours ?? "");
+        const overtime = w.payType === "hourly" && overtimeValue.trim() ? { hours: Number(overtimeValue), rate: rules.overtimeRate } : undefined;
+        const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules };
         // Paying on the rail needs an account for everyone included; a row without one stays out.
         if (onRail && !linked.has(w.id)) return { ...base, row: { ...row, include: false }, paycheck: null, problem: LINK_FIRST };
         if (!row.include) return { ...base, row, paycheck: null, problem: null };
@@ -82,13 +87,14 @@ export default function RunPayrollPage() {
           if (w.payType === "hourly" && (hours === undefined || Number.isNaN(hours))) {
             return { ...base, row, paycheck: null, problem: "Enter hours" };
           }
-          const paycheck = computePaycheck(w, grossFor(w, hours), yearToDate(payroll, w.id, payDate), hours);
+          if (overtime && Number.isNaN(overtime.hours)) return { ...base, row, paycheck: null, problem: "Overtime hours must be a number" };
+          const paycheck = computePaycheck(w, grossFor(w, hours, overtime), yearToDate(payroll, w.id, payDate), hours, overtime);
           return { ...base, row, paycheck, problem: null };
         } catch (e) {
           return { ...base, row, paycheck: null, problem: errorMessage(e) };
         }
       }),
-    [team, rows, payroll, payDate, onRail, linked, mailbox, periodStart, periodEnd],
+    [team, rows, payroll, payDate, onRail, linked, mailbox, periodStart, periodEnd, rail],
   );
 
   const included = preview.filter((p) => p.row.include);
@@ -97,9 +103,10 @@ export default function RunPayrollPage() {
   const ready = included.length > 0 && included.every((p) => p.paycheck) && !!bank;
   const names = new Map(team.map((w) => [w.id, w.name]));
   const lines = () =>
-    included.map(({ worker, row, hoursValue }) => ({
+    included.map(({ worker, row, hoursValue, overtime }) => ({
       workerId: worker.id,
       ...(worker.payType === "hourly" ? { hours: Number(hoursValue) } : {}),
+      ...(worker.payType === "hourly" && overtime ? { overtime } : {}),
       ...(row.project ? { tags: { project: row.project } } : {}),
     }));
 
@@ -208,7 +215,7 @@ export default function RunPayrollPage() {
         </div>
 
         <ul className="flex flex-col gap-3">
-          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue }) => (
+          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue, overtimeValue, rules }) => (
             <li key={worker.id} className={cn("rounded-lg border bg-card p-4", !row.include && "opacity-60")}>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex min-h-11 flex-1 items-center gap-3">
@@ -227,15 +234,32 @@ export default function RunPayrollPage() {
                   </span>
                 </label>
                 {worker.payType === "hourly" && row.include && (
-                  <input
-                    className={cn(inputClass, "w-28 text-right", fromCards && "bg-muted")}
-                    inputMode="decimal"
-                    placeholder="Hours"
-                    aria-label={`${worker.name} hours`}
-                    value={hoursValue}
-                    readOnly={fromCards}
-                    onChange={(e) => setRows((r) => ({ ...r, [worker.id]: { ...row, hours: e.target.value } }))}
-                  />
+                  <div className="flex gap-2">
+                    <label className="flex flex-col text-xs text-muted-foreground">
+                      Regular
+                      <input
+                        className={cn(inputClass, "w-24 text-right", fromCards && "bg-muted")}
+                        inputMode="decimal"
+                        placeholder="Hours"
+                        aria-label={`${worker.name} regular hours`}
+                        value={hoursValue}
+                        readOnly={fromCards}
+                        onChange={(e) => setRows((r) => ({ ...r, [worker.id]: { ...row, hours: e.target.value } }))}
+                      />
+                    </label>
+                    <label className="flex flex-col text-xs text-muted-foreground">
+                      Overtime {rateText(rules.overtimeRate)}
+                      <input
+                        className={cn(inputClass, "w-24 text-right", fromCards && "bg-muted")}
+                        inputMode="decimal"
+                        placeholder="0"
+                        aria-label={`${worker.name} overtime hours`}
+                        value={overtimeValue}
+                        readOnly={fromCards}
+                        onChange={(e) => setRows((r) => ({ ...r, [worker.id]: { ...row, overtimeHours: e.target.value } }))}
+                      />
+                    </label>
+                  </div>
                 )}
               </div>
               {worker.payType === "hourly" && row.include && timecard && timecard.minutes > 0 && (
@@ -243,8 +267,14 @@ export default function RunPayrollPage() {
                   {fromCards ? (
                     <>
                       From their timecards: {formatMinutes(timecard.minutes)} across {shiftCount(timecard.shifts.length)}, week{timecard.weeks.length === 1 ? "" : "s"} of{" "}
-                      {timecard.weeks.map(dayLabel).join(", ")}. Those stretches are marked paid when this run posts.{" "}
-                      <button type="button" className="underline underline-offset-4" onClick={() => setRows((r) => ({ ...r, [worker.id]: { ...row, typed: true, hours: hoursValue } }))}>
+                      {timecard.weeks.map(dayLabel).join(", ")}
+                      {timecard.overtimeMinutes > 0 && `, ${formatMinutes(timecard.overtimeMinutes)} of it overtime at ${rateText(timecard.overtimeRate)}`}. Those stretches are marked paid when
+                      this run posts.{" "}
+                      <button
+                        type="button"
+                        className="underline underline-offset-4"
+                        onClick={() => setRows((r) => ({ ...r, [worker.id]: { ...row, typed: true, hours: hoursValue, overtimeHours: overtimeValue } }))}
+                      >
                         Type the hours instead
                       </button>
                     </>

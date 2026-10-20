@@ -226,7 +226,9 @@ function RunCard({ run, payNow }: { run: PayRun; payNow: boolean }) {
                     {names.get(p.workerId) ?? p.workerId}
                     {p.hours !== undefined && (
                       <span className="ml-1 text-xs text-muted-foreground">
-                        {p.hours} h{fromCards.has(p.workerId) && ` · from timecards (${shiftCount(fromCards.get(p.workerId)!.length)})`}
+                        {p.hours} h
+                        {p.overtimeHours !== undefined && ` + ${p.overtimeHours} h overtime at ${p.overtimeRate}×`}
+                        {fromCards.has(p.workerId) && ` · from timecards (${shiftCount(fromCards.get(p.workerId)!.length)})`}
                       </span>
                     )}
                     {p.tags?.project && <span className="block text-xs text-muted-foreground">{projects.get(p.tags.project) ?? p.tags.project}</span>}

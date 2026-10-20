@@ -25,7 +25,10 @@ export function PaystubView({ paystub, onClose }: { paystub: ReceivedPaystub; on
   }
   const pay =
     doc.payType === "hourly"
-      ? `${formatCents(doc.rate)} per hour × ${doc.hours ?? 0} hours`
+      ? `${formatCents(doc.rate)} per hour × ${doc.hours ?? 0} hours` +
+        (doc.overtimeHours !== undefined && doc.overtimeRate !== undefined
+          ? `, plus ${doc.overtimeHours} overtime hours at ${doc.overtimeRate}× (${formatCents((doc.rate * BigInt(Math.round(doc.overtimeRate * 100)) + 50n) / 100n)} per hour)`
+          : "")
       : `${formatCents(doc.rate)} per year, paid ${doc.periodStart} to ${doc.periodEnd}`;
   const { transactionId, feeMicrocredits } = paystub.settlement;
 

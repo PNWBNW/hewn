@@ -15,7 +15,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { formatMinutes, overtimeSplit } from "@/books/hours";
 import { markHoursRead, unreadCount } from "@/books/mailbox";
 import { type HoursItem, hoursFeed, mailboxLinks } from "@/books/mailbox_feed";
-import { linkFor } from "@/books/rail";
+import { payRulesFor } from "@/books/timecard_pay";
 import { clock, dayLabel, when } from "../work/shared";
 
 // Fetched only once there is a linked team member whose weeks could arrive.
@@ -91,8 +91,9 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
   const { rail } = useOpenBooks();
   const h = item.hours;
   // Overtime under the work week in their offer's terms: the same split their own Hours page shows.
-  const terms = rail ? linkFor(rail, item.workerId)?.terms : undefined;
-  const split = terms?.version === 2 && terms.workWeek ? overtimeSplit(h.entries, terms.workWeek) : null;
+  // Overtime under their offer's work week (time and a half after 40 a week without one): the same split payroll pays.
+  const rules = payRulesFor(rail, item.workerId);
+  const split = overtimeSplit(h.entries, rules);
   const longShifts = h.entries.filter((e) => e.long).length;
   return (
     <details
@@ -106,7 +107,7 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
           {dayLabel(h.weekStart)}
           <span className="block text-xs text-muted-foreground">
             {formatMinutes(h.totalMinutes)}
-            {split && split.overtime > 0 && ` (${formatMinutes(split.overtime)} overtime)`} · {when(item.at)}
+            {split.overtime > 0 && ` (${formatMinutes(split.overtime)} overtime at ${rules.overtimeRate}×)`} · {when(item.at)}
             {h.sends && ` · ${h.sends} sends combined`}
             {h.entries.some((e) => e.paid) && (h.entries.every((e) => e.paid) ? " · Paid" : ` · ${h.entries.filter((e) => e.paid).length} of ${h.entries.length} stretches paid`)}
             {longShifts > 0 && <span className="text-warning"> · {longShifts === 1 ? "1 long shift" : `${longShifts} long shifts`} to review</span>}
