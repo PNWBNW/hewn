@@ -33,8 +33,7 @@ difference is where everything lives:
   transfers. Wages, withholdings, W-4s and paystubs are private in every case. Only hashes and
   commitments ever go on chain.
 
-It is free and open source (AGPL-3.0). It is a clean-room build: the same jobs QuickBooks does,
-with our own screens and code.
+It is free and open source (AGPL-3.0).
 
 ## What it does today
 
