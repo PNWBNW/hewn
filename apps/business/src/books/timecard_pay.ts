@@ -26,7 +26,12 @@ export type PayableShift = {
   regular: number;
   overtime: number;
   long?: true;
+  /** A callout: kept out of regular and overtime, paid on its own line. */
+  callout?: true;
 };
+
+/** One callout: its stretches (a callout past midnight is two), the time worked, and what it pays after the minimum. */
+export type Callout = { date: string; in: string; out: string; workedMinutes: number; paidMinutes: number };
 
 export type UnpaidHours = {
   minutes: number;
@@ -35,6 +40,9 @@ export type UnpaidHours = {
   overtimeMinutes: number;
   /** The overtime multiplier the agreement sets (time and a half without one). */
   overtimeRate: number;
+  /** The callouts among the shifts, each paid at least the agreed minimum, at the overtime rate. */
+  callouts: Callout[];
+  calloutPaidMinutes: number;
   shifts: PayableShift[];
   /** The weeks the shifts come from, first day of each, in order. */
   weeks: string[];
@@ -46,10 +54,29 @@ export function payRulesFor(rail: Rail | null | undefined, workerId: string): Pa
   return payRulesOf(terms?.version === 2 ? terms.workWeek : undefined);
 }
 
-/** Each stretch of a week's card with its regular and overtime minutes, laid against the whole week (paid stretches included). */
+/**
+ * Each stretch of a week's card with its regular and overtime minutes, laid against the whole week
+ * (paid stretches included). A callout is neither (Joshua, 2026-10-20: always overtime, on its own
+ * line), and its time doesn't count toward the week's thresholds.
+ */
 function labelled(card: ReceivedHours, rules: PayRules): (ReceivedEntry & { regular: number; overtime: number })[] {
-  const labels = labelOvertime(card.entries, rules);
-  return card.entries.map((e, i) => ({ ...e, ...labels[i]! }));
+  const worked = card.entries.filter((e) => !e.callout);
+  const labels = labelOvertime(worked, rules);
+  return card.entries.map((e) => (e.callout ? { ...e, regular: 0, overtime: 0 } : { ...e, ...labels[worked.indexOf(e)]! }));
+}
+
+/** Callout stretches grouped into callouts (one ending where the next begins is the same callout, split at midnight). */
+export function calloutsOf(shifts: readonly PayableShift[], minimumMinutes: number): Callout[] {
+  const out: Callout[] = [];
+  for (const s of shifts.filter((x) => x.callout).sort((a, b) => (a.in < b.in ? -1 : 1))) {
+    const last = out.at(-1);
+    if (last && last.out === s.in) {
+      last.out = s.out;
+      last.workedMinutes += s.minutes;
+    } else out.push({ date: s.date, in: s.in, out: s.out, workedMinutes: s.minutes, paidMinutes: 0 });
+  }
+  for (const c of out) c.paidMinutes = Math.max(c.workedMinutes, minimumMinutes);
+  return out;
 }
 
 const shiftOf = (card: ReceivedHours, e: ReceivedEntry & { regular: number; overtime: number }): PayableShift => ({
@@ -63,6 +90,7 @@ const shiftOf = (card: ReceivedHours, e: ReceivedEntry & { regular: number; over
   regular: e.regular,
   overtime: e.overtime,
   ...(e.long ? { long: true as const } : {}),
+  ...(e.callout ? { callout: true as const } : {}),
 });
 
 const inPeriod = (date: string, start: string, end: string) => start <= date && date <= end;
@@ -83,11 +111,14 @@ export function unpaidHours(mailbox: Mailbox | null | undefined, workerId: strin
   }
   shifts.sort((a, b) => (a.in < b.in ? -1 : a.in > b.in ? 1 : 0));
   const sum = (f: (s: PayableShift) => number) => shifts.reduce((t, s) => t + f(s), 0);
+  const callouts = calloutsOf(shifts, rules.calloutMinimumMinutes);
   return {
     minutes: sum((s) => s.minutes),
     regularMinutes: sum((s) => s.regular),
     overtimeMinutes: sum((s) => s.overtime),
     overtimeRate: rules.overtimeRate,
+    callouts,
+    calloutPaidMinutes: callouts.reduce((t, c) => t + c.paidMinutes, 0),
     shifts,
     weeks: [...new Set(shifts.map((s) => s.weekStart))].sort(),
   };

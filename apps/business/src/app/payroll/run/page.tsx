@@ -22,10 +22,12 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
-import { emptyMailbox } from "@/books/mailbox";
+import { emptyMailbox, threadFor } from "@/books/mailbox";
+import { linkFor } from "@/books/rail";
+import { emptySchedule, markOnCallPaid, unpaidOnCallDates } from "@/books/schedule";
 import { TagFields } from "@/books/tags";
 import { type UnpaidHours, hoursText, markPaid, payRulesFor, shiftCount, unpaidHours } from "@/books/timecard_pay";
-import { rateText } from "@/books/work_week";
+import { dollarsText, rateText } from "@/books/work_week";
 import { PageHeader } from "@/shell/SectionView";
 import { dayLabel } from "../../work/shared";
 
@@ -45,7 +47,7 @@ const RAIL = "rail";
 const LINK_FIRST = "Link on the rail first: Settings → Import team";
 
 export default function RunPayrollPage() {
-  const { books, payroll, dimensions, rail, mailbox, updateCompany } = useOpenBooks();
+  const { books, payroll, dimensions, rail, mailbox, schedule, updateCompany } = useOpenBooks();
   const router = useRouter();
   const team = payroll.workers.filter((w) => w.active);
   const linked = useMemo(() => new Set(rail?.links.map((l) => l.workerId) ?? []), [rail]);
@@ -78,7 +80,14 @@ export default function RunPayrollPage() {
         const hoursValue = fromCards ? hoursText(timecard.regularMinutes) : row.hours;
         const overtimeValue = fromCards ? (timecard.overtimeMinutes > 0 ? hoursText(timecard.overtimeMinutes) : "") : (row.overtimeHours ?? "");
         const overtime = w.payType === "hourly" && overtimeValue.trim() ? { hours: Number(overtimeValue), rate: rules.overtimeRate } : undefined;
-        const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules };
+        // Callouts from the timecards (always, typed hours or not): at least the agreed minimum each, at the overtime rate.
+        const callout = timecard && timecard.calloutPaidMinutes > 0 ? { hours: Number(hoursText(timecard.calloutPaidMinutes)), rate: rules.overtimeRate } : undefined;
+        // On-call days they confirmed in the period, not yet paid, at the agreed amount a day.
+        const partiesKey = rail ? linkFor(rail, w.id)?.partiesKey : undefined;
+        const onCallDates = rules.onCallPayCents > 0n && partiesKey ? unpaidOnCallDates(threadFor(mailbox, partiesKey), schedule, w.id, periodStart, periodEnd) : [];
+        const onCall = onCallDates.length > 0 ? { days: onCallDates.length, perDay: rules.onCallPayCents } : undefined;
+        const more = { ...(callout ? { callout } : {}), ...(onCall ? { onCall } : {}) };
+        const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules, callout, onCall, onCallDates, more };
         // Paying on the rail needs an account for everyone included; a row without one stays out.
         if (onRail && !linked.has(w.id)) return { ...base, row: { ...row, include: false }, paycheck: null, problem: LINK_FIRST };
         if (!row.include) return { ...base, row, paycheck: null, problem: null };
@@ -88,7 +97,7 @@ export default function RunPayrollPage() {
             return { ...base, row, paycheck: null, problem: "Enter hours" };
           }
           if (overtime && Number.isNaN(overtime.hours)) return { ...base, row, paycheck: null, problem: "Overtime hours must be a number" };
-          const paycheck = computePaycheck(w, grossFor(w, hours, overtime), yearToDate(payroll, w.id, payDate), hours, overtime);
+          const paycheck = computePaycheck(w, grossFor(w, hours, overtime, more), yearToDate(payroll, w.id, payDate), hours, overtime, more);
           return { ...base, row, paycheck, problem: null };
         } catch (e) {
           return { ...base, row, paycheck: null, problem: errorMessage(e) };
@@ -103,10 +112,12 @@ export default function RunPayrollPage() {
   const ready = included.length > 0 && included.every((p) => p.paycheck) && !!bank;
   const names = new Map(team.map((w) => [w.id, w.name]));
   const lines = () =>
-    included.map(({ worker, row, hoursValue, overtime }) => ({
+    included.map(({ worker, row, hoursValue, overtime, callout, onCall }) => ({
       workerId: worker.id,
       ...(worker.payType === "hourly" ? { hours: Number(hoursValue) } : {}),
       ...(worker.payType === "hourly" && overtime ? { overtime } : {}),
+      ...(worker.payType === "hourly" && callout ? { callout } : {}),
+      ...(onCall ? { onCall } : {}),
       ...(row.project ? { tags: { project: row.project } } : {}),
     }));
 
@@ -147,9 +158,16 @@ export default function RunPayrollPage() {
         });
         runId = r.run.id;
         // The stretches this run paid are marked with it, so they're never paid twice and the card says which paycheck.
-        const paidFromCards = included.filter((p) => p.fromCards && p.timecard);
-        const mailbox = paidFromCards.length > 0 ? paidFromCards.reduce((m, p) => markPaid(m, p.timecard!.shifts, runId, payDate), c.mailbox ?? emptyMailbox()) : c.mailbox;
-        return { ...c, books: r.books, payroll: r.payroll, ...(mailbox ? { mailbox } : {}) };
+        // Paid from the timecards: every stretch when the hours came from them, the callouts whenever they're paid.
+        const paidFromCards = included.filter((p) => p.timecard && (p.fromCards || p.callout));
+        const mailbox =
+          paidFromCards.length > 0
+            ? paidFromCards.reduce((m, p) => markPaid(m, p.fromCards ? p.timecard!.shifts : p.timecard!.shifts.filter((s) => s.callout), runId, payDate), c.mailbox ?? emptyMailbox())
+            : c.mailbox;
+        // The on-call days this run paid.
+        const onCallPaid = included.filter((p) => p.onCall);
+        const scheduleNext = onCallPaid.length > 0 ? onCallPaid.reduce((s, p) => markOnCallPaid(s, p.worker.id, p.onCallDates, runId), c.schedule ?? emptySchedule()) : c.schedule;
+        return { ...c, books: r.books, payroll: r.payroll, ...(mailbox ? { mailbox } : {}), ...(scheduleNext ? { schedule: scheduleNext } : {}) };
       });
       // A rail run goes straight to the pay panel; the rest is done.
       router.push(onRail ? `/payroll?pay=${runId}` : "/payroll");
@@ -215,7 +233,7 @@ export default function RunPayrollPage() {
         </div>
 
         <ul className="flex flex-col gap-3">
-          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue, overtimeValue, rules }) => (
+          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue, overtimeValue, rules, callout, onCall }) => (
             <li key={worker.id} className={cn("rounded-lg border bg-card p-4", !row.include && "opacity-60")}>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex min-h-11 flex-1 items-center gap-3">
@@ -290,6 +308,18 @@ export default function RunPayrollPage() {
               )}
               {worker.payType === "hourly" && row.include && timecard && timecard.minutes === 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">No unpaid hours on their timecards in this period; type the hours.</p>
+              )}
+              {row.include && callout && timecard && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Callouts: {timecard.callouts.length}, paid {formatMinutes(timecard.calloutPaidMinutes)} at {rateText(callout.rate)}
+                  {rules.calloutMinimumMinutes > 0 && ` (at least ${formatMinutes(rules.calloutMinimumMinutes)} each)`}. Their own line on the paystub.
+                </p>
+              )}
+              {row.include && onCall && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  On call: {onCall.days} {onCall.days === 1 ? "day" : "days"} × {dollarsText(onCall.perDay)} = {dollarsText(onCall.perDay * BigInt(onCall.days))}, from the
+                  schedule they confirmed.
+                </p>
               )}
               {row.include && (
                 <TagFields

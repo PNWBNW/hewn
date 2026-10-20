@@ -130,6 +130,12 @@ export type Paycheck = {
   overtimeHours?: number;
   /** The overtime multiplier those hours were paid at, like 1.5; present with `overtimeHours`. */
   overtimeRate?: number;
+  /** Hourly: hours paid for callouts, minimums included, at `calloutRate` (Joshua, 2026-10-20: their own line). */
+  calloutHours?: number;
+  calloutRate?: number;
+  /** Days on call in the period, and what each pays (a flat amount, not hours). */
+  onCallDays?: number;
+  onCallPay?: Cents;
   gross: Cents;
   federalIncomeTax: Cents;
   socialSecurity: Cents;
@@ -288,6 +294,20 @@ export function yearToDate(payroll: Payroll, workerId: string, payDate: IsoDate,
 /** Hours paid at an overtime rate: how many, and the multiplier of the hourly rate (1 to 3, to the hundredth). */
 export type Overtime = { hours: number; rate: number };
 
+/** Days on call, and the flat amount each day pays. */
+export type OnCall = { days: number; perDay: Cents };
+
+/** The parts of a paycheck beyond its regular hours: overtime, callouts (paid like overtime, kept apart), on-call days. */
+export type PayParts = { overtime?: Overtime; callout?: Overtime; onCall?: OnCall };
+
+/** Checks an on-call part; none, or none worth paying, comes back undefined. */
+export function cleanOnCall(worker: Pick<Worker, "name">, onCall: OnCall | undefined): OnCall | undefined {
+  if (onCall === undefined) return undefined;
+  if (!Number.isInteger(onCall.days) || onCall.days < 0 || onCall.days > 366) throw new PayrollError(`On-call days for ${worker.name} must be a whole number`);
+  if (typeof onCall.perDay !== "bigint" || onCall.perDay < 0n) throw new PayrollError(`On-call pay for ${worker.name} can't be negative`);
+  return onCall.days === 0 || onCall.perDay === 0n ? undefined : onCall;
+}
+
 /** Checks an overtime part; none, or none worth paying, comes back undefined. */
 export function cleanOvertime(worker: Pick<Worker, "name">, overtime: Overtime | undefined): Overtime | undefined {
   if (overtime === undefined) return undefined;
@@ -303,18 +323,21 @@ export function cleanOvertime(worker: Pick<Worker, "name">, overtime: Overtime |
  * overtime multiplier), or annual salary ÷ periods per year. Salaried pay
  * has no overtime part.
  */
-export function grossFor(worker: Worker, hours?: number, overtime?: Overtime): Cents {
-  if (worker.payType === "salary") return (worker.rate + BigInt(perYear(worker.frequency)) / 2n) / BigInt(perYear(worker.frequency));
+export function grossFor(worker: Worker, hours?: number, overtime?: Overtime, more: Omit<PayParts, "overtime"> = {}): Cents {
+  // On-call days pay a flat amount whatever the pay type.
+  const onCall = cleanOnCall(worker, more.onCall);
+  const onCallPay = onCall ? onCall.perDay * BigInt(onCall.days) : 0n;
+  if (worker.payType === "salary") return (worker.rate + BigInt(perYear(worker.frequency)) / 2n) / BigInt(perYear(worker.frequency)) + onCallPay;
   if (hours === undefined || !Number.isFinite(hours) || hours < 0) throw new PayrollError(`Enter hours for ${worker.name}`);
   const ot = cleanOvertime(worker, overtime);
+  const co = cleanOvertime(worker, more.callout);
   // Hours to the hundredth, the multiplier to the hundredth, rate in cents: integer math, rounded half-up once.
+  const part = (p: Overtime | undefined) => (p ? worker.rate * BigInt(Math.round(p.hours * 100)) * BigInt(Math.round(p.rate * 100)) : 0n);
   const centiHours = BigInt(Math.round(hours * 100));
-  const otCentiHours = ot ? BigInt(Math.round(ot.hours * 100)) : 0n;
-  const otRate = ot ? BigInt(Math.round(ot.rate * 100)) : 0n;
-  return (worker.rate * centiHours * 100n + worker.rate * otCentiHours * otRate + 5_000n) / 10_000n;
+  return (worker.rate * centiHours * 100n + part(ot) + part(co) + 5_000n) / 10_000n + onCallPay;
 }
 
-export function computePaycheck(worker: Worker, gross: Cents, ytd: Partial<YearToDate> & { gross: Cents }, hours?: number, overtime?: Overtime): PaycheckDraft {
+export function computePaycheck(worker: Worker, gross: Cents, ytd: Partial<YearToDate> & { gross: Cents }, hours?: number, overtime?: Overtime, more: Omit<PayParts, "overtime"> = {}): PaycheckDraft {
   if (gross < 0n) throw new PayrollError("Gross pay can't be negative");
   const t = computePayrollTax({
     gross: toDollars(gross),
@@ -343,6 +366,8 @@ export function computePaycheck(worker: Worker, gross: Cents, ytd: Partial<YearT
     workerId: worker.id,
     ...(worker.payType === "hourly" && hours !== undefined ? { hours } : {}),
     ...(worker.payType === "hourly" && cleanOvertime(worker, overtime) ? { overtimeHours: overtime!.hours, overtimeRate: overtime!.rate } : {}),
+    ...(worker.payType === "hourly" && cleanOvertime(worker, more.callout) ? { calloutHours: more.callout!.hours, calloutRate: more.callout!.rate } : {}),
+    ...(cleanOnCall(worker, more.onCall) ? { onCallDays: more.onCall!.days, onCallPay: more.onCall!.perDay * BigInt(more.onCall!.days) } : {}),
     gross,
     federalIncomeTax,
     socialSecurity,
@@ -416,7 +441,7 @@ export type PayRunInput = {
    * Optional tags (a project, say) go on that paycheck's wage and employer-tax
    * lines, so the labour shows up in the project's profit.
    */
-  lines: { workerId: string; hours?: number; overtime?: Overtime; tags?: Tags }[];
+  lines: { workerId: string; hours?: number; overtime?: Overtime; callout?: Overtime; onCall?: OnCall; tags?: Tags }[];
 };
 
 /** Computes every paycheck without touching the books, for the review screen. */
@@ -430,7 +455,8 @@ export function previewPayRun(payroll: Payroll, input: PayRunInput): PaycheckDra
     if (!worker.active) throw new PayrollError(`${worker.name} is inactive`);
     if (seen.has(worker.id)) throw new PayrollError(`${worker.name} is listed twice`);
     seen.add(worker.id);
-    const paycheck = computePaycheck(worker, grossFor(worker, line.hours, line.overtime), yearToDate(payroll, worker.id, input.payDate), line.hours, line.overtime);
+    const more = { ...(line.callout ? { callout: line.callout } : {}), ...(line.onCall ? { onCall: line.onCall } : {}) };
+    const paycheck = computePaycheck(worker, grossFor(worker, line.hours, line.overtime, more), yearToDate(payroll, worker.id, input.payDate), line.hours, line.overtime, more);
     const tags = cleanTags(line.tags);
     return tags ? { ...paycheck, tags } : paycheck;
   });
@@ -459,7 +485,7 @@ export function checkDoublePay(payroll: Payroll, input: Pick<PayRunInput, "payDa
     if (!worker) continue;
     let gross: Cents | null = null;
     try {
-      gross = grossFor(worker, line.hours, line.overtime);
+      gross = grossFor(worker, line.hours, line.overtime, { ...(line.callout ? { callout: line.callout } : {}), ...(line.onCall ? { onCall: line.onCall } : {}) });
     } catch {
       gross = null; // hours missing: previewPayRun will say so; nothing to compare yet
     }

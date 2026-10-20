@@ -11,6 +11,8 @@
 // order, through `validateWorkWeek`; the terms hash covers them. Pure.
 // ---------------------------------------------------------------------------
 
+import { formatCents } from "@pnw/ledger";
+
 export const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
 
@@ -30,19 +32,48 @@ export type WorkWeek = {
    * which pay time and a half.
    */
   overtimeRate?: number;
+  /** What each day on call pays, in cents as a decimal string (Joshua, 2026-10-20). Absent: on-call days pay nothing extra. */
+  onCallPay?: string;
+  /** The fewest hours a callout pays, at the overtime rate, whole or half hours. Absent: the time worked. */
+  calloutMinimumHours?: number;
 };
 
-export const WORK_WEEK_KEYS = ["startsOn", "timeZone", "overtimeAfterHours", "dailyOvertimeAfterHours", "longestShiftHours", "overtimeRate"] as const;
+export const WORK_WEEK_KEYS = [
+  "startsOn",
+  "timeZone",
+  "overtimeAfterHours",
+  "dailyOvertimeAfterHours",
+  "longestShiftHours",
+  "overtimeRate",
+  "onCallPay",
+  "calloutMinimumHours",
+] as const;
 
 /** Time and a half: the overtime rate when the terms don't say. */
 export const DEFAULT_OVERTIME_RATE = 1.5;
 
 /** The rules hours are paid by: the agreement's work week, or the baseline (40 hours a week, time and a half) without one. */
-export type PayRules = Pick<WorkWeek, "timeZone" | "overtimeAfterHours" | "dailyOvertimeAfterHours"> & { overtimeRate: number };
+export type PayRules = Pick<WorkWeek, "timeZone" | "overtimeAfterHours" | "dailyOvertimeAfterHours"> & {
+  overtimeRate: number;
+  /** What a day on call pays, in cents; 0 when the terms set none. */
+  onCallPayCents: bigint;
+  /** The fewest minutes a callout pays; 0 pays the time worked. */
+  calloutMinimumMinutes: number;
+};
 export function payRulesOf(w: WorkWeek | undefined, timeZone: string = deviceTimeZone()): PayRules {
-  if (!w) return { timeZone, overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: DEFAULT_OVERTIME_RATE };
-  return { timeZone: w.timeZone, overtimeAfterHours: w.overtimeAfterHours, dailyOvertimeAfterHours: w.dailyOvertimeAfterHours, overtimeRate: w.overtimeRate ?? DEFAULT_OVERTIME_RATE };
+  if (!w) return { timeZone, overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, overtimeRate: DEFAULT_OVERTIME_RATE, onCallPayCents: 0n, calloutMinimumMinutes: 0 };
+  return {
+    timeZone: w.timeZone,
+    overtimeAfterHours: w.overtimeAfterHours,
+    dailyOvertimeAfterHours: w.dailyOvertimeAfterHours,
+    overtimeRate: w.overtimeRate ?? DEFAULT_OVERTIME_RATE,
+    onCallPayCents: w.onCallPay ? BigInt(w.onCallPay) : 0n,
+    calloutMinimumMinutes: Math.round((w.calloutMinimumHours ?? 0) * 60),
+  };
 }
+
+/** "$25.00" from cents. */
+export const dollarsText = (cents: bigint): string => `$${formatCents(cents)}`;
 
 /** 1.5 → "1.5×". */
 export const rateText = (r: number): string => `${r}×`;
@@ -94,14 +125,18 @@ export function validateWorkWeek(raw: unknown): WorkWeek {
   if (!isHalfHours(w.dailyOvertimeAfterHours, 0, 24)) throw new Error("Daily overtime after must be whole or half hours in a day, up to 24 (0 for none)");
   if (!isHalfHours(w.longestShiftHours, 1, 24)) throw new Error("The longest shift must be whole or half hours, from 1 to 24");
   if (w.overtimeRate !== undefined && !isRate(w.overtimeRate)) throw new Error("Overtime pay must be 1 to 3 times the hourly rate, like 1.5");
+  if (w.onCallPay !== undefined && (typeof w.onCallPay !== "string" || !/^\d{1,7}$/.test(w.onCallPay))) throw new Error("On-call pay must be an amount of dollars and cents, like 25.00");
+  if (w.calloutMinimumHours !== undefined && !isHalfHours(w.calloutMinimumHours, 0, 24)) throw new Error("The callout minimum must be whole or half hours, up to 24");
   return {
     startsOn: w.startsOn,
     timeZone: w.timeZone,
     overtimeAfterHours: w.overtimeAfterHours,
     dailyOvertimeAfterHours: w.dailyOvertimeAfterHours,
     longestShiftHours: w.longestShiftHours,
-    // Last, and only when given: a work week from before it was asked keeps its exact bytes.
+    // Last, and only when given: a work week from before they were asked keeps its exact bytes.
     ...(w.overtimeRate !== undefined ? { overtimeRate: w.overtimeRate } : {}),
+    ...(w.onCallPay !== undefined ? { onCallPay: String(BigInt(w.onCallPay)) } : {}),
+    ...(w.calloutMinimumHours !== undefined ? { calloutMinimumHours: w.calloutMinimumHours } : {}),
   };
 }
 
@@ -138,6 +173,10 @@ export function workWeekLines(w: WorkWeek): string[] {
   else if (w.dailyOvertimeAfterHours > 0) lines.push(`Overtime: after ${hoursText(w.dailyOvertimeAfterHours)} hours in a day${paid}.`);
   else lines.push("Overtime: none.");
   lines.push(`Shifts: a shift longer than ${hoursText(w.longestShiftHours)} hours is reviewed before it is paid.`);
+  const onCall = w.onCallPay ? BigInt(w.onCallPay) : 0n;
+  if (onCall > 0n) lines.push(`On call: ${dollarsText(onCall)} for each day on call.`);
+  if (w.calloutMinimumHours) lines.push(`Callouts: a callout pays at least ${hoursText(w.calloutMinimumHours)} hours, at the overtime rate.`);
+  else if (onCall > 0n) lines.push("Callouts: paid at the overtime rate for the time worked.");
   return lines;
 }
 
@@ -152,12 +191,25 @@ export function workWeekSummary(w: WorkWeek): string {
           ? `overtime after ${hoursText(w.dailyOvertimeAfterHours)} hours a day`
           : "no overtime";
   const rate = overtime === "no overtime" ? "" : ` at ${rateText(w.overtimeRate ?? DEFAULT_OVERTIME_RATE)}`;
-  return `${weekdayLabel(w.startsOn)} to ${weekdayLabel(weekEndsOn(w.startsOn))} · ${overtime}${rate} · shifts up to ${hoursText(w.longestShiftHours)} hours`;
+  const onCall = w.onCallPay && BigInt(w.onCallPay) > 0n ? ` · on call ${dollarsText(BigInt(w.onCallPay))} a day` : "";
+  const callout = w.calloutMinimumHours ? ` · callouts at least ${hoursText(w.calloutMinimumHours)} hours` : "";
+  return `${weekdayLabel(w.startsOn)} to ${weekdayLabel(weekEndsOn(w.startsOn))} · ${overtime}${rate} · shifts up to ${hoursText(w.longestShiftHours)} hours${onCall}${callout}`;
 }
 
 // ---- The form's view of it --------------------------------------------------------------------
 
-export type WorkWeekDraft = { startsOn: Weekday; timeZone: string; overtimeText: string; dailyText: string; longestText: string; rateText: string };
+export type WorkWeekDraft = {
+  startsOn: Weekday;
+  timeZone: string;
+  overtimeText: string;
+  dailyText: string;
+  longestText: string;
+  rateText: string;
+  /** Dollars a day on call, blank for none. */
+  onCallText?: string;
+  /** Hours a callout pays at least, blank for the time worked. */
+  calloutText?: string;
+};
 
 export const draftOfWorkWeek = (w: WorkWeek): WorkWeekDraft => ({
   startsOn: w.startsOn,
@@ -166,6 +218,8 @@ export const draftOfWorkWeek = (w: WorkWeek): WorkWeekDraft => ({
   dailyText: hoursText(w.dailyOvertimeAfterHours),
   longestText: hoursText(w.longestShiftHours),
   rateText: String(w.overtimeRate ?? DEFAULT_OVERTIME_RATE),
+  onCallText: w.onCallPay && BigInt(w.onCallPay) > 0n ? formatCents(BigInt(w.onCallPay)).replace(/,/g, "") : "",
+  calloutText: w.calloutMinimumHours ? hoursText(w.calloutMinimumHours) : "",
 });
 
 /** The work week the form describes, or why it can't be one. */
@@ -179,9 +233,25 @@ export function workWeekFromDraft(d: WorkWeekDraft): { workWeek: WorkWeek } | { 
   const rateIn = (d.rateText ?? "").trim() || String(DEFAULT_OVERTIME_RATE);
   const rate = /^\d(\.\d{1,2})?$/.test(rateIn) ? Number(rateIn) : NaN;
   if (!isRate(rate)) return { problem: "Overtime pay must be 1 to 3 times the hourly rate, like 1.5" };
+  const onCallIn = (d.onCallText ?? "").trim().replace(/^\$/, "");
+  if (onCallIn && !/^\d{1,5}(\.\d{1,2})?$/.test(onCallIn)) return { problem: "On-call pay must be dollars and cents, like 25.00" };
+  const onCallCents = onCallIn ? BigInt(Math.round(Number(onCallIn) * 100)) : 0n;
+  const calloutIn = (d.calloutText ?? "").trim();
+  const callout = calloutIn ? cleanHalfHours(calloutIn, 0, 24) : 0;
+  if (callout === null) return { problem: "The callout minimum must be whole or half hours, like 2" };
   try {
     return {
-      workWeek: validateWorkWeek({ startsOn: d.startsOn, timeZone: d.timeZone, overtimeAfterHours: overtime, dailyOvertimeAfterHours: daily, longestShiftHours: longest, overtimeRate: rate }),
+      workWeek: validateWorkWeek({
+        startsOn: d.startsOn,
+        timeZone: d.timeZone,
+        overtimeAfterHours: overtime,
+        dailyOvertimeAfterHours: daily,
+        longestShiftHours: longest,
+        overtimeRate: rate,
+        // Only when set: an offer without on-call terms says nothing about them.
+        ...(onCallCents > 0n ? { onCallPay: onCallCents.toString() } : {}),
+        ...(callout > 0 ? { calloutMinimumHours: callout } : {}),
+      }),
     };
   } catch (e) {
     return { problem: e instanceof Error ? e.message : "The work week isn't valid" };

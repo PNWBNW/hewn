@@ -130,6 +130,23 @@ describe("paystub document, overtime", () => {
   });
 });
 
+describe("paystub document, callouts and on call", () => {
+  it("carries them last, each only when present, and the hash covers them", () => {
+    const s = setup();
+    const line = { workerId: s.ben.id, hours: 40, overtime: { hours: 1, rate: 1.5 }, callout: { hours: 2, rate: 1.5 }, onCall: { days: 7, perDay: 2_500n } };
+    const posted = postPayRun(s.books, s.payroll, { ...s.input, lines: [line] }, clock);
+    const ben = posted.run.paychecks[0]!;
+    const doc = paystubDocument(posted.run, ben, s.ben, posted.books.settings, yearToDate(posted.payroll, s.ben.id, posted.run.payDate, posted.run.id));
+    expect(doc).toMatchObject({ calloutHours: 2, calloutRate: 1.5, onCallDays: 7, onCallPay: 17_500n });
+    expect(paystubHash(doc)).toBe(ben.paystubHash);
+    const canonical = JSON.parse(canonicalPaystub(doc));
+    expect(Object.keys(canonical).slice(-6)).toEqual(["overtimeHours", "overtimeRate", "calloutHours", "calloutRate", "onCallDays", "onCallPay"]);
+    expect(canonical.onCallPay).toBe("17500");
+    const { calloutHours: _a, calloutRate: _b, onCallDays: _c, onCallPay: _d, ...plain } = doc;
+    expect(canonicalPaystub(plain)).not.toMatch(/callout|onCall/);
+  });
+});
+
 describe("settlement on pay runs", () => {
   it("an external run is settled as it posts, with the reference on every paycheck", () => {
     const s = setup();

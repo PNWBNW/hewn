@@ -6,12 +6,12 @@
 
 import dynamic from "next/dynamic";
 import { X } from "lucide-react";
-import { formatCents } from "@pnw/ledger";
 import { type Paycheck, type PayRun, paystubDocument, yearToDate } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, formatCredits } from "@/books/display";
+import { payLines } from "@/books/paystub_document";
 import { shortAddress } from "@/books/rail";
 
 // Only a paystub paid on the rail is sent to the person from here; nobody else downloads that code.
@@ -42,13 +42,6 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
   }
   const doc = paystubDocument(run, paycheck, worker, books.settings, yearToDate(payroll, worker.id, run.payDate, run.id));
   const fee = paycheck.settlement.feeMicrocredits;
-  const pay =
-    doc.payType === "hourly"
-      ? `${formatCents(doc.rate)} per hour × ${doc.hours ?? 0} hours` +
-        (doc.overtimeHours !== undefined && doc.overtimeRate !== undefined
-          ? `, plus ${doc.overtimeHours} overtime hours at ${doc.overtimeRate}× (${formatCents((doc.rate * BigInt(Math.round(doc.overtimeRate * 100)) + 50n) / 100n)} per hour)`
-          : "")
-      : `${formatCents(doc.rate)} per year, paid ${run.periodStart} to ${run.periodEnd}`;
 
   return (
     <section aria-label={`Paystub for ${doc.workerName}`} className="rounded-lg border bg-card">
@@ -65,7 +58,9 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
       </div>
       <dl className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm sm:grid-cols-2">
         <Row label="Pay period" value={`${doc.periodStart} to ${doc.periodEnd}`} />
-        <Row label="Pay" value={pay} />
+        {payLines(doc).map((l) => (
+          <Row key={l.label} label={l.label} value={l.value} />
+        ))}
         <Row label="Gross pay" cents={doc.gross} />
         <Row label="Federal income tax" cents={doc.federalIncomeTax} />
         <Row label="Social Security" cents={doc.socialSecurity} />

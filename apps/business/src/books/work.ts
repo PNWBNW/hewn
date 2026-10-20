@@ -72,6 +72,8 @@ export type Punch = {
   kind: "in" | "out";
   /** On an out: the person looked at the long shift this closes and confirmed it is right (hours.ts). */
   confirmed?: true;
+  /** On an in: this shift is a callout (Joshua, 2026-10-20), paid at the overtime rate with the agreed minimum. */
+  callout?: true;
 };
 
 export type SentTimesheet = {
@@ -269,8 +271,10 @@ export function validatePunch(raw: unknown): Punch {
   const id = text(raw.id, "Punch id");
   if (!id) throw new WorkError("Each punch needs an id");
   if (raw.confirmed !== undefined && raw.confirmed !== true && raw.confirmed !== false) throw new WorkError("Confirmed must be true or false");
+  if (raw.callout !== undefined && raw.callout !== true && raw.callout !== false) throw new WorkError("Callout must be true or false");
   const p: Punch = { id, agreementId: text(raw.agreementId, "Agreement id"), at: isoDate(raw.at, "Punch time"), kind };
   if (raw.confirmed === true && kind === "out") p.confirmed = true;
+  if (raw.callout === true && kind === "in") p.callout = true;
   return p;
 }
 
@@ -599,12 +603,19 @@ export function openPunch(work: Work, agreementId: string): Punch | undefined {
 }
 
 /** Clocks in or out: the opposite of the last punch, at `at` (now by default). */
-export function punch(work: Work, agreementId: string, at: string = new Date().toISOString(), id: string = newPunchId()): { work: Work; punch: Punch } {
+export function punch(
+  work: Work,
+  agreementId: string,
+  at: string = new Date().toISOString(),
+  id: string = newPunchId(),
+  options: { callout?: boolean } = {},
+): { work: Work; punch: Punch } {
   const agreement = agreementFor(work, agreementId);
   if (!agreement) throw new WorkError("No agreement with that id");
   if (agreement.status !== "active") throw new WorkError("This agreement isn't active");
   const kind: Punch["kind"] = openPunch(work, agreementId) ? "out" : "in";
-  const p = validatePunch({ id, agreementId, at, kind });
+  if (options.callout && kind !== "in") throw new WorkError("A callout starts with a clock-in");
+  const p = validatePunch({ id, agreementId, at, kind, ...(options.callout ? { callout: true } : {}) });
   const punches = [...work.punches, p];
   checkPunches(punches);
   return { work: validateWork({ ...work, punches }), punch: p };

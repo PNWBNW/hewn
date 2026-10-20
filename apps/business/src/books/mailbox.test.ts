@@ -85,6 +85,12 @@ describe("a timesheet another person sent", () => {
     expect(mailboxFromJson(mailboxToJson(kept)).hours[0]?.entries[0]).toEqual({ ...ENTRY, long: true });
   });
 
+  it("keeps an entry's callout flag, and only as true", () => {
+    const sent = validateTimesheetPayload({ ...PAYLOAD, entries: [{ ...ENTRY, callout: true }, PAYLOAD.entries[1]] }, AGREEMENT);
+    expect(sent.entries[0]).toEqual({ ...ENTRY, callout: true });
+    expect(() => validateTimesheetPayload({ ...PAYLOAD, entries: [{ ...ENTRY, callout: 1 }, PAYLOAD.entries[1]] }, AGREEMENT)).toThrow(/callout flag/);
+  });
+
   it("is refused without the time it was sent", () => {
     expect(() => validateTimesheetPayload({ ...PAYLOAD, sentAt: undefined }, AGREEMENT)).toThrow(/sent/);
   });

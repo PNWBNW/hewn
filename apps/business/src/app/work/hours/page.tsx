@@ -138,6 +138,7 @@ export default function HoursPage() {
                               {s.open && s.long && ` (still clocked in, longer than ${longestLabel}: counted to there; set the clock-out time)`}
                               {s.open && !s.long && s.out !== now.toISOString() && new Date(s.out) < now && " (not clocked out; counted to midnight)"}
                             </span>
+                            {s.callout && <span className="rounded-sm bg-primary/15 px-1.5 py-0.5 font-medium text-primary">Callout</span>}
                             {!s.open && s.long && (
                               <span className={cn("rounded-sm px-1.5 py-0.5", s.confirmed ? "bg-muted" : "bg-warning/15 text-warning")}>
                                 {s.confirmed ? `Longer than ${longestLabel} · confirmed` : `Longer than ${longestLabel}`}
