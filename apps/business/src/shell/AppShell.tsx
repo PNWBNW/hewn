@@ -26,25 +26,30 @@ const ICONS: Record<string, LucideIcon> = {
   taxes: Landmark,
 };
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavArt = keyof typeof BRAND.assets.nav;
+
+/** A menu item: its line icon, and its tile from the navigation icon family when there is one. */
+type NavItem = { href: string; label: string; icon: LucideIcon; art?: NavArt };
+
+const hasArt = (id: string): id is NavArt => id in BRAND.assets.nav;
 
 const BUSINESS_NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText })),
-  { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, art: "dashboard" },
+  ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText, ...(hasArt(s.id) ? { art: s.id } : {}) })),
+  { href: "/jobs", label: "Jobs", icon: Briefcase, art: "jobs" },
+  { href: "/messages", label: "Messages", icon: MessageSquare, art: "messages" },
 ];
 
 /** A person who works for a business: their own, smaller app. */
 export const WORK_NAV: NavItem[] = [
-  { href: "/work", label: "Home", icon: Home },
-  { href: "/work/schedule", label: "Schedule", icon: CalendarDays },
+  { href: "/work", label: "Home", icon: Home, art: "dashboard" },
+  { href: "/work/schedule", label: "Schedule", icon: CalendarDays, art: "schedule" },
   { href: "/work/offers", label: "Offers", icon: Inbox },
-  { href: "/board", label: "Find work", icon: Briefcase },
+  { href: "/board", label: "Find work", icon: Briefcase, art: "jobs" },
   { href: "/work/applications", label: "Applications", icon: FileText },
-  { href: "/work/messages", label: "Messages", icon: MessageSquare },
+  { href: "/work/messages", label: "Messages", icon: MessageSquare, art: "messages" },
   { href: "/work/hours", label: "Hours", icon: Clock },
-  { href: "/work/paystubs", label: "Paystubs", icon: Mailbox },
+  { href: "/work/paystubs", label: "Paystubs", icon: Mailbox, art: "payroll" },
   { href: "/work/profile", label: "Profile", icon: IdCard },
 ];
 
@@ -67,6 +72,25 @@ export function redirectFor(role: Role, pathname: string): string | null {
 function isActive(pathname: string, href: string): boolean {
   const home = href === "/" || href === "/work";
   return home ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * A menu item's icon: its tile from the navigation family (28 px, ringed in gold when it's the
+ * page you're on), or, for items the family doesn't draw yet, the line icon centred in the same
+ * space so labels stay aligned.
+ */
+function NavIcon({ icon: Icon, art, active }: { icon: LucideIcon; art?: NavArt; active: boolean }) {
+  if (art) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- a fixed 28 px brand tile; nothing for the image optimiser to do
+      <img src={BRAND.assets.nav[art]} alt="" aria-hidden width={28} height={28} className={cn("size-7 shrink-0 rounded-md", active && "ring-2 ring-rail-accent")} />
+    );
+  }
+  return (
+    <span aria-hidden className="grid size-7 shrink-0 place-items-center">
+      <Icon className={cn("size-5", active && "text-rail-accent")} />
+    </span>
+  );
 }
 
 function RailButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
@@ -114,7 +138,7 @@ function Rail({
       <Link href={home} onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label={`${BRAND.name}, ${worker ? "home" : "dashboard"}`}>
         <BrandLogo tone="onDark" height={30} />
       </Link>
-      {nav.map(({ href, label, icon: Icon }) => {
+      {nav.map(({ href, label, icon, art }) => {
         const active = isActive(pathname, href);
         return (
           <Link
@@ -129,7 +153,7 @@ function Rail({
                 : "hover:bg-white/5 hover:text-rail-active-foreground",
             )}
           >
-            <Icon aria-hidden className={cn("size-4 shrink-0", active && "text-rail-accent")} />
+            <NavIcon icon={icon} {...(art ? { art } : {})} active={active} />
             {label}
             {(href === "/messages" || href === "/work/messages") && unreadMessages > 0 && (
               <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unreadMessages} unread`}>
@@ -162,7 +186,7 @@ function Rail({
                 : "hover:bg-white/5 hover:text-rail-active-foreground",
             )}
           >
-            <Settings aria-hidden className={cn("size-4 shrink-0", isActive(pathname, "/settings") && "text-rail-accent")} />
+            <NavIcon icon={Settings} art="settings" active={isActive(pathname, "/settings")} />
             Settings
           </Link>
         )}

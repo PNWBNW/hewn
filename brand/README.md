@@ -20,6 +20,7 @@ paths the code uses live in `packages/brand`.
 | `public/brand/hewn-wordmark-{green,cream}.png` | "Hewn Accounting" lettering, transparent; green on light, cream on dark |
 | `public/brand/hewn-tile-{books,payroll,invoices,reports}.png` | Product tiles on the marketing site (`tiles/farm.png` and `tiles/build.png` wait for their templates) |
 | `public/brand/hewn-hero-*.{webp,jpg}` | Setup/unlock screens, the site and the README |
+| `public/brand/hewn-nav-*.png` | The navigation icon family, one 96 px ink tile per menu item (cut from `source/nav-icons.png`; Schedule from `source/nav-icon-schedule.jpg`, recoloured from green to the family's ink and squared). Paths in `BRAND.assets.nav` |
 
 Colours: green `#113b31`, cream `#f5f0e3`, ink `#091623`, gold `#f8d084`,
 cyan `#18dccb` (tokens in `packages/ui/src/tokens.css`).
