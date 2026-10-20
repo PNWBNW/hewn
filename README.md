@@ -78,9 +78,7 @@ than by a long wallet address.
   worker with a private USDCx transfer from your wallet. Paystubs and W-4s travel between the two
   parties through a sealed **mailbox**: encrypted with a key only the employer and that worker
   can derive, so the relay can't read them.
-- **The one server piece.** That mailbox is a single serverless function. It passes sealed
-  envelopes and stores nothing. See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
-
+  
 ## Where it came from
 
 Hewn has been built on the side, for free, over a few years, alongside a full-time job. In the
