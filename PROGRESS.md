@@ -3533,8 +3533,8 @@ side, each with its tile from the navigation icon family. Tabs that don't have a
 Applications, Hours, Profile) have none.
 
 Other sections updated to match the app as it stands:
-- **How it works:** sealed letters, the team channel and calendar tags, the public job board, and
-  the two server pieces (the courier and the visit counter).
+- **How it works:** sealed letters, the team channel and calendar tags, and the public job board.
+  Joshua's edits on main (no "clean-room build" line, no server-function bullet) are kept.
 - **History:** what October added, and the size of the project (about 81,000 lines of code, 16,000
   of them tests, and 9,000 lines of Leo).
 - **Running it locally:** the static bundle build, and the traction store's settings.

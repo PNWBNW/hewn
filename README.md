@@ -33,8 +33,7 @@ difference is where everything lives:
   transfers. Wages, withholdings, W-4s and paystubs are private in every case. Only hashes and
   commitments ever go on chain.
 
-It is free and open source (AGPL-3.0). It is a clean-room build: the same jobs QuickBooks does,
-with our own screens and code.
+It is free and open source (AGPL-3.0).
 
 ## A tour of the app
 
@@ -108,9 +107,6 @@ by country, with no account).
   team holds. Each person on the shared calendar is tagged by a one-way value, never by their key.
 - **The job board** is public on purpose: a posting, its pay range if given, and how to apply.
   Applications are sealed letters to the business, never on the board.
-- **The server pieces.** A small courier passes sealed envelopes and stores nothing readable,
-  and a visit counter keeps two totals per country (visits and visitors) for the public traction
-  map: no dates, no addresses, no ids. See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
 ## Where it came from
 
