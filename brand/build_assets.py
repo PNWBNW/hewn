@@ -21,6 +21,27 @@ os.makedirs(PUB, exist_ok=True)
 GREEN = (17, 59, 49)      # #113b31, the icon tile
 CREAM = (245, 240, 227)   # #f5f0e3, light background / dark-mode wordmark
 
+# The navigation icon family (Joshua, 2026-10-20): one sheet of ink tiles on cream (source/nav-icons.png),
+# each tile's box in it, and the Schedule tile on its own (source/nav-icon-schedule.jpg), drawn on
+# green, recoloured to the family's ink and squared.
+NAV_SHEET = {
+    "dashboard": (87, 387, 282, 573),
+    "transactions": (327, 387, 516, 573),
+    "sales": (561, 387, 750, 573),
+    "expenses": (795, 387, 987, 573),
+    "payroll": (1032, 387, 1224, 573),
+    "projects": (63, 696, 237, 864),
+    "reports": (276, 696, 447, 864),
+    "taxes": (486, 696, 651, 864),
+    "jobs": (687, 699, 852, 864),
+    "messages": (888, 699, 1053, 864),
+    "settings": (1089, 699, 1251, 864),
+}
+NAV_SCHEDULE_BOX = (32, 56, 248, 249)  # the tile in its own crop, a little wider than tall
+NAV_INK = (10, 17, 32)                 # #0a1120, the family's tile
+NAV_SCHEDULE_GREEN = (19, 63, 46)      # the Schedule tile's own background
+NAV_SIZE = 96                          # 28-40 px in the menu, at 2-3x
+
 
 def distance(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2])
@@ -90,6 +111,42 @@ def lettering(path, colour, panel=False):
     return out
 
 
+def nav_tile(square, size=NAV_SIZE):
+    """A square crop as a nav icon: resized, corners rounded off to transparent."""
+    out = square.resize((size, size), Image.LANCZOS).convert("RGBA")
+    out.putalpha(rounded_mask(size, radius=round(size * 0.22)))
+    return out
+
+
+def nav_from_sheet(sheet, box, trim=2):
+    x0, y0, x1, y1 = box[0] + trim, box[1] + trim, box[2] - trim, box[3] - trim
+    side = min(x1 - x0, y1 - y0)
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    return nav_tile(sheet.crop((cx - side // 2, cy - side // 2, cx - side // 2 + side, cy - side // 2 + side)))
+
+
+def nav_schedule(path):
+    """The Schedule tile: its green turned to the family's ink, the page showing at its rounded
+    corners filled, and the rectangle padded to a square with ink."""
+    im = Image.open(path).convert("RGB").crop(NAV_SCHEDULE_BOX)
+    px = im.load()
+    W, H = im.size
+    page = (244, 239, 219)
+    for y in range(H):
+        for x in range(W):
+            p = px[x, y]
+            corner = (x < 40 or x >= W - 40) and (y < 40 or y >= H - 40)
+            if corner and distance(p, NAV_SCHEDULE_GREEN) > 40 and distance(p, page) < 260:
+                px[x, y] = NAV_INK
+                continue
+            t = max(0.0, 1 - distance(p, NAV_SCHEDULE_GREEN) / 250)
+            px[x, y] = tuple(max(0, min(255, round(p[i] + t * (NAV_INK[i] - NAV_SCHEDULE_GREEN[i])))) for i in range(3))
+    side = max(W, H)
+    square = Image.new("RGB", (side, side), NAV_INK)
+    square.paste(im, ((side - W) // 2, (side - H) // 2))
+    return nav_tile(square)
+
+
 def save_png(img, name, size, folder=PUB):
     img.resize((size, size), Image.LANCZOS).save(os.path.join(folder, name), optimize=True)
 
@@ -125,6 +182,12 @@ def main():
     # Product tiles for the marketing site (native size is plenty at 2-3x on a 56 px tile)
     for name in TILES:
         rounded_tile(os.path.join(SRC, "tiles", f"{name}.png"), 160).save(os.path.join(PUB, f"hewn-tile-{name}.png"), optimize=True)
+
+    # Navigation icons
+    sheet = Image.open(os.path.join(SRC, "nav-icons.png")).convert("RGB")
+    for name, box in NAV_SHEET.items():
+        nav_from_sheet(sheet, box).save(os.path.join(PUB, f"hewn-nav-{name}.png"), optimize=True)
+    nav_schedule(os.path.join(SRC, "nav-icon-schedule.jpg")).save(os.path.join(PUB, "hewn-nav-schedule.png"), optimize=True)
 
     # Hero: WebP at two widths plus a JPEG fallback
     hero = Image.open(os.path.join(SRC, "hewn-hero.png")).convert("RGB")

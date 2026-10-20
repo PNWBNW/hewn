@@ -3416,3 +3416,20 @@ Phase 9, with its deliverables and exit criteria.
   their messages (read on open and on Check now).
 
 Tests: 968/968 (7 new). Website build passes.
+
+## 2026-10-20: the navigation icon family in the menu
+
+Joshua made a navigation icon family (ink tiles on cream: Dashboard, Transactions, Sales, Expenses,
+Payroll, Projects, Reports, Taxes, Jobs, Messages, Settings) and a Scheduling tile drawn separately on
+green.
+- Sources: `brand/source/nav-icons.png` (the sheet) and `brand/source/nav-icon-schedule.jpg`.
+  `brand/build_assets.py` cuts each tile from the sheet by its box (`NAV_SHEET`), turns the Schedule
+  tile's green into the family's ink (#0a1120), fills its rounded corners, pads it square, and writes
+  `public/brand/hewn-nav-{name}.png` at 96 px with transparent rounded corners, copied byte for byte
+  to `apps/site`. Re-running changed none of the existing assets. Paths in `BRAND.assets.nav`.
+- The menu (`shell/AppShell.tsx` `NavIcon`): every business item and Settings shows its tile at
+  28 px, ringed in gold on the page you're on. The person's menu: Home (the Dashboard tile),
+  Schedule, Find work (Jobs), Messages, Paystubs (Payroll) and Settings; Offers, Applications, Hours
+  and Profile have no tile yet and keep their line icons, centred in the same space.
+
+Tests: 968/968. Website build passes.

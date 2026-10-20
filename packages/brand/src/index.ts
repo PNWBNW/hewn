@@ -32,6 +32,21 @@ export const BRAND = {
       invoices: "/brand/hewn-tile-invoices.png",
       reports: "/brand/hewn-tile-reports.png",
     },
+    /** The navigation icon family (brand/source/nav-icons.png): ink tiles, one per menu item. */
+    nav: {
+      dashboard: "/brand/hewn-nav-dashboard.png",
+      transactions: "/brand/hewn-nav-transactions.png",
+      sales: "/brand/hewn-nav-sales.png",
+      expenses: "/brand/hewn-nav-expenses.png",
+      payroll: "/brand/hewn-nav-payroll.png",
+      projects: "/brand/hewn-nav-projects.png",
+      reports: "/brand/hewn-nav-reports.png",
+      taxes: "/brand/hewn-nav-taxes.png",
+      jobs: "/brand/hewn-nav-jobs.png",
+      messages: "/brand/hewn-nav-messages.png",
+      settings: "/brand/hewn-nav-settings.png",
+      schedule: "/brand/hewn-nav-schedule.png",
+    },
   },
   /** Where the app lives. The site's "Open the app" button points here. */
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://app.hewnaccounting.com",
