@@ -12,6 +12,7 @@ import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 
 type Published = {
+  status?: "counting" | "off" | "unavailable";
   countries: { country: string; visitors: number; visits: number }[];
   visitors: number;
   visits: number;
@@ -90,6 +91,10 @@ export function TractionMap() {
 
   return (
     <div className="flex flex-col gap-6">
+      {data.status === "off" && <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">Counting hasn&apos;t been switched on yet, so nothing has been counted.</p>}
+      {data.status === "unavailable" && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">The counts couldn&apos;t be read just now; these aren&apos;t the real numbers. Try again in a moment.</p>
+      )}
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Visitors since launch" value={n(data.visitors)} />
         <Stat label="Visits since launch" value={n(data.visits)} />

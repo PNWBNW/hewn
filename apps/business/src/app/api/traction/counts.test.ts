@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type TractionStore, countHandler, countryOf, publish, tractionHandler } from "./counts";
-import { upstashStore } from "./store";
+import { storeSettings, upstashStore } from "./store";
 
 const memory = (): TractionStore & { visits: Record<string, number>; visitors: Record<string, number> } => {
   const visits: Record<string, number> = {};
@@ -85,10 +85,31 @@ describe("what is published", () => {
     const body = await res.json();
     expect(JSON.stringify(body)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(body.countries).toEqual([{ country: "NG", visitors: 6, visits: 6 }]);
+    expect(body.status).toBe("counting");
+  });
+
+  it("says when counting is off or the store didn't answer, and never caches that", async () => {
+    const off = await tractionHandler(null)();
+    expect(off.headers.get("cache-control")).toBe("no-store");
+    expect(await off.json()).toMatchObject({ status: "off", visitors: 0, visits: 0 });
+    const broken: TractionStore = { add: async () => {}, read: async () => Promise.reject(new Error("down")) };
+    const down = await tractionHandler(broken)();
+    expect(down.headers.get("cache-control")).toBe("no-store");
+    expect(await down.json()).toMatchObject({ status: "unavailable", visitors: 0 });
   });
 });
 
 describe("the Upstash store", () => {
+  it("finds its settings under the usual names or one prefix Vercel was given", () => {
+    expect(storeSettings({ KV_REST_API_URL: "https://a", KV_REST_API_TOKEN: "t" })).toEqual({ url: "https://a", key: "t" });
+    expect(storeSettings({ UPSTASH_REDIS_REST_URL: "https://b", UPSTASH_REDIS_REST_TOKEN: "u" })).toEqual({ url: "https://b", key: "u" });
+    expect(storeSettings({ STORAGE_KV_REST_API_URL: "https://c", STORAGE_KV_REST_API_TOKEN: "v" })).toEqual({ url: "https://c", key: "v" });
+    expect(storeSettings({ HEWN_REST_API_URL: "https://d", HEWN_REST_API_TOKEN: "w" })).toEqual({ url: "https://d", key: "w" });
+    // A URL without its own token (or a token from another prefix) isn't a pair.
+    expect(storeSettings({ A_KV_REST_API_URL: "https://e", B_KV_REST_API_TOKEN: "x" })).toBeNull();
+    expect(storeSettings({ KV_REST_API_URL: "https://f" })).toBeNull();
+  });
+
   it("is off without its settings, and sends two counters per first visit and one otherwise", async () => {
     expect(upstashStore({})).toBeNull();
     const sent: unknown[] = [];
