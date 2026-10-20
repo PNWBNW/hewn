@@ -3603,3 +3603,10 @@ Tests: 1,003/1,003 (9 new). BUILD_PLAN Phase 9: deliverable 5 added, criterion t
 Joshua: some of the README's tab icons rendered tiny. GitHub was squeezing the icon column to fit the
 long descriptions. Each icon now sits above its tab's name in the Tab column, at a fixed 48 px (the
 tiles are 96 px, so they stay sharp). That column is centred, so every row looks the same. Docs only.
+
+## 2026-10-20: pnpm's setup step to v6
+
+CI's `pnpm/action-setup` goes from v4 to v6, the last of the four dependency updates Joshua approved
+(Dependabot's #13 conflicted with the setup-node update next to it). pnpm itself stays pinned at
+10.28.0 by `packageManager`. TypeScript 7 (#19), checkout v7 (#15) and setup-node v7 (#14) are
+already merged, and main is green with them. CI only.
