@@ -35,22 +35,46 @@ difference is where everything lives:
 
 It is free and open source (AGPL-3.0).
 
-## What it does today
+## A tour of the app
 
-| Area | What you can do |
-|---|---|
-| **Dashboard** | See your Shield balances (ALEO and USDCx, private and public), start your books from that balance, and keep money in **set-asides** (an equipment fund, say) without moving it |
-| **Transactions** | A **For review** list built from your wallet history: accept, exclude, change or undo each payment. Also a register and a chart of accounts |
-| **Sales** | Customers, estimates, invoices and payments received |
-| **Expenses** | Vendors, bills, paying bills and receipts |
-| **Payroll** | Team members, pay runs with federal withholding (IRS annualization method), and private paystubs |
-| **Projects** | Projects, classes and locations, to track income and costs by job or place |
-| **Reports** | Profit and loss, balance sheet, trial balance, project profitability and sales tax liability, with period comparisons |
-| **Taxes** | Sales tax, payroll tax and 1099s: what you've collected and what you owe |
-| **Worker side** | The same app for workers: job offers, hours, a W-4 and paystubs |
+Hewn has two sides in one app: a **business** keeps its books and runs its team, and a **worker**
+gets their schedule, clocks hours and keeps their paystubs. One Shield account holds one kind.
+
+### The business side
+
+| | Tab | What it's for |
+|---|---|---|
+| <img src="apps/business/public/brand/hewn-nav-dashboard.png" width="28" alt=""> | **Dashboard** | Where the business stands today: cash, what customers owe, what you owe, and your Shield balances (ALEO and USDCx, private and public). Keep money in **set-asides** (an equipment fund, say) without moving it. |
+| <img src="apps/business/public/brand/hewn-nav-transactions.png" width="28" alt=""> | **Transactions** | A **For review** list built from your wallet history: accept, exclude, change or undo each payment. The register of every entry and the chart of accounts. |
+| <img src="apps/business/public/brand/hewn-nav-sales.png" width="28" alt=""> | **Sales** | Customers, estimates, invoices with sales tax, and payments received (partial, or several invoices at once). |
+| <img src="apps/business/public/brand/hewn-nav-expenses.png" width="28" alt=""> | **Expenses** | Vendors (with a 1099 flag), bills, paying bills and spending. |
+| <img src="apps/business/public/brand/hewn-nav-payroll.png" width="28" alt=""> | **Payroll** | Pay runs with federal withholding (IRS annualization), the **team**, **Schedule** and **Hours**, and withholding owed. Timecards feed the pay run directly: regular hours, overtime, callouts and on-call days each get their own paystub line. |
+| <img src="apps/business/public/brand/hewn-nav-schedule.png" width="28" alt=""> | **Schedule (under Payroll)** | An Outlook-style **team calendar**: a month of day squares with everyone's shifts and on-call days, and tap a day for its hours. Publish a week once and the whole team sees it; each person confirms their own days. |
+| <img src="apps/business/public/brand/hewn-nav-projects.png" width="28" alt=""> | **Projects** | Projects, classes and locations, to track income and costs by job or place. |
+| <img src="apps/business/public/brand/hewn-nav-reports.png" width="28" alt=""> | **Reports** | Profit and loss, balance sheet, trial balance, who owes what, project profitability and sales tax, with period comparisons. |
+| <img src="apps/business/public/brand/hewn-nav-taxes.png" width="28" alt=""> | **Taxes** | Sales tax, payroll tax and 1099s: what you've collected and what you owe. |
+| <img src="apps/business/public/brand/hewn-nav-jobs.png" width="28" alt=""> | **Jobs** | Post openings to the public **job board** (on chain, readable by anyone), feature them, read applications with resumes, interview, and send job offers. Offers carry the pay, the work week and overtime rules, on-call pay and the callout minimum. |
+| <img src="apps/business/public/brand/hewn-nav-messages.png" width="28" alt=""> | **Messages** | A private, end-to-end sealed conversation with each person, and announcement channels to the whole team. |
+| <img src="apps/business/public/brand/hewn-nav-settings.png" width="28" alt=""> | **Settings** | The business, its fiscal year and its `name.hewn`, and the linked Shield account. The menu also has **Download a backup** of the encrypted vault, and **Log out**. |
+
+### The worker side
+
+| | Tab | What it's for |
+|---|---|---|
+| <img src="apps/business/public/brand/hewn-nav-dashboard.png" width="28" alt=""> | **Home** | Clock in and out (or clock in for a callout on an on-call day), your employers, today's status and your latest paystub. |
+| <img src="apps/business/public/brand/hewn-nav-schedule.png" width="28" alt=""> | **Schedule** | The team calendar, with your own shifts standing out, and **My week** to confirm your days or ask for a change. |
+|  | **Offers** | Job offers waiting for you: read the terms, accept, or ask for changes. |
+| <img src="apps/business/public/brand/hewn-nav-jobs.png" width="28" alt=""> | **Find work** | The public job board. Apply with a message and a resume (there's a builder if you don't have one). |
+|  | **Applications** | Everywhere you've applied, and where each one stands. |
+| <img src="apps/business/public/brand/hewn-nav-messages.png" width="28" alt=""> | **Messages** | Your conversations with each employer, and their team announcements. |
+|  | **Hours** | Your punches by day. Fix a shift before it's sent, then **Update weekly timecard**; once sent, a shift is confirmed and locked. |
+| <img src="apps/business/public/brand/hewn-nav-payroll.png" width="28" alt=""> | **Paystubs** | Every paystub, kept privately on your device, with one line per kind of pay. |
+|  | **Profile** | The `name.hewn` employers know you by, and the profile behind it. |
 
 Every business and worker registers a **`name.hewn`**, so people find each other by name rather
-than by a long wallet address.
+than by a long wallet address. Anyone can also see the public [job board](https://app.hewnaccounting.com/board)
+and the [traction map](https://app.hewnaccounting.com/traction) (where people have opened Hewn,
+by country, with no account).
 
 ## How it works
 
@@ -58,9 +82,9 @@ than by a long wallet address.
  Your device                                         Aleo (testnet)
 ┌──────────────────────────────────────┐            ┌───────────────────────────┐
 │  Hewn (web app, runs in the browser) │            │  Leo programs:            │
-│                                      │  signed in │  name registry,           │
-│  Encrypted vault (IndexedDB)         │  Shield    │  agreements, USDCx        │
-│   books · payroll · W-4s · paystubs ─┼───────────▶│  transfers, audit anchors │
+│                                      │  signed in │  names, agreements, USDCx │
+│  Encrypted vault (IndexedDB)         │  Shield    │  pay, receipts, sealed    │
+│   books · payroll · hours · paystubs ┼───────────▶│  letters, job board       │
 │                                      │            │                           │
 │  Shield wallet history ──────────────┼◀───────────┤  public state holds only  │
 │   → "For review" list                │   reads    │  hashes and commitments   │
@@ -74,11 +98,16 @@ than by a long wallet address.
 - **The wallet.** Shield is the only wallet. Every on-chain action is signed in Shield, so you
   always see what you are signing. One Shield account holds one kind of account (a business or a
   worker), so business and personal money never mix.
-- **Payroll.** Hewn works out gross pay, withholding and net pay on your device. It then pays each
-  worker with a private USDCx transfer from your wallet. Paystubs and W-4s travel between the two
-  parties through a sealed **mailbox**: encrypted with a key only the employer and that worker
-  can derive, so the relay can't read them.
-  
+- **Payroll.** Hewn works out gross pay, withholding and net pay on your device, from the hours
+  on each person's weekly timecard (overtime, callouts and on-call days included, as agreed in
+  their offer). It then pays each worker with a private USDCx transfer from your wallet.
+- **Letters.** Offers, timecards, schedules, paystubs and messages travel between the two parties
+  as sealed **letters**: private Aleo records, encrypted with a key only the employer and that
+  worker can derive. Team announcements and the team calendar go to a channel whose key only the
+  team holds. Each person on the shared calendar is tagged by a one-way value, never by their key.
+- **The job board** is public on purpose: a posting, its pay range if given, and how to apply.
+  Applications are sealed letters to the business, never on the board.
+
 ## Where it came from
 
 Hewn has been built on the side, for free, over a few years, alongside a full-time job. In the
@@ -127,7 +156,11 @@ understanding Aleo well enough to catch what the tools got wrong.
 **Hewn (October 2026).** Payroll alone wasn't enough: small businesses need their books.
 The portal's libraries were moved into this repository and rebuilt into a full bookkeeping app:
 wallet-first, kept in an encrypted vault on your device, open source under the AGPL. It keeps
-PNW's privacy rules, its Leo programs and its tax engine.
+PNW's privacy rules, its Leo programs and its tax engine. Within weeks it grew the rest of what a
+small business runs on: sealed messaging and team announcements, a public job board with
+applications and resumes, weekly timecards that feed payroll, overtime, on-call pay and callouts,
+and a shared team calendar. By late October 2026 that came to about 81,000 lines of code
+(16,000 of them tests) and 9,000 lines of Leo.
 
 **Next: mainnet.** `.hewn` names are planned as a top-level domain in the
 [Aleo Name Service](https://aleonames.id), so they resolve across the Aleo ecosystem. See
@@ -181,11 +214,13 @@ pnpm install
 pnpm test            # the whole test suite (vitest)
 pnpm build           # strict typecheck of every package, then the app builds
 pnpm dev:business    # the app on http://localhost:3000
+pnpm --filter @pnw/business build:static   # the installable app's bundle, in apps/business/out
 ```
 
-The app needs no settings to run. The only optional one is the mailbox's pinning key: see
-`apps/business/.env.example`, and copy it to `.env.local` (gitignored). Never commit a `.env`
-file or any key.
+The app needs no settings to run. The optional ones are the courier's pinning key (see
+`apps/business/.env.example`; copy it to `.env.local`, which is gitignored) and, on the website,
+the Upstash store behind the traction map (`KV_REST_API_URL` and `KV_REST_API_TOKEN`, set by
+Vercel when the store is connected). Never commit a `.env` file or any key.
 
 The submodules are only needed for the Leo programs and the legacy portal. Their `.gitmodules`
 URLs use SSH; clone them over HTTPS if you have no GitHub SSH key.
