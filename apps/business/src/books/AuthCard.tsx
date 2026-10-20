@@ -117,14 +117,17 @@ export function PassphraseInput({
   autoComplete = "current-password",
   name = "password",
   inputRef,
+  initiallyShown = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   autoComplete?: "current-password" | "new-password";
   name?: string;
   inputRef?: Ref<HTMLInputElement>;
+  /** Start with the passphrase visible (a suggested one, to write down). */
+  initiallyShown?: boolean;
 }) {
-  const [shown, setShown] = useState(false);
+  const [shown, setShown] = useState(initiallyShown);
   const Icon = shown ? EyeOff : Eye;
   return (
     <div className="relative">

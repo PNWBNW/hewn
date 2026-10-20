@@ -99,11 +99,12 @@ describe("accountSecret", () => {
 });
 
 describe("checkAccountPassphrase", () => {
-  it("holds the passphrase itself to ten characters, not the secret with the email in it", () => {
-    expect(() => checkAccountPassphrase("123456789")).toThrow(/at least 10/);
-    expect(() => checkAccountPassphrase("1234567890")).not.toThrow();
-    expect(() => checkAccountPassphrase("🌲".repeat(9))).toThrow();
-    expect(() => checkAccountPassphrase("🌲".repeat(10))).not.toThrow();
+  it("holds a new passphrase to the rules, not the secret with the email in it", () => {
+    expect(() => checkAccountPassphrase("river acid!")).toThrow(/at least 12/);
+    expect(() => checkAccountPassphrase("copper lantern river ninth")).not.toThrow();
+    expect(() => checkAccountPassphrase("Password123!")).toThrow(/common password/);
+    expect(() => checkAccountPassphrase("jane.doe 2026 river!", "jane.doe@example.com")).toThrow(/email/);
+    expect(() => checkAccountPassphrase("🌲 pine 🌲 cone 🌲")).not.toThrow();
   });
 });
 

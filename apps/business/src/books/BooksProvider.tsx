@@ -281,7 +281,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const create = useCallback(
     async ({ template, email: rawEmail, passphrase, role, stay = true, ...settings }: SetupInput) => {
       const email = normalizeEmail(rawEmail);
-      checkAccountPassphrase(passphrase);
+      checkAccountPassphrase(passphrase, email);
       const id = await vaultIdFor(email, role);
       // Never overwrite: this screen is reachable on a device that already has accounts.
       if (await store.load(id)) {

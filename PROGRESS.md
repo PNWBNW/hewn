@@ -3642,3 +3642,32 @@ wherever a folder needs explaining; the context files accurate for anyone who fo
 `CLAUDE.md` says not to build there; the old context is kept under `docs/archive/`.
 
 No code behaviour changed. Tests 986/986, every package and both apps build.
+
+## 2026-10-20: stronger new passphrases
+
+Joshua: the biggest threat is a person's own login, not the maths. A copied vault or backup file can
+be guessed at offline with no lockout, so new passphrases get real rules and a nudge toward words.
+- **The rules** (`packages/vault/src/passphrase.ts`, `checkNewPassphrase`):
+  - At least 12 characters, with a letter and a space or symbol. A space counts, so plain words
+    like `copper lantern river` pass.
+  - Refused when built on a common password, with look-alike characters undone (`P@ssw0rd2024!`),
+    when it's mostly one character, or when it contains the account email's name part.
+- **A meter:** five bars from "Too weak" to "Very strong", from a deliberately conservative bit
+  estimate. Words from the list count 11 bits each; other passphrases count by character, minus
+  repeats, keyboard runs and common words, then halved, because people don't pick at random.
+- **"Suggest one":** five distinct random words from the BIP-39 English list (2,048 words, about
+  55 bits), drawn with the platform's random source. The field shows it so it can be written down,
+  and the confirm box stays empty, so it has to be typed once. Two list words that read as chain
+  jargon (`token`, `coin`) are never suggested.
+- The list is copied as data from `@scure/bip39` 2.4.0 (MIT), not added as a dependency. A test
+  pins its SHA-256 to the published list.
+- Setup uses the rules (`account.ts` `checkAccountPassphrase` now takes the email). Existing
+  accounts open with whatever they were made with. The threat model gets the offline-guessing row.
+- Decided the same day:
+  - **Reports:** a Report button on received messages. A report about harassment tells the sender
+    nothing; other categories tell them, in case their account was taken over.
+  - **Account recovery** is parked until after more thought.
+  - **The DAO copy** of agreements stays on testnet. On mainnet, agreements change to no DAO copy
+    and no DAO powers.
+
+Tests: 996/996 (10 new: `passphrase.test.ts`, and the account rule updated).
