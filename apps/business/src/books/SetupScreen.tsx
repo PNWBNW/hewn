@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Briefcase, HardHat } from "lucide-react";
+import { Briefcase, HardHat, Sparkles } from "lucide-react";
 import { TEMPLATES, type TemplateId } from "@pnw/ledger";
-import { MIN_PASSPHRASE } from "@pnw/vault";
+import { MIN_NEW_PASSPHRASE, type Strength, checkNewPassphrase, suggestPassphrase } from "@pnw/vault";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { AuthCard, Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
@@ -29,12 +29,14 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [passphrase, setPassphrase] = useState("");
+  // Bumped when a passphrase is suggested, so the field remounts showing it (to write down).
+  const [suggested, setSuggested] = useState(0);
   const [confirm, setConfirm] = useState("");
   const [understood, setUnderstood] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const tooShort = [...passphrase.normalize("NFKC")].length < MIN_PASSPHRASE;
+  const check = checkNewPassphrase(passphrase, email);
   const mismatch = confirm.length > 0 && confirm !== passphrase;
   const emailOk = isEmail(email);
   const emailBad = emailTouched && email.trim() !== "" && !emailOk;
@@ -215,7 +217,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
           className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (emailOk && !tooShort && !mismatch && confirm === passphrase && understood) void finish();
+            if (emailOk && check.ok && !mismatch && confirm === passphrase && understood) void finish();
           }}
         >
           <p className="text-sm text-muted-foreground">
@@ -240,9 +242,36 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
             />
           </Field>
           {emailBad && <p className="-mt-3 text-xs text-destructive">Enter an email like name@example.com.</p>}
-          <Field label="Passphrase" hint={`At least ${MIN_PASSPHRASE} characters.`}>
-            <PassphraseInput value={passphrase} onChange={setPassphrase} autoComplete="new-password" name="new-password" />
+          <Field label="Passphrase" hint={`At least ${MIN_NEW_PASSPHRASE} characters, with a letter and a space or symbol. Five random words is best.`}>
+            <PassphraseInput key={suggested} value={passphrase} onChange={setPassphrase} autoComplete="new-password" name="new-password" initiallyShown={suggested > 0} />
           </Field>
+          <div className="-mt-3 flex flex-col gap-2">
+            {passphrase && <StrengthMeter strength={check.strength} />}
+            {passphrase && check.problems.length > 0 && (
+              <ul className="text-xs text-destructive">
+                {check.problems.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="min-h-11 sm:min-h-8"
+                onClick={() => {
+                  setPassphrase(suggestPassphrase());
+                  setConfirm("");
+                  setSuggested((n) => n + 1);
+                }}
+              >
+                <Sparkles aria-hidden />
+                Suggest one
+              </Button>
+              {suggested > 0 && <span className="text-xs text-muted-foreground">Write it down now, then type it below.</span>}
+            </div>
+          </div>
           <p className="-mt-3 text-sm">There is no password reset. If you lose your passphrase, you lose the books, so keep a backup.</p>
           <Field label="Type it again">
             <input
@@ -272,7 +301,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
             <Button
               type="submit"
               className="h-11 flex-1"
-              disabled={busy || !emailOk || tooShort || mismatch || confirm !== passphrase || !understood}
+              disabled={busy || !emailOk || !check.ok || mismatch || confirm !== passphrase || !understood}
             >
               {busy ? "Encrypting…" : worker ? "Create my space" : "Create my books"}
             </Button>
@@ -296,5 +325,28 @@ function RoleCard({ icon: Icon, title, description, onClick }: { icon: typeof Br
         <span className="block text-xs text-muted-foreground">{description}</span>
       </span>
     </button>
+  );
+}
+
+const STRENGTH_STEPS: Record<Strength, { filled: number; tone: string; label: string }> = {
+  "too weak": { filled: 1, tone: "bg-destructive", label: "Too weak" },
+  weak: { filled: 2, tone: "bg-destructive", label: "Weak" },
+  fair: { filled: 3, tone: "bg-warning", label: "Fair: another word or two would help" },
+  strong: { filled: 4, tone: "bg-[var(--hewn-green)]", label: "Strong" },
+  "very strong": { filled: 5, tone: "bg-[var(--hewn-green)]", label: "Very strong" },
+};
+
+/** Five bars and a word: how hard the passphrase looks to guess offline. */
+function StrengthMeter({ strength }: { strength: Strength }) {
+  const step = STRENGTH_STEPS[strength];
+  return (
+    <div className="flex items-center gap-3" role="status" aria-live="polite">
+      <div className="flex flex-1 gap-1" aria-hidden>
+        {Array.from({ length: 5 }, (_, i) => (
+          <span key={i} className={cn("h-1.5 flex-1 rounded-full", i < step.filled ? step.tone : "bg-muted")} />
+        ))}
+      </div>
+      <span className="shrink-0 text-xs text-muted-foreground">{step.label}</span>
+    </div>
   );
 }

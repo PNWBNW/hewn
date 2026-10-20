@@ -469,6 +469,15 @@ handling); likely a Fable session for the key agreement.
   else; only `.hewn` names and job postings are public (2026-10-16). Never a silent fallback to a
   public fee: short of private ALEO, the app stops and offers to move some. Being tested behind a
   per-device switch first.
+- [x] New passphrases: at least 12 characters with a letter and a space or symbol, common
+  passwords refused, a strength meter and a five-word suggestion (2026-10-20).
+- [x] A Report button on received messages; a harassment report tells the sender nothing, other
+  categories tell them in case their account was taken over (2026-10-20). To build.
+- [x] The DAO's agreement copy and powers stay while on testnet; on mainnet, agreements carry no DAO
+  copy and no DAO powers (`employer_agreement_v5`), and job board fees keep going to Hewn's wallet
+  (2026-10-20).
+- [ ] Account recovery after a takeover (a recovery code, moving a name to a new wallet): parked
+  for more thought (2026-10-20).
 - [x] Offers carry no files (PDFs, photos); the offer letter is one box of up to 20,000 characters
   to write or paste into (2026-10-16). Offers sent before keep their files.
 - [x] Pay (type, rate, how often), employment type, hours a week and start date are boxes of their

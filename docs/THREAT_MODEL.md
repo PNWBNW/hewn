@@ -53,6 +53,14 @@ No server, no database. ✅ Structural, from the architecture.
   guessed email against it cheaply. That confirms an address they already suspect; it opens
   nothing (the key still needs the passphrase), and the email is not stored in the clear anywhere
   (it lives inside the encrypted company file). Accepted.
+- **Offline guessing is the main threat to the vault (2026-10-20).** A copied vault or backup file
+  can be guessed at with no lockout, so a new passphrase must be at least 12 characters with a
+  letter and a space or symbol, and is refused when it is built on a common password or on the
+  account's email. Setup shows a strength meter and offers five random words from the BIP-39 list
+  (about 55 bits). PBKDF2-SHA256 at 600k rounds slows each guess. ✅ `@pnw/vault`
+  (`checkNewPassphrase`, `suggestPassphrase`). ⚠️ Existing accounts keep the passphrase they were
+  made with (the old minimum was 10 characters). 🔜 A memory-hard KDF (Argon2id), the wallet or a
+  passkey as a second factor.
 - Login never says whether an email has an account here: one generic message for a wrong email,
   a wrong passphrase or an empty device, and a failed lookup spends one key derivation so the wait
   tells the same story. ✅

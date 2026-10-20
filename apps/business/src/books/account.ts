@@ -15,7 +15,7 @@
 // tests run on a `MemoryStore` with small PBKDF2 rounds.
 // ---------------------------------------------------------------------------
 
-import { type VaultSession, type VaultStore, KDF_ITERATIONS, MIN_PASSPHRASE, VaultError, sha256Hex, unlockVault } from "@pnw/vault";
+import { type VaultSession, type VaultStore, KDF_ITERATIONS, VaultError, checkNewPassphrase, sha256Hex, unlockVault } from "@pnw/vault";
 import type { Role } from "./work";
 
 /** The two kinds of account an email can hold. */
@@ -64,11 +64,14 @@ export function isEmail(raw: string): boolean {
   }
 }
 
-/** Setup's own rule for the passphrase: the secret always has the email in it, so the vault can't enforce this. */
-export function checkAccountPassphrase(passphrase: string): void {
-  if ([...passphrase.normalize("NFKC")].length < MIN_PASSPHRASE) {
-    throw new VaultError("WEAK_PASSPHRASE", `Use at least ${MIN_PASSPHRASE} characters`);
-  }
+/**
+ * Setup's rule for a new passphrase (`@pnw/vault` `checkNewPassphrase`): at least 12 characters, a
+ * letter and a space or symbol, not a common password or the email. The secret always has the email
+ * in it, so the vault can't enforce this itself. Existing accounts open with what they were made with.
+ */
+export function checkAccountPassphrase(passphrase: string, email = ""): void {
+  const check = checkNewPassphrase(passphrase, email);
+  if (!check.ok) throw new VaultError("WEAK_PASSPHRASE", check.problems[0]!);
 }
 
 /**
