@@ -14,8 +14,10 @@ import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { calendarOf, formatMinutes, localDate, longestMinutesOf, minutesOn, weekMinutes, weekStartOf } from "@/books/hours";
 import { paystubFromCanonical } from "@/books/paystub_document";
-import { dayOf, publishedWeek, scheduleWeekOf } from "@/books/schedule";
-import { activeAgreements, openPunch, punch, workThread } from "@/books/work";
+import { dayOf, scheduleWeekOf } from "@/books/schedule";
+import { personWeek } from "@/books/team_schedule";
+import { workSources } from "@/books/team_sources";
+import { activeAgreements, openPunch, punch } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { SendWeek } from "./SendWeek";
 import { STATUS_LABEL, clock, dollars, employerLabel, payLine, useNow } from "./shared";
@@ -41,7 +43,7 @@ export default function WorkHomePage() {
   const latest = [...work.paystubs].sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : -1))[0];
 
   // On call today, in a week they confirmed: they can clock in for a callout (paid at the overtime rate, with the agreed minimum).
-  const confirmedWeek = agreement ? publishedWeek(workThread(work, agreement.partiesKey), scheduleWeekOf(today)) : undefined;
+  const confirmedWeek = agreement ? personWeek(workSources(work, agreement), scheduleWeekOf(today)) : undefined;
   const onCallToday = confirmedWeek?.answer?.answer === "confirmed" && dayOf(confirmedWeek.week, today).onCall;
   const openIsCallout = open?.callout === true;
 

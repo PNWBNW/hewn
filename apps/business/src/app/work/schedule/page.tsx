@@ -1,15 +1,16 @@
 "use client";
 
-// Schedule, for a person who works for a business (Joshua, 2026-10-20): the
-// week their employer published, day by day, with both layers: the shifts
-// and their hours, and the days they're on call. They confirm it or ask for a
-// change (chain/work/AnswerSchedule.tsx). New weeks arrive with their
-// messages, read when the page opens and on "Check now".
+// Schedule, for a person who works for a business (Joshua, 2026-10-20). Two
+// views: the team calendar, everyone's shifts and on-call days as the business
+// published them, their own standing out (books/TeamCalendar.tsx); and "My
+// week", their own days with both layers, which they confirm or ask to change
+// (chain/work/AnswerSchedule.tsx). New weeks arrive with their messages, read
+// when the page opens and on "Check now".
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, RefreshCw } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
@@ -17,8 +18,11 @@ import { inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
-import { addDays, blockLabel, dayOf, onCallDays, publishedWeek, scheduleDays, scheduleWeekOf, weekShiftMinutes } from "@/books/schedule";
-import { activeAgreements, workThread } from "@/books/work";
+import { addDays, blockLabel, dayOf, onCallDays, scheduleDays, scheduleWeekOf, weekShiftMinutes } from "@/books/schedule";
+import { TeamCalendar } from "@/books/TeamCalendar";
+import { calendarEntries, personWeek } from "@/books/team_schedule";
+import { workCalendar, workSources } from "@/books/team_sources";
+import { activeAgreements } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { dayLabel, employerLabel, when } from "../shared";
 
@@ -42,14 +46,19 @@ export default function SchedulePage() {
   }, []);
   useEffect(() => setAnswering(null), [weekStart, chosen]);
 
-  const thread = agreement ? workThread(work, agreement.partiesKey) : undefined;
-  const published = publishedWeek(thread, weekStart);
+  const sources = useMemo(() => (agreement ? workSources(work, agreement) : undefined), [work, agreement]);
+  const entries = useMemo(() => (agreement ? calendarEntries(workCalendar(work, agreement)) : []), [work, agreement]);
+  const published = sources ? personWeek(sources, weekStart) : undefined;
   const week = published?.week;
   const days = week ? onCallDays(week) : 0;
+  // Opens on their own week while this week waits for their answer; on the calendar otherwise.
+  const thisWeek = sources ? personWeek(sources, scheduleWeekOf(today)) : undefined;
+  const [view, setView] = useState<"calendar" | "mine" | null>(null);
+  const shown = view ?? (thisWeek && !thisWeek.answer && thisWeek.week.days.length > 0 ? "mine" : "calendar");
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Schedule" summary="Your shifts and on-call days, as your employer published them. Confirm each week, or ask for a change." />
+      <PageHeader title="Schedule" summary="Everyone's shifts and on-call days, as your employer published them. Confirm your own each week, or ask for a change." />
       {agreements.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Accept an offer first; your schedule shows here once your employer publishes it.{" "}
@@ -72,17 +81,25 @@ export default function SchedulePage() {
             </label>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Earlier week" onClick={() => setWeekStart(addDays(weekStart, -7))}>
-                <ChevronLeft aria-hidden className="size-4" />
-              </Button>
-              <span className="text-sm font-medium">
-                {dayLabel(weekStart)} – {dayLabel(addDays(weekStart, 6))}
-                {weekStart === scheduleWeekOf(today) && <span className="block text-xs font-normal text-muted-foreground">This week</span>}
-              </span>
-              <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Later week" onClick={() => setWeekStart(addDays(weekStart, 7))}>
-                <ChevronRight aria-hidden className="size-4" />
-              </Button>
+            <div role="tablist" aria-label="Schedule view" className="inline-flex rounded-md border p-0.5">
+              {(
+                [
+                  ["calendar", "Team calendar", CalendarDays],
+                  ["mine", "My week", ListChecks],
+                ] as const
+              ).map(([v, label, Icon]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  aria-selected={shown === v}
+                  onClick={() => setView(v)}
+                  className={cn("flex min-h-11 items-center gap-1.5 rounded px-3 text-sm sm:min-h-8", shown === v ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent")}
+                >
+                  <Icon aria-hidden className="size-4" />
+                  {label}
+                </button>
+              ))}
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground" role="status" aria-live="polite">
@@ -98,9 +115,46 @@ export default function SchedulePage() {
           </div>
           {run !== null && <MessagesCheck key={run} onFinished={finished} />}
 
+          {shown === "calendar" ? (
+            <TeamCalendar
+              entries={entries}
+              today={today}
+              {...(sources?.who ? { highlight: sources.who } : {})}
+              dayFooter={(date) => (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="min-h-11 self-start sm:min-h-8"
+                  onClick={() => {
+                    setWeekStart(scheduleWeekOf(date));
+                    setView("mine");
+                  }}
+                >
+                  <ListChecks aria-hidden />
+                  My week
+                </Button>
+              )}
+            />
+          ) : (
+          <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Earlier week" onClick={() => setWeekStart(addDays(weekStart, -7))}>
+                <ChevronLeft aria-hidden className="size-4" />
+              </Button>
+              <span className="text-sm font-medium">
+                {dayLabel(weekStart)} – {dayLabel(addDays(weekStart, 6))}
+                {weekStart === scheduleWeekOf(today) && <span className="block text-xs font-normal text-muted-foreground">This week</span>}
+              </span>
+              <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Later week" onClick={() => setWeekStart(addDays(weekStart, 7))}>
+                <ChevronRight aria-hidden className="size-4" />
+              </Button>
+            </div>
+          </div>
+
           <Card>
             <CardContent className="flex flex-col gap-3 pt-6">
-              {!published || !week ? (
+              {!published || !week || week.days.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nothing published for this week yet.</p>
               ) : (
                 <>
@@ -155,6 +209,8 @@ export default function SchedulePage() {
               )}
             </CardContent>
           </Card>
+          </>
+          )}
         </>
       )}
     </div>

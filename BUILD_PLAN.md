@@ -236,8 +236,10 @@ No seat cap; the wallet is the user.
 
 Built into the app, not sold separately. Every day has two layers: shift blocks with their hours,
 and an on-call layer covering the whole 24 hours, independent of each other. The business publishes
-each person's week, the person confirms it or asks for a change, and nothing counts until it is
-confirmed. A schedule is private like wages: the vault and sealed letters only.
+the week to the whole team at once, so everyone at the business sees the same calendar; each person
+confirms their own days or asks for a change, and nothing counts until it is confirmed. A schedule
+never leaves the team: the vault and sealed letters only (the team's "Team schedule" channel, where
+each person is tagged by a one-way value from the key they share with the business).
 
 **Deliverables**
 
@@ -248,12 +250,15 @@ confirmed. A schedule is private like wages: the vault and sealed letters only.
    in the offer's terms; a callout clocked in on an on-call day; both as lines on Run payroll.
 3. Schedule against the clock: today's shift on Home; early, late and unscheduled time flagged on
    the business's timecards.
-4. Later: shift swaps between coworkers, availability, open shifts.
+4. Team calendar (Joshua, 2026-10-20): a month of day squares with everyone's shifts and on-call
+   days, tap a day for its hours; the same calendar on both sides, the business's drafts dashed.
+5. Later: shift swaps between coworkers, availability, open shifts.
 
 **Exit criteria**
 
 - [x] A week with a shift and an on-call day on the same date publishes, is confirmed by the person, and both sides show it as confirmed (2026-10-20)
 - [x] A confirmed on-call week and one callout pay the agreed on-call amount and the callout minimum at the overtime rate on the next run (2026-10-20)
+- [x] A week published to the team shows the same shifts and on-call days on every member's calendar, and a republish that leaves a person's days alone keeps their confirmation (2026-10-20)
 - [ ] A shift clocked in 20 minutes late shows as late on the business's timecard
 
 ---

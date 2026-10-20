@@ -70,8 +70,15 @@ export async function sendChannelKey(
 }
 
 /** Seals one post with the channel key into the next free slot. Returns it as the business keeps it. */
-export async function postToChannel(client: PostInput["client"], ch: BusinessChannel, text: string, now: Date = new Date(), feeMode?: FeeMode): Promise<PostItem> {
-  const post: ChannelPost = validatePost({ version: 1, id: newMessageId(), sentAt: now.toISOString(), text });
+export async function postToChannel(
+  client: PostInput["client"],
+  ch: BusinessChannel,
+  text: string,
+  now: Date = new Date(),
+  feeMode?: FeeMode,
+  extra: Pick<ChannelPost, "schedule"> = {},
+): Promise<PostItem> {
+  const post: ChannelPost = validatePost({ version: 1, id: newMessageId(), sentAt: now.toISOString(), text, ...extra });
   const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(post)));
   if (bytes.length > MAX_PAYLOAD_BYTES) throw new ChannelError("That post is too long to send");
   const key = partiesKeyFromHex(ch.key);

@@ -1,15 +1,18 @@
 "use client";
 
-// Schedule, under Payroll (Joshua, 2026-10-20): a week at a time, one card per
-// team member, each day with two layers: shift blocks with their hours, and
-// on call for the whole day. Edits are drafts in the vault; Publish sends the
-// person their week (chain/PublishSchedule.tsx) and they confirm it or ask for
-// a change. Answers are read with the rest of the team's letters, when the
-// tab opens and on "Check now".
+// Schedule, under Payroll (Joshua, 2026-10-20). Two views:
+//   - Calendar: the month as everyone on the team sees it (books/TeamCalendar.tsx),
+//     with this device's unpublished drafts shown dashed; tap a day for its hours.
+//   - Edit week: a week at a time, one card per team member, each day with two
+//     layers: shift blocks with their hours, and on call for the whole day.
+// Edits are drafts in the vault; "Publish to the team" sends the week to
+// everyone at once (chain/PublishTeamSchedule.tsx), and each person confirms
+// their own days or asks for a change. Answers are read with the rest of the
+// team's letters, when the tab opens and on "Check now".
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { ChevronLeft, ChevronRight, Copy, Plus, RefreshCw, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Copy, PencilLine, Plus, RefreshCw, X } from "lucide-react";
 import type { Worker } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
@@ -18,11 +21,11 @@ import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
-import { threadFor } from "@/books/mailbox";
 import { mailboxLinks } from "@/books/mailbox_feed";
 import { linkFor } from "@/books/rail";
 import {
   STATUS_LABEL,
+  type PublishedWeek,
   type ScheduleDay,
   type ScheduleWeek,
   type WeekStatus,
@@ -33,7 +36,6 @@ import {
   emptySchedule,
   emptyWeek,
   onCallDays,
-  publishedWeek,
   scheduleDays,
   scheduleWeekOf,
   setDraft,
@@ -42,38 +44,82 @@ import {
   weekStatus,
   withDay,
 } from "@/books/schedule";
+import { TeamCalendar } from "@/books/TeamCalendar";
+import { type TeamEntry, calendarEntries, personWeek } from "@/books/team_schedule";
+import { businessCalendar, businessSources } from "@/books/team_sources";
 import { dayLabel } from "../work/shared";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
 const MailboxCheck = dynamic(() => import("@/chain/MailboxCheck"), { ssr: false });
-const PublishSchedule = dynamic(() => import("@/chain/PublishSchedule"), { ssr: false, loading });
+const PublishTeamSchedule = dynamic(() => import("@/chain/PublishTeamSchedule"), { ssr: false, loading });
 
 type Checking = { state: "idle" } | { state: "running"; run: number } | { state: "done"; message?: string };
 
+/** One person's week as the business sees it: their draft, what was published, and where it stands. */
+type Row = { worker: Worker; partiesKey: string | undefined; reachable: boolean; draft: ScheduleWeek | undefined; published: PublishedWeek | undefined; status: WeekStatus };
+
 export function Schedule() {
-  const { payroll, rail } = useOpenBooks();
-  const [weekStart, setWeekStart] = useState(() => scheduleWeekOf(todayIso()));
+  const { payroll, rail, mailbox, schedule } = useOpenBooks();
+  const today = todayIso();
+  const [view, setView] = useState<"calendar" | "week">("calendar");
+  const [weekStart, setWeekStart] = useState(() => scheduleWeekOf(today));
+  const [publishing, setPublishing] = useState(false);
   const canCheck = mailboxLinks(rail).length > 0;
   const [check, setCheck] = useState<Checking>(canCheck ? { state: "running", run: 0 } : { state: "idle" });
   const finished = useCallback((o: { message?: string }) => setCheck({ state: "done", ...(o.message ? { message: o.message } : {}) }), []);
   useEffect(() => {
     if (canCheck) setCheck((c) => (c.state === "idle" ? { state: "running", run: 0 } : c));
   }, [canCheck]);
-  const team = payroll.workers.filter((w) => w.active);
+  useEffect(() => setPublishing(false), [weekStart]);
+
+  const team = useMemo(() => payroll.workers.filter((w) => w.active), [payroll.workers]);
+  const members = useMemo(
+    () =>
+      team.map((w) => {
+        const link = rail ? linkFor(rail, w.id) : undefined;
+        return { worker: w, partiesKey: link?.status === "linked" ? link.partiesKey : undefined };
+      }),
+    [team, rail],
+  );
+  const entries = useMemo(
+    () => calendarEntries(businessCalendar(mailbox, schedule, members.map((m) => ({ workerId: m.worker.id, name: m.worker.name, partiesKey: m.partiesKey })))),
+    [mailbox, schedule, members],
+  );
+  const rows: Row[] = members.map(({ worker, partiesKey }) => {
+    const published = partiesKey ? personWeek(businessSources(mailbox, schedule, partiesKey), weekStart) : undefined;
+    const draft = draftOf(schedule, worker.id, weekStart);
+    return { worker, partiesKey, reachable: !!partiesKey, draft, published, status: weekStatus(draft, published) };
+  });
+  // Everyone reachable with days this week goes on the publish: drafts as drafted, the rest as they were.
+  const toPublish: TeamEntry[] = rows.flatMap((r) => {
+    const days = (r.draft ?? r.published?.week)?.days ?? [];
+    return r.reachable && days.length > 0 ? [{ workerId: r.worker.id, name: r.worker.name, partiesKey: r.partiesKey!, days }] : [];
+  });
+  const pending = rows.filter((r) => r.reachable && (r.status === "draft" || r.status === "changed")).length;
+  const weekLabel = `${dayLabel(weekStart)} – ${dayLabel(addDays(weekStart, 6))}`;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Earlier week" onClick={() => setWeekStart(addDays(weekStart, -7))}>
-            <ChevronLeft aria-hidden className="size-4" />
-          </Button>
-          <span className="text-sm font-medium">
-            {dayLabel(weekStart)} – {dayLabel(addDays(weekStart, 6))}
-          </span>
-          <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Later week" onClick={() => setWeekStart(addDays(weekStart, 7))}>
-            <ChevronRight aria-hidden className="size-4" />
-          </Button>
+        <div role="tablist" aria-label="Schedule view" className="inline-flex rounded-md border p-0.5">
+          {(
+            [
+              ["calendar", "Calendar", CalendarDays],
+              ["week", "Edit week", PencilLine],
+            ] as const
+          ).map(([v, label, Icon]) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={cn("flex min-h-11 items-center gap-1.5 rounded px-3 text-sm sm:min-h-8", view === v ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent")}
+            >
+              <Icon aria-hidden className="size-4" />
+              {label}
+            </button>
+          ))}
         </div>
         <div className="flex items-center gap-3">
           {check.state === "running" && <span className="text-xs text-muted-foreground">Checking for answers…</span>}
@@ -87,13 +133,51 @@ export function Schedule() {
         </div>
       </div>
       {check.state === "running" && <MailboxCheck key={check.run} onFinished={finished} />}
-      <p className="text-xs text-muted-foreground">
-        Each day has two layers: shifts with their hours, and on call for the whole day. Publish sends the person their week; it counts once they confirm it.
-      </p>
-      {team.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Add someone to your team first.</p>
+
+      {view === "calendar" ? (
+        <TeamCalendar
+          entries={entries}
+          today={today}
+          dayFooter={(date) => (
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-11 self-start sm:min-h-8"
+              onClick={() => {
+                setWeekStart(scheduleWeekOf(date));
+                setView("week");
+              }}
+            >
+              <PencilLine aria-hidden />
+              Edit this week
+            </Button>
+          )}
+        />
       ) : (
-        team.map((w) => <PersonWeek key={`${w.id}:${weekStart}`} worker={w} weekStart={weekStart} />)
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Earlier week" onClick={() => setWeekStart(addDays(weekStart, -7))}>
+                <ChevronLeft aria-hidden className="size-4" />
+              </Button>
+              <span className="text-sm font-medium">{weekLabel}</span>
+              <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" aria-label="Later week" onClick={() => setWeekStart(addDays(weekStart, 7))}>
+                <ChevronRight aria-hidden className="size-4" />
+              </Button>
+            </div>
+            {pending > 0 && !publishing && (
+              <Button size="sm" className="min-h-11 sm:min-h-8" onClick={() => setPublishing(true)}>
+                Publish to the team
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Each day has two layers: shifts with their hours, and on call for the whole day. Publishing sends the week to everyone on the team, so they all see the same
+            calendar; each person&apos;s days count once they confirm them.
+          </p>
+          {publishing && <PublishTeamSchedule weekStart={weekStart} weekLabel={weekLabel} people={toPublish} onClose={() => setPublishing(false)} />}
+          {team.length === 0 ? <p className="text-sm text-muted-foreground">Add someone to your team first.</p> : rows.map((r) => <PersonWeek key={`${r.worker.id}:${weekStart}`} row={r} weekStart={weekStart} />)}
+        </>
       )}
     </div>
   );
@@ -108,20 +192,14 @@ const STATUS_TONE: Record<WeekStatus, string> = {
   change_asked: "text-destructive",
 };
 
-function PersonWeek({ worker, weekStart }: { worker: Worker; weekStart: string }) {
-  const { rail, mailbox, schedule, updateCompany } = useOpenBooks();
-  const [publishing, setPublishing] = useState(false);
+function PersonWeek({ row, weekStart }: { row: Row; weekStart: string }) {
+  const { mailbox, schedule, updateCompany } = useOpenBooks();
   const [error, setError] = useState<string | null>(null);
-  const link = rail ? linkFor(rail, worker.id) : undefined;
-  const reachable = link?.status === "linked" && !!link.partiesKey;
-  const thread = link?.partiesKey ? threadFor(mailbox, link.partiesKey) : undefined;
-  const published = publishedWeek(thread, weekStart);
-  const draft = draftOf(schedule, worker.id, weekStart);
+  const { worker, reachable, draft, published, status } = row;
   const week = draft ?? published?.week ?? emptyWeek(weekStart);
-  const status = weekStatus(draft, published);
   // The week before, for "Copy last week": its draft, or what was published.
   const lastWeekStart = addDays(weekStart, -7);
-  const lastWeek = draftOf(schedule, worker.id, lastWeekStart) ?? publishedWeek(thread, lastWeekStart)?.week;
+  const lastWeek = draftOf(schedule, worker.id, lastWeekStart) ?? (row.partiesKey ? personWeek(businessSources(mailbox, schedule, row.partiesKey), lastWeekStart)?.week : undefined);
 
   async function save(next: ScheduleWeek) {
     setError(null);
@@ -175,27 +253,10 @@ function PersonWeek({ worker, weekStart }: { worker: Worker; weekStart: string }
                 Undo changes
               </Button>
             )}
-            {reachable && (status === "draft" || status === "changed") && !publishing && (
-              <Button size="sm" className="min-h-11 sm:min-h-8" onClick={() => setPublishing(true)}>
-                {status === "changed" ? "Publish the changes" : "Publish"}
-              </Button>
-            )}
           </div>
         </div>
         {!reachable && week.days.length > 0 && (
           <p className="text-xs text-muted-foreground">{worker.name} gets their schedule once they&apos;ve accepted an offer (Jobs → Offers). Until then it stays a draft.</p>
-        )}
-        {publishing && (
-          <PublishSchedule
-            workerId={worker.id}
-            workerName={worker.name}
-            week={week}
-            onClose={(sent) => {
-              setPublishing(false);
-              // Published: the draft has done its job; what was sent now lives in the conversation.
-              if (sent) void save(emptyWeek(weekStart));
-            }}
-          />
         )}
         <FormError message={error} />
       </CardContent>

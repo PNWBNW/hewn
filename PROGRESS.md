@@ -3466,3 +3466,44 @@ taxed as overtime but are their own line on the paystub; on-call days pay a set 
   days and a 1-hour callout pays $360 regular + $67.50 callout (2 h minimum at 1.5×) + $75 on call.
 
 Tests: 978/978 (10 new). Website build passes. BUILD_PLAN Phase 9 second criterion ticked.
+
+## 2026-10-20: the team calendar
+
+Joshua: a calendar everyone at a business can see, like Outlook's: a square for each day showing
+everyone's shifts, and tapping a day opens it by the hour. Setting the schedule stays as it was.
+- **Publish once, to the team.** "Publish to the team" (`chain/PublishTeamSchedule.tsx`) sends the
+  week to the business's "Team schedule" announcement channel. The channel is made the first time,
+  and each person gets its key in their own conversation. After that, people who join get the key;
+  people who leave are taken out, and the rest get a new key. The week goes as one post per part
+  (`chain/team_publish.ts` packs people into parts that each fit one sealed letter, up to 32 parts,
+  all sharing one publish id). Each post is one approval for each eight people, instead of one
+  letter per person.
+- **`books/team_schedule.ts`**:
+  - Each person on a publish is named, and tagged with `whoOf(partiesKey)`. The tag is one-way from
+    the key they share with the business, so each person finds their own row and nobody can work
+    back to the key.
+  - `teamWeeks` joins a publish's parts and shows a week only once every part has arrived.
+  - `personWeek` reads one person's latest week from the team posts and from their own conversation
+    (weeks published to one person before this still count). Their answer stands when it was given
+    to a publish with the same days as now. So republishing the team after changing someone else
+    keeps everyone else's confirmation.
+  - On-call pay (`confirmedOnCallDates` / `unpaidOnCallDates`, moved here) reads through it.
+- **`books/TeamCalendar.tsx`**, the same on both sides:
+  - **Month view:** a grid of weeks starting Sunday, with today circled. On-call days are bars
+    running across the days they cover, shifts are chips like "Ana 7a", and "N more" appears when a
+    day is full. Each person keeps one colour, with a legend.
+  - **Day view:** a week strip, then an "All day" row for who's on call, then 24 hours with each
+    shift as a block. Overlapping shifts sit side by side, and a night shift carries into the next
+    morning.
+- **Business (Payroll → Schedule):**
+  - Calendar and Edit week views. The calendar shows the business's unpublished drafts dashed, and a
+    day has "Edit this week".
+  - Edit week keeps the per-person cards, with each person's status read through `personWeek`.
+- **Person (Schedule):**
+  - Team calendar and My week views. Their own entries stand out, marked "(you)".
+  - My week holds Confirm and Ask for a change, and the page opens on it while this week waits for
+    their answer.
+  - Home's callout check reads the same way.
+
+Tests: 992/992 (14 new: `team_schedule.test.ts`, `team_publish.test.ts`). Website build passes.
+BUILD_PLAN Phase 9: team calendar deliverable added, criterion ticked.

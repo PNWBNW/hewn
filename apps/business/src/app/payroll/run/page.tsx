@@ -22,9 +22,11 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
-import { emptyMailbox, threadFor } from "@/books/mailbox";
+import { emptyMailbox } from "@/books/mailbox";
 import { linkFor } from "@/books/rail";
-import { emptySchedule, markOnCallPaid, unpaidOnCallDates } from "@/books/schedule";
+import { emptySchedule, markOnCallPaid } from "@/books/schedule";
+import { unpaidOnCallDates } from "@/books/team_schedule";
+import { businessSources } from "@/books/team_sources";
 import { TagFields } from "@/books/tags";
 import { type UnpaidHours, hoursText, markPaid, payRulesFor, shiftCount, unpaidHours } from "@/books/timecard_pay";
 import { dollarsText, rateText } from "@/books/work_week";
@@ -84,7 +86,8 @@ export default function RunPayrollPage() {
         const callout = timecard && timecard.calloutPaidMinutes > 0 ? { hours: Number(hoursText(timecard.calloutPaidMinutes)), rate: rules.overtimeRate } : undefined;
         // On-call days they confirmed in the period, not yet paid, at the agreed amount a day.
         const partiesKey = rail ? linkFor(rail, w.id)?.partiesKey : undefined;
-        const onCallDates = rules.onCallPayCents > 0n && partiesKey ? unpaidOnCallDates(threadFor(mailbox, partiesKey), schedule, w.id, periodStart, periodEnd) : [];
+        const onCallDates =
+          rules.onCallPayCents > 0n && partiesKey ? unpaidOnCallDates(businessSources(mailbox, schedule, partiesKey), schedule?.onCallPaid, w.id, periodStart, periodEnd) : [];
         const onCall = onCallDates.length > 0 ? { days: onCallDates.length, perDay: rules.onCallPayCents } : undefined;
         const more = { ...(callout ? { callout } : {}), ...(onCall ? { onCall } : {}) };
         const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules, callout, onCall, onCallDates, more };
