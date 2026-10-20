@@ -42,34 +42,34 @@ gets their schedule, clocks hours and keeps their paystubs. One Shield account h
 
 ### The business side
 
-| | Tab | What it's for |
-|---|---|---|
-| <img src="apps/business/public/brand/hewn-nav-dashboard.png" width="28" alt=""> | **Dashboard** | Where the business stands today: cash, what customers owe, what you owe, and your Shield balances (ALEO and USDCx, private and public). Keep money in **set-asides** (an equipment fund, say) without moving it. |
-| <img src="apps/business/public/brand/hewn-nav-transactions.png" width="28" alt=""> | **Transactions** | A **For review** list built from your wallet history: accept, exclude, change or undo each payment. The register of every entry and the chart of accounts. |
-| <img src="apps/business/public/brand/hewn-nav-sales.png" width="28" alt=""> | **Sales** | Customers, estimates, invoices with sales tax, and payments received (partial, or several invoices at once). |
-| <img src="apps/business/public/brand/hewn-nav-expenses.png" width="28" alt=""> | **Expenses** | Vendors (with a 1099 flag), bills, paying bills and spending. |
-| <img src="apps/business/public/brand/hewn-nav-payroll.png" width="28" alt=""> | **Payroll** | Pay runs with federal withholding (IRS annualization), the **team**, **Schedule** and **Hours**, and withholding owed. Timecards feed the pay run directly: regular hours, overtime, callouts and on-call days each get their own paystub line. |
-| <img src="apps/business/public/brand/hewn-nav-schedule.png" width="28" alt=""> | **Schedule (under Payroll)** | An Outlook-style **team calendar**: a month of day squares with everyone's shifts and on-call days, and tap a day for its hours. Publish a week once and the whole team sees it; each person confirms their own days. |
-| <img src="apps/business/public/brand/hewn-nav-projects.png" width="28" alt=""> | **Projects** | Projects, classes and locations, to track income and costs by job or place. |
-| <img src="apps/business/public/brand/hewn-nav-reports.png" width="28" alt=""> | **Reports** | Profit and loss, balance sheet, trial balance, who owes what, project profitability and sales tax, with period comparisons. |
-| <img src="apps/business/public/brand/hewn-nav-taxes.png" width="28" alt=""> | **Taxes** | Sales tax, payroll tax and 1099s: what you've collected and what you owe. |
-| <img src="apps/business/public/brand/hewn-nav-jobs.png" width="28" alt=""> | **Jobs** | Post openings to the public **job board** (on chain, readable by anyone), feature them, read applications with resumes, interview, and send job offers. Offers carry the pay, the work week and overtime rules, on-call pay and the callout minimum. |
-| <img src="apps/business/public/brand/hewn-nav-messages.png" width="28" alt=""> | **Messages** | A private, end-to-end sealed conversation with each person, and announcement channels to the whole team. |
-| <img src="apps/business/public/brand/hewn-nav-settings.png" width="28" alt=""> | **Settings** | The business, its fiscal year and its `name.hewn`, and the linked Shield account. The menu also has **Download a backup** of the encrypted vault, and **Log out**. |
+| Tab | What it's for |
+|:---:|---|
+| <img src="apps/business/public/brand/hewn-nav-dashboard.png" width="48" height="48" alt=""><br>**Dashboard** | Where the business stands today: cash, what customers owe, what you owe, and your Shield balances (ALEO and USDCx, private and public). Keep money in **set-asides** (an equipment fund, say) without moving it. |
+| <img src="apps/business/public/brand/hewn-nav-transactions.png" width="48" height="48" alt=""><br>**Transactions** | A **For review** list built from your wallet history: accept, exclude, change or undo each payment. The register of every entry and the chart of accounts. |
+| <img src="apps/business/public/brand/hewn-nav-sales.png" width="48" height="48" alt=""><br>**Sales** | Customers, estimates, invoices with sales tax, and payments received (partial, or several invoices at once). |
+| <img src="apps/business/public/brand/hewn-nav-expenses.png" width="48" height="48" alt=""><br>**Expenses** | Vendors (with a 1099 flag), bills, paying bills and spending. |
+| <img src="apps/business/public/brand/hewn-nav-payroll.png" width="48" height="48" alt=""><br>**Payroll** | Pay runs with federal withholding (IRS annualization), the **team**, **Schedule** and **Hours**, and withholding owed. Timecards feed the pay run directly: regular hours, overtime, callouts and on-call days each get their own paystub line. |
+| <img src="apps/business/public/brand/hewn-nav-schedule.png" width="48" height="48" alt=""><br>**Schedule (under Payroll)** | An Outlook-style **team calendar**: a month of day squares with everyone's shifts and on-call days, and tap a day for its hours. Publish a week once and the whole team sees it; each person confirms their own days. |
+| <img src="apps/business/public/brand/hewn-nav-projects.png" width="48" height="48" alt=""><br>**Projects** | Projects, classes and locations, to track income and costs by job or place. |
+| <img src="apps/business/public/brand/hewn-nav-reports.png" width="48" height="48" alt=""><br>**Reports** | Profit and loss, balance sheet, trial balance, who owes what, project profitability and sales tax, with period comparisons. |
+| <img src="apps/business/public/brand/hewn-nav-taxes.png" width="48" height="48" alt=""><br>**Taxes** | Sales tax, payroll tax and 1099s: what you've collected and what you owe. |
+| <img src="apps/business/public/brand/hewn-nav-jobs.png" width="48" height="48" alt=""><br>**Jobs** | Post openings to the public **job board** (on chain, readable by anyone), feature them, read applications with resumes, interview, and send job offers. Offers carry the pay, the work week and overtime rules, on-call pay and the callout minimum. |
+| <img src="apps/business/public/brand/hewn-nav-messages.png" width="48" height="48" alt=""><br>**Messages** | A private, end-to-end sealed conversation with each person, and announcement channels to the whole team. |
+| <img src="apps/business/public/brand/hewn-nav-settings.png" width="48" height="48" alt=""><br>**Settings** | The business, its fiscal year and its `name.hewn`, and the linked Shield account. The menu also has **Download a backup** of the encrypted vault, and **Log out**. |
 
 ### The worker side
 
-| | Tab | What it's for |
-|---|---|---|
-| <img src="apps/business/public/brand/hewn-nav-dashboard.png" width="28" alt=""> | **Home** | Clock in and out (or clock in for a callout on an on-call day), your employers, today's status and your latest paystub. |
-| <img src="apps/business/public/brand/hewn-nav-schedule.png" width="28" alt=""> | **Schedule** | The team calendar, with your own shifts standing out, and **My week** to confirm your days or ask for a change. |
-|  | **Offers** | Job offers waiting for you: read the terms, accept, or ask for changes. |
-| <img src="apps/business/public/brand/hewn-nav-jobs.png" width="28" alt=""> | **Find work** | The public job board. Apply with a message and a resume (there's a builder if you don't have one). |
-|  | **Applications** | Everywhere you've applied, and where each one stands. |
-| <img src="apps/business/public/brand/hewn-nav-messages.png" width="28" alt=""> | **Messages** | Your conversations with each employer, and their team announcements. |
-|  | **Hours** | Your punches by day. Fix a shift before it's sent, then **Update weekly timecard**; once sent, a shift is confirmed and locked. |
-| <img src="apps/business/public/brand/hewn-nav-payroll.png" width="28" alt=""> | **Paystubs** | Every paystub, kept privately on your device, with one line per kind of pay. |
-|  | **Profile** | The `name.hewn` employers know you by, and the profile behind it. |
+| Tab | What it's for |
+|:---:|---|
+| <img src="apps/business/public/brand/hewn-nav-dashboard.png" width="48" height="48" alt=""><br>**Home** | Clock in and out (or clock in for a callout on an on-call day), your employers, today's status and your latest paystub. |
+| <img src="apps/business/public/brand/hewn-nav-schedule.png" width="48" height="48" alt=""><br>**Schedule** | The team calendar, with your own shifts standing out, and **My week** to confirm your days or ask for a change. |
+| **Offers** | Job offers waiting for you: read the terms, accept, or ask for changes. |
+| <img src="apps/business/public/brand/hewn-nav-jobs.png" width="48" height="48" alt=""><br>**Find work** | The public job board. Apply with a message and a resume (there's a builder if you don't have one). |
+| **Applications** | Everywhere you've applied, and where each one stands. |
+| <img src="apps/business/public/brand/hewn-nav-messages.png" width="48" height="48" alt=""><br>**Messages** | Your conversations with each employer, and their team announcements. |
+| **Hours** | Your punches by day. Fix a shift before it's sent, then **Update weekly timecard**; once sent, a shift is confirmed and locked. |
+| <img src="apps/business/public/brand/hewn-nav-payroll.png" width="48" height="48" alt=""><br>**Paystubs** | Every paystub, kept privately on your device, with one line per kind of pay. |
+| **Profile** | The `name.hewn` employers know you by, and the profile behind it. |
 
 Every business and worker registers a **`name.hewn`**, so people find each other by name rather
 than by a long wallet address. Anyone can also see the public [job board](https://app.hewnaccounting.com/board)
@@ -170,7 +170,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 <summary>The first private payroll on testnet (April 10, 2026)</summary>
 
 | Step | Program | Transaction |
-|---|---|---|
+|:---:|---|
 | Verify agreement | `employer_agreement_v4` | `at1mydsktdsr8pk7d4utzrp6n2rvtgkkpavthukyt4kpdadgyx5lg8sgljea3` |
 | Transfer USDCx | `test_usdcx_stablecoin` | `at1yphn8n9zejqnnsktuev7rl9vkv8styq00rjpffa0h7rxnccssyyqdk9ltw` |
 | Mint receipts | `paystub_receipts` | `at1w86wy80c9sgv0e2ukwlzja4r4km0vkld2tna586t9447q6pjvvrqhuvnw4` |
