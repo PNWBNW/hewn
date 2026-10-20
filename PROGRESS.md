@@ -3671,3 +3671,17 @@ be guessed at offline with no lockout, so new passphrases get real rules and a n
     and no DAO powers.
 
 Tests: 996/996 (10 new: `passphrase.test.ts`, and the account rule updated).
+
+## 2026-10-20: twin-curve math, named
+
+Joshua named the way letters use two elliptic curves: **twin-curve math**. `docs/LETTERS.md` gets
+a section on it: P-256 key exchange introduces people who share no key yet (applications,
+coworkers), and Aleo's own curve seals every record to its owner. It says plainly that this is not
+pairing-based cryptography and that the two layers do different jobs rather than doubling strength.
+
+The same doc claimed a view key shows only that letters exist. Corrected: between a business and a
+person it hired, the view key also opens their agreement record, which carries the parties key, so
+it opens their letters. Applications and coworker chats stay closed to it. The testnet DAO copy
+of agreements is listed too (it holds parties keys, never letters), with the mainnet plan.
+
+Docs only; no code changed.

@@ -30,7 +30,29 @@ letter is a record. `send(to, lookup, parcel)` outputs one `Letter` owned by the
 `SentLetter` owned by the sender. No mapping, no finalize, no public state. The parcel inside is
 the same sealed envelope the mailbox carries today (AES-256-GCM under the pair's parties key), so
 a letter has two locks: the record's (the owner's view key) and the envelope's (the parties key).
-Showing a view key to an auditor reveals that letters exist, not what they say.
+Showing a view key to an auditor reveals that letters exist, and, between a business and a person
+it hired, what they say too (see "What the chain shows").
+
+## Twin-curve math
+
+What we call **twin-curve math** (Joshua, 2026-10-20): two elliptic curves, each doing its own
+Diffie–Hellman key exchange, one job each. It is not pairing-based cryptography (a different thing,
+which Aleo's proofs use), and the two layers don't make each other stronger; they cover different
+steps.
+
+- **The first curve introduces.** P-256, in the browser's own Web Crypto. Two people who have
+  never shared a key each combine their private key with the other's public key and arrive at the
+  same secret, which HKDF-SHA256 turns into the pair's parties key. An applicant reaches a business
+  this way (the hiring key in the posting, `chain/applications.ts`), and so do coworkers
+  (`chain/coworkers.ts`). A business and the person it hires use a random parties key carried
+  inside their agreement records instead (`chain/offer.ts`).
+- **Its twin seals.** Aleo's own curve (Edwards BLS12-377) seals every record to its owner: the
+  sender picks a random r and publishes r·G with the record; the shared secret is r times the
+  owner's address, and only the owner rebuilds it, as their view key times r·G. That is the
+  letter's outer lock.
+
+Going from a private key k to k·G is easy; going back is practically impossible. Both curves rest
+on that one-way step.
 
 ## The program
 
@@ -91,7 +113,8 @@ a malformed address and a non-record input must all be rejected. Positive: `Lett
 | Everyone, **private fee** | only a spent credits record's serial number: nobody |
 | The recipient | the letter, the sender's address (sender ciphertext), the parcel's contents (parties key) |
 | The sender | its own copy, on any device |
-| An auditor given a view key | that letters exist and their lookups; not the contents |
+| An auditor given a view key | that letters exist and their lookups. The contents too between a business and a person it hired: the same view key opens their agreement record, which carries the parties key. Not the contents of an application or a coworker chat, whose keys come from key exchange and stay in the vault |
+| Hewn's wallet (testnet only) | a copy of every agreement, parties key included, but no letters: they are sealed to their recipients. On mainnet, agreements carry no such copy (`employer_agreement_v5`, BUILD_PLAN.md). Proposed for the same step, not yet decided: making the hired pair's parties key by key exchange too, so a view key alone no longer opens their letters |
 
 The recipient's address is never shown: record owners are encrypted. So with private fees (the
 switch shipped in #79), the public footprint of a letter is "someone sent a Hewn letter at block N".
