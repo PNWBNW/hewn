@@ -21,6 +21,7 @@ import { formatCents, parseCents } from "@pnw/ledger";
 import { LETTER_LABEL, type Letter, letterText, validateLetter } from "./offer_letter";
 import { type EmploymentType, type JobFields, cleanHours, employmentLabel, hoursLine, longDate, payLine, validateJobFields } from "./terms_words";
 import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./schedule";
+import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, validateHoursChange } from "./hours_change";
 
 export type Side = "business" | "worker";
 
@@ -77,7 +78,11 @@ export type ThreadBody =
   /** The business publishes the person's week (books/schedule.ts): shift blocks and on-call days, and an optional note. */
   | { type: "schedule"; week: ScheduleWeek; note: string }
   /** The person confirms the week published in message `scheduleId`, or asks for a change, with a note. */
-  | { type: "schedule_answer"; scheduleId: string; weekStart: string; answer: "confirmed" | "change"; note: string };
+  | { type: "schedule_answer"; scheduleId: string; weekStart: string; answer: "confirmed" | "change"; note: string }
+  /** A change to a shift's hours, asked by either side (books/hours_change.ts). */
+  | HoursChangeBody
+  /** The other side's answer to it. */
+  | HoursAnswerBody;
 
 /** Where an application stands, as the business tells the person; "applied" is the state before any of these. */
 export const APPLICATION_STATUSES = ["seen", "interviewing", "offer_sent", "hired", "not_selected", "closed"] as const;
@@ -132,6 +137,8 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   application_status: "business",
   schedule: "business",
   schedule_answer: "worker",
+  hours_change: "either",
+  hours_change_answer: "either",
 };
 
 /** The kinds that only travel between coworkers. */
@@ -326,6 +333,13 @@ function validateBody(raw: unknown): ThreadBody {
       if (raw.answer === "change" && !n.trim()) throw new ThreadError("Say what needs to change");
       return { type: "schedule_answer", scheduleId: raw.scheduleId, weekStart: raw.weekStart, answer: raw.answer, note: n };
     }
+    case "hours_change":
+    case "hours_change_answer":
+      try {
+        return raw.type === "hours_change" ? validateHoursChange(raw) : validateHoursAnswer(raw);
+      } catch (e) {
+        throw new ThreadError(e instanceof Error ? e.message : "The change to the hours isn't valid");
+      }
     default:
       throw new ThreadError("That kind of message isn't one this app knows");
   }
@@ -341,6 +355,8 @@ export function validateMessage(raw: unknown, from: Side): ThreadMessage {
   const body = validateBody(raw.body);
   const may = SENDS[body.type];
   if (may !== "either" && may !== from) throw new ThreadError("That side can't send that kind of message");
+  // The person asks only for times they'd like; a business may question hours without new times.
+  if (body.type === "hours_change" && from === "worker" && !body.proposed) throw new ThreadError("Say the times you'd like");
   return { version: 1, id: raw.id, from, sentAt: raw.sentAt, body };
 }
 

@@ -3540,3 +3540,60 @@ Other sections updated to match the app as it stands:
 - **Running it locally:** the static bundle build, and the traction store's settings.
 
 Docs only.
+
+## 2026-10-20: changing hours by agreement
+
+Joshua: the business may question hours but can't change them without the person agreeing. The
+person can ask for a revision of a shift before sending it. Edits the person makes before sending
+show to the business (option B). A questioned shift is held out of pay runs, with "Pay as sent
+anyway" (option A).
+- **`books/hours_change.ts`**:
+  - Two new messages in the pair's conversation:
+    - `hours_change`: the shift, clock-in to clock-out; the times proposed, with their split into
+      days on the agreement's calendar; and a note. The person must propose times; the business
+      may question without them.
+    - `hours_change_answer`: accepted or declined. Declining says why.
+  - Only the other side's first answer counts.
+  - Helpers:
+    - `hoursChanges` reads them from the conversation.
+    - `changeFor` finds the change about a shift.
+    - `openShifts` lists what's waiting.
+    - `wholeShifts` joins a card's entries into whole shifts (a shift past midnight is one).
+- **Applied on both sides as the letters are read.** Re-reading the conversation changes nothing
+  more, a paid shift is never changed, and a change that would make shifts overlap is left out.
+  - **The person's side** (`work.ts` `applyAgreedHours`): the shift's clock-in and clock-out move,
+    sent or not.
+  - **The business's side** (`mailbox.ts` `applyAgreedHours`): the card's matching shift is
+    replaced by the agreed days.
+  - Both are marked with what the shift was.
+- **Edits show.** A punch keeps the time it had before it first moved (`was`), and whether the
+  move was agreed. Shifts and timecard entries carry `was` and `change: "edited" | "agreed"`, and
+  the business sees "Edited by Ana before sending; it was …". An edit back to the original time
+  leaves no mark. The business shows "Changed as you both agreed" only when its own conversation
+  shows it accepting those exact times; otherwise it shows the shift as an edit.
+- **Pay runs:** `unpaidHours` takes held shifts. Run payroll holds shifts with an open change and
+  says how many, with "Pay as sent anyway" and "Hold them".
+- **Screens:**
+  - **Business, Payroll → Hours:**
+    - Each card lists whole shifts, with "Question these hours" (optional suggested times and a
+      note).
+    - A "Changes to hours" panel lists open changes, with Accept or Decline on the person's
+      requests.
+    - Each shift shows where its change stands.
+  - **Person, Hours:**
+    - "Ask for a revision" on an unsent shift.
+    - Agree or "Keep as sent" on the employer's questions, and what each change came to.
+    - "Check now", and answers are also read when the page opens.
+  - **Letters:** one approval each (`chain/HoursChange.tsx`, `chain/work/HoursChange.tsx`).
+- `books/hours_change.test.ts` (9 tests):
+  - The exit criterion end to end: questioned, nothing changes, agreed, both sides show 9:00 to
+    4:30, marked agreed, and re-reading is a no-op.
+  - Kept as sent.
+  - A paid shift stays paid.
+  - An answer from the asking side doesn't count.
+  - A revision asked before sending, accepted, then sent as agreed.
+  - An overlap is ignored.
+  - Edits marked, and an edit back unmarked.
+  - The message checks.
+
+Tests: 1,003/1,003 (9 new). BUILD_PLAN Phase 9: deliverable 5 added, criterion ticked.

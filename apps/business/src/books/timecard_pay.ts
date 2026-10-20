@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { labelOvertime } from "./hours";
+import { type Stretch, within } from "./hours_change";
 import type { Mailbox, ReceivedEntry, ReceivedHours } from "./mailbox";
 import { validateMailbox } from "./mailbox";
 import { type Rail, linkFor } from "./rail";
@@ -99,13 +100,22 @@ const inPeriod = (date: string, start: string, end: string) => start <= date && 
  * The stretches on a team member's cards dated within the period (inclusive)
  * that no pay run has paid, oldest first, each with its share of overtime
  * under `rules` (the whole week counts toward the thresholds, paid or not).
+ * Stretches in a `held` shift (one with a change to its hours still waiting
+ * for an answer, books/hours_change.ts) wait for the next run.
  */
-export function unpaidHours(mailbox: Mailbox | null | undefined, workerId: string, periodStart: string, periodEnd: string, rules: PayRules = payRulesOf(undefined)): UnpaidHours {
+export function unpaidHours(
+  mailbox: Mailbox | null | undefined,
+  workerId: string,
+  periodStart: string,
+  periodEnd: string,
+  rules: PayRules = payRulesOf(undefined),
+  held: readonly Stretch[] = [],
+): UnpaidHours {
   const shifts: PayableShift[] = [];
   for (const card of mailbox?.hours ?? []) {
     if (card.workerId !== workerId) continue;
     for (const e of labelled(card, rules)) {
-      if (e.paid || !inPeriod(e.date, periodStart, periodEnd)) continue;
+      if (e.paid || !inPeriod(e.date, periodStart, periodEnd) || within(e, held)) continue;
       shifts.push(shiftOf(card, e));
     }
   }

@@ -252,13 +252,18 @@ each person is tagged by a one-way value from the key they share with the busine
    the business's timecards.
 4. Team calendar (Joshua, 2026-10-20): a month of day squares with everyone's shifts and on-call
    days, tap a day for its hours; the same calendar on both sides, the business's drafts dashed.
-5. Later: shift swaps between coworkers, availability, open shifts.
+5. Changing hours by agreement (Joshua, 2026-10-20): the person asks for a revision of a shift
+   not yet sent; the business questions a shift it received; neither changes until the other side
+   agrees. An edit made before sending shows to the business with what it was. A questioned shift
+   waits out of pay runs unless the business pays it as sent.
+6. Later: shift swaps between coworkers, availability, open shifts.
 
 **Exit criteria**
 
 - [x] A week with a shift and an on-call day on the same date publishes, is confirmed by the person, and both sides show it as confirmed (2026-10-20)
 - [x] A confirmed on-call week and one callout pay the agreed on-call amount and the callout minimum at the overtime rate on the next run (2026-10-20)
 - [x] A week published to the team shows the same shifts and on-call days on every member's calendar, and a republish that leaves a person's days alone keeps their confirmation (2026-10-20)
+- [x] A shift questioned by the business changes only after the person agrees, and both sides then show the agreed times (2026-10-20)
 - [ ] A shift clocked in 20 minutes late shows as late on the business's timecard
 
 ---

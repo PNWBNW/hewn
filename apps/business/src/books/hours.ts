@@ -48,10 +48,18 @@ export type Shift = {
   sent: boolean;
   /** Clocked in as a callout (work.ts `punch` with `callout`). */
   callout: boolean;
+  /** The whole shift as it was before its clock-in or clock-out moved, if either did. */
+  was?: { in: string; out: string };
+  /** How it moved: the person's own edit, or a change both sides agreed to (books/hours_change.ts). */
+  change?: "edited" | "agreed";
 };
 
-/** One stretch on a timecard. `long`: past the longest shift, confirmed. `callout`: clocked in as a callout. */
-export type TimesheetEntry = { date: DayDate; in: string; out: string; minutes: number; long?: true; callout?: true };
+/**
+ * One stretch on a timecard. `long`: past the longest shift, confirmed. `callout`: clocked in as a
+ * callout. `was` and `change`: the whole shift's times before they moved, and whether the person
+ * edited them before sending (the employer sees it) or both sides agreed to the change.
+ */
+export type TimesheetEntry = { date: DayDate; in: string; out: string; minutes: number; long?: true; callout?: true; was?: { in: string; out: string }; change?: "edited" | "agreed" };
 
 export type TimesheetPayload = {
   version: 1;
@@ -165,19 +173,35 @@ export function shiftsOf(punches: readonly Punch[], agreementId: string, now: Da
     const confirmed = !open && next?.confirmed === true;
     const sent = !open && sentIds.has(p.id);
     const callout = p.callout === true;
+    // Moved since it was first clocked: what it was, and whether by the person's edit or by agreement.
+    const outP = open ? undefined : next;
+    const movedPunches = [p, outP].filter((x): x is Punch => !!x?.was);
+    const history =
+      movedPunches.length > 0 && outP
+        ? { was: { in: p.was ?? p.at, out: outP.was ?? outP.at }, change: movedPunches.every((x) => x.agreed) ? ("agreed" as const) : ("edited" as const) }
+        : {};
     // Split at each midnight the shift crosses.
     let cursor = start;
     while (cursor.getTime() < end.getTime()) {
       const boundary = startOfDay(addDays(localDate(cursor, timeZone), 1), timeZone);
       const segmentEnd = boundary.getTime() < end.getTime() ? boundary : end;
-      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent, callout });
+      out.push({ date: localDate(cursor, timeZone), in: cursor.toISOString(), out: segmentEnd.toISOString(), minutes: wholeMinutes(cursor.getTime(), segmentEnd.getTime()), open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent, callout, ...history });
       cursor = segmentEnd;
     }
     if (start.getTime() === end.getTime()) {
-      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent, callout });
+      out.push({ date: localDate(start, timeZone), in: start.toISOString(), out: end.toISOString(), minutes: 0, open, inId: p.id, ...(open ? {} : { outId: next!.id }), long, confirmed, sent, callout, ...history });
     }
   }
   return out;
+}
+
+/** A shift from `inAt` to `outAt` split into its days in the zone: what a timecard would carry for it. */
+export function segmentsOf(inAt: string, outAt: string, timeZone: string): { date: DayDate; in: string; out: string; minutes: number }[] {
+  const punches: Punch[] = [
+    { id: "a", agreementId: "-", at: new Date(inAt).toISOString(), kind: "in" },
+    { id: "b", agreementId: "-", at: new Date(outAt).toISOString(), kind: "out" },
+  ];
+  return shiftsOf(punches, "-", new Date(outAt), timeZone, Number.MAX_SAFE_INTEGER / 120_000).map(({ date, in: i, out, minutes }) => ({ date, in: i, out, minutes }));
 }
 
 /** Minutes per day for one agreement, in the zone. */
@@ -239,13 +263,14 @@ export function buildTimesheet(work: Work, agreementId: string, weekStart: DayDa
   if (weekStartOf(weekStart, calendar) !== weekStart) throw new WorkError(`A week starts on a ${weekdayLabel(calendar.startsOn)}`);
   const problem = sendProblem(work, agreementId, weekStart, now);
   if (problem) throw new WorkError(problem);
-  const entries: TimesheetEntry[] = sendableShifts(work, agreementId, weekStart, now).map(({ date, in: i, out, minutes, long, callout }) => ({
+  const entries: TimesheetEntry[] = sendableShifts(work, agreementId, weekStart, now).map(({ date, in: i, out, minutes, long, callout, was, change }) => ({
     date,
     in: i,
     out,
     minutes,
     ...(long ? { long: true as const } : {}),
     ...(callout ? { callout: true as const } : {}),
+    ...(was && change ? { was, change } : {}),
   }));
   if (entries.length === 0) throw new WorkError("Nothing to send yet: a shift goes on the timecard once you've clocked out");
   return {
