@@ -19,6 +19,7 @@ import { type Review, reviewFromJson, reviewToJson } from "./review";
 import { type Funds, fundsFromJson, fundsToJson } from "./funds";
 import { type Jobs, jobsFromJson, jobsToJson } from "./jobs";
 import { type Rail, railFromJson, railToJson } from "./rail";
+import { type Schedule, scheduleFromJson, scheduleToJson } from "./schedule";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
 
 export type Company = {
@@ -35,6 +36,8 @@ export type Company = {
   funds?: Funds;
   /** The business's job postings on the board (books/jobs.ts). Only once one was posted. */
   jobs?: Jobs;
+  /** The business's schedule drafts (books/schedule.ts); what was published lives in each conversation. Only once one was drafted. */
+  schedule?: Schedule;
   /** Who this vault belongs to: a business (the default) or a person who works for one. */
   role?: Role;
   /** A person's own side: agreements, hours, paystubs. Only on a worker's file. */
@@ -60,6 +63,7 @@ export function companyToJson(c: Company): string {
     ...(c.review ? { review: reviewToJson(c.review) } : {}),
     ...(c.funds ? { funds: fundsToJson(c.funds) } : {}),
     ...(c.jobs ? { jobs: jobsToJson(c.jobs) } : {}),
+    ...(c.schedule ? { schedule: scheduleToJson(c.schedule) } : {}),
     ...(c.role ? { role: c.role } : {}),
     ...(c.work ? { work: workToJson(c.work) } : {}),
     ...(c.email ? { email: c.email } : {}),
@@ -79,6 +83,7 @@ export function companyFromJson(text: string): Company {
     review?: string;
     funds?: string;
     jobs?: string;
+    schedule?: string;
     role?: string;
     work?: string;
     email?: string;
@@ -95,6 +100,7 @@ export function companyFromJson(text: string): Company {
     if (typeof doc.review === "string") company.review = reviewFromJson(doc.review);
     if (typeof doc.funds === "string") company.funds = fundsFromJson(doc.funds);
     if (typeof doc.jobs === "string") company.jobs = jobsFromJson(doc.jobs);
+    if (typeof doc.schedule === "string") company.schedule = scheduleFromJson(doc.schedule);
     if (doc.role !== undefined) {
       if (!ROLES.includes(doc.role as Role)) throw new Error("Unknown role in this company file");
       company.role = doc.role as Role;

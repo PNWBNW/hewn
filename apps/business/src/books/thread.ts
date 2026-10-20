@@ -20,6 +20,7 @@
 import { formatCents, parseCents } from "@pnw/ledger";
 import { LETTER_LABEL, type Letter, letterText, validateLetter } from "./offer_letter";
 import { type EmploymentType, type JobFields, cleanHours, employmentLabel, hoursLine, longDate, payLine, validateJobFields } from "./terms_words";
+import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./schedule";
 
 export type Side = "business" | "worker";
 
@@ -72,7 +73,11 @@ export type ThreadBody =
   /** The person applies to the business's posting (docs/JOB_BOARD.md): their registered name, a message and their resume as text. The first message of the conversation. */
   | { type: "application"; postingId: string; name: string; nameHash: string; message: string; resume: string }
   /** The business says where an application stands. */
-  | { type: "application_status"; postingId: string; status: ApplicationStatus };
+  | { type: "application_status"; postingId: string; status: ApplicationStatus }
+  /** The business publishes the person's week (books/schedule.ts): shift blocks and on-call days, and an optional note. */
+  | { type: "schedule"; week: ScheduleWeek; note: string }
+  /** The person confirms the week published in message `scheduleId`, or asks for a change, with a note. */
+  | { type: "schedule_answer"; scheduleId: string; weekStart: string; answer: "confirmed" | "change"; note: string };
 
 /** Where an application stands, as the business tells the person; "applied" is the state before any of these. */
 export const APPLICATION_STATUSES = ["seen", "interviewing", "offer_sent", "hired", "not_selected", "closed"] as const;
@@ -125,6 +130,8 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   group_leave: "either",
   application: "worker",
   application_status: "business",
+  schedule: "business",
+  schedule_answer: "worker",
 };
 
 /** The kinds that only travel between coworkers. */
@@ -169,6 +176,16 @@ export class ThreadError extends Error {
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isStamp = (v: unknown): v is string => typeof v === "string" && v.length <= 40 && !Number.isNaN(Date.parse(v));
 const isSeq = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= MAX_SEQ;
+
+/** "Oct 25" from "2026-10-25". */
+const shortDay = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+function scheduleNote(v: unknown): string {
+  if (v === undefined) return "";
+  if (typeof v !== "string") throw new ThreadError("A note must be text");
+  if ([...v].length > MAX_SCHEDULE_NOTE) throw new ThreadError(`A note can be at most ${MAX_SCHEDULE_NOTE} characters`);
+  return v;
+}
 
 function note(v: unknown): string {
   if (typeof v !== "string") throw new ThreadError("A note must be text");
@@ -291,6 +308,23 @@ function validateBody(raw: unknown): ThreadBody {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
       if ([...raw.text].length > MAX_TEXT_CHARS) throw new ThreadError(`A message can be at most ${MAX_TEXT_CHARS.toLocaleString("en-US")} characters`);
       return { type: "text", text: raw.text };
+    }
+    case "schedule": {
+      let week: ScheduleWeek;
+      try {
+        week = validateScheduleWeek(raw.week);
+      } catch (e) {
+        throw new ThreadError(e instanceof Error ? e.message : "The schedule isn't valid");
+      }
+      return { type: "schedule", week, note: scheduleNote(raw.note) };
+    }
+    case "schedule_answer": {
+      if (typeof raw.scheduleId !== "string" || !/^[0-9a-f]{32}$/.test(raw.scheduleId)) throw new ThreadError("An answer names the schedule it answers");
+      if (typeof raw.weekStart !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(raw.weekStart)) throw new ThreadError("An answer names its week");
+      if (raw.answer !== "confirmed" && raw.answer !== "change") throw new ThreadError("An answer confirms or asks for a change");
+      const n = scheduleNote(raw.note);
+      if (raw.answer === "change" && !n.trim()) throw new ThreadError("Say what needs to change");
+      return { type: "schedule_answer", scheduleId: raw.scheduleId, weekStart: raw.weekStart, answer: raw.answer, note: n };
     }
     default:
       throw new ThreadError("That kind of message isn't one this app knows");
@@ -440,6 +474,11 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "group_leave") return "Left a group";
   if (b.type === "application") return item.mine ? "You applied" : "Applied";
   if (b.type === "application_status") return item.mine ? `You marked the application: ${APPLICATION_STATUS_LABEL[b.status]}` : `Your application: ${APPLICATION_STATUS_LABEL[b.status]}`;
+  if (b.type === "schedule") return item.mine ? `You sent the schedule for the week of ${shortDay(b.week.weekStart)}` : `Sent your schedule for the week of ${shortDay(b.week.weekStart)}`;
+  if (b.type === "schedule_answer") {
+    const what = b.answer === "confirmed" ? "confirmed the schedule" : "asked for a change to the schedule";
+    return `${item.mine ? "You" : "They"} ${what} for the week of ${shortDay(b.weekStart)}`;
+  }
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";
   return item.mine ? "You sent a revised offer" : "Sent a revised offer";

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeftRight, Briefcase, ChartColumn, Clock, CreditCard, Download, FileText, FolderKanban, Home, IdCard, Inbox, Landmark, LayoutDashboard, Lock, LogOut, Mailbox, Menu, MessageSquare, Settings, type LucideIcon, Users, X } from "lucide-react";
+import { ArrowLeftRight, Briefcase, ChartColumn, Clock, CreditCard, Download, FileText, FolderKanban, Home, IdCard, Inbox, Landmark, LayoutDashboard, Lock, LogOut, Mailbox, Menu, MessageSquare, Settings, type LucideIcon, Users, X, CalendarDays } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { useBooks, useOpenBooks } from "@/books/BooksProvider";
 import { SETUP_PATH, setupRedirect, setupStep } from "@/books/setup";
@@ -38,6 +38,7 @@ const BUSINESS_NAV: NavItem[] = [
 /** A person who works for a business: their own, smaller app. */
 export const WORK_NAV: NavItem[] = [
   { href: "/work", label: "Home", icon: Home },
+  { href: "/work/schedule", label: "Schedule", icon: CalendarDays },
   { href: "/work/offers", label: "Offers", icon: Inbox },
   { href: "/board", label: "Find work", icon: Briefcase },
   { href: "/work/applications", label: "Applications", icon: FileText },
