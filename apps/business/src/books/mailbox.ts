@@ -17,6 +17,7 @@
 
 import type { TimesheetPayload } from "./hours";
 import { type Thread, emptyThread, validateThread } from "./thread";
+import { agreedChanges, hoursChanges, wholeShifts } from "./hours_change";
 import { type BusinessChannel, validateBusinessChannel } from "./channels";
 
 /** One stretch as received, and, once a pay run has paid it, which run and when (books/timecard_pay.ts). */
@@ -96,6 +97,14 @@ function validateEntries(raw: unknown, kept = false): ReceivedEntry[] {
     // `long`: a shift past the longest shift in the terms, which the sender confirmed (books/hours.ts).
     // `callout`: clocked in as a callout, paid at the overtime rate with the agreed minimum (books/timecard_pay.ts).
     const entry: ReceivedEntry = { date: x.date, in: x.in, out: x.out, minutes: x.minutes, ...(x.long ? { long: true as const } : {}), ...(x.callout ? { callout: true as const } : {}) };
+    // `was` and `change`: the shift's times before they moved, by the person's edit or by agreement (books/hours_change.ts).
+    if (x.was !== undefined || x.change !== undefined) {
+      const w = x.was as Partial<{ in: string; out: string }> | null | undefined;
+      if (!w || typeof w !== "object" || !isStamp(w.in) || !isStamp(w.out)) throw new MailboxError("An edited entry says what it was");
+      if (x.change !== "edited" && x.change !== "agreed") throw new MailboxError("An edited entry says how it changed");
+      entry.was = { in: w.in, out: w.out };
+      entry.change = x.change;
+    }
     if (kept && x.paid !== undefined) {
       const p = x.paid as Partial<NonNullable<ReceivedEntry["paid"]>> | null;
       if (!p || typeof p !== "object" || typeof p.runId !== "string" || !p.runId || !isDate(p.payDate)) throw new MailboxError("A paid entry names the pay run and its date");
@@ -267,7 +276,43 @@ export const threadFor = (m: Mailbox | null | undefined, partiesKey: string): Bu
 export function updateThread(m: Mailbox, partiesKey: string, workerId: string, change: (t: Thread) => Thread): Mailbox {
   const before = threadFor(m, partiesKey) ?? { ...emptyThread(), workerId };
   const after = change(before);
-  return validateMailbox({ ...m, threads: { ...m.threads, [partiesKey]: { ...after, workerId: before.workerId } } });
+  const next = { ...m, threads: { ...m.threads, [partiesKey]: { ...after, workerId: before.workerId } } };
+  return validateMailbox({ ...next, hours: applyAgreedHours(next.hours, before.workerId, after) });
+}
+
+const ms = (iso: string) => Date.parse(iso);
+
+/**
+ * The cards with every change to the hours both sides agreed to applied, in the order they were
+ * asked (books/hours_change.ts): the shift's entries give way to the agreed ones, split into days as
+ * the change says, each marked with what the shift was. Only the shift exactly as asked is replaced;
+ * one not on the cards (not sent yet, or already replaced) or already paid changes nothing, so
+ * reading the conversation again is harmless.
+ */
+export function applyAgreedHours(hours: readonly ReceivedHours[], workerId: string, thread: Thread | undefined): ReceivedHours[] {
+  let cards = [...hours];
+  for (const c of agreedChanges(hoursChanges(thread))) {
+    const { agreementId, shift, proposed } = c.body;
+    const mine = (h: ReceivedHours) => h.workerId === workerId && h.agreementId === agreementId;
+    // The shift exactly as asked, its entries end to end (a shift past midnight can span two cards).
+    const pool = cards.filter(mine).flatMap((card) => card.entries.map((e) => ({ card, e, in: e.in, out: e.out })));
+    const whole = wholeShifts(pool).find((w) => ms(w.in) === ms(shift.in) && ms(w.out) === ms(shift.out));
+    if (!whole || whole.entries.some((x) => x.e.paid)) continue;
+    const matched = whole.entries;
+    const callout = matched.some((x) => x.e.callout);
+    const was = matched[0]!.e.was ?? shift;
+    const fresh: ReceivedEntry[] = proposed.segments.map((s) => ({ ...s, ...(callout ? { callout: true as const } : {}), was, change: "agreed" as const }));
+    const home = (date: string) => matched.find((x) => ms(`${x.card.weekStart}T00:00:00Z`) <= ms(`${date}T00:00:00Z`) && ms(`${date}T00:00:00Z`) < ms(`${x.card.weekStart}T00:00:00Z`) + 7 * 86_400_000)?.card ?? matched[0]!.card;
+    cards = cards.map((h) => {
+      if (!mine(h) || !matched.some((x) => x.card === h)) return h;
+      const kept = h.entries.filter((e) => !matched.some((x) => x.e === e));
+      const added = fresh.filter((f) => home(f.date) === h);
+      const entries = [...kept, ...added].sort((a, b) => ms(a.in) - ms(b.in));
+      return { ...h, entries, totalMinutes: entries.reduce((t, e) => t + e.minutes, 0) };
+    });
+  }
+  // A card left with nothing (its only shift moved to another week's card) goes.
+  return cards.filter((h) => h.entries.length > 0);
 }
 
 /** Adds or replaces one channel. */

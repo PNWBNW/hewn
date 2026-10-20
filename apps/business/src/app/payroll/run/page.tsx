@@ -22,7 +22,8 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
-import { emptyMailbox } from "@/books/mailbox";
+import { hoursChanges, openShifts, within } from "@/books/hours_change";
+import { emptyMailbox, threadFor } from "@/books/mailbox";
 import { linkFor } from "@/books/rail";
 import { emptySchedule, markOnCallPaid } from "@/books/schedule";
 import { unpaidOnCallDates } from "@/books/team_schedule";
@@ -41,8 +42,10 @@ function daysBefore(iso: string, days: number): string {
 /**
  * One optional project per paycheck: its wages and employer taxes count as that job's labour.
  * `typed`: the person chose to type the hours instead of paying the timecards (books/timecard_pay.ts).
+ * `payQuestioned`: pay the shifts with a change to their hours still waiting for an answer, as sent
+ * (held back otherwise, books/hours_change.ts).
  */
-type Row = { include: boolean; hours: string; overtimeHours?: string; project?: string; typed?: boolean };
+type Row = { include: boolean; hours: string; overtimeHours?: string; project?: string; typed?: boolean; payQuestioned?: boolean };
 
 /** The "Paid from" choice that isn't a bank account: the business's own rail balance. */
 const RAIL = "rail";
@@ -77,7 +80,13 @@ export default function RunPayrollPage() {
         // unless the person chose to type the hours instead.
         // Overtime follows the work week in their offer's terms (time and a half after 40 a week without one).
         const rules = payRulesFor(rail, w.id);
-        const timecard: UnpaidHours | null = w.payType === "hourly" ? unpaidHours(mailbox, w.id, periodStart, periodEnd, rules) : null;
+        const partiesKey = rail ? linkFor(rail, w.id)?.partiesKey : undefined;
+        // Shifts with a change to their hours waiting for an answer wait for the next run, unless the business pays them as sent.
+        const open = partiesKey ? openShifts(hoursChanges(threadFor(mailbox, partiesKey))) : [];
+        const everything = w.payType === "hourly" ? unpaidHours(mailbox, w.id, periodStart, periodEnd, rules) : null;
+        const questioned = everything ? open.filter((h) => everything.shifts.some((s) => within(s, [h]))) : [];
+        const held = row.payQuestioned ? [] : questioned;
+        const timecard: UnpaidHours | null = everything && held.length > 0 ? unpaidHours(mailbox, w.id, periodStart, periodEnd, rules, held) : everything;
         const fromCards = !!timecard && timecard.minutes > 0 && !row.typed;
         const hoursValue = fromCards ? hoursText(timecard.regularMinutes) : row.hours;
         const overtimeValue = fromCards ? (timecard.overtimeMinutes > 0 ? hoursText(timecard.overtimeMinutes) : "") : (row.overtimeHours ?? "");
@@ -85,12 +94,11 @@ export default function RunPayrollPage() {
         // Callouts from the timecards (always, typed hours or not): at least the agreed minimum each, at the overtime rate.
         const callout = timecard && timecard.calloutPaidMinutes > 0 ? { hours: Number(hoursText(timecard.calloutPaidMinutes)), rate: rules.overtimeRate } : undefined;
         // On-call days they confirmed in the period, not yet paid, at the agreed amount a day.
-        const partiesKey = rail ? linkFor(rail, w.id)?.partiesKey : undefined;
         const onCallDates =
           rules.onCallPayCents > 0n && partiesKey ? unpaidOnCallDates(businessSources(mailbox, schedule, partiesKey), schedule?.onCallPaid, w.id, periodStart, periodEnd) : [];
         const onCall = onCallDates.length > 0 ? { days: onCallDates.length, perDay: rules.onCallPayCents } : undefined;
         const more = { ...(callout ? { callout } : {}), ...(onCall ? { onCall } : {}) };
-        const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules, callout, onCall, onCallDates, more };
+        const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules, callout, onCall, onCallDates, more, questioned };
         // Paying on the rail needs an account for everyone included; a row without one stays out.
         if (onRail && !linked.has(w.id)) return { ...base, row: { ...row, include: false }, paycheck: null, problem: LINK_FIRST };
         if (!row.include) return { ...base, row, paycheck: null, problem: null };
@@ -236,7 +244,7 @@ export default function RunPayrollPage() {
         </div>
 
         <ul className="flex flex-col gap-3">
-          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue, overtimeValue, rules, callout, onCall }) => (
+          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue, overtimeValue, rules, callout, onCall, questioned }) => (
             <li key={worker.id} className={cn("rounded-lg border bg-card p-4", !row.include && "opacity-60")}>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex min-h-11 flex-1 items-center gap-3">
@@ -307,6 +315,16 @@ export default function RunPayrollPage() {
                       </button>
                     </>
                   )}
+                </p>
+              )}
+              {worker.payType === "hourly" && row.include && questioned.length > 0 && (
+                <p className="mt-1 text-xs text-warning">
+                  {row.payQuestioned
+                    ? `Paying ${questioned.length === 1 ? "1 questioned shift" : `${questioned.length} questioned shifts`} as sent. Once paid, a shift's hours can't be changed by agreement; any difference is yours to settle by hand on a later run.`
+                    : `${questioned.length === 1 ? "1 shift is" : `${questioned.length} shifts are`} waiting for an answer about the hours (Payroll → Hours) and held for the next run.`}{" "}
+                  <button type="button" className="underline underline-offset-4" onClick={() => setRows((r) => ({ ...r, [worker.id]: { ...row, payQuestioned: !row.payQuestioned } }))}>
+                    {row.payQuestioned ? "Hold them" : "Pay as sent anyway"}
+                  </button>
                 </p>
               )}
               {worker.payType === "hourly" && row.include && timecard && timecard.minutes === 0 && (

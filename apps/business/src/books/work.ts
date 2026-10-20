@@ -17,6 +17,7 @@
 import type { AttachmentRef } from "@pnw/sales";
 import { type ApplicationStatus, type Thread, emptyThread, validateThread } from "./thread";
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
+import { agreedChanges, hoursChanges } from "./hours_change";
 import { type CoworkerThread, type Identity, validateCoworkerThread, validateIdentity } from "./directory";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 import { type JobFields, validateJobFields } from "./terms_words";
@@ -74,6 +75,10 @@ export type Punch = {
   confirmed?: true;
   /** On an in: this shift is a callout (Joshua, 2026-10-20), paid at the overtime rate with the agreed minimum. */
   callout?: true;
+  /** The time this punch had before it was first moved (Joshua, 2026-10-20: the employer sees an edited shift and what it was). */
+  was?: string;
+  /** The last move was a change both sides agreed to (books/hours_change.ts), not the person's own edit. */
+  agreed?: true;
 };
 
 export type SentTimesheet = {
@@ -275,6 +280,12 @@ export function validatePunch(raw: unknown): Punch {
   const p: Punch = { id, agreementId: text(raw.agreementId, "Agreement id"), at: isoDate(raw.at, "Punch time"), kind };
   if (raw.confirmed === true && kind === "out") p.confirmed = true;
   if (raw.callout === true && kind === "in") p.callout = true;
+  if (raw.was !== undefined) {
+    const was = isoDate(raw.was, "The punch's earlier time");
+    if (was !== p.at) p.was = was;
+  }
+  if (raw.agreed !== undefined && raw.agreed !== true && raw.agreed !== false) throw new WorkError("Agreed must be true or false");
+  if (raw.agreed === true && p.was) p.agreed = true;
   return p;
 }
 
@@ -547,7 +558,39 @@ export function updateWorkThread(work: Work, partiesKey: string, change: (t: Thr
   for (const item of thread.items) {
     if (!item.mine && (item.body.type === "channel" || item.body.type === "channel_left")) channels = applyChannelMessage(channels, partiesKey, item.body);
   }
-  return validateWork({ ...work, threads: { ...work.threads, [partiesKey]: thread }, ...(channels.length > 0 ? { channels } : {}) });
+  const punches = applyAgreedHours(work, partiesKey, thread);
+  return validateWork({ ...work, punches, threads: { ...work.threads, [partiesKey]: thread }, ...(channels.length > 0 ? { channels } : {}) });
+}
+
+/**
+ * The punches with every change to the hours both sides agreed to applied, in the order they were
+ * asked (books/hours_change.ts): the shift's clock-in and clock-out move to the agreed times, sent
+ * or not, each marked with what it was. A change whose shift isn't here as asked (already applied,
+ * or edited since) changes nothing, so reading the conversation again is harmless; one that would
+ * make shifts overlap is left out.
+ */
+export function applyAgreedHours(work: Work, partiesKey: string, thread: Thread | undefined = workThread(work, partiesKey)): Punch[] {
+  const mine = new Set(work.agreements.filter((a) => a.partiesKey === partiesKey).map((a) => a.agreementId));
+  let punches = work.punches;
+  for (const c of agreedChanges(hoursChanges(thread))) {
+    if (!mine.has(c.body.agreementId)) continue;
+    const sorted = punches.filter((p) => p.agreementId === c.body.agreementId).sort(byTime);
+    const same = (a: string, b: string) => Date.parse(a) === Date.parse(b);
+    const at = sorted.findIndex((p) => p.kind === "in" && same(p.at, c.body.shift.in));
+    const inP = sorted[at];
+    const outP = sorted[at + 1];
+    if (!inP || outP?.kind !== "out" || !same(outP.at, c.body.shift.out)) continue;
+    const { proposed } = c.body;
+    const moved = (p: Punch, to: string): Punch => (same(p.at, to) ? p : validatePunch({ ...p, at: to, was: p.was ?? p.at, agreed: true }));
+    const next = punches.map((p) => (p.id === inP.id ? moved(p, proposed.in) : p.id === outP.id ? moved(p, proposed.out) : p));
+    try {
+      checkPunches(next);
+      punches = next;
+    } catch {
+      // Overlaps another shift here: left as it is.
+    }
+  }
+  return punches;
 }
 
 /** Sets the person's key pair for one business's directory. */
@@ -629,8 +672,9 @@ export function updatePunch(work: Work, id: string, changes: Partial<Pick<Punch,
   const existing = work.punches.find((p) => p.id === id);
   if (!existing) throw new WorkError("No punch with that id");
   if (sentPunchIds(work, existing.agreementId).has(id)) throw new WorkError(SENT_MESSAGE);
-  const { confirmed: _was, ...rest } = existing;
-  const next = validatePunch({ ...rest, ...changes });
+  const { confirmed: _confirmed, agreed: _agreed, ...rest } = existing;
+  // The first time it had is kept, so the employer sees the shift was edited and from what.
+  const next = validatePunch({ ...rest, ...changes, was: existing.was ?? existing.at });
   // The other end of the same shift, if the moved punch is its in: its confirmation goes too.
   const sorted = work.punches.filter((p) => p.agreementId === existing.agreementId).sort(byTime);
   const after = existing.kind === "in" ? sorted[sorted.findIndex((p) => p.id === id) + 1] : undefined;
