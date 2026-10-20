@@ -320,3 +320,18 @@ Upstash store (`apps/business/src/app/api/traction/`), and shows them on the pub
 - **If the store leaks:** per-country totals, nothing about anyone. **If someone spams the counter:**
   inflated totals; the endpoint takes same-origin requests only and caps the body, and the numbers
   are presented as rough. It never touches the vault, keys, wallets or the chain.
+
+## Reports (2026-10-20)
+
+A person can report a message they received to Hewn (`docs/LETTERS.md`, "Reports").
+- **What leaves the conversation:** only what the reporter chooses to report: that one message's
+  words, when it was sent, who sent it as their app names them, the kind of report and their note.
+  It travels as a letter sealed to Hewn's account (nothing on a server), or by email when the
+  reporter sends it that way; the email is their choice and leaves the app as text.
+- **Who can read it:** Hewn's account (its view key). The report has no second lock; the reporter
+  is choosing to show Hewn this message.
+- **A false report:** costs the reporter a letter; Hewn sees who sent it (the record's sender) and
+  the message as the reporter says it read. A report proves nothing on its own: the reported words
+  are the reporter's copy, not a signed original.
+- **The sender:** never told about a harassment report. Any other kind sends them a notice in the
+  conversation, which names the kind of report but not the note.

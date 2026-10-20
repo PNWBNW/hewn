@@ -472,7 +472,9 @@ handling); likely a Fable session for the key agreement.
 - [x] New passphrases: at least 12 characters with a letter and a space or symbol, common
   passwords refused, a strength meter and a five-word suggestion (2026-10-20).
 - [x] A Report button on received messages; a harassment report tells the sender nothing, other
-  categories tell them in case their account was taken over (2026-10-20). To build.
+  categories tell them in case their account was taken over (2026-10-20). Built the same day: the
+  report goes to Hewn's account as a sealed letter, and can be emailed to hewnsupport@gmail.com or
+  copied (`docs/LETTERS.md`, "Reports").
 - [x] The DAO's agreement copy and powers stay while on testnet; on mainnet, agreements carry no DAO
   copy and no DAO powers (`employer_agreement_v5`), and job board fees keep going to Hewn's wallet
   (2026-10-20).

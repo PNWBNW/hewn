@@ -58,5 +58,12 @@ export const BRAND = {
    * A fork changes this to its own repository.
    */
   sourceUrl: "https://github.com/PNWBNW/hewn",
+  /** Where people write to Hewn: a report can be copied and emailed here. A fork changes it. */
+  supportEmail: "hewnsupport@gmail.com",
+  /**
+   * The account reports go to as sealed letters (Hewn's own; the job board's fees go there
+   * too). Only that account's view key opens them. A fork changes it to its own.
+   */
+  reportsAccount: "aleo1s8t86aza932zah3mv5knclvnn5zy4gedpl5a4wn5h2yrt08mxqzsw5amdd",
   licence: "AGPL-3.0",
 } as const;
