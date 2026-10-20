@@ -3525,3 +3525,18 @@ afterwards still showed zeros until the cache ran out.
   a custom prefix (`STORAGE_KV_REST_API_URL` and its `_TOKEN`). The same prefix must be on both.
 
 Tests: 994/994 (2 new).
+
+## 2026-10-20: the README catches up
+
+The top-level README now has a tour of the app: every tab on the business side and the worker
+side, each with its tile from the navigation icon family. Tabs that don't have a tile yet (Offers,
+Applications, Hours, Profile) have none.
+
+Other sections updated to match the app as it stands:
+- **How it works:** sealed letters, the team channel and calendar tags, the public job board, and
+  the two server pieces (the courier and the visit counter).
+- **History:** what October added, and the size of the project (about 81,000 lines of code, 16,000
+  of them tests, and 9,000 lines of Leo).
+- **Running it locally:** the static bundle build, and the traction store's settings.
+
+Docs only.
