@@ -75,6 +75,12 @@ export function countHandler(store: TractionStore | null) {
 }
 
 export type Published = {
+  /**
+   * Whether the numbers are real: "counting" (read from the store), "off" (no store connected, so
+   * nothing has been counted) or "unavailable" (the store didn't answer). Only real numbers are
+   * cached for a day; the others aren't cached, so the page shows the counts as soon as they exist.
+   */
+  status: "counting" | "off" | "unavailable";
   /** Countries at or above the floor, most visitors first. */
   countries: { country: string; visitors: number; visits: number }[];
   /** Totals over every country, the ones below the floor included. */
@@ -86,12 +92,17 @@ export type Published = {
 };
 
 /** What the public page may show. */
-export function publish(raw: { visits: Record<string, number>; visitors: Record<string, number> }, min = MIN_VISITORS): Published {
+export function publish(
+  raw: { visits: Record<string, number>; visitors: Record<string, number> },
+  min = MIN_VISITORS,
+  status: Published["status"] = "counting",
+): Published {
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
   const codes = new Set([...Object.keys(raw.visits), ...Object.keys(raw.visitors)].filter((c) => COUNTRY.test(c)));
   const all = [...codes].map((country) => ({ country, visitors: num(raw.visitors[country]), visits: num(raw.visits[country]) }));
   const shown = all.filter((c) => c.visitors >= min).sort((a, b) => b.visitors - a.visitors || b.visits - a.visits || a.country.localeCompare(b.country));
   return {
+    status,
     countries: shown,
     visitors: all.reduce((n, c) => n + c.visitors, 0),
     visits: all.reduce((n, c) => n + c.visits, 0),
@@ -100,11 +111,13 @@ export function publish(raw: { visits: Record<string, number>; visitors: Record<
   };
 }
 
-/** GET /api/traction: the published numbers, cached for a day at the edge. */
+/** GET /api/traction: the published numbers, cached for a day at the edge once they are real. */
 export function tractionHandler(store: TractionStore | null) {
   return async (): Promise<Response> => {
     const raw = store ? await store.read().catch(() => null) : null;
-    const body = publish(raw ?? { visits: {}, visitors: {} });
-    return Response.json(body, { headers: { "Cache-Control": `public, max-age=0, s-maxage=${PUBLISH_CACHE_S}, stale-while-revalidate=3600` } });
+    const status: Published["status"] = !store ? "off" : raw ? "counting" : "unavailable";
+    const body = publish(raw ?? { visits: {}, visitors: {} }, MIN_VISITORS, status);
+    const cache = status === "counting" ? `public, max-age=0, s-maxage=${PUBLISH_CACHE_S}, stale-while-revalidate=3600` : "no-store";
+    return Response.json(body, { headers: { "Cache-Control": cache } });
   };
 }

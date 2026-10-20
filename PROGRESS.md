@@ -3507,3 +3507,21 @@ everyone's shifts, and tapping a day opens it by the hour. Setting the schedule 
 
 Tests: 992/992 (14 new: `team_schedule.test.ts`, `team_publish.test.ts`). Website build passes.
 BUILD_PLAN Phase 9: team calendar deliverable added, criterion ticked.
+
+## 2026-10-20: the traction map says when it isn't counting
+
+Joshua: the map didn't show his visits. Every failure on that path was silent. With no store
+connected, a visit is dropped and the map shows zeros. If the store fails to answer, the map also
+shows zeros. Both of those zero results were cached at the edge for a day, so connecting the store
+afterwards still showed zeros until the cache ran out.
+- `/api/traction` now says `status`:
+  - `counting`: read from the store. These numbers are cached for a day as before.
+  - `off`: no store is connected.
+  - `unavailable`: the store didn't answer.
+  - The last two are `no-store`, never cached.
+- The page says "Counting hasn't been switched on yet" or "The counts couldn't be read just now" in
+  those cases, instead of showing zeros as if they were real.
+- `store.ts` `storeSettings` also finds the store's address and key when Vercel connected it with
+  a custom prefix (`STORAGE_KV_REST_API_URL` and its `_TOKEN`). The same prefix must be on both.
+
+Tests: 994/994 (2 new).
