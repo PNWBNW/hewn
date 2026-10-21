@@ -48,8 +48,12 @@ export const BRAND = {
       schedule: "/brand/hewn-nav-schedule.png",
     },
   },
-  /** Where the app lives. The site's "Open the app" button points here. */
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://app.hewnaccounting.com",
+  /**
+   * Where the app lives. The site's "Open the app" button, the icon Shield shows and the installable
+   * app's calls to the server all point here. www for now: app.hewnaccounting.com doesn't resolve
+   * yet (2026-10-21).
+   */
+  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://www.hewnaccounting.com",
   /** Where the marketing site lives. */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://hewnaccounting.com",
   /**

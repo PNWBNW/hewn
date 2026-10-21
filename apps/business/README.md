@@ -10,7 +10,7 @@ count visits by country.
 
 | Build | Command | What it makes |
 |---|---|---|
-| The website | `pnpm build` | Served by Next.js at app.hewnaccounting.com, with the server pieces (`src/app/api/*.server.ts`) and the per-request security policy (`src/proxy.ts`) |
+| The website | `pnpm build` | Served by Next.js at www.hewnaccounting.com (app.hewnaccounting.com doesn't resolve yet), with the server pieces (`src/app/api/*.server.ts`) and the per-request security policy (`src/proxy.ts`) |
 | The static bundle | `pnpm build:static` (`HEWN_STATIC=1`) | Plain files in `out/` for the installable app. The policy is stamped into each page by `scripts/static_csp.mjs`, and the bundle reaches the server pieces on the website by full address (`src/api_base.ts`) |
 
 Server-only files end in `.server.ts`, an extension only the website build looks at, so the bundle

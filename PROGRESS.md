@@ -3736,3 +3736,18 @@ Joshua: the app never touches the email, so accounts are made with a username.
   updated.
 
 Tests: app 616/616 (5 new), vault 44/44, every package passes; both builds pass.
+
+## 2026-10-21: the app address is www for now
+
+Joshua found app.hewnaccounting.com doesn't load; www.hewnaccounting.com does. Everything that
+pointed at app. now points at www:
+- `BRAND.appUrl` (`packages/brand`), which the marketing site's "Open the app" and traction links,
+  the icon Shield shows when connecting, and the installable app's calls to the server (and its
+  stamped policy's `connect-src`) all use. Those were all aimed at the address that doesn't load.
+- The README's Open the app, job board and traction map links; `CLAUDE.md`, `BUILD_PLAN.md` and
+  `apps/business/README.md`.
+
+If Vercel sets `NEXT_PUBLIC_APP_URL`, it still overrides the default. When app. is set up, change it
+back in one place.
+
+Tests unchanged: every package passes; the static bundle and the site build.

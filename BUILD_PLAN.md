@@ -450,7 +450,7 @@ handling); likely a Fable session for the key agreement.
   website (`build:static`). Next: the Android shell (`apps/android`), then CI-built APKs.
 - [x] Greenlight for Phase 0 (2026-10-13).
 - [ ] Minimum group size for publishing aggregates (suggested 5). Gates Phase 3 public flag.
-- [x] Product name for the bookkeeping surface: **Hewn** (hewnaccounting.com; app at app.hewnaccounting.com) (2026-10-14). The name, tagline, colours and asset paths live in `packages/brand/src/index.ts`; art in `brand/source/`.
+- [x] Product name for the bookkeeping surface: **Hewn** (hewnaccounting.com; app at www.hewnaccounting.com for now, since app.hewnaccounting.com doesn't resolve yet, 2026-10-21) (2026-10-14). The name, tagline, colours and asset paths live in `packages/brand/src/index.ts`; art in `brand/source/`.
 - [ ] Phase 6 before Phase 3, if multi-user is wanted before anything ships to a second person.
 - [ ] Greenlight for Phase 1.
 - [x] One kind of account per Shield account (business or worker); the same username may hold both (2026-10-15). App check now, registrar on mainnet.

@@ -13,7 +13,8 @@ Three operating modes on one codebase: **fiat** (default, encrypted local vault,
 **anchored** (same, plus period roots anchored on Aleo), **settled** (USDCx on Aleo, the existing payroll
 stack). The double-entry core is identical in all three.
 
-Brand: **Hewn** (hewnaccounting.com; the app at app.hewnaccounting.com), tagline "honest books, grounded and
+Brand: **Hewn** (hewnaccounting.com; the app at www.hewnaccounting.com for now, since
+app.hewnaccounting.com doesn't resolve yet, 2026-10-21), tagline "honest books, grounded and
 true." The name, tagline, colours, asset paths and the app/site URLs live only in `packages/brand`
 (`@pnw/brand`; `apps/business/src/brand.ts` is a re-export of it); never hard-code the product name
 elsewhere (packages say "this app"). Source art and the asset build script live in `brand/`; never
