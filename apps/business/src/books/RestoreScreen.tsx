@@ -12,7 +12,7 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
   const { restore } = useBooks();
   const [text, setText] = useState<string | null>(null);
   const [legacy, setLegacy] = useState(false);
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,7 +32,7 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
     }
   }
 
-  const ready = text !== null && passphrase !== "" && (legacy || email.trim() !== "");
+  const ready = text !== null && passphrase !== "" && (legacy || username.trim() !== "");
 
   return (
     <AuthCard
@@ -47,7 +47,7 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
           setBusy(true);
           setError(null);
           try {
-            await restore(text, legacy ? null : email, passphrase);
+            await restore(text, legacy ? null : username, passphrase);
           } catch (err) {
             setError(errorMessage(err));
             setBusy(false);
@@ -67,17 +67,18 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
             This backup was made before accounts, so it opens with the passphrase alone.
           </p>
         ) : (
-          <Field label="Email" hint="The email of the account this backup belongs to.">
+          <Field label="Username" hint="The username of the account this backup belongs to (its email, if it was made with one).">
             <input
               className={inputClass}
-              type="email"
-              name="email"
-              inputMode="email"
-              autoComplete="email"
+              type="text"
+              name="username"
+              autoComplete="username"
               autoCapitalize="none"
+              autoCorrect="off"
               spellCheck={false}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              maxLength={254}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </Field>
         )}

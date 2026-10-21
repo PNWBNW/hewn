@@ -36,8 +36,9 @@ describe("the rules", () => {
     expect(checkNewPassphrase("aaaaaaaaaaaa!", EMAIL).problems).toContain("Don't repeat the same character");
   });
 
-  it("refuse a passphrase built from the account's own email", () => {
-    expect(checkNewPassphrase("jane.doe 2026 river!", EMAIL).problems).toContain("Don't use your email in it");
+  it("refuse a passphrase built from the account's own username or email", () => {
+    expect(checkNewPassphrase("jane.doe 2026 river!", EMAIL).problems).toContain("Don't use your username in it");
+    expect(checkNewPassphrase("copper.fox 2026 river!", "copperfox").problems).toContain("Don't use your username in it");
     expect(checkNewPassphrase("jane.doe 2026 river!", "someone@else.org").ok).toBe(true);
   });
 

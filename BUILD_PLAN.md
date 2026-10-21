@@ -453,7 +453,7 @@ handling); likely a Fable session for the key agreement.
 - [x] Product name for the bookkeeping surface: **Hewn** (hewnaccounting.com; app at app.hewnaccounting.com) (2026-10-14). The name, tagline, colours and asset paths live in `packages/brand/src/index.ts`; art in `brand/source/`.
 - [ ] Phase 6 before Phase 3, if multi-user is wanted before anything ships to a second person.
 - [ ] Greenlight for Phase 1.
-- [x] One kind of account per Shield account (business or worker); the same email may hold both (2026-10-15). App check now, registrar on mainnet.
+- [x] One kind of account per Shield account (business or worker); the same username may hold both (2026-10-15). App check now, registrar on mainnet.
 - [x] Mainnet names live under the Aleo Name Service as the `hewn` TLD; free tier a random public name (changed from private the same day), paid tier a chosen public name priced by length, bought once, no renewal (2026-10-15). See "Mainnet names".
 - [ ] Final prices for the short-name tiers.
 - [ ] Agreement with the ANS team to register `hewn` as a TLD.
@@ -471,6 +471,8 @@ handling); likely a Fable session for the key agreement.
   per-device switch first.
 - [x] New passphrases: at least 12 characters with a letter and a space or symbol, common
   passwords refused, a strength meter and a five-word suggestion (2026-10-20).
+- [x] Usernames instead of emails to log in, since nothing is ever sent to the email; an email
+  still works as a username, so accounts made with one open unchanged (2026-10-21).
 - [x] A Report button on received messages; a harassment report tells the sender nothing, other
   categories tell them in case their account was taken over (2026-10-20). Built the same day: the
   report goes to Hewn's account as a sealed letter, and can be emailed to hewnsupport@gmail.com or

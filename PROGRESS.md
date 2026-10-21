@@ -3715,3 +3715,24 @@ not the conversation).
 
 Tests: app 611/611 (13 new: `books/report.test.ts`, `chain/report.test.ts`); every package passes,
 and both builds of the app pass.
+
+## 2026-10-21: usernames instead of emails
+
+Joshua: the app never touches the email, so accounts are made with a username.
+- **The rule** (`books/account.ts` `normalizeUsername`): 3 to 32 letters, numbers, dots, dashes or
+  underscores, trimmed, NFKC-folded and lower-cased. An email address is still accepted and
+  normalised exactly as before, so every account made with an email opens unchanged: same vault id
+  (`hewn:acct:v1:<role>:<name>`), same secret (`hewn:v1\n<name>\n<passphrase>`), nothing in a vault
+  changes.
+- **Screens:** setup, log in and restore say "Username" (`autocomplete="username"`, so password
+  managers save it). The setup hint says only this device knows it and it isn't the public
+  `name.hewn`. Log in tells people who made an account with an email that it's their username.
+  Settings shows "Username".
+- **The company file** keeps the name as `username`; files saved before read their `email` field
+  as it. A new passphrase is still refused when it's built on the username ("Don't use your
+  username in it").
+- `CLAUDE.md`, `docs/THREAT_MODEL.md` (with the trade-off: a short username adds less to an offline
+  guess than an email, and the passphrase rules carry the weight), `README.md` and `BUILD_PLAN.md`
+  updated.
+
+Tests: app 616/616 (5 new), vault 44/44, every package passes; both builds pass.

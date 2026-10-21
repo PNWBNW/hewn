@@ -8,7 +8,7 @@
 //   rules:     at least 12 characters, with a letter and a space or symbol
 //              (a space counts, so plain words like "copper lantern river"
 //              pass); not built on a common password or the account's own
-//              email; not one character repeated.
+//              username (or email); not one character repeated.
 //   meter:     a conservative estimate in bits. Words from the suggestion list
 //              count 11 bits each; anything else counts by the characters it
 //              uses, less what repeats and runs give away.
@@ -132,8 +132,8 @@ function strengthOf(bits: number): Strength {
   return "very strong";
 }
 
-/** Checks a new passphrase against the rules, with the account's email so it can't be built from it. */
-export function checkNewPassphrase(raw: string, email = ""): PassphraseCheck {
+/** Checks a new passphrase against the rules, with the account's username (or email) so it can't be built from it. */
+export function checkNewPassphrase(raw: string, username = ""): PassphraseCheck {
   const passphrase = raw.normalize("NFKC");
   const chars = [...passphrase];
   const problems: string[] = [];
@@ -143,8 +143,8 @@ export function checkNewPassphrase(raw: string, email = ""): PassphraseCheck {
   const builtOnCommon = [skeleton(passphrase), skeleton(passphrase, false)].some((letters) => letters.length > 0 && onlyCommon(letters));
   if (chars.length > 0 && new Set(chars.map((c) => c.toLowerCase())).size <= 2) problems.push("Don't repeat the same character");
   else if (builtOnCommon) problems.push("That's built on a common password; guessing tools try it first");
-  const local = email.toLowerCase().split("@")[0]?.replace(/[^\p{L}\p{N}]/gu, "") ?? "";
-  if (local.length >= 4 && passphrase.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "").includes(local)) problems.push("Don't use your email in it");
+  const local = username.toLowerCase().split("@")[0]?.replace(/[^\p{L}\p{N}]/gu, "") ?? "";
+  if (local.length >= 4 && passphrase.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "").includes(local)) problems.push("Don't use your username in it");
   const bits = passphraseBits(passphrase);
   const strength = strengthOf(bits);
   if (problems.length === 0 && strength === "too weak") problems.push("Too easy to guess; add another word");

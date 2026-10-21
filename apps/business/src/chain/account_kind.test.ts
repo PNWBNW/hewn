@@ -8,7 +8,7 @@ describe("one kind of account per Shield account", () => {
   it("lets a business link a wallet with no worker name, and refuses one that has it", async () => {
     expect(await kindConflict("business", ADDR, holding({}))).toBeNull();
     expect(await kindConflict("business", ADDR, holding({ employer_primary_name_of: "1field" }))).toBeNull(); // its own kind is fine
-    expect(await kindConflict("business", ADDR, holding({ worker_primary_name_of: "7field" }))).toMatch(/already holds a worker's name.*same email/);
+    expect(await kindConflict("business", ADDR, holding({ worker_primary_name_of: "7field" }))).toMatch(/already holds a worker's name.*same username/);
   });
 
   it("does the same for a worker and a business's name", async () => {

@@ -12,7 +12,7 @@ const linkClass =
   "inline-flex min-h-11 items-center justify-center rounded-md px-2 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
- * The Log in pop-up: email and passphrase, nothing else open behind it. Esc, a tap on the backdrop
+ * The Log in pop-up: username and passphrase, nothing else open behind it. Esc, a tap on the backdrop
  * and the X all close it. The form is only mounted while it is open, so closing clears what was typed.
  */
 export function LoginDialog({
@@ -51,20 +51,20 @@ export function LoginDialog({
 function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore: () => void }) {
   const { unlock, unlockLegacy, chooseAccount, cancelChoice, legacyAvailable } = useBooks();
   const [legacy, setLegacy] = useState(false);
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [stay, setStay] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [choices, setChoices] = useState<Role[] | null>(null);
-  const emailRef = useRef<HTMLInputElement>(null);
+  const usernameRef = useRef<HTMLInputElement>(null);
   const passphraseRef = useRef<HTMLInputElement>(null);
 
   // Focus the first field once the dialog has opened (it opens just after this mounts). Only here,
   // never on the page behind.
   useEffect(() => {
     if (choices) return;
-    const t = setTimeout(() => (legacy ? passphraseRef.current : emailRef.current)?.focus(), 0);
+    const t = setTimeout(() => (legacy ? passphraseRef.current : usernameRef.current)?.focus(), 0);
     return () => clearTimeout(t);
   }, [legacy, choices]);
 
@@ -76,7 +76,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
         await unlockLegacy(passphrase, stay);
         return;
       }
-      const outcome = await unlock(email, passphrase, stay);
+      const outcome = await unlock(username, passphrase, stay);
       if (!outcome.opened) {
         setChoices(outcome.choices);
         setPassphrase("");
@@ -104,7 +104,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
       <div className="flex flex-col gap-5">
         <DialogHeader className="pr-10 text-left">
           <DialogTitle id="login-title">Which would you like to open?</DialogTitle>
-          <DialogDescription>That email and passphrase open both.</DialogDescription>
+          <DialogDescription>That username and passphrase open both.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           {choices.includes("business") && (
@@ -140,7 +140,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!busy && passphrase && (legacy || email.trim())) void submit();
+        if (!busy && passphrase && (legacy || username.trim())) void submit();
       }}
     >
       <DialogHeader className="pr-10 text-left">
@@ -148,23 +148,24 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
         <DialogDescription>
           {legacy
             ? "These books were made before accounts, so the passphrase alone opens them."
-            : "Your email and passphrase open your books on this device."}
+            : "Your username and passphrase open your books on this device. If you made your account with an email, that's your username."}
         </DialogDescription>
       </DialogHeader>
 
       {!legacy && (
-        <Field label="Email">
+        <Field label="Username">
           <input
-            ref={emailRef}
+            ref={usernameRef}
             className={inputClass}
-            type="email"
-            name="email"
-            inputMode="email"
-            autoComplete="email"
+            type="text"
+            name="username"
+            autoComplete="username"
             autoCapitalize="none"
+            autoCorrect="off"
             spellCheck={false}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            maxLength={254}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
           />
         </Field>
       )}
@@ -181,14 +182,14 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
       </label>
 
       <FormError message={error} />
-      <Button type="submit" className="h-11" disabled={busy || !passphrase || (!legacy && !email.trim())}>
+      <Button type="submit" className="h-11" disabled={busy || !passphrase || (!legacy && !username.trim())}>
         {busy ? "Opening…" : "Log in"}
       </Button>
 
       <div className="flex flex-col items-center">
         {legacy ? (
           <button type="button" className={linkClass} onClick={() => setLegacy(false)}>
-            Log in with an email instead
+            Log in with a username instead
           </button>
         ) : (
           <>

@@ -2,7 +2,7 @@
 // One kind of account per Shield account (Joshua, 2026-10-15): a wallet that
 // holds a business's books can't also hold a worker's, and the other way
 // round. Money in one wallet is one pot; a business's books and a person's pay
-// sharing it would mix business and personal money. The same email can hold
+// sharing it would mix business and personal money. The same username can hold
 // both kinds; each needs its own Shield account.
 //
 // The registry is where a wallet's kind shows: every account registers a
@@ -63,7 +63,7 @@ export async function kindConflict(role: Role, address: string, read: MappingRea
   return (
     `This Shield account already holds ${other.kind} name, and one Shield account holds one kind of account. ` +
     `Add another account in Shield (or use another wallet) for your ${role === "business" ? "business" : "work as a worker"}, and link that one. ` +
-    `You can keep the same email.`
+    `You can keep the same username.`
   );
 }
 
