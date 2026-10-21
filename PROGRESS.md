@@ -3751,3 +3751,12 @@ If Vercel sets `NEXT_PUBLIC_APP_URL`, it still overrides the default. When app. 
 back in one place.
 
 Tests unchanged: every package passes; the static bundle and the site build.
+
+## 2026-10-21: Node's types follow the Node that runs the code
+
+Dependabot's #129 offered `@types/node` 26. CI runs Node 22 and Vercel 22 or later, so types for 26
+would let code call Node functions that don't exist at run time. Closed it; `@types/node` moves to
+22.20.5 (the newest 22, 20 days old) in the root, the app and the site, and Dependabot now skips
+major bumps of `@types/node` (`.github/dependabot.yml`). Move it by hand when CI and Vercel move.
+
+Tests unchanged, every package passes; both apps build; `pnpm audit` clean.
