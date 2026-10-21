@@ -12,6 +12,10 @@ updates:
     ignore:
       # Pinned exactly on purpose (CLAUDE.md): alpha wallet adaptors break between releases.
       - dependency-name: "@provablehq/*"
+      # Node's types follow the Node that runs the code (CI and Vercel, 22): newer types would let
+      # code call functions that don't exist at run time. Move it by hand when the runtime moves.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

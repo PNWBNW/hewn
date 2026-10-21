@@ -10,7 +10,7 @@
     "dev:business": "pnpm --filter @pnw/business dev"
   },
   "devDependencies": {
-    "@types/node": "20.19.37",
+    "@types/node": "22.20.5",
     "typescript": "7.0.2",
     "vitest": "4.1.11"
   },
