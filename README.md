@@ -7,7 +7,7 @@ Free, open-source bookkeeping and payroll on Aleo. Your books stay encrypted on 
 
 <p align="center">
 <a href="https://hewnaccounting.com">Website</a> ·
-<a href="https://app.hewnaccounting.com">Open the app</a> ·
+<a href="https://www.hewnaccounting.com">Open the app</a> ·
 <a href="BUILD_PLAN.md">Build plan</a> ·
 <a href="PROGRESS.md">Progress log</a> ·
 <a href="LICENSE">AGPL-3.0</a>
@@ -72,8 +72,8 @@ gets their schedule, clocks hours and keeps their paystubs. One Shield account h
 | **Profile** | The `name.hewn` employers know you by, and the profile behind it. |
 
 Every business and worker registers a **`name.hewn`**, so people find each other by name rather
-than by a long wallet address. Anyone can also see the public [job board](https://app.hewnaccounting.com/board)
-and the [traction map](https://app.hewnaccounting.com/traction) (where people have opened Hewn,
+than by a long wallet address. Anyone can also see the public [job board](https://www.hewnaccounting.com/board)
+and the [traction map](https://www.hewnaccounting.com/traction) (where people have opened Hewn,
 by country, with no account).
 
 ## How it works
