@@ -68,20 +68,28 @@ describe("company file", () => {
     expect(() => companyFromJson(bad)).toThrow(/role/);
   });
 
-  it("carries the account's email inside the file, and leaves it out when there is none", () => {
+  it("carries the account's username inside the file, and leaves it out when there is none", () => {
     const dimensions = emptyDimensions();
-    const withEmail = companyToJson({ books, payroll, sales, dimensions, email: "ana@example.com" });
-    expect(JSON.parse(withEmail).email).toBe("ana@example.com");
-    expect(companyFromJson(withEmail)).toEqual({ books, payroll, sales, dimensions, email: "ana@example.com" });
+    const withName = companyToJson({ books, payroll, sales, dimensions, username: "copper.fox" });
+    expect(JSON.parse(withName).username).toBe("copper.fox");
+    expect(companyFromJson(withName)).toEqual({ books, payroll, sales, dimensions, username: "copper.fox" });
     const without = companyToJson({ books, payroll, sales, dimensions });
-    expect(JSON.parse(without)).not.toHaveProperty("email");
-    expect(companyFromJson(without)).not.toHaveProperty("email");
+    expect(JSON.parse(without)).not.toHaveProperty("username");
+    expect(companyFromJson(without)).not.toHaveProperty("username");
   });
 
-  it("opens files saved before accounts with no email", () => {
+  it("reads a file from before usernames, where the account's name was its email", () => {
+    const dimensions = emptyDimensions();
+    const old = { ...JSON.parse(companyToJson({ books, payroll, sales, dimensions })), email: "ana@example.com" };
+    expect(companyFromJson(JSON.stringify(old)).username).toBe("ana@example.com");
+    // Saved again, it carries the same name under the new key.
+    expect(JSON.parse(companyToJson(companyFromJson(JSON.stringify(old))))).toMatchObject({ username: "ana@example.com" });
+  });
+
+  it("opens files saved before accounts with no username", () => {
     const old = JSON.stringify({ format: "pnw-company", version: 1, books: booksToJson(books), payroll: payrollToJson(payroll), sales: salesToJson(sales), role: "business" });
-    expect(companyFromJson(old).email).toBeUndefined();
-    expect(companyFromJson(booksToJson(books)).email).toBeUndefined();
+    expect(companyFromJson(old).username).toBeUndefined();
+    expect(companyFromJson(booksToJson(books)).username).toBeUndefined();
   });
 
   it("still opens company files saved before projects existed", () => {

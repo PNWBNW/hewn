@@ -9,7 +9,7 @@ import {
   findAccounts,
   hasLegacyVault,
   legacyOpen,
-  normalizeEmail,
+  normalizeUsername,
   vaultIdFor,
 } from "./account";
 
@@ -17,43 +17,66 @@ import {
 const FAST = { iterations: 1_000 };
 const PASS = "correct horse battery";
 
-/** Makes an account the way the app does: vault id from the email, secret from email + passphrase. */
+/** Makes an account the way the app does: vault id from the username, secret from username + passphrase. */
 async function makeAccount(store: MemoryStore, email: string, role: "business" | "worker", passphrase = PASS, contents = `${role} books`) {
-  const e = normalizeEmail(email);
+  const e = normalizeUsername(email);
   const s = await createVault(accountSecret(e, passphrase), contents, { id: await vaultIdFor(e, role), ...FAST });
   await store.save(s.record);
   return s;
 }
 
-describe("normalizeEmail", () => {
+describe("normalizeUsername, with an email (how accounts were made before usernames)", () => {
   it("trims and lower-cases", () => {
-    expect(normalizeEmail("  Ana.Ruiz@Example.COM \n")).toBe("ana.ruiz@example.com");
+    expect(normalizeUsername("  Ana.Ruiz@Example.COM \n")).toBe("ana.ruiz@example.com");
   });
 
   it("folds look-alike Unicode forms (NFKC), so the same address always means the same account", () => {
-    expect(normalizeEmail("ＡＮＡ@ＥＸＡＭＰＬＥ．ＣＯＭ")).toBe("ana@example.com"); // full-width
-    expect(normalizeEmail("ana@example.com　")).toBe("ana@example.com"); // ideographic space
-    expect(normalizeEmail("José@example.com")).toBe(normalizeEmail("José@example.com")); // e + accent vs é
-    expect(normalizeEmail("JosÉ@example.com")).toBe("josé@example.com");
+    expect(normalizeUsername("ＡＮＡ@ＥＸＡＭＰＬＥ．ＣＯＭ")).toBe("ana@example.com"); // full-width
+    expect(normalizeUsername("ana@example.com　")).toBe("ana@example.com"); // ideographic space
+    expect(normalizeUsername("José@example.com")).toBe(normalizeUsername("José@example.com")); // e + accent vs é
+    expect(normalizeUsername("JosÉ@example.com")).toBe("josé@example.com");
   });
 
   it("is idempotent, so normalising twice changes nothing", () => {
     for (const raw of ["Ana@Example.com", "ＡＮＡ@ＥＸＡＭＰＬＥ．ＣＯＭ", "JosÉ@Exämple.org", "İ@example.com"]) {
-      const once = normalizeEmail(raw);
-      expect(normalizeEmail(once)).toBe(once);
+      const once = normalizeUsername(raw);
+      expect(normalizeUsername(once)).toBe(once);
     }
   });
 
-  it("refuses what is not shaped like an address", () => {
-    for (const bad of ["", "   ", "ana", "ana@", "@example.com", "ana@example", "ana@@example.com", "a na@example.com", "ana@exa mple.com", "ana@example.com, bo@example.com"]) {
-      expect(() => normalizeEmail(bad), bad).toThrow(AccountError);
+  it("refuses what is neither an address nor a username", () => {
+    for (const bad of ["", "   ", "an", "ana@", "@example.com", "ana@example", "ana@@example.com", "a na@example.com", "ana@exa mple.com", "ana@example.com, bo@example.com"]) {
+      expect(() => normalizeUsername(bad), bad).toThrow(AccountError);
     }
   });
 
-  it("allows 254 characters and refuses 255", () => {
+  it("allows a 254-character email and refuses 255", () => {
     const at = (n: number) => `${"a".repeat(n - "@example.com".length)}@example.com`;
-    expect(normalizeEmail(at(254))).toHaveLength(254);
-    expect(() => normalizeEmail(at(255))).toThrow(/valid email/);
+    expect(normalizeUsername(at(254))).toHaveLength(254);
+    expect(() => normalizeUsername(at(255))).toThrow(/A username is/);
+  });
+});
+
+describe("normalizeUsername", () => {
+  it("takes 3 to 32 letters, numbers, dots, dashes and underscores, lower-cased", () => {
+    expect(normalizeUsername("  Copper.Fox_22 ")).toBe("copper.fox_22");
+    expect(normalizeUsername("ana")).toBe("ana");
+    expect(normalizeUsername("josé-ruiz")).toBe("josé-ruiz");
+    expect(normalizeUsername("ＣＯＰＰＥＲ")).toBe("copper"); // full-width folds (NFKC)
+    expect(normalizeUsername("x".repeat(32))).toHaveLength(32);
+  });
+
+  it("refuses too short, too long, spaces and symbols", () => {
+    for (const bad of ["ab", "x".repeat(33), "copper fox", "copper!", "copper/fox", "cop\nper", "<b>", "ana@"]) {
+      expect(() => normalizeUsername(bad), bad).toThrow(/A username is 3 to 32/);
+    }
+  });
+
+  it("is idempotent", () => {
+    for (const raw of ["Copper.Fox", "ＣＯＰＰＥＲ", "José-Ruiz"]) {
+      const once = normalizeUsername(raw);
+      expect(normalizeUsername(once)).toBe(once);
+    }
   });
 });
 
@@ -93,7 +116,8 @@ describe("accountSecret", () => {
   });
 
   it("can't be confused by moving text between the email and the passphrase: no email holds the newline that separates them", () => {
-    expect(() => normalizeEmail("a@b.co\nx")).toThrow(AccountError);
+    expect(() => normalizeUsername("a@b.co\nx")).toThrow(AccountError);
+    expect(() => normalizeUsername("ana\nx")).toThrow(AccountError);
     expect(accountSecret("a@b.co", "x\ny@z.co")).not.toBe(accountSecret("a@b.cox", "y@z.co"));
   });
 });
@@ -103,7 +127,8 @@ describe("checkAccountPassphrase", () => {
     expect(() => checkAccountPassphrase("river acid!")).toThrow(/at least 12/);
     expect(() => checkAccountPassphrase("copper lantern river ninth")).not.toThrow();
     expect(() => checkAccountPassphrase("Password123!")).toThrow(/common password/);
-    expect(() => checkAccountPassphrase("jane.doe 2026 river!", "jane.doe@example.com")).toThrow(/email/);
+    expect(() => checkAccountPassphrase("jane.doe 2026 river!", "jane.doe@example.com")).toThrow(/username/);
+    expect(() => checkAccountPassphrase("copperfox 2026 river!", "copper.fox")).toThrow(/username/);
     expect(() => checkAccountPassphrase("🌲 pine 🌲 cone 🌲")).not.toThrow();
   });
 });
@@ -185,8 +210,20 @@ describe("findAccounts", () => {
     expect((await findAccounts(store, "ana@example.com", "a different worker passphrase", FAST)).map((f) => f.role)).toEqual(["worker"]);
   });
 
-  it("refuses an email that isn't an email, with its own message", async () => {
-    await expect(findAccounts(new MemoryStore(), "ana", PASS, FAST)).rejects.toThrow(/valid email/);
+  it("refuses a username that can't be one, with its own message", async () => {
+    await expect(findAccounts(new MemoryStore(), "an", PASS, FAST)).rejects.toThrow(/A username is/);
+  });
+
+  it("opens an account made with a username, and an email account exactly as before", async () => {
+    const store = new MemoryStore();
+    await makeAccount(store, "Copper.Fox", "business");
+    await makeAccount(store, "ana@example.com", "worker");
+    expect((await findAccounts(store, " copper.fox ", PASS, FAST)).map((f) => f.role)).toEqual(["business"]);
+    expect((await findAccounts(store, "Ana@Example.com", PASS, FAST)).map((f) => f.role)).toEqual(["worker"]);
+    // An email account's vault id and secret are the ones it was made with.
+    expect(await vaultIdFor(normalizeUsername("Ana@Example.com"), "worker")).toBe(
+      `acct-${(await sha256Hex(new TextEncoder().encode("hewn:acct:v1:worker:ana@example.com"))).slice(0, 32)}`,
+    );
   });
 
   it("does not open books from before accounts", async () => {

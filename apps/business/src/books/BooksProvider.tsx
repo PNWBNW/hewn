@@ -4,9 +4,10 @@
 // Holds the open books for the whole app.
 //
 // Lifecycle: loading → "new" (no books on this device yet) or "locked" (some
-// are here) → "open". An account is an email plus a passphrase (see
-// account.ts): the vault id is a hash of the email and the role, and the
-// vault key is wrapped with the email and passphrase together. Every change goes through `update`, which runs a pure ledger
+// are here) → "open". An account is a username plus a passphrase (see
+// account.ts; accounts made before usernames use their email as it): the
+// vault id is a hash of the username and the role, and the vault key is
+// wrapped with the username and passphrase together. Every change goes through `update`, which runs a pure ledger
 // operation, then seals the result and saves it to IndexedDB before the
 // screen moves on. Plaintext exists only in this tab's memory.
 //
@@ -36,7 +37,7 @@ import {
   findAccounts,
   hasLegacyVault,
   legacyOpen,
-  normalizeEmail,
+  normalizeUsername,
   vaultIdFor,
 } from "./account";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
@@ -70,9 +71,9 @@ export type BooksStatus = "loading" | "new" | "locked" | "open";
  * person who works for one gives only their name, and gets blank books with
  * the work part alongside.
  */
-export type SetupInput = Settings & { template: TemplateId | "blank"; email: string; passphrase: string; role: Role; stay?: boolean };
+export type SetupInput = Settings & { template: TemplateId | "blank"; username: string; passphrase: string; role: Role; stay?: boolean };
 
-/** What a login came to: the books are open, or one email and passphrase opened both kinds and the person picks. */
+/** What a login came to: the books are open, or one username and passphrase opened both kinds and the person picks. */
 export type UnlockOutcome = { opened: true } | { opened: false; choices: Role[] };
 
 // Only records that an account exists on this device (to tell the front page which button to
@@ -99,10 +100,10 @@ type BooksContextValue = {
   status: BooksStatus;
   /** True when books from before accounts are on this device (they open with a passphrase alone). */
   legacyAvailable: boolean;
-  /** The open account's vault id (a hash of its email and role, or the old "default"); null while locked. */
+  /** The open account's vault id (a hash of its username and role, or the old "default"); null while locked. */
   vaultId: string | null;
-  /** The open account's email; null on books made before accounts, or while locked. */
-  email: string | null;
+  /** The open account's username (an email on accounts made before usernames); null on books made before accounts, or while locked. */
+  username: string | null;
   books: Books | null;
   payroll: Payroll | null;
   sales: Sales | null;
@@ -124,9 +125,9 @@ type BooksContextValue = {
   /** A person's own side (agreements, hours, paystubs), or null on a business's books. */
   work: Work | null;
   create: (input: SetupInput) => Promise<void>;
-  /** Log in with an email and passphrase. Throws a message that never says which of the two was wrong. */
+  /** Log in with a username and passphrase. Throws a message that never says which of the two was wrong. */
   /** `stay` (default true) keeps the books open on this device for 24 hours, until Log out. */
-  unlock: (email: string, passphrase: string, stay?: boolean) => Promise<UnlockOutcome>;
+  unlock: (username: string, passphrase: string, stay?: boolean) => Promise<UnlockOutcome>;
   /** After `unlock` offered a choice: open the business or the worker account. */
   chooseAccount: (role: Role) => Promise<void>;
   /** Drop an offered choice (the dialog closed) and its keys. */
@@ -143,10 +144,10 @@ type BooksContextValue = {
   updateCompany: (op: (company: Company) => Company) => Promise<Company>;
   downloadBackup: () => Promise<void>;
   /**
-   * Restore a backup file onto this device, then open it. The backup must belong to this email; a
-   * backup from before accounts needs only the passphrase (pass null for the email).
+   * Restore a backup file onto this device, then open it. The backup must belong to this username; a
+   * backup from before accounts needs only the passphrase (pass null for the username).
    */
-  restore: (fileText: string, email: string | null, passphrase: string, stay?: boolean) => Promise<void>;
+  restore: (fileText: string, username: string | null, passphrase: string, stay?: boolean) => Promise<void>;
   /** Seals a photo or PDF into the vault and returns the reference a bill keeps. */
   addAttachment: (file: File) => Promise<AttachmentRef>;
   /** Opens a sealed file, checking it against the fingerprint the bill holds. */
@@ -249,8 +250,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
 
   // On load: reopen books kept open on this device, if any. Otherwise, is there anything here to
   // log in to? Books from before accounts, or the flag a created account leaves. The vault ids of
-  // accounts are hashes of emails, so the store can't be asked for them without one; the login
-  // looks for them once the email is typed.
+  // accounts are hashes of usernames, so the store can't be asked for them without one; the login
+  // looks for them once the username is typed.
   useEffect(() => {
     let live = true;
     (async () => {
@@ -279,20 +280,20 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, [store, show]);
 
   const create = useCallback(
-    async ({ template, email: rawEmail, passphrase, role, stay = true, ...settings }: SetupInput) => {
-      const email = normalizeEmail(rawEmail);
-      checkAccountPassphrase(passphrase, email);
-      const id = await vaultIdFor(email, role);
+    async ({ template, username: rawUsername, passphrase, role, stay = true, ...settings }: SetupInput) => {
+      const username = normalizeUsername(rawUsername);
+      checkAccountPassphrase(passphrase, username);
+      const id = await vaultIdFor(username, role);
       // Never overwrite: this screen is reachable on a device that already has accounts.
       if (await store.load(id)) {
         throw new AccountError(
-          `There is already a ${role === "worker" ? "worker" : "business"} account for that email on this device. Log in, or use a different email.`,
+          `There is already a ${role === "worker" ? "worker" : "business"} account with that username on this device. Log in, or pick a different username.`,
         );
       }
       let fresh = createBooks(settings);
       if (template !== "blank") fresh = applyTemplate(fresh, template);
       const base: Company = role === "worker" ? { ...emptyCompany(fresh), role, work: emptyWork(settings.businessName) } : emptyCompany(fresh);
-      const s = await createVault(accountSecret(email, passphrase), companyToJson({ ...base, email }), { id });
+      const s = await createVault(accountSecret(username, passphrase), companyToJson({ ...base, username }), { id });
       await store.save(s.record);
       writeAccountFlag();
       await open(s, stay);
@@ -301,8 +302,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   );
 
   const unlock = useCallback(
-    async (email: string, passphrase: string, stay = true): Promise<UnlockOutcome> => {
-      const found = await findAccounts(store, email, passphrase); // throws the one generic message
+    async (username: string, passphrase: string, stay = true): Promise<UnlockOutcome> => {
+      const found = await findAccounts(store, username, passphrase); // throws the one generic message
       writeAccountFlag();
       stayChoice.current = stay;
       if (found.length === 1) {
@@ -392,18 +393,18 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, [company, store]);
 
   const restore = useCallback(
-    async (fileText: string, rawEmail: string | null, passphrase: string, stay = true) => {
+    async (fileText: string, rawUsername: string | null, passphrase: string, stay = true) => {
       const backup = parseBackup(fileText);
       let s: VaultSession;
       if (backup.record.id === LEGACY_VAULT_ID) {
         // From before accounts: the passphrase alone, as ever.
         s = await unlockVault(backup.record, passphrase).catch(rethrowWrong("That passphrase doesn't open this backup"));
       } else {
-        const email = normalizeEmail(rawEmail ?? "");
-        const ids = await Promise.all(ROLES.map((role) => vaultIdFor(email, role)));
+        const username = normalizeUsername(rawUsername ?? "");
+        const ids = await Promise.all(ROLES.map((role) => vaultIdFor(username, role)));
         if (!ids.includes(backup.record.id)) throw new AccountError("This backup belongs to a different account");
-        s = await unlockVault(backup.record, accountSecret(email, passphrase)).catch(
-          rethrowWrong("That email and passphrase don't open this backup"),
+        s = await unlockVault(backup.record, accountSecret(username, passphrase)).catch(
+          rethrowWrong("That username and passphrase don't open this backup"),
         ); // proves them before anything is replaced
       }
       companyFromJson(await s.read()); // and that the books inside are intact
@@ -480,7 +481,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       status,
       legacyAvailable,
       vaultId,
-      email: company?.email ?? null,
+      username: company?.username ?? null,
       books: company?.books ?? null,
       payroll: company?.payroll ?? null,
       sales: company?.sales ?? null,

@@ -45,29 +45,32 @@ No server, no database. ✅ Structural, from the architecture.
   doesn't open its record, and clears it. One remembered session per device. Accepted: on a phone
   the books open inside the Shield app, which itself needs a fingerprint. ✅ `@pnw/vault`
   (`remember`, `resumeSession`, `forgetSession`)
-- **Email + passphrase.** The unlock secret is the normalised email and the passphrase together
-  (`hewn:v1\n<email>\n<passphrase>`), so a stolen file needs both to open; the passphrase alone
-  does not. The vault id is `acct-` plus 32 hex of SHA-256 over role and email, local to the
-  device. ✅ `apps/business/src/books/account.ts`
+- **Username + passphrase.** The unlock secret is the normalised username and the passphrase
+  together (`hewn:v1\n<username>\n<passphrase>`), so a stolen file needs both to open; the
+  passphrase alone does not. The vault id is `acct-` plus 32 hex of SHA-256 over role and username,
+  local to the device. ✅ `apps/business/src/books/account.ts`. Usernames replaced emails on
+  2026-10-21 (nothing was ever sent to the email); an email is still a valid username and
+  normalises as before, so accounts made with one open unchanged.
 - ⚠️ The id is an unsalted hash, so someone holding a file or the browser profile can test a
-  guessed email against it cheaply. That confirms an address they already suspect; it opens
-  nothing (the key still needs the passphrase), and the email is not stored in the clear anywhere
-  (it lives inside the encrypted company file). Accepted.
+  guessed username against it cheaply. That confirms a name they already suspect; it opens nothing
+  (the key still needs the passphrase), and the username is not stored in the clear anywhere (it
+  lives inside the encrypted company file). A short username is easier to guess than an email, so
+  it adds less to an offline guess than an email did; the passphrase rules below carry the weight.
+  Accepted.
 - **Offline guessing is the main threat to the vault (2026-10-20).** A copied vault or backup file
   can be guessed at with no lockout, so a new passphrase must be at least 12 characters with a
   letter and a space or symbol, and is refused when it is built on a common password or on the
-  account's email. Setup shows a strength meter and offers five random words from the BIP-39 list
+  account's username. Setup shows a strength meter and offers five random words from the BIP-39 list
   (about 55 bits). PBKDF2-SHA256 at 600k rounds slows each guess. ✅ `@pnw/vault`
   (`checkNewPassphrase`, `suggestPassphrase`). ⚠️ Existing accounts keep the passphrase they were
   made with (the old minimum was 10 characters). 🔜 A memory-hard KDF (Argon2id), the wallet or a
   passkey as a second factor.
-- Login never says whether an email has an account here: one generic message for a wrong email,
+- Login never says whether a username has an account here: one generic message for a wrong username,
   a wrong passphrase or an empty device, and a failed lookup spends one key derivation so the wait
   tells the same story. ✅
 - There are no server accounts, so there is no credential-stuffing surface, no reset email to
   hijack and no password reset. A lost passphrase is unrecoverable. 🔜 The recovery key (a second
-  wrapped copy of the data key, held by the user) is the planned recovery mechanism; the email is
-  kept in the account so recovery can use it.
+  wrapped copy of the data key, held by the user) is the planned recovery mechanism.
 
 ### T3 — Malicious code in the page (XSS, compromised dependency, compromised host)
 The highest risk for a browser app.

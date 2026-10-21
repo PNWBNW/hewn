@@ -7,7 +7,7 @@ import { MIN_NEW_PASSPHRASE, type Strength, checkNewPassphrase, suggestPassphras
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { AuthCard, Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
-import { isEmail } from "./account";
+import { MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH, isUsername } from "./account";
 import { useBooks } from "./BooksProvider";
 import type { Role } from "./work";
 
@@ -18,7 +18,7 @@ const MONTHS = [
 
 type Step = "role" | "business" | "accounts" | "person" | "protect";
 
-/** New here: what brings you, a few details, then an email and passphrase. `onBack` returns to the front page. */
+/** New here: what brings you, a few details, then a username and passphrase. `onBack` returns to the front page. */
 export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onRestore: () => void }) {
   const { create } = useBooks();
   const [role, setRole] = useState<Role>("business");
@@ -26,8 +26,8 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
   const [businessName, setBusinessName] = useState("");
   const [fiscalYearStartMonth, setFyStart] = useState(1);
   const [template, setTemplate] = useState<TemplateId | "blank">("service");
-  const [email, setEmail] = useState("");
-  const [emailTouched, setEmailTouched] = useState(false);
+  const [username, setUsername] = useState("");
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [passphrase, setPassphrase] = useState("");
   // Bumped when a passphrase is suggested, so the field remounts showing it (to write down).
   const [suggested, setSuggested] = useState(0);
@@ -36,18 +36,18 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const check = checkNewPassphrase(passphrase, email);
+  const check = checkNewPassphrase(passphrase, username);
   const mismatch = confirm.length > 0 && confirm !== passphrase;
-  const emailOk = isEmail(email);
-  const emailBad = emailTouched && email.trim() !== "" && !emailOk;
+  const usernameOk = isUsername(username);
+  const usernameBad = usernameTouched && username.trim() !== "" && !usernameOk;
   const worker = role === "worker";
 
   async function finish() {
     setError(null);
     setBusy(true);
     try {
-      if (worker) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", email, passphrase, role });
-      else await create({ businessName: businessName.trim(), fiscalYearStartMonth, template, email, passphrase, role });
+      if (worker) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", username, passphrase, role });
+      else await create({ businessName: businessName.trim(), fiscalYearStartMonth, template, username, passphrase, role });
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -91,7 +91,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            You can have both. Make one now and add the other later, with the same email. Each needs its own Shield account and its own
+            You can have both. Make one now and add the other later, with the same username. Each needs its own Shield account and its own
             registered name.
           </p>
           <button type="button" onClick={onRestore} className="min-h-11 self-start text-sm text-muted-foreground underline underline-offset-4">
@@ -217,31 +217,36 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
           className="flex flex-col gap-5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (emailOk && check.ok && !mismatch && confirm === passphrase && understood) void finish();
+            if (usernameOk && check.ok && !mismatch && confirm === passphrase && understood) void finish();
           }}
         >
           <p className="text-sm text-muted-foreground">
-            {worker ? "Your agreements, hours and paystubs are" : "Your books are"} encrypted on this device. Your email and a passphrase only you
+            {worker ? "Your agreements, hours and paystubs are" : "Your books are"} encrypted on this device. Your username and a passphrase only you
             know open them together. Pick something long and memorable, like a short sentence. Next, you&apos;ll link your Shield account and
             register your name.
           </p>
-          <Field label="Email" hint="Your account name on this device. Nothing is sent to it.">
+          <Field label="Username" hint="Only this device knows it, and it isn't your public name. Letters, numbers, dots, dashes or underscores.">
             <input
-              className={cn(inputClass, emailBad && "border-destructive")}
-              type="email"
-              name="email"
-              inputMode="email"
-              autoComplete="email"
+              className={cn(inputClass, usernameBad && "border-destructive")}
+              type="text"
+              name="username"
+              autoComplete="username"
               autoCapitalize="none"
+              autoCorrect="off"
               spellCheck={false}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onBlur={() => setEmailTouched(true)}
-              aria-invalid={emailBad}
+              maxLength={254}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onBlur={() => setUsernameTouched(true)}
+              aria-invalid={usernameBad}
               autoFocus
             />
           </Field>
-          {emailBad && <p className="-mt-3 text-xs text-destructive">Enter an email like name@example.com.</p>}
+          {usernameBad && (
+            <p className="-mt-3 text-xs text-destructive">
+              Use {MIN_USERNAME_LENGTH} to {MAX_USERNAME_LENGTH} letters, numbers, dots, dashes or underscores.
+            </p>
+          )}
           <Field label="Passphrase" hint={`At least ${MIN_NEW_PASSPHRASE} characters, with a letter and a space or symbol. Five random words is best.`}>
             <PassphraseInput key={suggested} value={passphrase} onChange={setPassphrase} autoComplete="new-password" name="new-password" initiallyShown={suggested > 0} />
           </Field>
@@ -301,7 +306,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
             <Button
               type="submit"
               className="h-11 flex-1"
-              disabled={busy || !emailOk || !check.ok || mismatch || confirm !== passphrase || !understood}
+              disabled={busy || !usernameOk || !check.ok || mismatch || confirm !== passphrase || !understood}
             >
               {busy ? "Encrypting…" : worker ? "Create my space" : "Create my books"}
             </Button>
