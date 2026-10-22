@@ -78,7 +78,9 @@ Payroll history is grouped by them.
 2. **The registrar doesn't tie the name to its hash.** `name_hash` and `name_plaintext` come in
    as separate inputs and nothing checks they match, so a client could register one name's
    hash with another name's text. Computing the id in the program, from the name itself, closes
-   this.
+   this. Until then the app checks every name it reads (2026-10-22, the security review:
+   `nameMatchesHash`, `@pnw/records`): the text must hash back to the hash it's filed under and be
+   a plain name (`a-z`, `0-9`, `_`), or it isn't shown; the account is shown instead.
 3. **Names are capped at 16 characters, by two different rules.** `directory.ts` and
    `work/registry.ts` allow 3 to 16; `books/rail.ts` and `RailPanel` accept 1 to 16. The
    16-character cap comes from storing the name in one `u128`; ANS stores names as `[u128; 4]`

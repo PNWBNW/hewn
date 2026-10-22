@@ -138,9 +138,27 @@ export function decodeNameFromU128(value: string): string {
   }
 }
 
+/** What a registered name may be: 3 to 16 lower-case letters, digits and underscores (no look-alike characters). */
+const NAME_TEXT = /^[a-z0-9_]{3,16}$/;
+
+/**
+ * Whether `name` is the name `nameHash` was made from. The registrar stores whatever text it is
+ * given beside a hash, so anyone can put "acme" against their own hash: a name is shown only when
+ * it hashes back to the hash it's filed under, and is a plain name (the security review, 2026-10-22).
+ */
+export function nameMatchesHash(name: string, nameHash: Field): boolean {
+  if (!NAME_TEXT.test(name)) return false;
+  try {
+    return BigInt(computeNameHash(name)) === BigInt(String(nameHash).replace(/field$/, "").trim());
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Query the plaintext .pnw name for a given name hash.
- * Uses the registrar's name_plaintext mapping (v5+).
+ * Uses the registrar's name_plaintext mapping (v5+). Null unless the text is the name the hash was
+ * made from (`nameMatchesHash`): a mismatched one is someone posing as another name.
  */
 export async function queryNamePlaintext(nameHash: Field): Promise<string | null> {
   const endpoint = ENV.ALEO_ENDPOINT;
@@ -156,7 +174,8 @@ export async function queryNamePlaintext(nameHash: Field): Promise<string | null
 
     const data: unknown = await response.json();
     if (typeof data === "string") {
-      return decodeNameFromU128(data);
+      const name = decodeNameFromU128(data);
+      return name && nameMatchesHash(name, nameHash) ? name : null;
     }
     return null;
   } catch {

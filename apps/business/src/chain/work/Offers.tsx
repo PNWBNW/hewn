@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { AttachmentRef } from "@pnw/sales";
 import { checkAgreementStatus } from "@pnw/records/agreement_reader";
-import { queryNamePlaintext } from "@pnw/records/registry/name_registry";
+import { nameMatchesHash, queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
@@ -120,7 +120,9 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           const onChain = await checkAgreementStatus(record.agreementId).catch(() => null);
           if (record.kind === "final") status = STATUS_OF[onChain ?? "active"] ?? "active";
           else if (onChain === "terminated") status = "terminated"; // withdrawn before it was accepted
-          const employerName = previous?.employerName ?? ((await queryNamePlaintext(record.employerNameHash).catch(() => null)) || undefined);
+          // A name kept from before names were checked is used only if it still checks out against the hash.
+          const keptName = previous?.employerName && nameMatchesHash(previous.employerName, record.employerNameHash) ? previous.employerName : undefined;
+          const employerName = keptName ?? ((await queryNamePlaintext(record.employerNameHash).catch(() => null)) || undefined);
           // Terms already in the vault are used as long as they still hash to the record; otherwise the page on the network.
           const kept: Terms | undefined = previous?.terms && termsMatchRecord(previous.terms, record.termsDocHash) ? previous.terms : undefined;
           const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, letterReader(letters.current, record.employerAddress));

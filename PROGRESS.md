@@ -3995,3 +3995,25 @@ and refuses to guess with no sender; applications from someone other than the na
 group can't be taken over with a later-dated setup; two members' messages with one id; a
 future-dated message. App 635 (+5); every package passes (1039); both builds pass;
 `pnpm audit` clean.
+
+## 2026-10-22: names shown only when they check out (fix 4 of the security review)
+
+`pnw_name_registrar_v5` stores whatever text it's given beside a name's hash (`NAME_REGISTRY_MAP.md`
+#2), and the app showed that text as the name: anyone could register their own hash with the text
+"acme" for free and show as acme.hewn on the job board, as the sender of an offer, in the review
+list's counterparty, or in an account lookup.
+- **`nameMatchesHash`** (`@pnw/records`): a name counts only when it hashes back to the hash it's
+  filed under and is a plain name (`a-z`, `0-9`, `_`, 3 to 16; no look-alike characters).
+  `queryNamePlaintext` returns null otherwise, so the board ("A business"), offers (the account),
+  lookups and the review list all fall back to the account.
+- **Kept before the check:** an employer name saved on an agreement is reused only if it still
+  checks out; an applicant's name shows only if it checks out (else "account (name not
+  verified)"), and a new application whose name doesn't match its hash is left out.
+- **Sold-back names:** an account's primary name counts only while the account still owns it
+  (`lookupAddress`), so a name it sold back, maybe someone else's now, isn't shown for it.
+- Docs: `docs/NAME_REGISTRY_MAP.md` #2, `docs/THREAT_MODEL.md` ("Who a letter is from").
+
+Tests: records +2 (the check, and the registrar read refusing "acme" against another hash, a
+Cyrillic look-alike, upper case); app +1 (an account showing a name it no longer owns; the
+application test now also covers one posing as another name). Every package passes (1042); both
+builds pass; `pnpm audit` clean.

@@ -28,7 +28,7 @@ import { APPLICATION_STATUS_LABEL, type ApplicationStatus, addToThread, skipInco
 import { BRAND } from "@/brand";
 import { FeeChoice } from "./FeeChoice";
 import { ShieldStatus } from "./ShieldStatus";
-import { applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
+import { applicantLabel, applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
 import { applicationItem, applicationLookup } from "./applications";
 import { useLetters } from "./letter_reader";
 import { LetterBox, letterThread } from "./letters";
@@ -177,7 +177,7 @@ function Flow({ posting: given, onClose }: ApplicantsProps) {
                 <button type="button" className="flex w-full items-center justify-between gap-3 text-left" onClick={() => setOpen(isOpen ? null : { kind: "talk", partiesKey: a.partiesKey })} aria-expanded={isOpen}>
                   <span className="min-w-0 flex-1">
                     <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>
-                      {a.name}.{BRAND.nameSuffix}
+                      {applicantLabel(a)}
                     </span>
                     <span className="block text-xs text-muted-foreground">
                       Applied {day(a.appliedAt)} · {APPLICATION_STATUS_LABEL[a.status ?? "applied"]}
@@ -230,7 +230,7 @@ function ApplicantConversation({ applicant }: { applicant: Applicant }) {
       key={applicant.partiesKey}
       side="business"
       partiesKey={applicant.partiesKey}
-      title={`${applicant.name}.${BRAND.nameSuffix}`}
+      title={applicantLabel(applicant)}
       thread={threadFor(mailbox, applicant.partiesKey)}
       update={update}
       offersHref="/jobs?tab=offers"
