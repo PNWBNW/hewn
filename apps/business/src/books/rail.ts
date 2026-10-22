@@ -149,6 +149,14 @@ export class RailError extends Error {
 
 export const isRailAddress = (s: unknown): s is string => typeof s === "string" && ADDRESS.test(s);
 
+/**
+ * Who can be paid on the rail: people whose agreement both sides approved (`linked`), by team
+ * member id → account. An offer not yet accepted (`offered`) isn't enough: its account came from a
+ * name lookup, not from an agreement they signed (the security review, 2026-10-22).
+ */
+export const payableLinks = (rail: Rail | null | undefined): Map<string, string> =>
+  new Map((rail?.links ?? []).filter((l) => l.status === "linked").map((l) => [l.workerId, l.address]));
+
 /** `aleo1abcd…wxyz`: enough to recognise an account, short enough for a phone. */
 export function shortAddress(address: string): string {
   return address.length > 16 ? `${address.slice(0, 9)}…${address.slice(-4)}` : address;
