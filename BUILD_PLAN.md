@@ -490,5 +490,12 @@ handling); likely a Fable session for the key agreement.
   vault so people keep their history (2026-10-16). Built with the letters (`docs/LETTERS.md`).
 - [x] Hiring starts with the offer: a business sends a job offer to anyone by their registered name,
   and they join the team when they accept (2026-10-16). Team members never paid can be removed.
-- [x] Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
-  an option (2026-10-16).
+- [x] ~~Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
+  an option (2026-10-16).~~ Moot: the
+  mailbox is retired and every message is a letter on chain (2026-10-22).
+- [x] Terms of use and a privacy page, public at `/terms` and `/privacy` (Joshua, 2026-10-22):
+  "we" is Hewn, run by Joshua Day; Washington State law; questions to hewnsupport@gmail.com. Setup's
+  checkbox reads "I understand my passphrase can't be recovered, and that Hewn is testnet software
+  provided as is: not tax, legal or accounting advice." The small print under the front page and
+  the rail says "Testnet · provided as is · Terms · Privacy"; payroll runs, taxes and paystubs say
+  "Testnet software. Check these figures before you rely on them; this isn't tax advice."

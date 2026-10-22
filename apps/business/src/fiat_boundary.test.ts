@@ -16,6 +16,8 @@ import { describe, expect, it } from "vitest";
 const APP_ROOT = join(__dirname, "..");
 const SRC = join(APP_ROOT, "src");
 const CHAIN_DIR = join(SRC, "chain") + sep;
+// The terms and the privacy page say plainly what goes on chain and what the wallet does (2026-10-22).
+const LEGAL_DIR = join(SRC, "legal") + sep;
 
 const CHAIN_PACKAGES = [
   "@pnw/wallet",
@@ -63,7 +65,7 @@ describe("fiat boundary", () => {
   });
 
   it("shows no chain vocabulary to a fiat user", () => {
-    const offenders = outsideChain(sourceFiles(SRC)).flatMap((file) =>
+    const offenders = outsideChain(sourceFiles(SRC)).filter((f) => !f.startsWith(LEGAL_DIR)).flatMap((file) =>
       readFileSync(file, "utf8")
         .split("\n")
         .map((line, i) => ({ line, n: i + 1 }))

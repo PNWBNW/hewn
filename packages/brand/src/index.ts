@@ -62,6 +62,8 @@ export const BRAND = {
    * A fork changes this to its own repository.
    */
   sourceUrl: "https://github.com/PNWBNW/hewn",
+  /** Who runs this copy, as the terms and the privacy page name them. A fork changes it. */
+  operator: "Joshua Day",
   /** Where people write to Hewn: a report can be copied and emailed here. A fork changes it. */
   supportEmail: "hewnsupport@gmail.com",
   /**

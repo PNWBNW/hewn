@@ -3791,3 +3791,32 @@ rule rather than waive it; once it cleared, vitest 4.1.11 → 4.1.12 (root, the 
 into this PR and the audit is clean. Neither advisory was reachable here: both need a Vite dev
 server with `mockerPlugin()`/`interceptorPlugin()`, which nothing uses (tests run `vitest run` in
 Node), and the second is Windows-only.
+
+## 2026-10-22: terms of use and privacy
+
+Joshua's wording, reviewed in chat before building. Testnet keeps it honest; these pages say so.
+- **Pages:** `/terms` and `/privacy`, public like the job board and traction (`isPublicPath`), so
+  they read the same with or without an account, in both builds. Terms: what this app is, no real
+  money on testnet, provided as is (not tax, legal, accounting or financial advice), your data,
+  your wallet, fair use, liability, the code (AGPL; the name and logo aren't licensed), Washington
+  State law, changes and contact. Privacy: what stays on the device, what the site keeps (Vercel's
+  cookieless page views, the traction counts, nothing from connection details), what is on chain
+  and what is public by design, Shield and the explorer, reports, contact. No mailbox line: it's
+  retired. Who runs it comes from `BRAND.operator` (new in `packages/brand`, "Joshua Day"; a fork
+  changes it), as do the support address and the source link.
+- **Where the text lives:** `src/legal/` (`terms.tsx`, `privacy.tsx`, the shared `LegalPage` frame,
+  `LegalNotes`); `app/terms` and `app/privacy` only re-export them. The pages have to say "wallet"
+  and "Aleo" to be honest about where data goes, so `fiat_boundary.test.ts` skips `src/legal` in
+  its chain-word check (one folder, named in the test). The import check still covers it.
+- **Small print:** under the front page, setup and restore (`AuthFooter`) and in the rail, a line
+  "Testnet · provided as is · Terms · Privacy". Setup's checkbox now reads "I understand my
+  passphrase can't be recovered, and that Hewn is testnet software provided as is: not tax, legal
+  or accounting advice." with the two pages linked (they open in a new tab, so setup isn't lost).
+- **Figures:** Run payroll, Taxes, and both paystubs (the business's and the worker's) carry
+  "Testnet software. Check these figures before you rely on them; this isn't tax advice."
+- **Tests:** `src/legal/legal.test.ts` renders both pages and the small print (who runs it, the law,
+  the address, no mailbox, the links) and checks the paths are public for both roles. The app's
+  vitest config now resolves `@/…` the way `tsconfig.json` does, so a test can render a page.
+- `BUILD_PLAN.md`: the decision recorded; the old "mailbox moves to R2" decision marked moot.
+
+Tests: app 590/590 (+4); every package passes (988); both builds pass; `pnpm audit` clean.

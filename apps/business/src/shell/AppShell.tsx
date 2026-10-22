@@ -13,6 +13,7 @@ import { unreadPosts } from "@/books/channels";
 import { waitingCount } from "@/books/review";
 import type { Role } from "@/books/work";
 import { BRAND } from "@/brand";
+import { LegalLinks } from "@/legal/LegalNotes";
 import { BrandLogo } from "./Brand";
 import { SECTIONS } from "./sections";
 
@@ -58,9 +59,9 @@ export const canonicalPath = (pathname: string) => (pathname.length > 1 && pathn
 
 export const isWorkPath = (pathname: string) => pathname === "/work" || pathname.startsWith("/work/");
 
-/** Pages anyone can read without an account: the job board, and traction. */
+/** Pages anyone can read without an account: the job board, traction, the terms and the privacy page. */
 export const isPublicPath = (pathname: string) =>
-  ["/board", "/traction"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  ["/board", "/traction", "/terms", "/privacy"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 /** Where a vault of this role belongs when it lands on the other role's pages; null when the path is fine. */
 export function redirectFor(role: Role, pathname: string): string | null {
@@ -202,6 +203,8 @@ function Rail({
           <Link href="/traction" className="underline underline-offset-4 hover:text-rail-active-foreground">
             Traction map
           </Link>
+          <br />
+          <LegalLinks linkClassName="hover:text-rail-active-foreground" />
         </p>
       </div>
     </nav>

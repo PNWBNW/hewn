@@ -2,6 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pnw/ui/tabs";
 import { PageHeader } from "@/shell/SectionView";
+import { FiguresNote } from "@/legal/LegalNotes";
 import { Form1099Tab, PayrollTaxTab } from "./OtherTaxTabs";
 import { SalesTaxTab } from "./SalesTaxTab";
 
@@ -9,6 +10,7 @@ export default function TaxesPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Taxes" summary="Sales tax and payroll tax you've collected and owe. You file; the numbers stay straight here." />
+      <FiguresNote className="-mt-3" />
       <Tabs defaultValue="sales-tax" className="flex flex-col gap-4">
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <TabsList className="h-auto sm:h-9">
