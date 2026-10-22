@@ -35,7 +35,8 @@ function InboxFlow({ onClose }: InboxPanelProps) {
     started.current = true;
     void scanPaystubs({
       work,
-      client: letterReader(new LetterBox({ wallet })),
+      // Each paystub counts only from the employer's own account.
+      clientFor: ((box) => (address: string) => letterReader(box, address))(new LetterBox({ wallet })),
       store: async (p) => {
         await updateWork((w) => addPaystub(w, p));
       },

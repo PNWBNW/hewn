@@ -28,7 +28,7 @@ import { APPLICATION_STATUS_LABEL, type ApplicationStatus, addToThread, skipInco
 import { BRAND } from "@/brand";
 import { FeeChoice } from "./FeeChoice";
 import { ShieldStatus } from "./ShieldStatus";
-import { applicantOf, interviewText, openApplications, statusBody } from "./applicants";
+import { applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
 import { applicationItem, applicationLookup } from "./applications";
 import { useLetters } from "./letter_reader";
 import { LetterBox, letterThread } from "./letters";
@@ -75,11 +75,17 @@ function Flow({ posting: given, onClose }: ApplicantsProps) {
       const { found, unreadable } = await openApplications(await letters.getAll(await applicationLookup(given.id)), hiring, given.id, known);
       let added = 0;
       let unnamed = 0;
+      let impostors = 0;
       for (const f of found) {
         const address = await queryNameOwner(f.message.body.nameHash);
-        if (!address) {
+        const from = applicationFrom(f, address);
+        if (from === "unnamed") {
           unnamed++;
           continue; // no account on the registry for that name: nothing to reply to; it stays unread until there is
+        }
+        if (from === "not theirs" || !address) {
+          impostors++;
+          continue; // sent by someone other than the name's owner: never kept
         }
         const applicant = applicantOf(f, address);
         const item = applicationItem(f.message, false, new Date().toISOString());
@@ -111,6 +117,7 @@ function Flow({ posting: given, onClose }: ApplicantsProps) {
       const parts: string[] = [];
       if (added > 0) parts.push(`${added} new ${added === 1 ? "applicant" : "applicants"}`);
       if (unnamed > 0) parts.push(`${unnamed} ${unnamed === 1 ? "application" : "applications"} from a name with no account yet`);
+      if (impostors > 0) parts.push(`${impostors} ${impostors === 1 ? "application" : "applications"} not sent by the name's owner, left out`);
       if (unreadable > 0) parts.push(`${unreadable} ${unreadable === 1 ? "letter" : "letters"} that couldn't be opened`);
       if (failed) parts.push(`couldn't finish reading messages: ${failed}`);
       setStatus(parts.length > 0 ? parts.join("; ") + "." : "Nothing new.");

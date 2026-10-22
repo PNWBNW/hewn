@@ -130,7 +130,9 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
         // Group chat kinds only travel between coworkers, under their own filter.
         const allowed = accept ?? ((b: ThreadMessage["body"]) => !GROUP_TYPES.includes(b.type));
         if (!allowed(message.body)) throw new ThreadError("That kind of message doesn't belong in this conversation");
-        item = { ...message, mine: false, seq, receivedAt: stamp() };
+        // A send time is what the sender wrote; one in the future becomes the time it arrived, so it can't stay "latest" for ever.
+        const receivedAt = stamp();
+        item = { ...message, ...(Date.parse(message.sentAt) > Date.parse(receivedAt) ? { sentAt: receivedAt } : {}), mine: false, seq, receivedAt };
       } catch (e) {
         result.skipped.push({ seq, message: e instanceof Error ? e.message : "The message couldn't be read" });
         await skip(seq);

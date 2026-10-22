@@ -302,16 +302,36 @@ export class ManyLetterBox {
   }
 }
 
+/** Letters were under a slot but Shield didn't say who sent any of them, so none can be trusted. */
+export class SenderUnknown extends LetterError {
+  constructor() {
+    super("Shield didn't say who sent a letter, so it can't be trusted. Update Shield, then check again.");
+    this.name = "SenderUnknown";
+  }
+}
+
 /**
- * The reading side of a thread over letters: a slot's letter, or null when none has come yet. A
- * record can't be unsent, so `drop` does nothing, and there is no `put`, so no receipts go out:
- * a letter in a block has arrived. (The old mailbox is retired, 2026-10-22: archive/mailbox-api/.)
+ * The reading side of a conversation with `from`, over letters: a slot's letter from that
+ * account, or null when none has come yet. Whoever else holds the slot's key (anyone given a
+ * channel's key, an auditor shown a view key) could seal a letter into it too, so a letter counts
+ * only when its sender, which only its owner can see, is `from` (the security review,
+ * 2026-10-22). A record can't be unsent, so `drop` does nothing, and there is no `put`, so no
+ * receipts go out: a letter in a block has arrived.
  */
-export const letterReader = (letters: Pick<LetterBox, "get">) => ({ get: (lookup: string) => letters.get(lookup), drop: async (_lookup: string) => {} });
+export const letterReader = (letters: Pick<LetterBox, "getAll">, from: string) => ({
+  get: async (lookup: string): Promise<Uint8Array<ArrayBuffer> | null> => {
+    const all = await letters.getAll(lookup);
+    const theirs = all.find((r) => r.sender === from);
+    if (theirs) return theirs.envelope;
+    if (all.length > 0 && all.every((r) => r.sender === undefined)) throw new SenderUnknown();
+    return null;
+  },
+  drop: async (_lookup: string) => {},
+});
 
 /**
  * A conversation between two accounts, over letters (chain/thread.ts takes these two): `writer`
- * sends each message as a letter to `to`; `reader` finds the other side's letters. Pass one
+ * sends each message as a letter to `to`; `reader` finds the letters `to` sent. Pass one
  * `letters` box for every thread on a screen, so the wallet is read once.
  */
 export function letterThread(
@@ -320,5 +340,5 @@ export function letterThread(
   { letters = new LetterBox({ wallet }), execute }: { letters?: LetterBox; execute?: ExecuteOptions } = {},
 ) {
   const writer = new LetterBox({ wallet, to, ...(execute ? { execute } : {}) });
-  return { writer, reader: letterReader(letters), refresh: () => letters.refresh() };
+  return { writer, reader: letterReader(letters, to), refresh: () => letters.refresh() };
 }

@@ -61,11 +61,11 @@ function Check({ onFinished }: MailboxCheckProps) {
       } catch (e) {
         acceptFailed = e instanceof Error ? e.message : "The agreements couldn't be read";
       }
-      const reader = letterReader(letters);
       const r = await scanHours({
         rail,
         mailbox,
-        client: reader,
+        // Each person's hours count only from their own account.
+        clientFor: (address) => letterReader(letters, address),
         store: async (item) => {
           await updateCompany((c) => ({ ...c, mailbox: addHours(c.mailbox ?? emptyMailbox(), item) }));
         },

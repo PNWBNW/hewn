@@ -246,7 +246,9 @@ messages carry no keep-until day yet: an unread one stays pinned until it's read
 random 32-byte key, numbered. The business sends it to each member inside their own thread
 (sealed with that pair's parties key), so nobody outside the channel ever sees it. A post is
 sealed once with the channel key, in slots only the business writes; members' apps refuse
-anything that doesn't open with it. Taking someone out moves the channel to a new key that only
+anything that doesn't open with it, and since 2026-10-22 anything whose letter wasn't sent from
+the business's own account (every member holds the key, so one could otherwise seal a fake
+schedule or announcement into the business's next slot). Taking someone out moves the channel to a new key that only
 those who stay get: the one who left keeps what they already read and nothing after. Each reader
 sends a receipt through their own thread, so "seen by" names nobody to anyone but the business.
 Posts stay pinned (many readers), with no keep-until day yet. A member can share a key or a post
@@ -370,4 +372,21 @@ Events with guests (`docs/LETTERS.md`, "Shared events").
   its size fixed. With a public fee, the organizer's address and how many letters it sends.
 - **Answers and keys** travel in the existing conversations, sealed with their keys, so a view key
   alone doesn't open a coworker's answer (the same as coworker chat).
+
+## Who a letter is from (2026-10-22)
+
+The security review found that, apart from event invitations, a letter was believed because it
+opened with the right key. A key isn't an identity: every channel member holds the channel's key,
+an auditor shown a view key can find a hired pair's parties key, and a job posting's hiring key is
+public. Now every reader also checks the letter's sender, which only the record's owner can see
+(`chain/letters.ts` `letterReader`):
+- **Conversations** (a business and a person, a person and their employer, two coworkers): only
+  the other side's account. Hours, paystubs and an offer's terms likewise.
+- **Channel posts**, the team schedule included: only the business's account.
+- **Applications:** only from the account that owns the registered name the application claims.
+- **Group chats:** the admin is whoever set the group up first, as this device saw it; a later
+  setup naming someone else is ignored. Two members' messages never replace each other.
+- **Send times:** a received message dated in the future is taken as sent when it arrived.
+- **No sender shown:** the check stops with "Shield didn't say who sent a letter" rather than
+  believing it. ✅
 

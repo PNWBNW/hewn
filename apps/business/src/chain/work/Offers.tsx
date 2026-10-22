@@ -123,7 +123,7 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           const employerName = previous?.employerName ?? ((await queryNamePlaintext(record.employerNameHash).catch(() => null)) || undefined);
           // Terms already in the vault are used as long as they still hash to the record; otherwise the page on the network.
           const kept: Terms | undefined = previous?.terms && termsMatchRecord(previous.terms, record.termsDocHash) ? previous.terms : undefined;
-          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, letterReader(letters.current));
+          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, letterReader(letters.current, record.employerAddress));
           const verified = !!terms.terms && termsMatchRecord(terms.terms, record.termsDocHash);
           const row: Row = { record, status, terms, verified, files: [] };
           const t = terms.terms;

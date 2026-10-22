@@ -11,6 +11,13 @@
 // them, again whenever it changes). This module rebuilds each group from the
 // person's coworker conversations: the latest setup that came from the admin
 // themselves, every message from someone in it, and who has left. Pure.
+//
+// The admin is whoever set the group up first, as this device saw it (the
+// security review, 2026-10-22): a later setup naming someone else as admin
+// is ignored, so a member can't take a group over by sending their own setup
+// with a later date. Times are this device's own: when it sent a message, or
+// when it received one, never the date a sender wrote. Two members' messages
+// with the same id stay two messages.
 // ---------------------------------------------------------------------------
 
 import type { DirectoryEntry } from "./directory";
@@ -32,13 +39,14 @@ export type GroupView = {
   unread: number;
 };
 
-type Setup = { sentAt: string; name: string; admin: string; members: DirectoryEntry[] };
+type Setup = { at: string; name: string; admin: string; members: DirectoryEntry[] };
 
 /** Every group this person is part of (or was) at one business, newest activity first. */
 export function groupsFor(work: Work, businessKey: string): GroupView[] {
   const me = work.identities?.[businessKey]?.publicKey;
   if (!me) return [];
   const setups = new Map<string, Setup>();
+  const owners = new Map<string, { admin: string; at: string }>(); // group → whoever set it up first, as seen here
   const texts = new Map<string, Map<string, GroupMessage>>();
   const left = new Map<string, Map<string, string>>(); // group → member → when they left
 
@@ -47,31 +55,36 @@ export function groupsFor(work: Work, businessKey: string): GroupView[] {
     for (const item of thread.items as ThreadItem[]) {
       const b = item.body;
       const from = item.mine ? me : theirKey;
+      const at = item.mine ? item.sentAt : (item.receivedAt ?? item.sentAt);
       if (b.type === "group") {
         // Only the admin sets a group up: their own copy, or one that came from them.
         if (b.admin !== from) continue;
-        const prev = setups.get(b.groupId);
-        if (!prev || prev.sentAt < item.sentAt) setups.set(b.groupId, { sentAt: item.sentAt, name: b.name, admin: b.admin, members: b.members });
+        const owner = owners.get(b.groupId);
+        if (!owner || at < owner.at) owners.set(b.groupId, { admin: b.admin, at });
+        const prev = setups.get(`${b.groupId}|${b.admin}`);
+        if (!prev || prev.at < at) setups.set(`${b.groupId}|${b.admin}`, { at, name: b.name, admin: b.admin, members: b.members });
       } else if (b.type === "group_text") {
         const msgs = texts.get(b.groupId) ?? new Map<string, GroupMessage>();
-        const seen = msgs.get(item.id);
-        // My message is in every member's conversation; read once is read everywhere.
-        msgs.set(item.id, { id: item.id, sentAt: item.sentAt, text: b.text, from, mine: item.mine, read: item.mine || !!item.read || !!seen?.read });
+        // My message is in every member's conversation (one id): read once is read everywhere. Someone else's id is theirs alone.
+        const key = `${from}|${item.id}`;
+        const seen = msgs.get(key);
+        msgs.set(key, { id: item.id, sentAt: at, text: b.text, from, mine: item.mine, read: item.mine || !!item.read || !!seen?.read });
         texts.set(b.groupId, msgs);
       } else if (b.type === "group_leave") {
         const l = left.get(b.groupId) ?? new Map<string, string>();
         const was = l.get(from);
-        if (!was || was < item.sentAt) l.set(from, item.sentAt);
+        if (!was || was < at) l.set(from, at);
         left.set(b.groupId, l);
       }
     }
   }
 
   const out: GroupView[] = [];
-  for (const [id, setup] of setups) {
+  for (const [id, owner] of owners) {
+    const setup = setups.get(`${id}|${owner.admin}`)!;
     // Someone who left is out until the admin sets the group up with them again, after they left.
     const gone = left.get(id) ?? new Map<string, string>();
-    const members = setup.members.filter((m) => !(gone.get(m.publicKey) && gone.get(m.publicKey)! > setup.sentAt));
+    const members = setup.members.filter((m) => !(gone.get(m.publicKey) && gone.get(m.publicKey)! > setup.at));
     const keys = new Set(setup.members.map((m) => m.publicKey));
     // Messages from people in it, and not from after someone left.
     const messages = [...(texts.get(id)?.values() ?? [])].filter((m) => keys.has(m.from) && !(gone.get(m.from) && m.sentAt > gone.get(m.from)!)).sort((a, b) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.id < b.id ? -1 : 1));

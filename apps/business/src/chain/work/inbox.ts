@@ -32,7 +32,9 @@ export type PaystubEnvelope = {
 export type ScanInput = {
   work: Work;
   /** With `put`, a receipt goes back for each document kept (chain/receipts.ts). */
-  client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">>;
+  client?: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">>;
+  /** Or a reader for each employer's letters, believing only their account (chain/letters.ts `letterReader`). */
+  clientFor?: (address: string) => Pick<MailboxClient, "get" | "drop">;
   /** Keeps one paystub in the vault (and moves its slot on). Called before the pin is dropped. */
   store: (paystub: ReceivedPaystub) => Promise<void>;
   /** Moves an agreement's slot past an envelope that couldn't be kept. */
@@ -85,11 +87,12 @@ export function parsePaystubEnvelope(bytes: Uint8Array): PaystubEnvelope {
 const scannable = (work: Work) => work.agreements.filter((a) => a.status !== "pending");
 
 /** Reads every new paystub for every agreement. Never throws; the result says what happened. */
-export async function scanPaystubs({ work, client, store, skip, now, limit }: ScanInput): Promise<ScanResult> {
+export async function scanPaystubs({ work, client: shared, clientFor, store, skip, now, limit }: ScanInput): Promise<ScanResult> {
   const stamp = now ?? (() => new Date().toISOString());
   const most = limit ?? 100;
   const result: ScanResult = { received: [], skipped: [], off: false };
   for (const agreement of scannable(work)) {
+    const client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">> = clientFor ? clientFor(agreement.employerAddress) : shared!;
     const key = partiesKeyFromHex(agreement.partiesKey);
     try {
       let seq = nextWorkSeq(work, agreement.agreementId, "paystub");
