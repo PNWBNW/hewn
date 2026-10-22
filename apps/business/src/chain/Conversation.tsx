@@ -374,6 +374,15 @@ function Bubble({ item, title, offersHref }: { item: ThreadItem; title: string; 
       </div>
     );
   }
+  if (b.type === "event_answer" && b.note) {
+    // An answer to an invitation, with what they said.
+    return (
+      <div className="flex max-w-[90%] flex-col gap-1 rounded-xl border bg-card px-3 py-2 text-sm">
+        <span className="font-medium">{item.mine ? preview(item) : `${title}: ${lowerFirst(preview(item))}`}</span>
+        <QuotedNote who={item.mine ? "You" : title} text={b.note} />
+      </div>
+    );
+  }
   if (!isOfferStep(b)) {
     // A channel key or a removal: a quiet line, not a bubble.
     return <p className="max-w-[90%] rounded-md bg-muted px-3 py-1 text-xs text-muted-foreground">{item.mine ? preview(item) : `${title}: ${lowerFirst(preview(item))}`}</p>;

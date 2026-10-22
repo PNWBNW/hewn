@@ -3855,3 +3855,49 @@ out on 2026-10-14, past the 7-day rule; 16.4.2 (a day later) isn't yet.
 
 Tests: every package passes (998); the app's website and static builds and the site's build pass;
 `pnpm audit` clean.
+
+Correction, after reading the advisories in full: the critical one is a flaw in `sharp`, the image
+library the optimization route uses, fixed in `sharp` 0.35.5; the lockfile already had 0.35.5
+before the bump, so that route wasn't exposed here. The audit flags it by the `next` version, so
+the bump was still what cleared it. The high one needs at least one Server Action, which the app
+doesn't have.
+
+## 2026-10-22: team events (invitations and answers)
+
+The second calendar step (Joshua's design, approved in chat; `BUILD_PLAN.md` Phase 9 item 8). An
+event can have guests: a business invites people on its team; a person invites their employer and
+coworkers at one job. Letters only, no new Leo program.
+- **How it travels** (`docs/LETTERS.md`, "Shared events"): each organizer keeps a random key for
+  its invitations (a business has one, a person one per job). A guest gets it once, as an
+  `event_key` letter in the conversation the two already share. Each invitation, change or
+  cancellation is then one post sealed with that key, sent to every guest through `send_many`,
+  one Shield approval for each eight; a long guest list goes in parts. Answers (going, maybe, not
+  going, with a note) are an `event_answer` letter in the guest's own conversation.
+- **Only the organizer posts:** every guest holds the key, so a reader keeps a post only when the
+  letter's sender is the organizer's account as its own books know it; anything else is counted
+  and dropped (a test forges one). Posts go to some guests and not others, so readers look 256
+  slots ahead and 8 back; reading twice changes nothing.
+- **Guest list:** everyone invited sees the names and the answers as of the last send; each finds
+  their own row by a one-way tag from the key they share with the organizer. A change to what,
+  when or where asks everyone again; a change to the guest list alone doesn't. Someone taken off
+  hears it; someone added gets the key and the event.
+- **Screens:** the event form gains "Invite (optional)" (the team, or the employer and listed
+  coworkers at the chosen job; notes up to 500 characters with guests). Saving makes an event with
+  guests, not sent until "Send invitations". Its pop-up shows each guest's answer and note, and
+  Send the changes, Edit, Cancel event (then "Tell the guests it's off") and Delete. An invitation
+  shows who it's from, the guest list ("(you)" marked) and Going, Maybe, Not going. A "Waiting for
+  your answer" list sits at the top of Schedule on both sides; the calendar draws events with
+  guests in their own colour, unanswered dashed, called off struck through. A badge counts
+  invitations to answer (on Schedule for a person, on Payroll for a business, whose Payroll page
+  then opens on the Schedule tab). Every "Check now" reads invitations after the conversations.
+- **Code:** `books/shared_events.ts` (the model), `books/event_contacts.ts`,
+  `books/SharedEventViews.tsx`, `books/EventDetailsList.tsx`; `chain/events.ts`,
+  `chain/event_reach.ts`, `chain/SendEvent.tsx`, `chain/AnswerEvent.tsx`; two new message kinds in
+  `books/thread.ts` (coworker chats accept them too). `docs/THREAT_MODEL.md` has a section.
+- **Checked in a browser** with a restored test account (Payroll → Schedule, the invitation, the
+  organizer's view with answers, a new event with guests, the send and answer steps falling back to
+  "connect Shield"). Not yet tried on testnet with real letters.
+
+Tests: app 627/627 (+27: the model, the letters end to end through a fake chain including a forged
+post and a long gap, who can be invited, the company file, the calendar drawing); every package
+passes; both builds pass.

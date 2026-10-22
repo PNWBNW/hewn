@@ -17,6 +17,7 @@ transition names come from `@pnw/pnw-adapter` and `@pnw/config`, never typed her
 | Pay | `deliver.ts`, `PayPanel.tsx`, `PaystubDelivery.tsx`, `usePaystubDelivery.ts`, `receipts.ts`, `review_feed.ts`, `ReviewPanel.tsx`, `history_probe.ts` — one private transfer per person, the paystub as a letter, the wallet history as the bank feed |
 | Setup | `business_registry.ts`, `RegisterBusiness.tsx`, `NameLookup.tsx`, `account_kind.ts`, `RailPanel.tsx` — names, the registry, one kind of account per wallet |
 | Hours and schedule | `HoursChange.tsx`, `hours_inputs.ts`, `PublishTeamSchedule.tsx`, `team_publish.ts`, `MailboxCheck.tsx`, `mailbox_scan.ts` — questioning hours, publishing the week to the team, reading what arrived |
+| Events | `events.ts`, `event_reach.ts`, `SendEvent.tsx`, `AnswerEvent.tsx` — the calendar's key to each guest, an event sealed once to every guest, reading invitations (only the organizer's), answering |
 | `work/` | The worker side of all of the above: `WorkShield.tsx`, `Inbox.tsx`, `Offers.tsx`, `CounterOffer.tsx`, `Apply.tsx`, `SendTimesheet.tsx`, `AnswerSchedule.tsx`, `HoursChange.tsx`, `Profile.tsx`, the coworker chat and directory, `execute.ts` |
 
 Tests sit beside the files. The ones ending in `_contract.test.ts` pin canonical forms whose

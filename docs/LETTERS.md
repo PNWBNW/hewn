@@ -10,7 +10,8 @@ Settings has "Send a test letter".
 **Everything between people now goes as letters:** offers (one page), messages, counter-offers,
 paystubs, timesheets, the coworker directory and coworker chat. Group chats send one letter per
 member. Announcements: the channel's key goes to each member in a letter, and each post goes to
-everyone through `send_many` (one approval for each eight). The old mailbox is
+everyone through `send_many` (one approval for each eight). Events with guests work the same way
+("Shared events" below). The old mailbox is
 retired (2026-10-22, `archive/mailbox-api/`): nothing is sent through it or read from it.
 
 **Measured on testnet (2026-10-16, Joshua's phone, Shield):** a letter took 13.6–73.7 s from tap
@@ -175,6 +176,39 @@ A person can report a message they received (Joshua, 2026-10-20; `books/report.t
   email it to `BRAND.supportEmail` or copy it, with the same report id.
 - **Reading them:** Settings shows a Reports button only when the books are linked to Hewn's
   account; it reads the reports from Shield each time and keeps nothing.
+
+## Shared events
+
+An event with guests (Joshua, 2026-10-22; `books/shared_events.ts`, `chain/events.ts`). A
+business invites people on its team; a person invites their employer and the coworkers listed at
+that job, one job per event, so an invitation never ties two employers together. Partner
+businesses come with business-to-business agreements, later. Nothing new is deployed:
+
+- **The calendar's key.** Each organizer keeps a random 32-byte key for its invitations (a
+  *circle*: one for a business, one per job for a person). A guest gets it once, as an
+  `event_key` message in the conversation the two already share, sealed with that conversation's
+  key: one letter per new guest.
+- **The event.** Each invitation, change or cancellation is one post sealed with the circle's key
+  (kind `evt_<epoch>`) into the organizer's next slot, sent to every guest at once through
+  `send_many`: one approval for each eight. A change also goes to anyone just taken off the list,
+  so they hear it. Part 0 carries who invites, what, when and where (notes up to 500 characters);
+  every part carries some of the guest list. A long list takes more parts, all naming the event
+  and its revision; a guest's app shows a revision once it has every part.
+- **The guest list.** Everyone invited sees it: each guest's name as the organizer shows it,
+  their answer as the organizer last knew it, and a tag one-way from the key the guest shares with
+  the organizer (`lookupId(key, "event_who", 0)`, 12 hex characters), so each guest finds their own
+  row and nobody works back to the key.
+- **Answers.** Going, maybe or not going, with an optional note: an `event_answer` in the guest's
+  own conversation with the organizer, one letter. A change to what, when or where asks everyone
+  again; a change to the guest list alone doesn't.
+- **Only the organizer posts.** Every guest holds the circle's key, so a guest could seal a post
+  that looks like the organizer's. A reader keeps a post only when its letter's sender, which only
+  the reader can see, is the organizer's account (the employer's, a team member's from the
+  business's link, or a coworker's from the directory the business passed on). A post with any
+  other sender is counted and dropped.
+- **Gaps.** A post goes to some guests and not others, so each reader's slots have gaps. A reader
+  looks 256 slots past the last post it found, and 8 back in case the wallet listed a later letter
+  first; keeping a post twice changes nothing.
 
 ## What doesn't fit, and the open questions
 

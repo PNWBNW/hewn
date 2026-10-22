@@ -4,16 +4,18 @@
 // (letter_reader.ts), first which waiting offers have been accepted, from the
 // agreement records in the Shield account (acceptance.ts); then the weeks of
 // hours (mailbox_scan.ts), then each person's side of the conversation
-// (thread.ts), both from letters on chain. Without Shield there is nothing to
+// (thread.ts), both from letters on chain, then the invitations from people
+// who gave this business their calendar's key (events.ts). Without Shield there is nothing to
 // read, and it says so. Reports back; it draws nothing itself. Nothing here
 // logs a key, a lookup or an hour.
 
 import { useEffect, useRef } from "react";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { addHours, bumpHoursSeq, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
+import { type Mailbox, addHours, bumpHoursSeq, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { addToThread, skipIncoming } from "@/books/thread";
 import { checkAcceptances } from "./acceptance";
+import { businessListening, checkEvents } from "./events";
 import { scanHours } from "./mailbox_scan";
 import { useLetters } from "./letter_reader";
 import { letterReader, letterThread } from "./letters";
@@ -38,7 +40,7 @@ export default function MailboxCheck(props: MailboxCheckProps) {
 }
 
 function Check({ onFinished }: MailboxCheckProps) {
-  const { rail, payroll, mailbox, updateCompany } = useOpenBooks();
+  const { rail, payroll, mailbox, calendar, updateCompany } = useOpenBooks();
   const { settled, letters, wallet } = useLetters();
   const started = useRef(false);
 
@@ -72,6 +74,7 @@ function Check({ onFinished }: MailboxCheckProps) {
         },
       });
       // Then each person's side of the conversation (asking for changes to an offer).
+      let latest: Mailbox | null | undefined = mailbox;
       if (!r.off && !r.failed) {
         for (const link of rail.links) {
           if (!link.partiesKey) continue;
@@ -82,13 +85,15 @@ function Check({ onFinished }: MailboxCheckProps) {
             reader: "business",
             thread: threadFor(mailbox, partiesKey),
             store: async (item) => {
-              await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => addToThread(t, item)) }));
+              latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => addToThread(t, item)) }))).mailbox;
             },
             skip: async (seq) => {
               await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => skipIncoming(t, seq)) }));
             },
           });
         }
+        // Invitations, now that any new calendar keys are in.
+        await checkEvents(letters, businessListening(rail, latest), calendar, updateCompany);
       }
       const message = r.off
         ? "Connect Shield to check for what your team sent."
@@ -104,7 +109,7 @@ function Check({ onFinished }: MailboxCheckProps) {
         ...(message ? { message } : {}),
       });
     })().catch((e: unknown) => onFinished({ received: 0, skipped: 0, message: e instanceof Error ? e.message : "Your letters couldn't be read" }));
-  }, [rail, payroll, mailbox, updateCompany, onFinished, settled, letters, wallet]);
+  }, [rail, payroll, mailbox, calendar, updateCompany, onFinished, settled, letters, wallet]);
 
   return null;
 }

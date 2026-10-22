@@ -23,6 +23,7 @@ import { type Rail, railFromJson, railToJson } from "./rail";
 import { type Schedule, scheduleFromJson, scheduleToJson } from "./schedule";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
 import { type PersonalEvent, validateEvents } from "./events";
+import { type SharedCalendar, calendarFromJson, calendarToJson } from "./shared_events";
 
 export type Company = {
   books: Books;
@@ -46,6 +47,8 @@ export type Company = {
   work?: Work;
   /** Personal events (books/events.ts): only on this account's own calendar. Absent before the first. */
   events?: PersonalEvent[];
+  /** Shared events (books/shared_events.ts): ones this account organizes, its invitations, and the keys' reading places. Absent before the first. */
+  calendar?: SharedCalendar;
   /** The account's username, normalised (an email on accounts made before usernames). Kept inside the encrypted file, never in the vault id's clear. Absent on books made before accounts. */
   username?: string;
 };
@@ -71,6 +74,7 @@ export function companyToJson(c: Company): string {
     ...(c.role ? { role: c.role } : {}),
     ...(c.work ? { work: workToJson(c.work) } : {}),
     ...(c.events && c.events.length > 0 ? { events: JSON.stringify(c.events) } : {}),
+    ...(c.calendar ? { calendar: calendarToJson(c.calendar) } : {}),
     ...(c.username ? { username: c.username } : {}),
   });
 }
@@ -92,6 +96,7 @@ export function companyFromJson(text: string): Company {
     role?: string;
     work?: string;
     events?: string;
+    calendar?: string;
     username?: string;
     /** What the username was called before usernames (2026-10-21). */
     email?: string;
@@ -115,6 +120,7 @@ export function companyFromJson(text: string): Company {
     }
     if (typeof doc.work === "string") company.work = workFromJson(doc.work);
     if (typeof doc.events === "string") company.events = validateEvents(JSON.parse(doc.events));
+    if (typeof doc.calendar === "string") company.calendar = calendarFromJson(doc.calendar);
     const username = typeof doc.username === "string" && doc.username ? doc.username : typeof doc.email === "string" && doc.email ? doc.email : null;
     if (username) company.username = username;
     return company;

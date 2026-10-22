@@ -1,16 +1,20 @@
 "use client";
 
-// One personal event (books/events.ts), in a pop-up: its details with Edit
-// and Delete, or the form for a new one or a change. Saved straight into the
-// encrypted books; nothing is sent anywhere. Both sides use it.
+// One event, in a pop-up, on either side. A personal one (books/events.ts):
+// its details with Edit and Delete, or the form for a new one or a change,
+// saved straight into the encrypted books and sent nowhere. With guests
+// picked in the form, it becomes an event with guests (books/shared_events.ts):
+// saved the same way, and sent only when the organizer sends it
+// (SharedEventViews.tsx has its view, and an invitation's).
 
 import { useEffect, useState } from "react";
-import { CalendarDays, Clock, ExternalLink, MapPin, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
 import { Field, FormError, errorMessage, inputClass } from "./AuthCard";
 import { useOpenBooks } from "./BooksProvider";
 import {
+  type EventDetails,
   type EventDraft,
   MAX_EVENT_LINK,
   MAX_EVENT_NOTES,
@@ -20,30 +24,78 @@ import {
   deleteEvent,
   draftOf,
   emptyDraft,
+  detailsFromDraft,
   eventFromDraft,
   saveEvent,
 } from "./events";
-import { overnight, timeLabel } from "./schedule";
+import { EventDetailsList } from "./EventDetailsList";
+import {
+  type CalendarEvent,
+  type Guest,
+  type HostedEvent,
+  MAX_SHARED_NOTES,
+  contactRef,
+  editHosted,
+  emptyCalendar,
+  newHosted,
+  putHosted,
+} from "./shared_events";
+import { HostedView, InviteView } from "./SharedEventViews";
 
-/** What the panel shows: a new event on a day, or one that exists. */
-export type EventPanelState = { kind: "new"; date: string } | { kind: "view"; event: PersonalEvent } | null;
+/** What the panel shows: a new event on a day, a personal one, one this account organizes (by id), or an invitation (by its key). */
+export type EventPanelState =
+  | { kind: "new"; date: string }
+  | { kind: "view"; event: PersonalEvent }
+  | { kind: "hosted"; id: string }
+  | { kind: "invite"; key: string }
+  | null;
 
-const longDay = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+/** Who this page can invite, and the circle they're invited under ("" for a business, the job's parties key for a person). */
+export type Invitable = { scope: string; guests: Guest[] };
 
-/** "Wednesday, October 22, 2026 · 9:00 AM – 10:00 AM", or the days an all-day event covers. */
-export function eventWhen(e: PersonalEvent): string {
-  if (e.allDay) return e.endDate && e.endDate !== e.date ? `${longDay(e.date)} – ${longDay(e.endDate)}` : `${longDay(e.date)} · all day`;
-  return `${longDay(e.date)} · ${timeLabel(e.start!)} – ${timeLabel(e.end!)}${overnight({ start: e.start!, end: e.end! }) ? " (next day)" : ""}`;
+/** The panel state that opens something drawn on the calendar. */
+export function panelFor(e: CalendarEvent, personal: readonly PersonalEvent[]): EventPanelState {
+  if (e.kind === "hosting") return { kind: "hosted", id: e.id.slice(2) };
+  if (e.kind === "invited") return { kind: "invite", key: e.id.slice(2) };
+  const found = personal.find((p) => p.id === e.id);
+  return found ? { kind: "view", event: found } : null;
 }
 
-export function EventPanel({ state, onClose }: { state: EventPanelState; onClose: () => void }) {
+export function EventPanel({ state, onClose, invitable }: { state: EventPanelState; onClose: () => void; invitable?: Invitable }) {
+  const { calendar } = useOpenBooks();
+  // What it shows can move on inside the pop-up (saving an event with guests opens it, ready to send).
+  const [shown, setShown] = useState<EventPanelState>(state);
   const [editing, setEditing] = useState(false);
-  useEffect(() => setEditing(state?.kind === "new"), [state]);
+  useEffect(() => {
+    setShown(state);
+    setEditing(state?.kind === "new");
+  }, [state]);
+  const hosted = shown?.kind === "hosted" ? calendar?.hosted.find((e) => e.id === shown.id) : undefined;
+  const body = (() => {
+    if (!shown) return null;
+    if (editing && shown.kind !== "invite") {
+      return (
+        <EventForm
+          state={shown}
+          hosted={hosted}
+          invitable={invitable}
+          onSaved={(next) => {
+            setEditing(false);
+            if (next) setShown(next);
+            else onClose();
+          }}
+          onCancel={() => (shown.kind === "new" ? onClose() : setEditing(false))}
+        />
+      );
+    }
+    if (shown.kind === "view") return <EventView event={shown.event} onEdit={() => setEditing(true)} onDone={onClose} />;
+    if (shown.kind === "hosted") return <HostedView id={shown.id} onEdit={() => setEditing(true)} onDone={onClose} />;
+    if (shown.kind === "invite") return <InviteView inviteKey={shown.key} onDone={onClose} />;
+    return null;
+  })();
   return (
     <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto">
-        {state && (editing ? <EventForm state={state} onDone={onClose} onCancel={() => (state.kind === "new" ? onClose() : setEditing(false))} /> : state.kind === "view" && <EventView event={state.event} onEdit={() => setEditing(true)} onDone={onClose} />)}
-      </DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto">{body}</DialogContent>
     </Dialog>
   );
 }
@@ -69,37 +121,7 @@ function EventView({ event, onEdit, onDone }: { event: PersonalEvent; onEdit: ()
         <DialogTitle>{event.title}</DialogTitle>
         <DialogDescription>Personal event: only you see it.</DialogDescription>
       </DialogHeader>
-      <dl className="mt-2 flex flex-col gap-3 text-sm">
-        <div className="flex gap-2">
-          <dt className="sr-only">When</dt>
-          {event.allDay ? <CalendarDays aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> : <Clock aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />}
-          <dd>{eventWhen(event)}</dd>
-        </div>
-        {event.place && (
-          <div className="flex gap-2">
-            <dt className="sr-only">Where</dt>
-            <MapPin aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <dd className="whitespace-pre-wrap break-words">{event.place}</dd>
-          </div>
-        )}
-        {event.link && (
-          <div className="flex gap-2">
-            <dt className="sr-only">Meeting link</dt>
-            <ExternalLink aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <dd className="min-w-0">
-              <a href={event.link} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-primary underline underline-offset-4">
-                {new URL(event.link).hostname}
-              </a>
-            </dd>
-          </div>
-        )}
-        {event.notes && (
-          <div>
-            <dt className="text-xs text-muted-foreground">Notes</dt>
-            <dd className="mt-1 whitespace-pre-wrap break-words">{event.notes}</dd>
-          </div>
-        )}
-      </dl>
+      <EventDetailsList details={event} />
       <FormError message={error} />
       <DialogFooter className="mt-4 gap-2">
         {confirming ? (
@@ -128,25 +150,71 @@ function EventView({ event, onEdit, onDone }: { event: PersonalEvent; onEdit: ()
   );
 }
 
-function EventForm({ state, onDone, onCancel }: { state: NonNullable<EventPanelState>; onDone: () => void; onCancel: () => void }) {
+function EventForm({
+  state,
+  hosted,
+  invitable,
+  onSaved,
+  onCancel,
+}: {
+  state: NonNullable<EventPanelState>;
+  hosted: HostedEvent | undefined;
+  invitable: Invitable | undefined;
+  onSaved: (next: EventPanelState) => void;
+  onCancel: () => void;
+}) {
   const { updateCompany } = useOpenBooks();
   const existing = state.kind === "view" ? state.event : undefined;
-  const [draft, setDraft] = useState<EventDraft>(() => (existing ? draftOf(existing) : emptyDraft(state.kind === "new" ? state.date : "")));
+  const [draft, setDraft] = useState<EventDraft>(() => (hosted ? draftOf(hosted.details) : existing ? draftOf(existing) : emptyDraft(state.kind === "new" ? state.date : "")));
+  // Who can be invited: the page's list, plus anyone already on this event who isn't on it any more (they stay until taken off).
+  const choices = [...(invitable?.guests ?? []), ...(hosted?.guests ?? []).filter((g) => !(invitable?.guests ?? []).some((c) => contactRef(c.contact) === contactRef(g.contact)))];
+  const [picked, setPicked] = useState<Set<string>>(() => new Set((hosted?.guests ?? []).map((g) => contactRef(g.contact))));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const shared = picked.size > 0 || !!hosted;
+  const toggle = (ref: string) =>
+    setPicked((p) => {
+      const next = new Set(p);
+      if (next.has(ref)) next.delete(ref);
+      else next.add(ref);
+      return next;
+    });
 
   async function save() {
     setError(null);
-    const r = eventFromDraft(draft, existing);
+    const guests = choices.filter((g) => picked.has(contactRef(g.contact)));
+    if (hosted && guests.length === 0) {
+      setError("An event with guests keeps at least one. To call it off, use Cancel event.");
+      return;
+    }
+    if (guests.length === 0) {
+      const r = eventFromDraft(draft, existing);
+      if ("problem" in r) {
+        setError(r.problem);
+        return;
+      }
+      setBusy(true);
+      try {
+        await updateCompany((c) => ({ ...c, events: saveEvent(c.events ?? [], r.event) }));
+        onSaved(null);
+      } catch (e) {
+        setError(errorMessage(e));
+        setBusy(false);
+      }
+      return;
+    }
+    const r = detailsFromDraft(draft, MAX_SHARED_NOTES);
     if ("problem" in r) {
       setError(r.problem);
       return;
     }
     setBusy(true);
     try {
-      await updateCompany((c) => ({ ...c, events: saveEvent(c.events ?? [], r.event) }));
-      onDone();
+      const event = hosted ? editHosted(hosted, r.details, guests) : newHosted(invitable?.scope ?? "", r.details, guests);
+      // A personal event that gains guests becomes one with guests.
+      await updateCompany((c) => ({ ...c, calendar: putHosted(c.calendar ?? emptyCalendar(), event), ...(existing ? { events: deleteEvent(c.events ?? [], existing.id) } : {}) }));
+      onSaved({ kind: "hosted", id: event.id });
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -162,8 +230,12 @@ function EventForm({ state, onDone, onCancel }: { state: NonNullable<EventPanelS
       }}
     >
       <DialogHeader className="pr-10 text-left">
-        <DialogTitle>{existing ? "Edit event" : "New event"}</DialogTitle>
-        <DialogDescription>A personal event, kept in your encrypted books. Only you see it.</DialogDescription>
+        <DialogTitle>{hosted || existing ? "Edit event" : "New event"}</DialogTitle>
+        <DialogDescription>
+          {shared
+            ? "Kept in your encrypted books. Your guests get it as a sealed letter when you send it; nothing goes out until then."
+            : "A personal event, kept in your encrypted books. Only you see it."}
+        </DialogDescription>
       </DialogHeader>
       <Field label="Title">
         <input className={inputClass} value={draft.title} maxLength={MAX_EVENT_TITLE} onChange={(e) => set("title", e.target.value)} placeholder="Site meeting" autoFocus required />
@@ -206,9 +278,32 @@ function EventForm({ state, onDone, onCancel }: { state: NonNullable<EventPanelS
       <Field label="Meeting link (optional)" hint="An https:// address, like a Zoom, Meet or Teams link.">
         <input className={inputClass} type="url" inputMode="url" value={draft.link} maxLength={MAX_EVENT_LINK} onChange={(e) => set("link", e.target.value)} placeholder="https://" />
       </Field>
-      <Field label="Notes (optional)">
-        <textarea className={`${inputClass} h-auto min-h-20 py-2`} rows={3} maxLength={MAX_EVENT_NOTES} value={draft.notes} onChange={(e) => set("notes", e.target.value)} />
+      <Field label="Notes (optional)" hint={shared ? `Up to ${MAX_SHARED_NOTES} characters with guests: it travels in a letter.` : undefined}>
+        <textarea
+          className={`${inputClass} h-auto min-h-20 py-2`}
+          rows={3}
+          maxLength={shared ? MAX_SHARED_NOTES : MAX_EVENT_NOTES}
+          value={draft.notes}
+          onChange={(e) => set("notes", e.target.value)}
+        />
       </Field>
+      {choices.length > 0 && (
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-sm font-medium">Invite (optional)</legend>
+          <p className="text-xs text-muted-foreground">Everyone you invite sees who else is invited.</p>
+          <div className="mt-1 grid gap-x-4 sm:grid-cols-2">
+            {choices.map((g) => {
+              const ref = contactRef(g.contact);
+              return (
+                <label key={ref} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-8">
+                  <input type="checkbox" className="size-4 accent-[var(--hewn-green)]" checked={picked.has(ref)} onChange={() => toggle(ref)} />
+                  <span className="truncate">{g.name}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
       <FormError message={error} />
       <DialogFooter className="gap-2">
         <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={onCancel}>

@@ -3,7 +3,8 @@
 // Checking every conversation and channel at once, for the Messages list (the
 // person's side): each business's new messages (thread.ts; channel keys and
 // the coworker directory arrive this way too), then each channel's new posts
-// (channels.ts), then each coworker's messages (coworkers.ts). All of them
+// (channels.ts), then each coworker's messages (coworkers.ts), then the
+// invitations from whoever gave this person their calendar's key (events.ts). All of them
 // come as letters on chain once Shield is connected (letter_reader.ts). Runs
 // once when Shield has had its moment to reconnect, and reports back; it
 // draws nothing itself.
@@ -18,6 +19,7 @@ import { type Work, updateCoworker, updateWorkChannels, updateWorkThread, workTh
 import { coworkersFrom } from "@/books/directory";
 import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey } from "../coworkers";
 import { readChannel } from "../channels";
+import { checkEvents, workListening } from "../events";
 import { useLetters } from "../letter_reader";
 import { letterReader, letterThread } from "../letters";
 import { readThread } from "../thread";
@@ -33,7 +35,7 @@ export default function WorkMessagesCheck(props: WorkMessagesCheckProps) {
 }
 
 function Check({ onFinished }: WorkMessagesCheckProps) {
-  const { work, updateWork } = useWork();
+  const { work, updateWork, calendar, updateCompany } = useWork();
   const { settled, letters, wallet } = useLetters();
   const started = useRef(false);
 
@@ -91,9 +93,11 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
           if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
         }
       }
+      // Invitations, now that any new calendar keys are in.
+      await checkEvents(letters, await workListening(latest), calendar, updateCompany);
       onFinished(null);
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
-  }, [work, updateWork, onFinished, settled, letters, wallet]);
+  }, [work, updateWork, calendar, updateCompany, onFinished, settled, letters, wallet]);
 
   return null;
 }

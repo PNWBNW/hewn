@@ -19,8 +19,8 @@ import { updateCoworker, workThread } from "@/books/work";
 import Conversation from "../Conversation";
 import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey, safetyCode } from "../coworkers";
 
-/** Their one-to-one messages and report notices; group messages show in the group. */
-const onlyText = (i: ThreadItem) => i.body.type === "text" || i.body.type === "report_notice";
+/** Their one-to-one messages, report notices and answers to invitations; group messages show in the group. */
+const onlyText = (i: ThreadItem) => ["text", "report_notice", "event_key", "event_answer"].includes(i.body.type);
 
 export type CoworkerChatProps = { businessKey: string; publicKey: string; name: string };
 

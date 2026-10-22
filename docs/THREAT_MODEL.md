@@ -342,3 +342,24 @@ A person can report a message they received to Hewn (`docs/LETTERS.md`, "Reports
   are the reporter's copy, not a signed original.
 - **The sender:** never told about a harassment report. Any other kind sends them a notice in the
   conversation, which names the kind of report but not the note.
+
+## Shared events (2026-10-22)
+
+Events with guests (`docs/LETTERS.md`, "Shared events").
+- **What guests learn:** the event, the guest list (names as the organizer shows them) and each
+  guest's answer as the organizer last knew it. A note with an answer goes only to the organizer.
+  A person's event reaches only their employer and coworkers at one job, so it never ties two
+  employers together.
+- **A guest passing as the organizer:** every guest holds the circle's key, so one could seal a
+  change or a cancellation that opens like the organizer's. Readers keep a post only when the
+  letter's sender (visible only to its owner) is the organizer's account, as the reader's own
+  books know it. If Shield ever stopped showing senders, invitations would stop arriving rather
+  than forgeries being believed.
+- **Someone taken off:** they keep the circle's key but get no more letters: each one is sealed to
+  the accounts it goes to. The key isn't rotated when a guest is taken off; it would only matter
+  for a letter that reached them anyway.
+- **On chain:** the same as any letter: someone sent a Hewn letter (a `send_many` for an event),
+  its size fixed. With a public fee, the organizer's address and how many letters it sends.
+- **Answers and keys** travel in the existing conversations, sealed with their keys, so a view key
+  alone doesn't open a coworker's answer (the same as coworker chat).
+

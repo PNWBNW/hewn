@@ -8,9 +8,11 @@
 // Edits are drafts in the vault; "Publish to the team" sends the week to
 // everyone at once (chain/PublishTeamSchedule.tsx), and each person confirms
 // their own days or asks for a change. Answers are read with the rest of the
-// team's letters, when the tab opens and on "Check now". Personal events
-// (books/events.ts, EventPanel.tsx) sit on the calendar too: only this
-// business sees them, and nothing about them is sent.
+// team's letters, when the tab opens and on "Check now". Events sit on the
+// calendar too: personal ones (books/events.ts) only this business sees, and
+// ones with guests from the team (books/shared_events.ts), sent from the
+// event's pop-up; invitations from people on the team wait at the top for an
+// answer (EventPanel.tsx, SharedEventViews.tsx).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -46,7 +48,9 @@ import {
   weekStatus,
   withDay,
 } from "@/books/schedule";
-import { EventPanel, type EventPanelState } from "@/books/EventPanel";
+import { EventPanel, type EventPanelState, panelFor } from "@/books/EventPanel";
+import { teamGuests } from "@/books/event_contacts";
+import { InvitationsWaiting, useCalendarEvents } from "@/books/SharedEventViews";
 import { TeamCalendar } from "@/books/TeamCalendar";
 import { type TeamEntry, calendarEntries, personWeek } from "@/books/team_schedule";
 import { businessCalendar, businessSources } from "@/books/team_sources";
@@ -65,6 +69,8 @@ export function Schedule() {
   const { payroll, rail, mailbox, schedule, events } = useOpenBooks();
   const today = todayIso();
   const [eventPanel, setEventPanel] = useState<EventPanelState>(null);
+  const calendarEvents = useCalendarEvents();
+  const invitable = useMemo(() => ({ scope: "", guests: teamGuests(rail, payroll.workers) }), [rail, payroll]);
   const [view, setView] = useState<"calendar" | "week">("calendar");
   const [weekStart, setWeekStart] = useState(() => scheduleWeekOf(today));
   const [publishing, setPublishing] = useState(false);
@@ -144,11 +150,12 @@ export function Schedule() {
             <Plus aria-hidden />
             New event
           </Button>
+          <InvitationsWaiting onOpen={(key) => setEventPanel({ kind: "invite", key })} />
           <TeamCalendar
             entries={entries}
             today={today}
-            events={events}
-            onEvent={(event) => setEventPanel({ kind: "view", event })}
+            events={calendarEvents}
+            onEvent={(event) => setEventPanel(panelFor(event, events))}
             dayFooter={(date) => (
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date })}>
@@ -197,7 +204,7 @@ export function Schedule() {
           {team.length === 0 ? <p className="text-sm text-muted-foreground">Add someone to your team first.</p> : rows.map((r) => <PersonWeek key={`${r.worker.id}:${weekStart}`} row={r} weekStart={weekStart} />)}
         </>
       )}
-      <EventPanel state={eventPanel} onClose={() => setEventPanel(null)} />
+      <EventPanel state={eventPanel} onClose={() => setEventPanel(null)} invitable={invitable} />
     </div>
   );
 }
