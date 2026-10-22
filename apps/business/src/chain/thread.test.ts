@@ -65,6 +65,18 @@ describe("the thread through the mailbox", () => {
     expect((await readThread({ client: box, partiesKey: KEY, reader: "worker", thread: worker.thread, store: worker.store, skip: worker.skip })).received).toEqual([]);
   });
 
+  it("takes a message dated in the future as sent when it arrived, so it can't stay the latest for ever", async () => {
+    const box = fakeMailbox();
+    const business = side();
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "From next year" }, now: () => new Date("2027-10-16T18:00:00.000Z") });
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 1, body: { type: "text", text: "From today" }, now: NOW });
+    await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip, now: () => "2026-10-16T19:00:00.000Z" });
+    expect(business.thread.items.map((i) => [i.body.type === "text" ? i.body.text : "", i.sentAt])).toEqual([
+      ["From today", "2026-10-16T18:00:00.000Z"],
+      ["From next year", "2026-10-16T19:00:00.000Z"],
+    ]);
+  });
+
   it("steps over a slot that's already taken", async () => {
     const box = fakeMailbox();
     await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "counter", agreementId: A, proposal: PROPOSAL, note: "" } });

@@ -44,7 +44,6 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
     started.current = true;
     (async () => {
       if (!letters) return onFinished("Connect Shield (open a conversation) to check for messages.");
-      const reader = letterReader(letters);
       let latest: Work = work;
       const apply = async (op: (w: Work) => Work) => {
         latest = await updateWork(op);
@@ -64,9 +63,12 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
       }
       // Channels as they stand after the threads (new keys may have just arrived).
       for (const channel of latest.channels ?? []) {
+        // A post counts only from the business's own account: everyone in the channel holds its key.
+        const business = employers.get(channel.partiesKey);
+        if (!business) continue;
         const r = await readChannel({
           // Posts come as letters (send_many).
-          client: { get: reader.get },
+          client: { get: letterReader(letters, business).get },
           channel,
           store: (item) => apply((w) => updateWorkChannels(w, (all) => all.map((c) => (c.id === channel.id && c.partiesKey === channel.partiesKey ? addReceivedPost(c, item) : c)))),
           skip: (epoch, seq) => apply((w) => updateWorkChannels(w, (all) => all.map((c) => (c.id === channel.id && c.partiesKey === channel.partiesKey ? skipPost(c, epoch, seq) : c)))),
@@ -77,11 +79,11 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
       for (const [businessKey, identity] of Object.entries(latest.identities ?? {})) {
         if (!identity.listed) continue;
         for (const c of coworkersFrom(workThread(latest, businessKey))) {
-          if (c.publicKey === identity.publicKey) continue;
+          // A coworker's letters count only from the account the business listed for them.
+          if (c.publicKey === identity.publicKey || !c.address) continue;
           const key = await pairKey(identity, c.publicKey);
           const r = await readThread({
-            // Letters from them (their account isn't needed to read).
-            client: reader,
+            client: letterReader(letters, c.address),
             partiesKey: key,
             reader: mySide(identity.publicKey, c.publicKey),
             thread: latest.coworkers?.[c.publicKey],

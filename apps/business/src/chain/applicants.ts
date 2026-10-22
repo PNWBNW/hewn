@@ -34,6 +34,17 @@ export async function openApplications(records: readonly LetterRecord[], hiring:
   return { found, unreadable };
 }
 
+/**
+ * Whether an application may be kept: the registered name it claims belongs to an account
+ * (`owner`, from the registry), and that account is the one that sent the letter. Anyone can seal
+ * an application (the posting's hiring key is public), so the name is believed only from its owner
+ * (the security review, 2026-10-22).
+ */
+export function applicationFrom(found: FoundApplication, owner: string | null): "ok" | "unnamed" | "not theirs" {
+  if (!owner) return "unnamed";
+  return found.record.sender === owner ? "ok" : "not theirs";
+}
+
 /** The applicant a found application makes, once their account is known from the registry. */
 export function applicantOf(found: FoundApplication, address: string): Applicant {
   const b = found.message.body;

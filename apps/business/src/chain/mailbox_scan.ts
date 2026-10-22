@@ -23,7 +23,9 @@ export type ScanHoursInput = {
   rail: Rail;
   mailbox: Mailbox | null;
   /** With `put`, a receipt goes back for each document kept (chain/receipts.ts). */
-  client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">>;
+  client?: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">>;
+  /** Or a reader for each person's letters, believing only their account (chain/letters.ts `letterReader`). */
+  clientFor?: (address: string) => Pick<MailboxClient, "get" | "drop">;
   /** Keeps one week in the vault (and moves its slot on). Called before the pin is dropped. */
   store: (hours: ReceivedHours) => Promise<void>;
   /** Moves an agreement's slot past an envelope that couldn't be kept. */
@@ -47,13 +49,14 @@ export type ScanHoursResult = {
 };
 
 /** Reads every new week of hours for every linked agreement. Never throws; the result says what happened. */
-export async function scanHours({ rail, mailbox, client, store, skip, now, limit }: ScanHoursInput): Promise<ScanHoursResult> {
+export async function scanHours({ rail, mailbox, client: shared, clientFor, store, skip, now, limit }: ScanHoursInput): Promise<ScanHoursResult> {
   const stamp = now ?? (() => new Date().toISOString());
   const most = limit ?? 100;
   const links = mailboxLinks(rail);
   const result: ScanHoursResult = { received: [], skipped: [], off: false, checked: links.length };
   const known = mailbox ?? { version: 1 as const, hours: [] };
   for (const link of links) {
+    const client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">> = clientFor ? clientFor(link.address) : shared!;
     const key = partiesKeyFromHex(link.partiesKey!);
     try {
       let seq = nextHoursSeq(known, link.agreementId);

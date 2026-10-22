@@ -18,18 +18,19 @@ const fast = { sleep: async () => {}, pollMs: 1 };
 
 /** The network: every letter sent, as the records it made. */
 function network() {
-  const records: { owner: string; name: "Letter" | "SentLetter" | "Page"; lookup: string; parcel: string }[] = [];
+  // Each record remembers who sent it: Shield shows its owner the sender.
+  const records: { owner: string; name: "Letter" | "SentLetter" | "Page"; lookup: string; parcel: string; from: string }[] = [];
   const calls: { function: string; feeMode?: string }[] = [];
   const wallet = (me: string): LetterWallet => ({
     async executeTransaction(o) {
       if (o.program !== LETTERS_PROGRAM) throw new Error("not a letter");
       calls.push({ function: o.function, ...(o.feeMode ? { feeMode: o.feeMode } : {}) });
       const [to, lookup, parcel] = o.inputs as [string, string, string];
-      if (o.function === SEND_PAGE_FUNCTION) records.push({ owner: to, name: "Page", lookup, parcel });
+      if (o.function === SEND_PAGE_FUNCTION) records.push({ owner: to, name: "Page", lookup, parcel, from: me });
       else if (o.function === SEND_MANY_FUNCTION) {
-        for (const each of to.slice(1, -1).split(", ")) records.push({ owner: each, name: "Letter", lookup, parcel });
-        records.push({ owner: me, name: "SentLetter", lookup, parcel });
-      } else records.push({ owner: to, name: "Letter", lookup, parcel }, { owner: me, name: "SentLetter", lookup, parcel });
+        for (const each of to.slice(1, -1).split(", ")) records.push({ owner: each, name: "Letter", lookup, parcel, from: me });
+        records.push({ owner: me, name: "SentLetter", lookup, parcel, from: me });
+      } else records.push({ owner: to, name: "Letter", lookup, parcel, from: me }, { owner: me, name: "SentLetter", lookup, parcel, from: me });
       return { transactionId: "shield_1" };
     },
     async transactionStatus() {
@@ -43,7 +44,7 @@ function network() {
           const halves = r.lookup.replace(/[[\]]/g, "").split(", ").map((h) => `    ${h}.private`).join(",\n");
           const fields = r.parcel.replace(/[[\]]/g, "").split(", ").map((f) => `    ${f}.private`).join(",\n");
           const list = r.name === "Page" ? "page" : "parcel";
-          return { recordName: r.name, recordPlaintext: `{\n  owner: ${r.owner}.private,\n  lookup: [\n${halves}\n  ],\n  ${list}: [\n${fields}\n  ],\n  _nonce: 1group.public,\n  _version: 1u8.public\n}`, spent: false };
+          return { recordName: r.name, recordPlaintext: `{\n  owner: ${r.owner}.private,\n  lookup: [\n${halves}\n  ],\n  ${list}: [\n${fields}\n  ],\n  _nonce: 1group.public,\n  _version: 1u8.public\n}`, spent: false, sender: r.from };
         });
     },
   });
@@ -136,7 +137,8 @@ describe("announcements over letters", () => {
   /** A person's app: their thread with the business (where the channel key comes), then the channel's posts. */
   async function personReads(net: ReturnType<typeof network>, me: typeof ANA): Promise<Work> {
     let w: Work = emptyWork("Person");
-    const reader = letterReader(new LetterBox({ wallet: net.wallet(me.address) }));
+    // Only the business's letters count, in the thread and in the channel.
+    const reader = letterReader(new LetterBox({ wallet: net.wallet(me.address) }), BUSINESS);
     await readThread({
       client: reader,
       partiesKey: me.partiesKey,
@@ -171,5 +173,19 @@ describe("announcements over letters", () => {
       const w = await personReads(net, person);
       expect(w.channels?.[0]?.posts.map((p) => [p.id, p.text])).toEqual([[post.id, "Shift swap board is up."]]);
     }
+  });
+
+  it("believes a post only from the business: a member holding the key can't pass as it, or hide the next real post", async () => {
+    const net = network();
+    const biz = net.wallet(BUSINESS);
+    const ch = newChannel("Team schedule", [ANA.workerId, BO.workerId]);
+    await sendChannelKey((m) => new LetterBox({ wallet: biz, to: m.address!, execute: fast }), ch, [ANA, BO].map((m) => ({ ...m, thread: undefined })));
+    // Ana has the channel's key too: she seals a fake into the business's next slot and sends it to Bo from her own account.
+    await postToChannel(new LetterBox({ wallet: net.wallet(ANA.address), to: BO.address, execute: fast }), ch, "Everyone off Friday, says the boss.", new Date());
+    // Then the business's real post goes to that same slot.
+    const real = await postToChannel(new ManyLetterBox({ wallet: biz, to: [ANA.address, BO.address], self: BUSINESS, execute: fast }), ch, "Friday is on as planned.", new Date());
+    const w = await personReads(net, BO);
+    expect(w.channels?.[0]?.posts.map((p) => p.text)).toEqual(["Friday is on as planned."]);
+    expect(w.channels?.[0]?.posts[0]?.id).toBe(real.id);
   });
 });

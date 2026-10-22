@@ -99,7 +99,12 @@ Why each piece:
   for `[u128; N]` and five times that for `[u8; N]`.
 - **No `from`.** The chain already carries one: since consensus V8 each output record has a
   *sender ciphertext* only its owner can open (Shield's records already show a `sender` field).
-  And only the two parties hold the parties key, so a parcel that opens came from the other one.
+  The app reads every letter against it (2026-10-22, the security review): a letter in a
+  conversation counts only when its sender is the other side's account, a channel post only from
+  the business, an application only from the account that owns the name it claims, an event only
+  from its organizer. Opening with the key isn't enough on its own: everyone in a channel holds its
+  key, and an auditor shown a view key can find a hired pair's. When Shield gives no sender at all,
+  the check stops and says so rather than guessing.
 
 Negative tests (required for any new program): a parcel of the wrong length, a field out of range,
 a malformed address and a non-record input must all be rejected. Positive: `Letter.owner == to`,

@@ -103,6 +103,42 @@ describe("group chats through the mailbox", () => {
     expect(groupsFor(cy.work, BIZ)).toMatchObject([{ name: "Night crew", joined: true }]);
   });
 
+  it("can't be taken over by a member who sets it up again as its admin, with a later date", async () => {
+    const box = fakeMailbox();
+    const [ana, bo, cy] = await Promise.all([person("Ana"), person("Bo"), person("Cy")]);
+    const groupId = newGroupId();
+    const members = [entry(ana), entry(bo), entry(cy)];
+    ana.work = keepSent(ana.work, BIZ, await fanOut(() => box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members }));
+    await readFrom(box, cy, [ana]);
+    // Bo sends Cy his own setup of the same group, naming himself admin, dated a year ahead.
+    const later = () => new Date(Date.now() + 365 * 86_400_000);
+    const key = await pairKey(bo.id, cy.id.publicKey);
+    const { postToThread } = await import("./thread");
+    await postToThread({ client: box, partiesKey: key, from: mySide(bo.id.publicKey, cy.id.publicKey), nextOut: 0, kinds: COWORKER_KINDS, now: later, body: { type: "group", groupId, name: "Bo's crew", admin: bo.id.publicKey, members: [entry(bo), entry(cy)] } });
+    await readFrom(box, cy, [bo]);
+    expect(groupsFor(cy.work, BIZ)).toMatchObject([{ name: "Night crew", admin: ana.id.publicKey, joined: true }]);
+    expect(groupsFor(cy.work, BIZ)[0]!.members.map((m) => m.name)).toEqual(["Ana", "Bo", "Cy"]);
+  });
+
+  it("keeps two members' messages apart even when one reuses the other's id", async () => {
+    const box = fakeMailbox();
+    const [ana, bo, cy] = await Promise.all([person("Ana"), person("Bo"), person("Cy")]);
+    const groupId = newGroupId();
+    const members = [entry(ana), entry(bo), entry(cy)];
+    ana.work = keepSent(ana.work, BIZ, await fanOut(() => box, ana.work, ana.id, members, { type: "group", groupId, name: "Night crew", admin: ana.id.publicKey, members }));
+    await readFrom(box, cy, [ana]);
+    const sent = await fanOut(() => box, ana.work, ana.id, members, { type: "group_text", groupId, text: "Meet at 6" });
+    const id = sent.sent[0]!.item.id;
+    const key = await pairKey(bo.id, cy.id.publicKey);
+    const { postToThread } = await import("./thread");
+    await postToThread({ client: box, partiesKey: key, from: mySide(bo.id.publicKey, cy.id.publicKey), nextOut: 0, kinds: COWORKER_KINDS, id, body: { type: "group_text", groupId, text: "Meeting's cancelled" } });
+    await readFrom(box, cy, [ana, bo]);
+    expect(groupsFor(cy.work, BIZ)[0]!.messages.map((m) => [m.text, m.from === ana.id.publicKey ? "Ana" : "Bo"]).sort()).toEqual([
+      ["Meet at 6", "Ana"],
+      ["Meeting's cancelled", "Bo"],
+    ]);
+  });
+
   it("lets anyone leave, after which their messages stop showing", async () => {
     const box = fakeMailbox();
     const [ana, bo] = await Promise.all([person("Ana"), person("Bo")]);

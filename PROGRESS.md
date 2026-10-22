@@ -3966,3 +3966,32 @@ unconfirmed; every tag kept before Shield is asked, and a payee whose tag can't 
 sent; a retry spends the same record and one whose record is gone isn't sent; a lost one is asked
 about again, briefly); payroll +1 (the attempt note); app +2 (two tabs). Every package passes
 (1034); both builds pass; `pnpm audit` clean.
+
+## 2026-10-22: who a letter is from (fix 3 of the security review)
+
+Apart from event invitations, a letter was believed because it opened with the right key. So any
+member of a channel could seal a fake team schedule or announcement into the business's next slot
+and send it to coworkers (and hide the next real post); anyone could apply "as" someone else's
+name; an auditor shown a view key could write into a hired pair's conversation; and a group member
+could make themselves a group's admin on another member's screen.
+- **The reader checks the sender** (`chain/letters.ts` `letterReader(letters, from)`): a slot's
+  letter counts only when the record's sender (visible only to its owner) is the account expected.
+  `letterThread`'s reader is bound to the other side, which covers every conversation; channel
+  posts are read against the business (worker's Messages check); coworker letters against the
+  account the business listed (none listed: not read); hours, paystubs and offer terms against the
+  person or the employer (`scanHours`/`scanPaystubs` take a reader per account). When Shield shows
+  no sender at all, the check stops and says so instead of guessing.
+- **Applications** (`chain/applicants.ts` `applicationFrom`): kept only when the sender owns the
+  registered name claimed; others are counted ("not sent by the name's owner, left out").
+- **Group chats** (`books/groups.ts`): the admin is whoever set the group up first as this device
+  saw it, on this device's own times; two members' messages with one id stay two messages.
+- **Send times** (`chain/thread.ts`): a received message dated in the future takes the time it
+  arrived.
+- Docs: `docs/LETTERS.md` ("No from"), `docs/THREAT_MODEL.md` (channels, and a new section).
+
+Tests: a forged team-schedule post sent by a member is ignored and the real post in the same
+slot still read (fails on the old reader); the reader picks the expected sender, ignores another,
+and refuses to guess with no sender; applications from someone other than the name's owner; a
+group can't be taken over with a later-dated setup; two members' messages with one id; a
+future-dated message. App 635 (+5); every package passes (1039); both builds pass;
+`pnpm audit` clean.

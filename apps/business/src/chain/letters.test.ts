@@ -23,6 +23,7 @@ import {
   parseLetterRecord,
   unpackParcel,
 } from "./letters";
+import type { LetterRecord } from "./letters";
 
 const ANA = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px";
 const BO = "aleo1" + "c".repeat(58);
@@ -161,11 +162,20 @@ describe("the letter box", () => {
 });
 
 describe("reading a thread's letters", () => {
-  it("finds a slot's letter, nothing else, and drops nothing (the old mailbox is retired)", async () => {
-    const { letterReader } = await import("./letters");
-    const reader = letterReader({ get: async (l: string) => (l === "a" ? Uint8Array.of(1) : null) });
-    expect(await reader.get("a")).toEqual(Uint8Array.of(1));
+  it("finds a slot's letter from the one sender it believes, nothing else, and drops nothing", async () => {
+    const { letterReader, SenderUnknown } = await import("./letters");
+    const THEM = `aleo1${"q".repeat(58)}`;
+    const OTHER = `aleo1${"p".repeat(58)}`;
+    const slots: Record<string, LetterRecord[]> = {
+      a: [{ kind: "letter", lookup: "a", envelope: Uint8Array.of(9), sender: OTHER }, { kind: "letter", lookup: "a", envelope: Uint8Array.of(1), sender: THEM }],
+      forged: [{ kind: "letter", lookup: "forged", envelope: Uint8Array.of(2), sender: OTHER }],
+      silent: [{ kind: "letter", lookup: "silent", envelope: Uint8Array.of(3) }],
+    };
+    const reader = letterReader({ getAll: async (l: string) => slots[l] ?? [] }, THEM);
+    expect(await reader.get("a")).toEqual(Uint8Array.of(1)); // theirs, not the other one sealed into the same slot
+    expect(await reader.get("forged")).toBeNull(); // someone else holding the key: not believed
     expect(await reader.get("b")).toBeNull();
+    await expect(reader.get("silent")).rejects.toBeInstanceOf(SenderUnknown); // no sender at all: say so, don't guess
     await expect(reader.drop("a")).resolves.toBeUndefined();
   });
 });

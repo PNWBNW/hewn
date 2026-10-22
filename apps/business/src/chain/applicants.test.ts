@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ThreadMessage } from "../books/thread";
 import { addApplicant, applicantWorkerId, emptyJobs, jobsFromJson, jobsToJson, putPosting, setApplicantStatus } from "../books/jobs";
 import { applicantKey, newHiringKey, packApplication } from "./applications";
-import { applicantOf, interviewText, openApplications, statusBody } from "./applicants";
+import { applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
 import type { LetterRecord } from "./letters";
 
 const ids: Record<string, string> = { ana: "a".repeat(32), ben: "b".repeat(32), eve: "e".repeat(32) };
@@ -33,6 +33,21 @@ describe("opening the letters under a posting", () => {
     expect(unreadable).toBe(2);
     const applicant = applicantOf(found[0]!, "aleo1" + "q".repeat(58));
     expect(applicant).toEqual({ partiesKey: a.partiesKey, name: "ana", nameHash: "123", address: "aleo1" + "q".repeat(58), appliedAt: "2026-10-19T12:00:00.000Z" });
+  });
+
+  it("keeps an application only from the account that owns the name it claims", async () => {
+    const hiring = await newHiringKey();
+    const k = await applicantKey(hiring.publicKey, "42");
+    const ANA = "aleo1" + "q".repeat(58);
+    const EVE = "aleo1" + "p".repeat(58);
+    const sealed = await packApplication(k.partiesKey, k.oneTimePublicKey, message("42", "ana"));
+    const [fromAna] = (await openApplications([{ ...record(sealed, 1), sender: ANA }], hiring, "42", new Set())).found;
+    const [fromEve] = (await openApplications([{ ...record(sealed, 1), sender: EVE }], hiring, "42", new Set())).found;
+    const [noSender] = (await openApplications([record(sealed, 1)], hiring, "42", new Set())).found;
+    expect(applicationFrom(fromAna!, ANA)).toBe("ok");
+    expect(applicationFrom(fromEve!, ANA)).toBe("not theirs"); // Eve applying as ana.hewn
+    expect(applicationFrom(noSender!, ANA)).toBe("not theirs");
+    expect(applicationFrom(fromAna!, null)).toBe("unnamed");
   });
 });
 
