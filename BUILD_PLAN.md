@@ -262,9 +262,10 @@ each person is tagged by a one-way value from the key they share with the busine
    calendar (timed, past midnight, or all day across several days; where, an https meeting link,
    notes). Kept only in the encrypted books: nothing is sent, nothing goes on chain, and there is
    no export to a phone calendar (events live only in the app).
-8. Shared events (Joshua, 2026-10-22, next): invites and answers as sealed letters, the guest list
+8. Shared events (Joshua, 2026-10-22): invites and answers as sealed letters, the guest list
    visible to guests. A business invites its own team; a worker invites coworkers and their
-   employer. More than 8 guests go out in batches, one approval per 8.
+   employer, at one job per event. More than 8 guests go out in batches, one approval per 8.
+   Built 2026-10-22 (`docs/LETTERS.md`, "Shared events").
 9. Business-to-business agreements and pass-through invites (Joshua, 2026-10-22, after 8): a typed
    agreement between two businesses (subcontractor, general contractor, supplier or vendor,
    services or consulting, joint venture, referral partnership, or a custom title) with written
@@ -281,6 +282,7 @@ each person is tagged by a one-way value from the key they share with the busine
 - [x] A shift questioned by the business changes only after the person agrees, and both sides then show the agreed times (2026-10-20)
 - [ ] A shift clocked in 20 minutes late shows as late on the business's timecard
 - [x] A personal event (timed, past midnight, or all day) is kept in the encrypted books, reads back when they reopen, shows on the days it touches on that account's calendar, and is never sent (2026-10-22)
+- [x] An event sent to guests reaches each of them in one approval per eight, each guest's answer reaches the organizer, and a change sealed by a guest instead of the organizer isn't believed (2026-10-22, end to end in tests; not yet tried on testnet)
 
 ---
 

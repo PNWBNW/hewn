@@ -11,6 +11,9 @@ import { unreadCount } from "@/books/mailbox";
 import { unreadIn } from "@/books/thread";
 import { unreadPosts } from "@/books/channels";
 import { waitingCount } from "@/books/review";
+import { todayIso } from "@/books/display";
+import { myAnswerIn } from "@/books/event_contacts";
+import { waitingInvites } from "@/books/shared_events";
 import type { Role } from "@/books/work";
 import { BRAND } from "@/brand";
 import { LegalLinks } from "@/legal/LegalNotes";
@@ -123,8 +126,10 @@ function Rail({
   onBackup: () => void;
   onLock: () => void;
 }) {
-  const { mailbox, review, work } = useOpenBooks();
+  const { mailbox, review, work, calendar } = useOpenBooks();
   const unread = unreadCount(mailbox);
+  // Invitations waiting for an answer: on Schedule for a person, on Payroll (where Schedule is) for a business.
+  const invites = waitingInvites(calendar, myAnswerIn({ mailbox, work }), todayIso()).length;
   // Unread messages: in the business's threads, or the person's.
   const unreadMessages =
     Object.values((role === "worker" ? work?.threads : mailbox?.threads) ?? {}).reduce((n, t) => n + unreadIn(t), 0) +
@@ -161,9 +166,17 @@ function Rail({
                 {unreadMessages}
               </span>
             )}
-            {href === "/payroll" && unread > 0 && (
-              <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unread} unread weeks of hours`}>
-                {unread}
+            {href === "/payroll" && unread + invites > 0 && (
+              <span
+                className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail"
+                aria-label={[unread > 0 && `${unread} unread weeks of hours`, invites > 0 && `${invites} ${invites === 1 ? "invitation" : "invitations"} to answer`].filter(Boolean).join(", ")}
+              >
+                {unread + invites}
+              </span>
+            )}
+            {href === "/work/schedule" && invites > 0 && (
+              <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${invites} ${invites === 1 ? "invitation" : "invitations"} to answer`}>
+                {invites}
               </span>
             )}
             {href === "/transactions" && waiting > 0 && (

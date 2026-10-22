@@ -16,6 +16,7 @@ Most files pair up that way. The ones worth knowing first:
 | `mailbox.ts`, `mailbox_feed.ts` | What arrived for the business: weeks of hours, combined per week; the feed the screens show |
 | `hours.ts`, `work_week.ts`, `timecard_pay.ts`, `hours_change.ts` | Shifts from punches on the agreement's calendar; overtime and callouts; timecards into pay; changing hours by agreement |
 | `schedule.ts`, `team_schedule.ts`, `team_sources.ts`, `TeamCalendar.tsx` | Drafts, publishing a week, the team calendar everyone sees |
+| `events.ts`, `shared_events.ts`, `event_contacts.ts`, `EventPanel.tsx`, `EventDetailsList.tsx`, `SharedEventViews.tsx` | Events on the calendar: personal ones, ones with guests (organized or invited to), who can be invited, the pop-up and the "Waiting for your answer" list |
 | `offer_letter.ts`, `terms_words.ts`, `review.ts`, `hiring.ts`, `jobs.ts`, `applications.ts`, `resume.ts` | Offers and their terms in words; hiring and the job board as the vault keeps them |
 | `channels.ts`, `directory.ts`, `groups.ts` | Announcement channels, the coworker directory, group chats |
 | `paystub_document.ts` | The paystub as a document: the canonical form whose hash the chain sees |

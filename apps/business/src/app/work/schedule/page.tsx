@@ -5,9 +5,11 @@
 // published them, their own standing out (books/TeamCalendar.tsx); and "My
 // week", their own days with both layers, which they confirm or ask to change
 // (chain/work/AnswerSchedule.tsx). New weeks arrive with their messages, read
-// when the page opens and on "Check now". Personal events (books/events.ts,
-// EventPanel.tsx) sit on the calendar too, before any job as well: only this
-// person sees them, and nothing about them is sent.
+// when the page opens and on "Check now". Events sit on the calendar too:
+// personal ones (books/events.ts), before any job as well, that only this
+// person sees; ones with guests at the chosen job, their employer and
+// coworkers (books/shared_events.ts); and invitations, which wait at the top
+// for an answer (EventPanel.tsx, SharedEventViews.tsx).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -21,7 +23,9 @@ import { useWork } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
 import { addDays, blockLabel, dayOf, onCallDays, scheduleDays, scheduleWeekOf, weekShiftMinutes } from "@/books/schedule";
-import { EventPanel, type EventPanelState } from "@/books/EventPanel";
+import { EventPanel, type EventPanelState, panelFor } from "@/books/EventPanel";
+import { jobGuests } from "@/books/event_contacts";
+import { InvitationsWaiting, useCalendarEvents } from "@/books/SharedEventViews";
 import { TeamCalendar } from "@/books/TeamCalendar";
 import { calendarEntries, personWeek } from "@/books/team_schedule";
 import { workCalendar, workSources } from "@/books/team_sources";
@@ -36,6 +40,7 @@ const AnswerSchedule = dynamic(() => import("@/chain/work/AnswerSchedule"), { ss
 export default function SchedulePage() {
   const { work, events } = useWork();
   const [eventPanel, setEventPanel] = useState<EventPanelState>(null);
+  const calendarEvents = useCalendarEvents();
   const agreements = activeAgreements(work);
   const [chosen, setChosen] = useState("");
   const agreement = agreements.find((a) => a.agreementId === chosen) ?? agreements[0];
@@ -51,6 +56,8 @@ export default function SchedulePage() {
   useEffect(() => setAnswering(null), [weekStart, chosen]);
 
   const sources = useMemo(() => (agreement ? workSources(work, agreement) : undefined), [work, agreement]);
+  // Who an event at this job can invite: the employer, and coworkers in its directory.
+  const invitable = useMemo(() => (agreement ? { scope: agreement.partiesKey, guests: jobGuests(work, agreement, employerLabel(agreement)) } : undefined), [work, agreement]);
   const entries = useMemo(() => (agreement ? calendarEntries(workCalendar(work, agreement)) : []), [work, agreement]);
   const published = sources ? personWeek(sources, weekStart) : undefined;
   const week = published?.week;
@@ -63,6 +70,7 @@ export default function SchedulePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Schedule" summary="Everyone's shifts and on-call days, as your employer published them. Confirm your own each week, or ask for a change." />
+      <InvitationsWaiting onOpen={(key) => setEventPanel({ kind: "invite", key })} />
       {agreements.length === 0 ? (
         <>
           <p className="text-sm text-muted-foreground">
@@ -78,8 +86,8 @@ export default function SchedulePage() {
           <TeamCalendar
             entries={[]}
             today={today}
-            events={events}
-            onEvent={(event) => setEventPanel({ kind: "view", event })}
+            events={calendarEvents}
+            onEvent={(event) => setEventPanel(panelFor(event, events))}
             dayFooter={(date) => (
               <Button variant="outline" size="sm" className="min-h-11 self-start sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date })}>
                 <Plus aria-hidden />
@@ -146,8 +154,8 @@ export default function SchedulePage() {
               <TeamCalendar
                 entries={entries}
                 today={today}
-                events={events}
-                onEvent={(event) => setEventPanel({ kind: "view", event })}
+                events={calendarEvents}
+                onEvent={(event) => setEventPanel(panelFor(event, events))}
                 {...(sources?.who ? { highlight: sources.who } : {})}
                 dayFooter={(date) => (
                   <div className="flex flex-wrap gap-2">
@@ -249,7 +257,7 @@ export default function SchedulePage() {
           )}
         </>
       )}
-      <EventPanel state={eventPanel} onClose={() => setEventPanel(null)} />
+      <EventPanel state={eventPanel} onClose={() => setEventPanel(null)} invitable={invitable} />
     </div>
   );
 }

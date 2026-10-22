@@ -23,6 +23,7 @@ import { type EmploymentType, type JobFields, cleanHours, employmentLabel, hours
 import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./schedule";
 import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, validateHoursChange } from "./hours_change";
 import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from "./report";
+import { MAX_EVENT_TITLE } from "./events";
 
 export type Side = "business" | "worker";
 
@@ -85,7 +86,16 @@ export type ThreadBody =
   /** The other side's answer to it. */
   | HoursAnswerBody
   /** The other side reported message `messageId` to Hewn (books/report.ts). Never sent for harassment. */
-  | { type: "report_notice"; messageId: string; category: Exclude<ReportCategory, "harassment"> };
+  | { type: "report_notice"; messageId: string; category: Exclude<ReportCategory, "harassment"> }
+  /** An organizer gives the other side the key its invitations are sealed with (books/shared_events.ts): once for each circle and key number. */
+  | { type: "event_key"; circleId: string; epoch: number; key: string }
+  /** A guest answers revision `rev` of the invitation to event `eventId` (its title, so the conversation reads), with a note. */
+  | { type: "event_answer"; eventId: string; rev: number; title: string; answer: EventAnswer; note: string };
+
+/** A guest's answer to an invitation. */
+export const EVENT_ANSWERS = ["yes", "maybe", "no"] as const;
+export type EventAnswer = (typeof EVENT_ANSWERS)[number];
+export const MAX_EVENT_ANSWER_NOTE = 500;
 
 /** Where an application stands, as the business tells the person; "applied" is the state before any of these. */
 export const APPLICATION_STATUSES = ["seen", "interviewing", "offer_sent", "hired", "not_selected", "closed"] as const;
@@ -146,6 +156,8 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   hours_change: "either",
   hours_change_answer: "either",
   report_notice: "either",
+  event_key: "either",
+  event_answer: "either",
 };
 
 /** The kinds that only travel between coworkers. */
@@ -347,6 +359,22 @@ function validateBody(raw: unknown): ThreadBody {
       } catch (e) {
         throw new ThreadError(e instanceof Error ? e.message : "The change to the hours isn't valid");
       }
+    case "event_key": {
+      const { circleId, epoch, key } = raw;
+      if (typeof circleId !== "string" || !/^[0-9a-f]{16}$/.test(circleId)) throw new ThreadError("A calendar key names its circle");
+      if (typeof epoch !== "number" || !Number.isInteger(epoch) || epoch < 0 || epoch > 999_999) throw new ThreadError("A calendar key's number must be a whole number");
+      if (typeof key !== "string" || !/^[0-9a-f]{64}$/.test(key)) throw new ThreadError("A calendar key must be 64 hex characters");
+      return { type: "event_key", circleId, epoch, key };
+    }
+    case "event_answer": {
+      const { eventId, rev, title, answer } = raw;
+      if (typeof eventId !== "string" || !/^[0-9a-f]{32}$/.test(eventId)) throw new ThreadError("An answer names its event");
+      if (typeof rev !== "number" || !Number.isInteger(rev) || rev < 1 || rev > MAX_SEQ) throw new ThreadError("An answer names the version it answers");
+      if (typeof title !== "string" || !title.trim() || [...title].length > MAX_EVENT_TITLE) throw new ThreadError("An answer carries the event's title");
+      if (!EVENT_ANSWERS.includes(answer as EventAnswer)) throw new ThreadError("An answer is yes, maybe or no");
+      if (typeof raw.note !== "string" || [...raw.note].length > MAX_EVENT_ANSWER_NOTE) throw new ThreadError(`A note can be at most ${MAX_EVENT_ANSWER_NOTE} characters`);
+      return { type: "event_answer", eventId, rev, title: title.trim(), answer: answer as EventAnswer, note: raw.note.trim() };
+    }
     case "report_notice": {
       if (typeof raw.messageId !== "string" || !/^[0-9a-f]{32}$/.test(raw.messageId)) throw new ThreadError("A report notice names the message");
       if (!isReportCategory(raw.category) || !notifiesSender(raw.category)) throw new ThreadError("That kind of report isn't one the sender is told about");
@@ -517,6 +545,11 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "schedule_answer") {
     const what = b.answer === "confirmed" ? "confirmed the schedule" : "asked for a change to the schedule";
     return `${item.mine ? "You" : "They"} ${what} for the week of ${shortDay(b.weekStart)}`;
+  }
+  if (b.type === "event_key") return item.mine ? "You can now invite them to events" : "Can now invite you to events";
+  if (b.type === "event_answer") {
+    const verb = { yes: "going to", maybe: "a maybe for", no: "not going to" }[b.answer];
+    return `${item.mine ? "You're" : "They're"} ${verb} “${b.title}”`;
   }
   if (b.type === "report_notice") return item.mine ? `You reported their message as ${REPORT_AS[b.category]}` : `Reported your message as ${REPORT_AS[b.category]}`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";

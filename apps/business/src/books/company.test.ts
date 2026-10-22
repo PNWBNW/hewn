@@ -3,6 +3,7 @@ import { addProject, addTag, booksToJson, createBooks, emptyDimensions } from "@
 import { addWorker, emptyPayroll, payrollToJson } from "@pnw/payroll";
 import { addCustomer, addVendor, emptySales, salesToJson } from "@pnw/sales";
 import { companyFromJson, companyToJson, roleOf } from "./company";
+import { emptyCalendar, newHosted, putHosted } from "./shared_events";
 import type { Rail } from "./rail";
 import { emptyWork, punch, upsertAgreement } from "./work";
 
@@ -94,6 +95,14 @@ describe("company file", () => {
     expect(JSON.parse(companyToJson({ books, payroll, sales, dimensions, events: [] }))).not.toHaveProperty("events");
     const broken = { ...JSON.parse(withEvents), events: JSON.stringify([{ ...event, link: "javascript:alert(1)" }]) };
     expect(() => companyFromJson(JSON.stringify(broken))).toThrow("https");
+  });
+
+  it("keeps events with guests inside the file, and leaves the calendar out before the first", () => {
+    const dimensions = emptyDimensions();
+    const guest = { name: "Ana", address: `aleo1${"z".repeat(58)}`, contact: { via: "pair" as const, partiesKey: "a1".repeat(32) } };
+    const calendar = putHosted(emptyCalendar(), newHosted("", { title: "Site walkthrough", date: "2026-10-23", allDay: false, start: "09:00", end: "10:00" }, [guest]));
+    expect(companyFromJson(companyToJson({ books, payroll, sales, dimensions, calendar })).calendar).toEqual(calendar);
+    expect(JSON.parse(companyToJson({ books, payroll, sales, dimensions }))).not.toHaveProperty("calendar");
   });
 
   it("opens files saved before accounts with no username", () => {

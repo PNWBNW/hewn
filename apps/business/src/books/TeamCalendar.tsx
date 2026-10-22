@@ -7,14 +7,17 @@
 // call, then the hours with each shift as a block (shifts that overlap sit
 // side by side; a night shift carries into the next morning). Both sides use
 // it, the business and everyone who works there; it only draws what it's
-// given (books/team_schedule.ts `calendarEntries`). Personal events
-// (books/events.ts) sit on it too, in their own colour, and open when tapped.
+// given (books/team_schedule.ts `calendarEntries`). Events sit on it too
+// and open when tapped: personal ones (books/events.ts) in one colour, ones
+// with guests (books/shared_events.ts) in another, an invitation not answered
+// yet dashed and one called off struck through.
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
-import { type PersonalEvent, onDay as coversDay } from "./events";
+import { onDay as coversDay } from "./events";
+import type { CalendarEvent } from "./shared_events";
 import { addDays, blockMinutes, overnight, scheduleWeekOf, timeLabel } from "./schedule";
 import type { CalendarEntry } from "./team_schedule";
 
@@ -26,8 +29,10 @@ const SHOWN = 3; // chips a day square shows before "N more"
 const HOUR_PX = 44;
 const DATE_PX = 28; // the day number's row in a square
 const LANE_PX = 18; // one on-call bar
-/** Personal events' colour: never a person's, so they can't be mistaken for someone's shift. */
+/** Events' colours, personal and with guests: never a person's, so they can't be mistaken for someone's shift. */
 const EVENT_COLOR = "#64748b";
+const SHARED_COLOR = "#a1887f";
+const colorOfEvent = (e: CalendarEvent) => (e.kind === "personal" ? EVENT_COLOR : SHARED_COLOR);
 
 const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 const monthOf = (date: string) => date.slice(0, 7);
@@ -47,13 +52,13 @@ export type TeamCalendarProps = {
   highlight?: string;
   /** Shown under the day view, for that day (the business's edit link, say). */
   dayFooter?: (date: string) => React.ReactNode;
-  /** This account's personal events. */
-  events?: readonly PersonalEvent[];
-  /** Opens one (its details, to edit). */
-  onEvent?: (event: PersonalEvent) => void;
+  /** This account's events: personal ones, ones it organizes, ones it's invited to. */
+  events?: readonly CalendarEvent[];
+  /** Opens one (its details). */
+  onEvent?: (event: CalendarEvent) => void;
 };
 
-const NONE: readonly PersonalEvent[] = [];
+const NONE: readonly CalendarEvent[] = [];
 
 export function TeamCalendar({ entries, today, highlight, dayFooter, events = NONE, onEvent }: TeamCalendarProps) {
   const [month, setMonth] = useState(monthOf(today));
@@ -122,10 +127,16 @@ export function TeamCalendar({ entries, today, highlight, dayFooter, events = NO
           ))}
         </ul>
       )}
-      {events.length > 0 && (
+      {events.some((e) => e.kind === "personal") && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: EVENT_COLOR }} />
           Your personal events (only you see them)
+        </p>
+      )}
+      {events.some((e) => e.kind !== "personal") && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: SHARED_COLOR }} />
+          Events with guests (dashed: waiting for your answer)
         </p>
       )}
       {entries.length === 0 && events.length === 0 && <p className="text-sm text-muted-foreground">Nothing on the calendar yet.</p>}
@@ -182,7 +193,7 @@ function WeekRow({
   weekStart: string;
   month: string;
   entries: readonly CalendarEntry[];
-  events: readonly PersonalEvent[];
+  events: readonly CalendarEvent[];
   today: string;
   colorOf: (key: string) => string;
   highlight: string | undefined;
@@ -195,7 +206,7 @@ function WeekRow({
     <div className="relative grid grid-cols-7 border-b last:border-b-0">
       {days.map((d, i) => {
         const shifts = entries.filter((e) => e.kind === "shift" && e.date === d).sort((a, b) => (a.start! < b.start! ? -1 : 1));
-        // Personal events first: all-day ones on every day they cover, timed ones on the day they start.
+        // Events first: all-day ones on every day they cover, timed ones on the day they start.
         const mine = events.filter((e) => (e.allDay ? coversDay(e, d) : e.date === d));
         const hiddenSpans = spans.filter((s) => s.lane >= SHOWN && s.start <= i && i <= s.end).length;
         const room = Math.max(0, SHOWN - shownLanes);
@@ -220,7 +231,7 @@ function WeekRow({
             <span aria-hidden style={{ height: shownLanes * LANE_PX }} className="shrink-0" />
             <span className="flex flex-col gap-0.5 px-0.5 pb-1">
               {shownEvents.map((e) => (
-                <Chip key={e.id} color={EVENT_COLOR} draft={false} strong>
+                <Chip key={e.id} color={colorOfEvent(e)} draft={!!e.unanswered} struck={!!e.cancelled} strong>
                   {e.allDay ? e.title : `${short(e.start!)} ${e.title}`}
                 </Chip>
               ))}
@@ -252,10 +263,10 @@ function WeekRow({
   );
 }
 
-function Chip({ color, draft, strong, children }: { color: string; draft: boolean; strong: boolean; children: React.ReactNode }) {
+function Chip({ color, draft, struck, strong, children }: { color: string; draft: boolean; struck?: boolean; strong: boolean; children: React.ReactNode }) {
   return (
     <span
-      className={cn("block truncate rounded-sm border-l-[3px] px-1 text-[11px] leading-4", strong && "font-semibold", draft && "border-dashed opacity-70")}
+      className={cn("block truncate rounded-sm border-l-[3px] px-1 text-[11px] leading-4", strong && "font-semibold", draft && "border-dashed opacity-70", struck && "line-through opacity-60")}
       style={{ backgroundColor: `${color}33`, borderLeftColor: color }}
     >
       {children}
@@ -263,13 +274,13 @@ function Chip({ color, draft, strong, children }: { color: string; draft: boolea
   );
 }
 
-type Block = ({ entry: CalendarEntry; event?: undefined } | { event: PersonalEvent; entry?: undefined }) & { from: number; to: number; carried: boolean };
+type Block = ({ entry: CalendarEntry; event?: undefined } | { event: CalendarEvent; entry?: undefined }) & { from: number; to: number; carried: boolean };
 
 /** The day's shifts and timed events as blocks in minutes from midnight; anything running past midnight the day before carries in from 0. */
-function blocksOf(day: string, entries: readonly CalendarEntry[], events: readonly PersonalEvent[]): (Block & { lane: number; lanes: number })[] {
+function blocksOf(day: string, entries: readonly CalendarEntry[], events: readonly CalendarEvent[]): (Block & { lane: number; lanes: number })[] {
   const yesterday = addDays(day, -1);
   const blocks: Block[] = [];
-  const place = (date: string, start: string, end: string, item: { entry: CalendarEntry } | { event: PersonalEvent }) => {
+  const place = (date: string, start: string, end: string, item: { entry: CalendarEntry } | { event: CalendarEvent }) => {
     const b = { start, end };
     if (date === day) blocks.push({ ...item, from: minutesOf(start), to: overnight(b) ? 24 * 60 : minutesOf(end), carried: false });
     else if (date === yesterday && overnight(b) && minutesOf(end) > 0) blocks.push({ ...item, from: 0, to: minutesOf(end), carried: true });
@@ -313,8 +324,8 @@ function DayView({
 }: {
   day: string;
   entries: readonly CalendarEntry[];
-  events: readonly PersonalEvent[];
-  onEvent: ((event: PersonalEvent) => void) | undefined;
+  events: readonly CalendarEvent[];
+  onEvent: ((event: CalendarEvent) => void) | undefined;
   today: string;
   colorOf: (key: string) => string;
   highlight: string | undefined;
@@ -356,9 +367,10 @@ function DayView({
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {allDay.map((e) => (
             <button key={e.id} type="button" className="text-left" onClick={() => onEvent?.(e)}>
-              <Chip color={EVENT_COLOR} draft={false} strong>
+              <Chip color={colorOfEvent(e)} draft={!!e.unanswered} struck={!!e.cancelled} strong>
                 {e.title}
                 {e.endDate && e.endDate !== e.date && ` · until ${longDay(e.endDate)}`}
+                {e.cancelled && " · called off"}
               </Chip>
             </button>
           ))}
@@ -384,22 +396,26 @@ function DayView({
           {blocks.map((b, i) => {
             if (b.event) {
               const ev = b.event;
+              const color = colorOfEvent(ev);
               return (
                 <button
                   key={i}
                   type="button"
                   onClick={() => onEvent?.(ev)}
-                  className="absolute overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-xs font-semibold"
+                  className={cn("absolute overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-xs font-semibold", ev.unanswered && "border-dashed opacity-70", ev.cancelled && "opacity-60")}
                   style={{
                     top: (b.from / 60) * HOUR_PX,
                     height: Math.max(((b.to - b.from) / 60) * HOUR_PX, 22),
                     left: `${(b.lane / b.lanes) * 100}%`,
                     width: `calc(${100 / b.lanes}% - 2px)`,
-                    backgroundColor: `${EVENT_COLOR}40`,
-                    borderLeftColor: EVENT_COLOR,
+                    backgroundColor: `${color}40`,
+                    borderLeftColor: color,
                   }}
                 >
-                  <span className="block truncate">{ev.title}</span>
+                  <span className={cn("block truncate", ev.cancelled && "line-through")}>
+                    {ev.title}
+                    {ev.cancelled && " (called off)"}
+                  </span>
                   <span className="block truncate text-[11px] font-normal text-muted-foreground">
                     {timeLabel(ev.start!)} – {timeLabel(ev.end!)}
                     {b.carried ? " (from the night before)" : overnight({ start: ev.start!, end: ev.end! }) ? " (next day)" : ""}

@@ -19,6 +19,8 @@ import {
 } from "@pnw/payroll";
 import { Button, buttonVariants } from "@pnw/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@pnw/ui/tabs";
+import { myAnswerIn } from "@/books/event_contacts";
+import { waitingInvites } from "@/books/shared_events";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
@@ -58,7 +60,9 @@ export default function PayrollPage() {
 }
 
 function PayrollScreen() {
-  const { payroll } = useOpenBooks();
+  const { payroll, calendar, mailbox } = useOpenBooks();
+  // An invitation from someone on the team waiting for an answer opens the Schedule tab, where it is.
+  const invited = waitingInvites(calendar, myAnswerIn({ mailbox }), todayIso()).length > 0;
   const params = useSearchParams();
   const asked = params.get("tab");
   const pay = params.get("pay"); // a rail run just posted: open its pay panel
@@ -79,7 +83,7 @@ function PayrollScreen() {
           )
         }
       />
-      <Tabs defaultValue={asked && TABS.includes(asked) && !pay ? asked : payroll.runs.length ? "runs" : "team"} className="flex flex-col gap-4">
+      <Tabs defaultValue={asked && TABS.includes(asked) && !pay ? asked : invited && !pay ? "schedule" : payroll.runs.length ? "runs" : "team"} className="flex flex-col gap-4">
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <TabsList>
             <TabsTrigger value="runs" className="min-h-9">Pay runs</TabsTrigger>

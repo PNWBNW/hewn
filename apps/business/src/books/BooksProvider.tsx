@@ -42,6 +42,7 @@ import {
 } from "./account";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
 import type { PersonalEvent } from "./events";
+import type { SharedCalendar } from "./shared_events";
 import type { Jobs } from "./jobs";
 import type { Schedule } from "./schedule";
 import type { Mailbox } from "./mailbox";
@@ -127,6 +128,8 @@ type BooksContextValue = {
   work: Work | null;
   /** Personal events on this account's own calendar (books/events.ts); empty before the first. */
   events: readonly PersonalEvent[];
+  /** Shared events: the ones this account organizes and its invitations (books/shared_events.ts); null before the first. */
+  calendar: SharedCalendar | null;
   create: (input: SetupInput) => Promise<void>;
   /** Log in with a username and passphrase. Throws a message that never says which of the two was wrong. */
   /** `stay` (default true) keeps the books open on this device for 24 hours, until Log out. */
@@ -499,6 +502,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       role: company ? roleOf(company) : "business",
       work: company?.work ?? null,
       events: company?.events ?? NO_EVENTS,
+      calendar: company?.calendar ?? null,
       create,
       unlock,
       chooseAccount,

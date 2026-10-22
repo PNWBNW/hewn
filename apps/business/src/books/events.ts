@@ -22,8 +22,8 @@ const MAX_ALL_DAY_DAYS = 366;
 /** How many personal events one set of books keeps. */
 export const MAX_EVENTS = 2_000;
 
-export type PersonalEvent = {
-  id: string;
+/** What an event is, whoever keeps it: what, when and where. A personal event and a shared one (books/shared_events.ts) both carry these. */
+export type EventDetails = {
   title: string;
   /** YYYY-MM-DD: the day it starts. */
   date: string;
@@ -36,9 +36,9 @@ export type PersonalEvent = {
   place?: string;
   link?: string;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
 };
+
+export type PersonalEvent = EventDetails & { id: string; createdAt: string; updatedAt: string };
 
 export class EventError extends Error {
   constructor(message: string) {
@@ -78,15 +78,13 @@ export function cleanLink(raw: unknown): string | undefined {
   return url.toString();
 }
 
-/** Checks an event (one being saved, or one read back from the vault) and returns a clean copy. */
-export function validateEvent(raw: unknown): PersonalEvent {
+/** Checks what, when and where (an event being saved, read back, or arrived in a letter) and returns a clean copy. `maxNotes` is smaller for one that travels. */
+export function validateDetails(raw: unknown, maxNotes = MAX_EVENT_NOTES): EventDetails {
   if (!isObject(raw)) throw new EventError("An event must be an object");
-  if (typeof raw.id !== "string" || !ID.test(raw.id)) throw new EventError("An event needs an id");
   const title = text(raw.title, MAX_EVENT_TITLE, "A title");
   if (!title) throw new EventError("Give the event a title");
   if (!isDate(raw.date)) throw new EventError("Pick the day it starts");
-  if (!isStamp(raw.createdAt) || !isStamp(raw.updatedAt)) throw new EventError("An event needs when it was made");
-  const event: PersonalEvent = { id: raw.id, title, date: raw.date, allDay: raw.allDay === true, createdAt: raw.createdAt, updatedAt: raw.updatedAt };
+  const event: EventDetails = { title, date: raw.date, allDay: raw.allDay === true };
   if (event.allDay) {
     const endDate = raw.endDate === undefined ? raw.date : raw.endDate;
     if (!isDate(endDate)) throw new EventError("Pick the last day");
@@ -102,12 +100,27 @@ export function validateEvent(raw: unknown): PersonalEvent {
   }
   const place = text(raw.place, MAX_EVENT_PLACE, "Where it is");
   const link = cleanLink(raw.link);
-  const notes = text(raw.notes, MAX_EVENT_NOTES, "Notes");
+  const notes = text(raw.notes, maxNotes, "Notes");
   if (place) event.place = place;
   if (link) event.link = link;
   if (notes) event.notes = notes;
   return event;
 }
+
+/** Checks an event (one being saved, or one read back from the vault) and returns a clean copy. */
+export function validateEvent(raw: unknown): PersonalEvent {
+  if (!isObject(raw)) throw new EventError("An event must be an object");
+  if (typeof raw.id !== "string" || !ID.test(raw.id)) throw new EventError("An event needs an id");
+  const details = validateDetails(raw);
+  if (!isStamp(raw.createdAt) || !isStamp(raw.updatedAt)) throw new EventError("An event needs when it was made");
+  return { id: raw.id, ...details, createdAt: raw.createdAt, updatedAt: raw.updatedAt };
+}
+
+/** The details alone, without a personal event's id and times. */
+export const detailsOf = (e: EventDetails): EventDetails => {
+  const { title, date, allDay, endDate, start, end, place, link, notes } = e;
+  return { title, date, allDay, ...(endDate ? { endDate } : {}), ...(start ? { start } : {}), ...(end ? { end } : {}), ...(place ? { place } : {}), ...(link ? { link } : {}), ...(notes ? { notes } : {}) };
+};
 
 /** The events from the vault: each checked, the same id kept once, in the order they happen. */
 export function validateEvents(raw: unknown): PersonalEvent[] {
@@ -118,8 +131,8 @@ export function validateEvents(raw: unknown): PersonalEvent[] {
   return sortEvents([...byId.values()]);
 }
 
-const startKey = (e: PersonalEvent) => `${e.date}T${e.allDay ? "00:00" : e.start}`;
-export const sortEvents = (events: readonly PersonalEvent[]): PersonalEvent[] => [...events].sort((a, b) => (startKey(a) < startKey(b) ? -1 : startKey(a) > startKey(b) ? 1 : a.id < b.id ? -1 : 1));
+const startKey = (e: EventDetails & { id: string }) => `${e.date}T${e.allDay ? "00:00" : e.start}`;
+export const sortEvents = <E extends EventDetails & { id: string }>(events: readonly E[]): E[] => [...events].sort((a, b) => (startKey(a) < startKey(b) ? -1 : startKey(a) > startKey(b) ? 1 : a.id < b.id ? -1 : 1));
 
 /** Adds an event, or replaces the one with its id. */
 export function saveEvent(events: readonly PersonalEvent[], event: PersonalEvent): PersonalEvent[] {
@@ -138,7 +151,7 @@ export function newEventId(): string {
 }
 
 /** Whether an event touches a day: an all-day one across its days, a timed one on its date (and the next morning when it runs past midnight). */
-export function onDay(e: PersonalEvent, day: string): boolean {
+export function onDay(e: EventDetails, day: string): boolean {
   if (e.allDay) return e.date <= day && day <= (e.endDate ?? e.date);
   if (e.date === day) return true;
   return e.date === addDays(day, -1) && e.end! < e.start! && e.end! !== "00:00";
@@ -151,7 +164,7 @@ export type EventDraft = { title: string; date: string; allDay: boolean; endDate
 
 export const emptyDraft = (date: string): EventDraft => ({ title: "", date, allDay: false, endDate: date, start: "09:00", end: "10:00", place: "", link: "", notes: "" });
 
-export const draftOf = (e: PersonalEvent): EventDraft => ({
+export const draftOf = (e: EventDetails): EventDraft => ({
   title: e.title,
   date: e.date,
   allDay: e.allDay,
@@ -163,25 +176,33 @@ export const draftOf = (e: PersonalEvent): EventDraft => ({
   notes: e.notes ?? "",
 });
 
+const draftFields = (d: EventDraft) => ({
+  title: d.title,
+  date: d.date,
+  allDay: d.allDay,
+  ...(d.allDay ? { endDate: d.endDate || d.date } : { start: d.start, end: d.end }),
+  place: d.place,
+  link: d.link,
+  notes: d.notes,
+});
+
+const problemOf = (e: unknown) => (e instanceof Error ? e.message : "That event isn't valid");
+
+/** What a form holds as an event's details (a shared event's notes are shorter: `maxNotes`), or why it can't be one yet. */
+export function detailsFromDraft(d: EventDraft, maxNotes = MAX_EVENT_NOTES): { details: EventDetails } | { problem: string } {
+  try {
+    return { details: validateDetails(draftFields(d), maxNotes) };
+  } catch (e) {
+    return { problem: problemOf(e) };
+  }
+}
+
 /** The event a form holds (a new one, or `existing` changed), or why it can't be one yet. */
 export function eventFromDraft(d: EventDraft, existing: PersonalEvent | undefined, now: Date = new Date()): { event: PersonalEvent } | { problem: string } {
   const stamp = now.toISOString();
   try {
-    return {
-      event: validateEvent({
-        id: existing?.id ?? newEventId(),
-        title: d.title,
-        date: d.date,
-        allDay: d.allDay,
-        ...(d.allDay ? { endDate: d.endDate || d.date } : { start: d.start, end: d.end }),
-        place: d.place,
-        link: d.link,
-        notes: d.notes,
-        createdAt: existing?.createdAt ?? stamp,
-        updatedAt: stamp,
-      }),
-    };
+    return { event: validateEvent({ id: existing?.id ?? newEventId(), ...draftFields(d), createdAt: existing?.createdAt ?? stamp, updatedAt: stamp }) };
   } catch (e) {
-    return { problem: e instanceof Error ? e.message : "That event isn't valid" };
+    return { problem: problemOf(e) };
   }
 }

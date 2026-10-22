@@ -95,7 +95,12 @@ describe("on the calendar", () => {
       createElement(TeamCalendar, {
         entries: [{ key: "k", name: "Ana Ruiz", date: "2026-10-22", kind: "shift", start: "08:00", end: "16:00" }],
         today: "2026-10-22",
-        events: [timed(), validateEvent({ ...base, id: "cd".repeat(16), title: "Away", date: "2026-10-26", allDay: true, endDate: "2026-10-27" })],
+        events: [
+          { ...timed(), kind: "personal" },
+          { ...validateEvent({ ...base, id: "cd".repeat(16), title: "Away", date: "2026-10-26", allDay: true, endDate: "2026-10-27" }), kind: "personal" },
+          { id: "i:walk", kind: "invited", unanswered: true, title: "Walkthrough", date: "2026-10-23", allDay: false, start: "07:00", end: "08:00" },
+          { id: "h:pour", kind: "hosting", cancelled: true, title: "Pour", date: "2026-10-24", allDay: false, start: "06:00", end: "07:00" },
+        ],
       }),
     );
     expect(html).toContain("9a Site meeting");
@@ -103,5 +108,9 @@ describe("on the calendar", () => {
     expect(html.match(/>Away</g)).toHaveLength(2);
     expect(html).toContain("Your personal events (only you see them)");
     expect(html).toContain("1 event");
+    // Events with guests: their own colour, an unanswered invitation dashed, one called off struck through.
+    expect(html).toContain("Events with guests (dashed: waiting for your answer)");
+    expect(html).toMatch(/border-dashed[^"]*"[^>]*>7a Walkthrough</);
+    expect(html).toMatch(/line-through[^"]*"[^>]*>6a Pour</);
   });
 });
