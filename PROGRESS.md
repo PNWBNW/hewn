@@ -3786,5 +3786,8 @@ production all along (no storage key), but the app still had paths to it. Now no
 
 Tests: app 586/586 (the archived route's tests left with it; the fallback tests became
 letters-only ones); every package passes; both builds pass. `pnpm audit` flags two moderate Vitest
-advisories (dev-only, fixed in 4.1.12, which clears the 7-day rule at 14:51 UTC today); a separate
-bump follows.
+advisories (dev-only, fixed in 4.1.12, which cleared the 7-day rule at 14:51 UTC). Joshua kept the
+rule rather than waive it; once it cleared, vitest 4.1.11 → 4.1.12 (root, the app, the site) went
+into this PR and the audit is clean. Neither advisory was reachable here: both need a Vite dev
+server with `mockerPlugin()`/`interceptorPlugin()`, which nothing uses (tests run `vitest run` in
+Node), and the second is Windows-only.
