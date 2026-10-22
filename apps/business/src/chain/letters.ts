@@ -30,8 +30,7 @@
 // ---------------------------------------------------------------------------
 
 import { PROGRAMS } from "@pnw/config/programs";
-import { MailboxClient, MailboxError } from "@pnw/mailbox";
-import { appMailbox } from "./mailbox_client";
+import { MailboxError } from "@pnw/mailbox";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type ExecuteOptions, type WorkWallet, executeAndWait } from "./work/execute";
 
@@ -304,45 +303,22 @@ export class ManyLetterBox {
 }
 
 /**
- * A reader that looks among the wallet's letters first and then in the old
- * mailbox (for anything sent before letters, or a host that still runs one).
- * A mailbox that's off reads as "nothing there".
+ * The reading side of a thread over letters: a slot's letter, or null when none has come yet. A
+ * record can't be unsent, so `drop` does nothing, and there is no `put`, so no receipts go out:
+ * a letter in a block has arrived. (The old mailbox is retired, 2026-10-22: archive/mailbox-api/.)
  */
-export function lettersThenMailbox(
-  letters: Pick<LetterBox, "get">,
-  mailbox: { get(lookup: string): Promise<Uint8Array<ArrayBuffer> | null> },
-): { get(lookup: string): Promise<Uint8Array<ArrayBuffer> | null> } {
-  return {
-    async get(lookup) {
-      const letter = await letters.get(lookup);
-      if (letter) return letter;
-      try {
-        return await mailbox.get(lookup);
-      } catch (e) {
-        if (e instanceof Error && "code" in e && (e as { code?: string }).code === "NOT_CONFIGURED") return null;
-        throw e;
-      }
-    },
-  };
-}
+export const letterReader = (letters: Pick<LetterBox, "get">) => ({ get: (lookup: string) => letters.get(lookup), drop: async (_lookup: string) => {} });
 
 /**
- * A conversation between a business and one person, over letters (chain/thread.ts
- * takes these two): `writer` sends each message as a letter to `to`; `reader`
- * finds the other side's letters (and anything still in the old mailbox). The
- * reader has no `put`, so no receipts go out: a letter in a block has arrived.
- * Pass one `letters` box for every thread on a screen, so the wallet is read once.
+ * A conversation between two accounts, over letters (chain/thread.ts takes these two): `writer`
+ * sends each message as a letter to `to`; `reader` finds the other side's letters. Pass one
+ * `letters` box for every thread on a screen, so the wallet is read once.
  */
 export function letterThread(
   wallet: LetterWallet,
   to: string,
-  {
-    letters = new LetterBox({ wallet }),
-    mailbox = appMailbox(),
-    execute,
-  }: { letters?: LetterBox; mailbox?: Pick<MailboxClient, "get" | "drop">; execute?: ExecuteOptions } = {},
+  { letters = new LetterBox({ wallet }), execute }: { letters?: LetterBox; execute?: ExecuteOptions } = {},
 ) {
   const writer = new LetterBox({ wallet, to, ...(execute ? { execute } : {}) });
-  const reader = { get: lettersThenMailbox(letters, mailbox).get, drop: (lookup: string) => mailbox.drop(lookup).catch(() => {}) };
-  return { writer, reader, refresh: () => letters.refresh() };
+  return { writer, reader: letterReader(letters), refresh: () => letters.refresh() };
 }

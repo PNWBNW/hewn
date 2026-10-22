@@ -4,23 +4,19 @@
 // (letter_reader.ts), first which waiting offers have been accepted, from the
 // agreement records in the Shield account (acceptance.ts); then the weeks of
 // hours (mailbox_scan.ts), then each person's side of the conversation
-// (thread.ts), both from letters on chain and then the old mailbox; then the
-// receipts for anything sent through the old mailbox (receipts.ts). Reports
-// back; it draws nothing itself. Each week of hours is written to the vault
-// before its pin is dropped. Nothing here logs a key, a lookup or an hour.
+// (thread.ts), both from letters on chain. Without Shield there is nothing to
+// read, and it says so. Reports back; it draws nothing itself. Nothing here
+// logs a key, a lookup or an hour.
 
-import { useEffect, useMemo, useRef } from "react";
-import { appMailbox } from "./mailbox_client";
+import { useEffect, useRef } from "react";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { addHours, bumpHoursSeq, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
-import { hasWaitingOffer } from "@/books/mailbox_feed";
 import { addToThread, skipIncoming } from "@/books/thread";
 import { checkAcceptances } from "./acceptance";
 import { scanHours } from "./mailbox_scan";
-import { businessAwaiting, readReceipts, recordBusinessReceipts } from "./receipts";
 import { useLetters } from "./letter_reader";
-import { letterThread, lettersThenMailbox } from "./letters";
+import { letterReader, letterThread } from "./letters";
 import { readThread } from "./thread";
 
 export type CheckOutcome = {
@@ -44,27 +40,26 @@ export default function MailboxCheck(props: MailboxCheckProps) {
 function Check({ onFinished }: MailboxCheckProps) {
   const { rail, payroll, mailbox, updateCompany } = useOpenBooks();
   const { settled, letters, wallet } = useLetters();
-  const client = useMemo(() => appMailbox(), []);
   const started = useRef(false);
 
   useEffect(() => {
     if (started.current || !rail || !settled) return;
     started.current = true;
-    const awaiting = businessAwaiting({ rail, payroll });
     (async () => {
+      if (!letters) {
+        onFinished({ received: 0, skipped: 0, message: "Connect Shield to check for what your team sent." });
+        return;
+      }
       // Acceptances first: the waiting offers whose final agreement is now in the Shield account.
       // Shield has to be connected to read them; without it the check says so below.
       let accepted: string[] = [];
       let acceptFailed: string | null = null;
-      if (letters) {
-        try {
-          accepted = (await checkAcceptances({ rail, payroll, requestRecords: wallet.requestRecords, updateCompany })).accepted;
-        } catch (e) {
-          acceptFailed = e instanceof Error ? e.message : "The agreements couldn't be read";
-        }
+      try {
+        accepted = (await checkAcceptances({ rail, payroll, requestRecords: wallet.requestRecords, updateCompany })).accepted;
+      } catch (e) {
+        acceptFailed = e instanceof Error ? e.message : "The agreements couldn't be read";
       }
-      // Letters first (once Shield is connected), then the old mailbox; letters need no receipts.
-      const reader = letters ? { get: lettersThenMailbox(letters, client).get, drop: (lookup: string) => client.drop(lookup).catch(() => {}) } : client;
+      const reader = letterReader(letters);
       const r = await scanHours({
         rail,
         mailbox,
@@ -82,7 +77,7 @@ function Check({ onFinished }: MailboxCheckProps) {
           if (!link.partiesKey) continue;
           const partiesKey = link.partiesKey;
           await readThread({
-            client: letters ? letterThread(wallet, link.address, { letters, mailbox: client }).reader : client,
+            client: letterThread(wallet, link.address, { letters }).reader,
             partiesKey,
             reader: "business",
             thread: threadFor(mailbox, partiesKey),
@@ -95,30 +90,21 @@ function Check({ onFinished }: MailboxCheckProps) {
           });
         }
       }
-      // Then the receipts for what this business sent through the old mailbox (a mailbox that's off has none).
-      if (!r.failed && awaiting.length > 0) {
-        await readReceipts(client, awaiting, async (heard) => {
-          await updateCompany((c) => recordBusinessReceipts(c, heard));
-        });
-      }
-      const needsShield = !letters && hasWaitingOffer(rail);
       const message = r.off
         ? "Connect Shield to check for what your team sent."
         : r.failed
           ? `Couldn't finish checking: ${r.failed}`
           : acceptFailed
             ? `Couldn't check for a reply to your offer: ${acceptFailed}`
-            : needsShield
-              ? "Connect Shield to check for a reply to your offer."
-              : undefined;
+            : undefined;
       onFinished({
         received: r.received.length,
         skipped: r.skipped.length,
         ...(accepted.length > 0 ? { accepted } : {}),
         ...(message ? { message } : {}),
       });
-    })().catch((e: unknown) => onFinished({ received: 0, skipped: 0, message: e instanceof Error ? e.message : "The mailbox couldn't be read" }));
-  }, [rail, payroll, mailbox, client, updateCompany, onFinished, settled, letters, wallet]);
+    })().catch((e: unknown) => onFinished({ received: 0, skipped: 0, message: e instanceof Error ? e.message : "Your letters couldn't be read" }));
+  }, [rail, payroll, mailbox, updateCompany, onFinished, settled, letters, wallet]);
 
   return null;
 }

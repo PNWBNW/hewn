@@ -3,20 +3,19 @@
 // ---------------------------------------------------------------------------
 // Checking for offers: the person's agreement records from Shield, the
 // employer's registered name from the registry (best effort), the terms from
-// the mailbox (slot 0), verified against the record's terms_doc_hash, and
-// Accept, which signs `accept_job_offer` in Shield. Every agreement found is
-// written to the vault so the Offers page lists it without Shield; terms are
-// kept only once they verify, and the pin is dropped once the acceptance is
-// on the chain. An offer letter's files are collected with the terms, each
-// checked against the fingerprint inside them and saved in the vault; Accept
-// waits until every file is in and the person says they've read it all.
+// the sealed page sent with the offer, verified against the record's
+// terms_doc_hash, and Accept, which signs `accept_job_offer` in Shield. Every
+// agreement found is written to the vault so the Offers page lists it without
+// Shield; terms are kept only once they verify. Offers carry no files now
+// (2026-10-16); an older offer's files are shown only if this device already
+// kept them, since the old mailbox they travelled in is retired (2026-10-22).
+// Accept waits until every file is in and the person says they've read it all.
 // Nothing here logs a record, a key or an address.
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { AttachmentRef } from "@pnw/sales";
-import { appMailbox } from "../mailbox_client";
 import { checkAgreementStatus } from "@pnw/records/agreement_reader";
 import { queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
@@ -31,13 +30,11 @@ import { LetterSections, OfferFileList } from "@/books/OfferLetterView";
 import { employmentLabel, hoursLine } from "@/books/terms_words";
 import { workWeekSummary } from "@/books/work_week";
 import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
-import { fetchOfferFile, offerFileLookups } from "../offer_files";
-import { offerReceiptSlot, sendReceipt } from "../receipts";
 import { readThread } from "../thread";
 import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
 import { executeAndWait } from "./execute";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
-import { LetterBox, letterThread, lettersThenMailbox } from "../letters";
+import { LetterBox, letterReader, letterThread } from "../letters";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
 
 export type OffersPanelProps = { onClose: () => void };
@@ -85,14 +82,13 @@ function toAgreement(row: Row, previous: WorkAgreement | undefined, acceptedAt?:
 }
 
 function OffersFlow({ address, onClose }: { address: string; onClose: () => void }) {
-  const { work, updateWork, addAttachment, readAttachment } = useWork();
+  const { work, updateWork, readAttachment } = useWork();
   const { wallet } = useWorkShield();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null); // agreement id being accepted
   const [note, setNote] = useState<string | null>(null);
-  const client = useRef(appMailbox());
-  // Offers' terms come as sealed pages on the network; older offers' from the mailbox.
+  // Offers' terms come as sealed pages on the network.
   const letters = useRef(new LetterBox({ wallet }));
   const started = useRef(false);
 
@@ -105,7 +101,7 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
         // Each employer's side of the conversation first, so a revised offer knows what it replaced.
         for (const [partiesKey, employer] of new Map(records.map((r) => [r.partiesKey, r.employerAddress]))) {
           await readThread({
-            client: letterThread(wallet, employer, { letters: letters.current, mailbox: client.current }).reader,
+            client: letterThread(wallet, employer, { letters: letters.current }).reader,
             partiesKey,
             reader: "worker",
             thread: workThread(work, partiesKey),
@@ -125,41 +121,25 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           if (record.kind === "final") status = STATUS_OF[onChain ?? "active"] ?? "active";
           else if (onChain === "terminated") status = "terminated"; // withdrawn before it was accepted
           const employerName = previous?.employerName ?? ((await queryNamePlaintext(record.employerNameHash).catch(() => null)) || undefined);
-          // Terms already in the vault are used as long as they still hash to the record; otherwise the mailbox.
+          // Terms already in the vault are used as long as they still hash to the record; otherwise the page on the network.
           const kept: Terms | undefined = previous?.terms && termsMatchRecord(previous.terms, record.termsDocHash) ? previous.terms : undefined;
-          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, lettersThenMailbox(letters.current, client.current));
+          const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, letterReader(letters.current));
           const verified = !!terms.terms && termsMatchRecord(terms.terms, record.termsDocHash);
           const row: Row = { record, status, terms, verified, files: [] };
           const t = terms.terms;
           if (status === "pending" && verified && t?.version === 2 && isExpired(t.expiresAt)) {
-            // Expired without an answer: it can't be accepted, so its documents come out of the mailbox.
-            if (terms.lookup) await client.current.drop(terms.lookup).catch(() => {});
-            for (const lookup of t.files.length > 0 ? offerFileLookups(record.partiesKey, t.agreementId, t.files) : []) await client.current.drop(lookup).catch(() => {});
+            // Expired without an answer: it can't be accepted.
             found.push(row);
             continue;
           }
-          if (status === "pending" && verified && t?.version === 2 && !kept) {
-            // First time this device sees the offer: the business learns it arrived.
-            const slot = offerReceiptSlot(t.agreementId);
-            await sendReceipt(client.current, record.partiesKey, slot.kind, slot.seq);
-          }
-          // The letter's files: kept copies first, the mailbox for the rest, each checked against the terms.
+          // An older offer's files: only the copies this device already kept (they came through the retired mailbox).
           if (verified && terms.terms?.version === 2 && terms.terms.files.length > 0) {
-            const offered = terms.terms.files;
             const kept = new Map((previous?.files ?? []).map((f) => [f.sha256, f]));
-            try {
-              for (const [i, f] of offered.entries()) {
-                const have = kept.get(f.sha256);
-                if (have) {
-                  row.files.push(have);
-                  continue;
-                }
-                const { bytes } = await fetchOfferFile(client.current, record.partiesKey, terms.terms.agreementId, offered, i);
-                row.files.push(await addAttachment(new File([bytes], f.name, { type: f.type })));
-              }
-            } catch (e) {
-              row.filesProblem = errorMessage(e);
+            for (const f of terms.terms.files) {
+              const have = kept.get(f.sha256);
+              if (have) row.files.push(have);
             }
+            if (row.files.length < terms.terms.files.length) row.filesProblem = "This older offer's files came through the old mailbox, which is retired. Ask them to send a revised offer.";
           }
           if (employerName) row.employerName = employerName;
           found.push(row);
@@ -188,12 +168,6 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
       await executeAndWait(wallet, { ...ACCEPT, inputs: acceptInputs(row.record, seconds) });
       const accepted: Row = { ...row, status: "active", record: { ...row.record, kind: "final" } };
       await updateWork((w) => upsertAgreement(w, toAgreement(accepted, agreementFor(w, row.record.agreementId), new Date(seconds * 1000).toISOString())));
-      if (row.terms.lookup) await client.current.drop(row.terms.lookup).catch(() => {}); // the vault has the terms now
-      const t = row.terms.terms;
-      if (t?.version === 2 && t.files.length > 0) {
-        // The vault has every file too: the pieces can go.
-        for (const lookup of offerFileLookups(row.record.partiesKey, t.agreementId, t.files)) await client.current.drop(lookup).catch(() => {});
-      }
       setRows((all) => (all ?? []).map((r) => (r.record.agreementId === row.record.agreementId ? accepted : r)));
       setNote("Accepted. You can clock in from Home.");
     } catch (e) {

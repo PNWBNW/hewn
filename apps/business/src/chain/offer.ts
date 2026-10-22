@@ -19,7 +19,7 @@ import { ENV } from "@pnw/config/env";
 import { PROGRAMS, VERSIONS } from "@pnw/config/programs";
 import { computeAgreementValues, computeOfferTimeHash, computePartiesKey } from "@pnw/handshake/engine";
 import { PAY_FREQUENCY_CODES, type ComputedAgreementValues } from "@pnw/handshake/types";
-import { KINDS, MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, keepUntilAfter, lookupId, partiesKeyFromHex, seal } from "@pnw/mailbox";
+import { MAX_PAYLOAD_BYTES, MailboxError, keepUntilAfter, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
@@ -29,7 +29,7 @@ import { byteArrayHex } from "./parties_key";
 import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
 import type { EmploymentType } from "../books/terms_words";
 import type { WorkWeek } from "../books/work_week";
-import { offerFileLookups, offerTermsKind } from "./offer_files";
+import { offerTermsKind } from "./offer_files";
 import { type Terms, TermsError, canonicalTerms, validateTerms } from "./terms";
 import { packPayload } from "./compress";
 import { PAGE_BYTES } from "./letters";
@@ -449,38 +449,15 @@ export type WithdrawInput = {
   link: Pick<RailLink, "agreementId" | "partiesKey" | "nameHash" | "terms">;
   employerNameHash: string;
   wallet: OfferWallet;
-  /** Only `drop` is used. */
-  client: Pick<MailboxClient, "drop">;
   clock?: Clock;
   sleep?: Sleep;
   limits?: Partial<OfferLimits>;
 };
 
-/**
- * Withdraws a pending offer in Shield and waits for the network, then clears its terms and
- * files from the mailbox (best effort: a document already gone is fine). Returns the
- * transaction id.
- */
+/** Withdraws a pending offer in Shield and waits for the network. Returns the transaction id. */
 export async function withdrawOffer(input: WithdrawInput): Promise<string> {
   const inputs = withdrawOfferInputs(input.link, input.employerNameHash);
   const { transactionId: walletId } = await input.wallet.executeTransaction({ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs, privateFee: false });
   if (!walletId) throw new OfferError("Shield didn't take the withdrawal");
-  const transactionId = await awaitAccepted(input.wallet, walletId, input);
-  for (const lookup of offerLookups(input.link)) await input.client.drop(lookup).catch(() => {});
-  return transactionId;
-}
-
-/** Every mailbox slot an offer uses: its terms, and its files' pieces. */
-export function offerLookups(link: Pick<RailLink, "partiesKey" | "terms" | "agreementId">): string[] {
-  if (!link.partiesKey) return [];
-  const key = partiesKeyFromHex(link.partiesKey);
-  let terms: string[];
-  try {
-    // Its own slot, and the shared slot 0 offers used before (only ever this person's older offer from this business).
-    terms = [lookupId(key, offerTermsKind(link.agreementId), TERMS_SLOT), lookupId(key, KINDS.terms, TERMS_SLOT)];
-  } finally {
-    key.fill(0);
-  }
-  const t = link.terms;
-  return t?.version === 2 && t.files.length > 0 ? [...terms, ...offerFileLookups(link.partiesKey, t.agreementId, t.files)] : terms;
+  return awaitAccepted(input.wallet, walletId, input);
 }

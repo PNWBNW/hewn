@@ -2,14 +2,13 @@
 // network that turns each `send` / `send_page` into the records Shield would
 // list, and each side's wallet reading only what it owns.
 import { describe, expect, it } from "vitest";
-import { MailboxError, partiesKeyFromHex, seal } from "@pnw/mailbox";
-import { type Proposal, type Thread, type ThreadItem, addToThread, emptyThread, newMessageId, skipIncoming } from "../books/thread";
-import { LETTERS_PROGRAM, LetterBox, type LetterWallet, ManyLetterBox, SEND_MANY_FUNCTION, SEND_PAGE_FUNCTION, letterThread, lettersThenMailbox } from "./letters";
+import { type Proposal, type Thread, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
+import { LETTERS_PROGRAM, LetterBox, type LetterWallet, ManyLetterBox, SEND_MANY_FUNCTION, SEND_PAGE_FUNCTION, letterReader, letterThread } from "./letters";
 import { addReceivedPost, newChannel, skipPost } from "../books/channels";
 import { type Work, emptyWork, updateWorkThread, workThread } from "../books/work";
 import { postToChannel, readChannel, sendChannelKey } from "./channels";
 import { packPayload } from "./compress";
-import { THREAD_KINDS, postToThread, readThread } from "./thread";
+import { postToThread, readThread } from "./thread";
 
 const KEY = "ab".repeat(32);
 const A = "aa".repeat(32);
@@ -51,16 +50,6 @@ function network() {
   return { records, calls, wallet };
 }
 
-/** The old mailbox, off on this host (as on Joshua's). */
-const mailboxOff = {
-  async get(): Promise<Uint8Array<ArrayBuffer> | null> {
-    throw new MailboxError("NOT_CONFIGURED", "off");
-  },
-  async drop(): Promise<void> {
-    throw new MailboxError("NOT_CONFIGURED", "off");
-  },
-};
-
 function side() {
   let thread: Thread = emptyThread();
   return {
@@ -78,11 +67,11 @@ describe("the thread over letters", () => {
     const net = network();
     const business = side();
     const worker = side();
-    const toWorker = letterThread(net.wallet(BUSINESS), WORKER, { mailbox: mailboxOff, execute: fast });
+    const toWorker = letterThread(net.wallet(BUSINESS), WORKER, { execute: fast });
     business.keep(await postToThread({ client: toWorker.writer, feeMode: "private", partiesKey: KEY, from: "business", nextOut: 0, body: { type: "text", text: "Welcome aboard" } }));
     expect(net.calls).toEqual([{ function: "send", feeMode: "private" }]); // the fee choice travels with the call
 
-    const workerSide = letterThread(net.wallet(WORKER), BUSINESS, { mailbox: mailboxOff, execute: fast });
+    const workerSide = letterThread(net.wallet(WORKER), BUSINESS, { execute: fast });
     expect("put" in workerSide.reader).toBe(false); // so no receipt goes back
     const r = await readThread({ client: workerSide.reader, partiesKey: KEY, reader: "worker", thread: worker.thread, store: worker.store, skip: worker.skip });
     expect([r.off, r.failed, r.skipped]).toEqual([false, undefined, []]);
@@ -103,19 +92,19 @@ describe("the thread over letters", () => {
     const letter = Array.from({ length: 330 }, (_, i) => `Section ${i}: the crew starts at seven and wraps by three.`).join("\n");
     const proposal: Proposal = { payType: "hourly", rate: "3400", frequency: "biweekly", startDate: "2026-11-09", termsText: "Carpenter.", letter: { description: letter, requirements: "", handbook: "", other: "" } };
     expect(letter.length).toBeGreaterThan(18_000); // far past one page uncompressed
-    const workerSide = letterThread(net.wallet(WORKER), BUSINESS, { mailbox: mailboxOff, execute: fast });
+    const workerSide = letterThread(net.wallet(WORKER), BUSINESS, { execute: fast });
     await postToThread({ client: workerSide.writer, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "counter", agreementId: A, proposal, note: "34?" } });
     expect(net.calls.map((c) => c.function)).toEqual([SEND_PAGE_FUNCTION]);
 
     const business = side();
-    await readThread({ client: letterThread(net.wallet(BUSINESS), WORKER, { mailbox: mailboxOff, execute: fast }).reader, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip });
+    await readThread({ client: letterThread(net.wallet(BUSINESS), WORKER, { execute: fast }).reader, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip });
     expect(business.thread.items[0]?.body).toMatchObject({ type: "counter", proposal, note: "34?" });
   });
 
   it("steps over a slot this account already used from another device", async () => {
     const net = network();
-    const phone = letterThread(net.wallet(BUSINESS), WORKER, { mailbox: mailboxOff, execute: fast });
-    const laptop = letterThread(net.wallet(BUSINESS), WORKER, { mailbox: mailboxOff, execute: fast });
+    const phone = letterThread(net.wallet(BUSINESS), WORKER, { execute: fast });
+    const laptop = letterThread(net.wallet(BUSINESS), WORKER, { execute: fast });
     await postToThread({ client: phone.writer, partiesKey: KEY, from: "business", nextOut: 0, body: { type: "text", text: "From the phone" } });
     // The laptop's vault still says slot 0 is next.
     const item = await postToThread({ client: laptop.writer, partiesKey: KEY, from: "business", nextOut: 0, body: { type: "text", text: "From the laptop" } });
@@ -123,24 +112,11 @@ describe("the thread over letters", () => {
     expect(net.calls).toHaveLength(2); // the taken slot cost no transaction
 
     const worker = side();
-    await readThread({ client: letterThread(net.wallet(WORKER), BUSINESS, { mailbox: mailboxOff, execute: fast }).reader, partiesKey: KEY, reader: "worker", thread: worker.thread, store: worker.store, skip: worker.skip });
+    await readThread({ client: letterThread(net.wallet(WORKER), BUSINESS, { execute: fast }).reader, partiesKey: KEY, reader: "worker", thread: worker.thread, store: worker.store, skip: worker.skip });
     expect(worker.thread.items.map((i) => i.body)).toEqual([
       { type: "text", text: "From the phone" },
       { type: "text", text: "From the laptop" },
     ]);
-  });
-
-  it("still reads a message sent through the old mailbox, uncompressed", async () => {
-    const net = network();
-    const key = partiesKeyFromHex(KEY);
-    const old = await seal(key, THREAD_KINDS.business, 0, new TextEncoder().encode(JSON.stringify({ version: 1, id: newMessageId(), from: "business", sentAt: "2026-10-01T00:00:00.000Z", body: { type: "text", text: "Before letters" } })));
-    const mailbox = {
-      get: async (lookup: string) => (lookup === old.lookup ? old.envelope : null),
-      drop: async () => {},
-    };
-    const worker = side();
-    await readThread({ client: letterThread(net.wallet(WORKER), BUSINESS, { mailbox, execute: fast }).reader, partiesKey: KEY, reader: "worker", thread: worker.thread, store: worker.store, skip: worker.skip });
-    expect(worker.thread.items.map((i) => i.body)).toEqual([{ type: "text", text: "Before letters" }]);
   });
 
   it("refuses a slot already sent under, before Shield is asked", async () => {
@@ -160,7 +136,7 @@ describe("announcements over letters", () => {
   /** A person's app: their thread with the business (where the channel key comes), then the channel's posts. */
   async function personReads(net: ReturnType<typeof network>, me: typeof ANA): Promise<Work> {
     let w: Work = emptyWork("Person");
-    const reader = { get: lettersThenMailbox(new LetterBox({ wallet: net.wallet(me.address) }), mailboxOff).get, drop: async () => {} };
+    const reader = letterReader(new LetterBox({ wallet: net.wallet(me.address) }));
     await readThread({
       client: reader,
       partiesKey: me.partiesKey,

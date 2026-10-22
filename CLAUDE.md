@@ -141,7 +141,8 @@ programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its ow
   Server-only files end in `.server.ts` (the route handlers under `src/app/api`), an extension only
   the website build sees; the proxy stays `proxy.ts` (the export tolerates it). Client code reaches
   the server pieces through `src/api_base.ts` (`apiUrl("/api/…")`, the website by full address in
-  the bundle) and builds the mailbox client only through `src/chain/mailbox_client.ts`. Pathnames
+  the bundle). The old mailbox server is retired (2026-10-22, `archive/mailbox-api/`): every message
+  is a letter on chain, sent from the user's wallet, and no server holds messages. Pathnames
   may end in `/` in the bundle: compare them through `canonicalPath` (`shell/AppShell.tsx`). CI
   builds both.
 - Security baseline: `docs/THREAT_MODEL.md`. CI blocks on tests, build and `pnpm audit` (moderate+).

@@ -1,19 +1,16 @@
 "use client";
 
 // Checking for new paystubs: connects Shield, then runs the scan (inbox.ts)
-// over this account's letters (then the old mailbox) for every accepted
-// agreement, writing each paystub to the vault. Letters need no receipts; a
-// receipt read for weeks of hours sent through the old mailbox still runs
-// when the mailbox is on. Nothing here logs a key, a lookup or a document.
+// over this account's letters for every accepted agreement, writing each
+// paystub to the vault. Letters need no receipts. Nothing here logs a key, a
+// lookup or a document.
 
 import { useEffect, useRef, useState } from "react";
-import { appMailbox } from "../mailbox_client";
 import { Button } from "@pnw/ui/button";
 import { FormError } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { addPaystub, bumpWorkSeq } from "@/books/work";
-import { LetterBox, lettersThenMailbox } from "../letters";
-import { readReceipts, recordWorkReceipts, workAwaiting } from "../receipts";
+import { LetterBox, letterReader } from "../letters";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
 import { type ScanResult, scanPaystubs } from "./inbox";
 
@@ -36,27 +33,16 @@ function InboxFlow({ onClose }: InboxPanelProps) {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    const mailbox = appMailbox();
-    const letters = lettersThenMailbox(new LetterBox({ wallet }), mailbox);
-    const awaiting = workAwaiting(work);
     void scanPaystubs({
       work,
-      client: { get: letters.get, drop: (lookup) => mailbox.drop(lookup).catch(() => {}) },
+      client: letterReader(new LetterBox({ wallet })),
       store: async (p) => {
         await updateWork((w) => addPaystub(w, p));
       },
       skip: async (agreementId, seq) => {
         await updateWork((w) => bumpWorkSeq(w, agreementId, "paystub", seq));
       },
-    }).then(async (r) => {
-      if (!r.failed && awaiting.length > 0) {
-        // Weeks of hours sent through the old mailbox; a mailbox that's off has none to report.
-        await readReceipts(mailbox, awaiting, async (heard) => {
-          await updateWork((w) => recordWorkReceipts(w, heard));
-        }).catch(() => {});
-      }
-      setResult(r);
-    });
+    }).then(setResult);
   }, [work, updateWork, wallet]);
 
   const scanned = work.agreements.filter((a) => a.status !== "pending").length;

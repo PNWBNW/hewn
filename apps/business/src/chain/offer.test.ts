@@ -29,7 +29,6 @@ import {
   offerEpochs,
   resolveBusinessName,
   offerKeepUntil,
-  offerLookups,
   sendOffer,
   withdrawOffer,
   withdrawOfferInputs,
@@ -241,8 +240,6 @@ describe("sendOffer", () => {
     const stages: string[] = [];
     const letter = letterFromText("Framing crew lead.\n\nSteel toes on site.");
     const sent = await sendOffer(input({ client, wallet, letter, onProgress: (s) => stages.push(s) }));
-    const legacySlot = lookupId(partiesKeyFromHex(sent.link.partiesKey!), KINDS.terms, TERMS_SLOT);
-    expect(offerLookups({ ...sent.link, terms: sent.terms }).sort()).toEqual([...client.puts.map((p) => p.lookup), legacySlot].sort());
     expect(stages).toEqual(["sealing", "mailbox", "approving", "sent", "accepted"]);
     expect(client.puts).toHaveLength(1); // the terms alone
     // The terms may be swept the day after the offer expires (7 days on).
@@ -476,34 +473,17 @@ describe("withdrawing an offer", () => {
     expect(() => withdrawOfferInputs(old, EMPLOYER_HASH)).toThrow(/too old to withdraw/);
   });
 
-  it("signs once with privateFee false, waits for it, then clears the terms and an older offer's files from the mailbox", async () => {
-    const { pickFile, sendOfferFiles } = await import("./offer_files");
-    const pdf = await pickFile("contract.pdf", "application/pdf", new Uint8Array(300_000));
-    const client = fakeClient();
-    const sent = await sendOffer(input({ client }));
-    // An offer sent before offers stopped carrying files: its pieces sit next to the terms.
-    if (sent.terms.version !== 2) throw new Error("unreachable");
-    const older = { ...sent.terms, files: [pdf.file] };
-    await sendOfferFiles(client, sent.link.partiesKey!, older.agreementId, [pdf]);
+  it("signs once with privateFee false and waits for it", async () => {
+    const sent = await sendOffer(input());
     const wallet = fakeWallet();
-    const dropped: string[] = [];
-    const tx = await withdrawOffer({ link: { ...sent.link, terms: older }, employerNameHash: EMPLOYER_HASH, wallet, client: { drop: async (l) => void dropped.push(l) }, ...instant });
+    const tx = await withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet, ...instant });
     expect(tx).toBe(TX);
     expect(wallet.calls).toEqual([{ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(sent.link, EMPLOYER_HASH), privateFee: false }]);
-    // Two file pieces, the terms, and the shared slot 0 older offers used.
-    const legacySlot = lookupId(partiesKeyFromHex(sent.link.partiesKey!), KINDS.terms, TERMS_SLOT);
-    expect(dropped.sort()).toEqual([...client.puts.map((p) => p.lookup), legacySlot].sort());
-    expect(dropped).toHaveLength(4);
   });
 
-  it("clears nothing when the withdrawal isn't accepted, and shrugs off a slot already gone", async () => {
+  it("fails when the network doesn't accept the withdrawal", async () => {
     const sent = await sendOffer(input());
-    const dropped: string[] = [];
-    const drop = async (l: string) => void dropped.push(l);
-    await expect(withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet: fakeWallet({ outcome: "rejected" }), client: { drop }, ...instant })).rejects.toThrow();
-    expect(dropped).toEqual([]);
-    const gone = async () => { throw new MailboxError("REQUEST_FAILED", "gone"); };
-    expect(await withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet: fakeWallet(), client: { drop: gone }, ...instant })).toBe(TX);
+    await expect(withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet: fakeWallet({ outcome: "rejected" }), ...instant })).rejects.toThrow();
   });
 });
 

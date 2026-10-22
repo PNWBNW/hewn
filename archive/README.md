@@ -13,6 +13,7 @@ itself is still here to read.
 | `packages/w4-crypto/` | W-4 sharing encrypted under a key computed from the two addresses, which anyone who knew both could compute | 2026-10-14 | Sealed letters (`packages/mailbox`, `hewn_letters_v2.aleo`) |
 | `packages/pdf/` | Paystub, payroll-run, credential and audit PDFs drawn with jsPDF | 2026-10-19 | The paystub view in the app; print from there |
 | `packages/nft-art/` | Generative topographic art for credential NFTs, seeded from the credential id | Waiting | Credentials are a later phase; when they return, this comes back with them |
+| `mailbox-api/` | The mailbox: a server route (`/api/mailbox`) that pinned sealed envelopes on IPFS through Pinata, a daily sweep that unpinned old ones, and the app's client for it (`mailbox_client.ts`). Off in production (it never had a storage key) | 2026-10-22 | Letters on chain (`hewn_letters_v2.aleo`): every message is a record sealed to its recipient, sent from their wallet. The envelope format itself stays in `packages/mailbox` |
 
 To bring a package back: move it into `packages/`, run `pnpm install`, add it to the layering table
 in `packages/README.md`. To bring back a program version, see `src/layer1/archive/README.md` in
