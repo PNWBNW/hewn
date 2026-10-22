@@ -3760,3 +3760,31 @@ would let code call Node functions that don't exist at run time. Closed it; `@ty
 major bumps of `@types/node` (`.github/dependabot.yml`). Move it by hand when CI and Vercel move.
 
 Tests unchanged, every package passes; both apps build; `pnpm audit` clean.
+
+## 2026-10-22: the old mailbox is retired
+
+Joshua: coworkers should only talk through their wallets, and no server should hold messages. The
+old mailbox (a server route that pinned sealed envelopes on IPFS through Pinata) was off in
+production all along (no storage key), but the app still had paths to it. Now none:
+- **Sending:** the last way in was a coworker chat whose directory copy had no account; it fell
+  back to the mailbox, unsigned. Now a conversation always needs the other side's account
+  (`Conversation.tsx` `peer` is required), and a coworker without one shows "Ask the business to
+  send the coworker directory again". New directories always carry accounts.
+- **Reading:** every check (Messages on both sides, Offers/Hours/Schedule's check, the paystub
+  inbox, the worker's offers) reads letters only (`letters.ts` `letterReader`; `lettersThenMailbox`
+  is gone). Without Shield they say to connect it. Mailbox receipts are no longer read or sent;
+  letters need none.
+- **Offers:** terms come from the sealed page; an older offer's files (from before offers stopped
+  carrying files) show only if this device already kept them, otherwise "ask for a revised offer".
+  Withdrawing no longer cleans up mailbox slots.
+- **Server:** `/api/mailbox` (route, Pinata store, sweep, tests) and the app's `mailbox_client.ts`
+  moved to `archive/mailbox-api/` with a README; the daily sweep cron is gone from `vercel.json`.
+  The Pinata key can come out of Vercel. The envelope format stays in `packages/mailbox` (letters
+  use it).
+- Docs: `CLAUDE.md`, `docs/LETTERS.md`, `docs/THREAT_MODEL.md` (the mailbox section marked
+  retired), `archive/README.md`, the app and chain READMEs.
+
+Tests: app 586/586 (the archived route's tests left with it; the fallback tests became
+letters-only ones); every package passes; both builds pass. `pnpm audit` flags two moderate Vitest
+advisories (dev-only, fixed in 4.1.12, which clears the 7-day rule at 14:51 UTC today); a separate
+bump follows.

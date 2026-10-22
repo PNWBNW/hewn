@@ -3,8 +3,8 @@
 The whole product in one Next.js app: the business side (books, payroll, schedule, hours, hiring,
 messages) and the worker side (home, schedule, hours, offers, paystubs). A Shield account holds one
 kind of account, and the app shell shows the right navigation for it. Everything a person keeps
-lives in an encrypted vault in their browser; the only server pieces pass sealed envelopes and
-count visits by country.
+lives in an encrypted vault in their browser; messages travel as letters on chain, and the only
+server piece counts visits by country.
 
 ## Two builds
 

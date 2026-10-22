@@ -2,14 +2,13 @@
 
 // Checking every conversation at once, for the Messages list (the business's
 // side): each team member's new messages (thread.ts), as letters on chain
-// once Shield is connected (letter_reader.ts), and from the old mailbox.
+// once Shield is connected (letter_reader.ts).
 // (A changed coworker directory is sent from the Messages page, by hand:
 // each copy is a letter, SendDirectory.tsx.) Runs once when Shield has had
 // its moment to reconnect, and reports back; it draws nothing itself.
 // Nothing here logs a key, a lookup or a message.
 
-import { useEffect, useMemo, useRef } from "react";
-import { appMailbox } from "./mailbox_client";
+import { useEffect, useRef } from "react";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { applicantWorkerId } from "@/books/jobs";
@@ -32,13 +31,13 @@ export default function MessagesCheck(props: MessagesCheckProps) {
 function Check({ onFinished }: MessagesCheckProps) {
   const { rail, mailbox, jobs, updateCompany } = useOpenBooks();
   const { settled, letters, wallet } = useLetters();
-  const client = useMemo(() => appMailbox(), []);
   const started = useRef(false);
 
   useEffect(() => {
     if (started.current || !rail || !settled) return;
     started.current = true;
     (async () => {
+      if (!letters) return onFinished("Connect Shield (open a conversation) to check for messages.");
       // Team members and people with an offer out, then everyone who applied to a posting (their conversations are filed under the posting).
       const people = [
         ...rail.links.filter((l) => l.partiesKey && (l.status === "linked" || l.status === "offered")).map((l) => ({ partiesKey: l.partiesKey!, address: l.address, workerId: l.workerId })),
@@ -47,7 +46,7 @@ function Check({ onFinished }: MessagesCheckProps) {
       for (const link of people) {
         const partiesKey = link.partiesKey;
         const r = await readThread({
-          client: letters ? letterThread(wallet, link.address, { letters, mailbox: client }).reader : client,
+          client: letterThread(wallet, link.address, { letters }).reader,
           partiesKey,
           reader: "business",
           thread: threadFor(mailbox, partiesKey),
@@ -63,7 +62,7 @@ function Check({ onFinished }: MessagesCheckProps) {
       }
       onFinished(null);
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
-  }, [rail, mailbox, jobs, client, updateCompany, onFinished, settled, letters, wallet]);
+  }, [rail, mailbox, jobs, updateCompany, onFinished, settled, letters, wallet]);
 
   return null;
 }

@@ -7,19 +7,17 @@
 // messages and marks them as read. Sending seals one message to the two of
 // you and puts it in your next slot.
 //
-// Between a business and a person (`peer` given), every message is a letter
-// on chain (chain/letters.ts): Shield connects, each send is one approval
-// with its fee choice, and reading looks through the account's letters (then
-// the old mailbox, for anything sent before). No receipts: a letter in a
-// block has arrived. Coworkers (no `peer`) still use the mailbox, with
-// receipts, and need no Shield.
+// Every message is a letter on chain (chain/letters.ts), to `peer`: Shield
+// connects, each send is one approval with its fee choice, and reading looks
+// through the account's letters. No receipts: a letter in a block has
+// arrived. A conversation needs the other side's account; a coworker without
+// one in the directory can't be written to (CoworkerChat.tsx).
 // Nothing here logs a key, a lookup or a message.
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Flag, Lock, RefreshCw, Send, TriangleAlert } from "lucide-react";
-import { appMailbox } from "./mailbox_client";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
@@ -37,7 +35,6 @@ import {
   type ThreadItem,
   addToThread,
   isOfferStep,
-  markDelivered,
   markItemsRead,
   markReported,
   markThreadRead,
@@ -48,8 +45,7 @@ import { FeeChoice } from "./FeeChoice";
 import { useLetters } from "./letter_reader";
 import { LETTER_BYTES, type LetterWallet, letterThread } from "./letters";
 import { Report } from "./Report";
-import { readReceipts } from "./receipts";
-import { type PostInput, type ReadInput, type ThreadKinds, awaitingReceipts, postToThread, readThread } from "./thread";
+import { type PostInput, type ReadInput, type ThreadKinds, postToThread, readThread } from "./thread";
 
 export type ConversationProps = {
   /** Who is reading. */
@@ -69,15 +65,15 @@ export type ConversationProps = {
   subtitle?: ReactNode;
   /** Which messages this screen shows (a coworker's group messages live in the group). */
   show?: (item: ThreadItem) => boolean;
-  /** The other side's account: messages go as letters on chain, through Shield. Left out for coworkers (the mailbox). */
-  peer?: string;
+  /** The other side's account: messages go to it as letters on chain, through Shield. */
+  peer: string;
 };
 
-/** How messages travel: the mailbox (with receipts) or letters (without). */
+/** How messages travel: letters, through Shield. */
 type Transport = {
   reader: ReadInput["client"];
   writer: PostInput["client"];
-  letters: boolean;
+  letters: true;
   /** Reads the wallet's letters afresh on the next check. */
   refresh?: () => void;
   /** Shield, connected to this account: what a report to Hewn goes through. */
@@ -88,23 +84,14 @@ const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 export default function Conversation(props: ConversationProps) {
-  if (!props.peer) return <MailboxConversation {...props} />;
   return (
     <AleoWalletProviderWrapper>
-      <LetterConversation {...props} peer={props.peer} />
+      <LetterConversation {...props} />
     </AleoWalletProviderWrapper>
   );
 }
 
-function MailboxConversation(props: ConversationProps) {
-  const transport = useMemo<Transport>(() => {
-    const client = appMailbox();
-    return { reader: client, writer: client, letters: false };
-  }, []);
-  return <ConversationView {...props} transport={transport} />;
-}
-
-function LetterConversation(props: ConversationProps & { peer: string }) {
+function LetterConversation(props: ConversationProps) {
   const { state, connect, error, address, mismatch, letters, wallet } = useLetters();
   const { peer } = props;
   const transport = useMemo<Transport | null>(() => (letters ? { ...letterThread(wallet, peer, { letters }), letters: true, wallet } : null), [letters, wallet, peer]);
@@ -191,13 +178,6 @@ function ConversationView({
       if (r.off) setStatus("Messages are off on this server.");
       else if (r.failed) setStatus(`Couldn't check for new messages: ${r.failed}`);
       else if (r.skipped.length > 0) setStatus(`${r.skipped.length} ${r.skipped.length === 1 ? "message" : "messages"} couldn't be read and ${r.skipped.length === 1 ? "was" : "were"} skipped.`);
-      if (!r.off && !r.failed && !transport.letters) {
-        const waiting = awaitingReceipts(latest.current, partiesKey, side, 20, kinds);
-        if (waiting.length > 0) {
-          const client = appMailbox();
-          await readReceipts(client, waiting, (heard) => update((t) => heard.reduce((acc, h) => markDelivered(acc, h.target, h.receivedAt), t)));
-        }
-      }
       await update((t) => (show ? markItemsRead(t, new Set(t.items.filter(show).map((i) => i.id))) : markThreadRead(t)));
     } catch (e) {
       setStatus(errorMessage(e));

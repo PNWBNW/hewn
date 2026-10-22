@@ -160,20 +160,13 @@ describe("the letter box", () => {
   });
 });
 
-describe("reading letters first, then the old mailbox", () => {
-  it("prefers a letter, falls back to the mailbox, and treats a mailbox that's off as empty", async () => {
-    const { lettersThenMailbox } = await import("./letters");
-    const { MailboxError } = await import("@pnw/mailbox");
-    const fromLetters = { get: async (l: string) => (l === "a" ? Uint8Array.of(1) : null) };
-    const mailbox = { get: async (l: string) => (l === "b" ? Uint8Array.of(2) : null) };
-    const reader = lettersThenMailbox(fromLetters, mailbox);
+describe("reading a thread's letters", () => {
+  it("finds a slot's letter, nothing else, and drops nothing (the old mailbox is retired)", async () => {
+    const { letterReader } = await import("./letters");
+    const reader = letterReader({ get: async (l: string) => (l === "a" ? Uint8Array.of(1) : null) });
     expect(await reader.get("a")).toEqual(Uint8Array.of(1));
-    expect(await reader.get("b")).toEqual(Uint8Array.of(2));
-    expect(await reader.get("c")).toBeNull();
-    const off = lettersThenMailbox(fromLetters, { get: async () => { throw new MailboxError("NOT_CONFIGURED", "off"); } });
-    expect(await off.get("c")).toBeNull();
-    const broken = lettersThenMailbox(fromLetters, { get: async () => { throw new MailboxError("REQUEST_FAILED", "502"); } });
-    await expect(broken.get("c")).rejects.toThrow("502");
+    expect(await reader.get("b")).toBeNull();
+    await expect(reader.drop("a")).resolves.toBeUndefined();
   });
 });
 

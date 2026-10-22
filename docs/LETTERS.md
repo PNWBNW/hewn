@@ -10,8 +10,8 @@ Settings has "Send a test letter".
 **Everything between people now goes as letters:** offers (one page), messages, counter-offers,
 paystubs, timesheets, the coworker directory and coworker chat. Group chats send one letter per
 member. Announcements: the channel's key goes to each member in a letter, and each post goes to
-everyone through `send_many` (one approval for each eight). Nothing is sent through the old mailbox;
-it is only read, for anything sent before, until it is retired.
+everyone through `send_many` (one approval for each eight). The old mailbox is
+retired (2026-10-22, `archive/mailbox-api/`): nothing is sent through it or read from it.
 
 **Measured on testnet (2026-10-16, Joshua's phone, Shield):** a letter took 13.6–73.7 s from tap
 to accepted (approving and Shield's sponsor step included), cost 0.006578 ALEO, and was listed by

@@ -183,6 +183,10 @@ The highest risk for a browser app.
 
 ## The mailbox
 
+**Retired 2026-10-22** (`archive/mailbox-api/`). Every message is now a letter on chain
+(`docs/LETTERS.md`), sent from the user's wallet; no server holds messages. What follows is kept
+as the record of how it worked.
+
 The one server function (`/api/mailbox/<lookup>`, `@pnw/mailbox`; decision in
 `docs/INTEGRATION_AUDIT.md` §4.4). It carries a document (offer terms, a W-4, a paystub, a payment
 note) from one party of an agreement to the other, with no email, no PDF and no third party able

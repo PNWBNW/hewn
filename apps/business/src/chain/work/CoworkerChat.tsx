@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // A private conversation with one coworker: the key only the two of you can
 // make (chain/coworkers.ts), the shared conversation screen in coworker mode
-// (its own slots, plain messages only; letters to their account when the
-// business's list has it), and the safety code to compare in person.
+// (its own slots, plain messages only; letters to their account, which the
+// business's directory carries), and the safety code to compare in person.
 // Nothing here logs a key or a message.
 // ---------------------------------------------------------------------------
 
@@ -55,6 +55,8 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
   );
 
   if (!identity) return <FormError message="Join the coworker directory first." />;
+  // Messages go as letters to their account; a directory from before accounts were listed has none.
+  if (!address) return <p className="text-sm text-muted-foreground">{name}&apos;s account isn&apos;t in your copy of the directory yet. Ask the business to send the coworker directory again, then you can message them.</p>;
   if (error) return <FormError message={error} />;
   if (!key) return <p className="text-sm text-muted-foreground">Opening…</p>;
 
@@ -71,7 +73,7 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
         kinds={COWORKER_KINDS}
         accept={coworkerAccepts}
         show={onlyText}
-        {...(address ? { peer: address } : {})}
+        peer={address}
         subtitle={
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             {verified ? <ShieldCheck aria-hidden className="size-3" /> : <Lock aria-hidden className="size-3" />}
