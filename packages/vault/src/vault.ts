@@ -26,6 +26,12 @@ import type { VaultStore } from "./store";
 
 export const VAULT_FORMAT = "pnw-vault";
 export const KDF_ITERATIONS = 600_000;
+/**
+ * The most rounds a record may ask for. The rounds are read from the record, so a doctored backup
+ * could ask for billions and keep the device working for hours on import. This app never writes
+ * more than KDF_ITERATIONS, and the limit moves with it.
+ */
+export const MAX_KDF_ITERATIONS = KDF_ITERATIONS * 10;
 export const MIN_PASSPHRASE = 10;
 
 type Sealed = { iv: string; data: string };
@@ -319,6 +325,7 @@ export async function changePassphrase(
   next: string,
   options: { iterations?: number } = {},
 ): Promise<VaultRecord> {
+  assertRecord(record);
   const normalized = checkPassphrase(next);
   const oldKek = await unlockKey(current.normalize("NFKC"), unb64(record.kdf.salt), record.kdf.iterations);
   // Unwrap extractable just long enough to re-wrap it.
@@ -395,6 +402,7 @@ function assertRecord(value: unknown): asserts value is VaultRecord {
     r.kdf?.name !== "PBKDF2-SHA256" ||
     !Number.isInteger(r.kdf.iterations) ||
     r.kdf.iterations < 1 ||
+    r.kdf.iterations > MAX_KDF_ITERATIONS ||
     typeof r.kdf.salt !== "string" ||
     !sealedOk(r.wrappedKey) ||
     !sealedOk(r.payload)

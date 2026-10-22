@@ -530,6 +530,11 @@ handling); likely a Fable session for the key agreement.
   pinned to a commit and a 7-day Dependabot cooldown. Ruled out as no real gain or a later break:
   dropping the key fallback, a main-only line in the workflows, commit pins in pnw_mvp_v2 (no
   Dependabot there, so they'd freeze), the `work` trigger.
+- [x] From the hardening review (Joshua, 2026-10-22): backups asking for more PBKDF2 rounds than
+  this app writes are refused (done). Parked: a size limit on unpacking letters (low value; if
+  ever built, at 1 MB, checked when sending too, so nothing Hewn can send is cut short). Waiting
+  for more data: the traction page's floor (its totals and the hidden-country count can single
+  out a country's only visitor; anyone can add visits; bots may count).
 - [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
   mainnet's names (Joshua, 2026-10-22).
 - [x] Terms of use and a privacy page, public at `/terms` and `/privacy` (Joshua, 2026-10-22):

@@ -4054,3 +4054,17 @@ workflow that steals CI secrets) touch us.
   Nx Console was ever on one of his computers is unknown (`code --list-extensions | grep -i nrwl`
   tells); if it was, sign out of GitHub everywhere, revoke tokens, and check whether the admin key
   was ever in a `.env` there.
+
+## 2026-10-22: backups can't ask for billions of rounds (hardening B)
+
+A backup carries its own PBKDF2 round count, and import trusted it: a doctored file asking for
+four billion rounds would keep the device working for hours. `@pnw/vault` now refuses a record
+asking for more than `MAX_KDF_ITERATIONS` (ten times `KDF_ITERATIONS`, so it moves if ours ever
+does) before any round runs, on import, unlock and passphrase change.
+- `packages/vault/src/vault.ts`, `docs/THREAT_MODEL.md` T2.
+- Joshua's other calls from the review: letter unpack limit parked, the traction floor waits for
+  more data; for the coworker check he asked whether it could work like the job board, but
+  privately, and a design built on registered names is with him for review.
+
+Tests: vault +1 (fails without the limit). Every package passes; both builds pass; `pnpm audit`
+clean.

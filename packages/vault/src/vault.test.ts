@@ -6,6 +6,7 @@ import {
   type SealedAttachment,
   type VaultRecord,
   KDF_ITERATIONS,
+  MAX_KDF_ITERATIONS,
   REMEMBER_MS,
   changePassphrase,
   createVault,
@@ -148,6 +149,19 @@ describe("backups", () => {
       expect(() => parseBackup(bad), bad).toThrow(code("NOT_A_VAULT"));
     }
     expect(() => parseBackup(JSON.stringify({ ...v2, version: 3 }))).toThrow(/newer version/);
+  });
+
+  it("refuses a backup asking for more rounds than this app ever writes, before running any", async () => {
+    const s = await createVault(PASS, "books", FAST);
+    const v2 = JSON.parse(exportBackup(s.record));
+    const rounds = (n: number) => JSON.stringify({ ...v2, record: { ...v2.record, kdf: { ...v2.record.kdf, iterations: n } } });
+    expect(MAX_KDF_ITERATIONS).toBeGreaterThanOrEqual(KDF_ITERATIONS * 10);
+    expect(() => parseBackup(rounds(4_000_000_000))).toThrow(code("NOT_A_VAULT"));
+    expect(() => parseBackup(rounds(MAX_KDF_ITERATIONS + 1))).toThrow(code("NOT_A_VAULT"));
+    expect(parseBackup(rounds(MAX_KDF_ITERATIONS)).record.kdf.iterations).toBe(MAX_KDF_ITERATIONS);
+    const doctored = { ...s.record, kdf: { ...s.record.kdf, iterations: 4_000_000_000 } };
+    await expect(unlockVault(doctored, PASS)).rejects.toThrow(code("NOT_A_VAULT"));
+    await expect(changePassphrase(doctored, PASS, "a brand new phrase", FAST)).rejects.toThrow(code("NOT_A_VAULT"));
   });
 });
 
