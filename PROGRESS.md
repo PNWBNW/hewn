@@ -3842,3 +3842,16 @@ events with invites come next, then agreements between businesses (`BUILD_PLAN.m
 
 Tests: app 600/600 (+10: nine for events, one for the company file); every package passes (998);
 both builds pass.
+
+## 2026-10-22: Next.js 16.4.1 (two new advisories)
+
+`pnpm audit` turned red on main during the afternoon: two Next.js advisories against 16.0.0–16.4.0,
+fixed in 16.4.1. A critical one, remote code execution in the image optimization route when SVG
+files are used (GHSA-2464-fhr4-w9xw); and a high one, a denial of service through Server Actions
+in the App Router (GHSA-p3m5-59mp-jv5r). The app uses no Server Actions and no `next/image`, but the
+website build still serves the `/_next/image` route, so the first counts as reachable. 16.4.1 came
+out on 2026-10-14, past the 7-day rule; 16.4.2 (a day later) isn't yet.
+- `next` 16.3.8 → 16.4.1 in the app and the site; lockfile regenerated; `CLAUDE.md` says 16.4.1.
+
+Tests: every package passes (998); the app's website and static builds and the site's build pass;
+`pnpm audit` clean.
