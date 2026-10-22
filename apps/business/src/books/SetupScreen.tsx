@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Briefcase, HardHat, Sparkles } from "lucide-react";
 import { TEMPLATES, type TemplateId } from "@pnw/ledger";
 import { MIN_NEW_PASSPHRASE, type Strength, checkNewPassphrase, suggestPassphrase } from "@pnw/vault";
@@ -8,6 +9,7 @@ import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { AuthCard, Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
 import { MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH, isUsername } from "./account";
+import { BRAND } from "@/brand";
 import { useBooks } from "./BooksProvider";
 import type { Role } from "./work";
 
@@ -296,7 +298,17 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
               onChange={(e) => setUnderstood(e.target.checked)}
               className="mt-0.5 accent-[var(--pnw-forest-500)]"
             />
-            <span>I understand, and I&apos;ll keep a backup file somewhere safe.</span>
+            <span>
+              I understand my passphrase can&apos;t be recovered, and that {BRAND.name} is testnet software provided as is: not tax, legal or accounting
+              advice.{" "}
+              <Link href="/terms" target="_blank" className="underline underline-offset-4">
+                Terms
+              </Link>
+              {" · "}
+              <Link href="/privacy" target="_blank" className="underline underline-offset-4">
+                Privacy
+              </Link>
+            </span>
           </label>
           <FormError message={error} />
           <div className="flex gap-3">

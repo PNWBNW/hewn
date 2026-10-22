@@ -32,6 +32,7 @@ import { TagFields } from "@/books/tags";
 import { type UnpaidHours, hoursText, markPaid, payRulesFor, shiftCount, unpaidHours } from "@/books/timecard_pay";
 import { dollarsText, rateText } from "@/books/work_week";
 import { PageHeader } from "@/shell/SectionView";
+import { FiguresNote } from "@/legal/LegalNotes";
 import { dayLabel } from "../../work/shared";
 
 function daysBefore(iso: string, days: number): string {
@@ -202,6 +203,7 @@ export default function RunPayrollPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Run payroll" summary="Check each paycheck, then post. Every paycheck becomes one balanced entry in your books." />
+      <FiguresNote className="-mt-3" />
       <form
         className="flex flex-col gap-5"
         onSubmit={(e) => {

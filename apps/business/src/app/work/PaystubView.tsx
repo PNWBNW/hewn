@@ -10,6 +10,7 @@ import { Money, formatCredits } from "@/books/display";
 import { payLines, paystubFromCanonical } from "@/books/paystub_document";
 import { shortAddress } from "@/books/rail";
 import type { ReceivedPaystub } from "@/books/work";
+import { FiguresNote } from "@/legal/LegalNotes";
 
 export function PaystubView({ paystub, onClose }: { paystub: ReceivedPaystub; onClose: () => void }) {
   let doc;
@@ -58,6 +59,7 @@ export function PaystubView({ paystub, onClose }: { paystub: ReceivedPaystub; on
       <p className="border-t px-4 py-2 text-xs text-muted-foreground">
         Employer taxes are paid by {doc.businessName}, not taken from pay. Paystub reference: {paystub.paystubHash.slice(0, 8)}
       </p>
+      <FiguresNote className="border-t px-4 py-2" />
     </section>
   );
 }

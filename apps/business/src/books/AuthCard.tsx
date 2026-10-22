@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
 import { cn } from "@pnw/ui/utils";
 import { BRAND } from "@/brand";
+import { LegalLinks } from "@/legal/LegalNotes";
 import { BrandHero, BrandLogo } from "@/shell/Brand";
 
 /** The wordmark on the left, whatever the page puts on the right. Shared by the front page and the screens behind it. */
@@ -28,17 +29,20 @@ export function AuthHero() {
 
 export function AuthFooter() {
   return (
-    <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-      <Lock aria-hidden className="size-3" />
-      Encrypted on this device. Nothing is sent to a server.{" "}
-      <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">
-        Source code
-      </a>
-      {" · "}
-      <Link href="/traction" className="underline underline-offset-4">
-        Traction map
-      </Link>
-    </p>
+    <div className="flex flex-col items-center gap-1 text-center text-xs text-muted-foreground">
+      <p className="flex items-center justify-center gap-1.5">
+        <Lock aria-hidden className="size-3" />
+        Encrypted on this device. Nothing is sent to a server.{" "}
+        <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+          Source code
+        </a>
+        {" · "}
+        <Link href="/traction" className="underline underline-offset-4">
+          Traction map
+        </Link>
+      </p>
+      <LegalLinks />
+    </div>
   );
 }
 
