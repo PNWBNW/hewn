@@ -122,7 +122,7 @@ programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its ow
 ## Known facts about the existing stack
 
 - Portal: Next.js 16.1.6, React 19.2.3, pnpm, vitest (tests at `src/**/*.test.ts`; path aliases
-  `@/src`, `@/components`, `@/app`). Monorepo is on Next.js 16.3.8 (security fixes). Wallet adapters
+  `@/src`, `@/components`, `@/app`). Monorepo is on Next.js 16.4.1 (security fixes). Wallet adapters
   `@provablehq/aleo-wallet-adapter-*` (renamed from `-adaptor-` on 2026-10-19: core 1.1.2, react
   1.3.1, shield 1.3.0, standard 1.4.0, types 1.1.0) — pin exactly. **Shield is the only wallet**;
   don't add other adapters. `@provablehq/sdk` 0.10.1.
