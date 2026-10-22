@@ -23,7 +23,7 @@
 
 import type { Mailbox } from "./mailbox";
 import type { Rail } from "./rail";
-import { GROUP_TYPES, PUBLIC_KEY, type Thread, type ThreadItem, validateThread } from "./thread";
+import { COWORKER_TYPES, PUBLIC_KEY, type Thread, type ThreadItem, validateThread } from "./thread";
 
 export type DirectoryEntry = { name: string; publicKey: string; address?: string };
 
@@ -140,8 +140,8 @@ export function validateIdentity(raw: unknown): Identity {
 export function validateCoworkerThread(raw: unknown): CoworkerThread {
   if (!isObject(raw)) throw new DirectoryError("A coworker thread must be an object");
   const thread = validateThread(raw);
-  // Between coworkers, only plain messages and group chats.
-  if (thread.items.some((i: ThreadItem) => i.body.type !== "text" && !GROUP_TYPES.includes(i.body.type))) throw new DirectoryError("Coworkers only exchange plain messages");
+  // Between coworkers, only what a coworker may send (the same list the reader takes).
+  if (thread.items.some((i: ThreadItem) => !COWORKER_TYPES.includes(i.body.type))) throw new DirectoryError("That kind of message doesn't travel between coworkers");
   if (typeof raw.businessKey !== "string" || !HEX64.test(raw.businessKey)) throw new DirectoryError("A coworker thread needs its business");
   if (typeof raw.name !== "string" || [...raw.name].length > 60) throw new DirectoryError("A coworker's name is at most 60 characters");
   const out: CoworkerThread = { ...thread, businessKey: raw.businessKey, name: raw.name };

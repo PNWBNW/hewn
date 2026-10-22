@@ -17,14 +17,13 @@
 // ---------------------------------------------------------------------------
 
 import type { Identity } from "../books/directory";
-import { GROUP_TYPES, PUBLIC_KEY, type Side, type ThreadBody } from "../books/thread";
+import { COWORKER_TYPES, PUBLIC_KEY, type Side, type ThreadBody } from "../books/thread";
 import type { ThreadKinds } from "./thread";
 
 export const COWORKER_KINDS: ThreadKinds = { business: "cw_a", worker: "cw_b" };
 
-/** Between coworkers: plain messages, report notices, group chats and event invitations' keys and answers, nothing a business or an offer sends. */
-export const coworkerAccepts = (body: ThreadBody): boolean =>
-  body.type === "text" || body.type === "report_notice" || body.type === "event_key" || body.type === "event_answer" || GROUP_TYPES.includes(body.type);
+/** What a coworker may send (books/thread.ts `COWORKER_TYPES`); anything else is skipped. */
+export const coworkerAccepts = (body: ThreadBody): boolean => COWORKER_TYPES.includes(body.type);
 
 const subtle = () => globalThis.crypto.subtle;
 const hexToBytes = (h: string): Uint8Array<ArrayBuffer> => new Uint8Array(h.match(/../g)!.map((b) => parseInt(b, 16)));

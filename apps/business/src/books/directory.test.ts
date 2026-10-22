@@ -77,14 +77,14 @@ describe("the person's side", () => {
     expect(coworkerTag(PK("a"))).toBe("a".repeat(16));
   });
 
-  it("keeps an identity's private key and a coworker thread of plain messages only", () => {
+  it("keeps an identity's private key and a coworker thread of what coworkers send only", () => {
     const id = { publicKey: PK("a"), privateKey: { kty: "EC", crv: "P-256", x: "x", y: "y", d: "d" }, createdAt: "2026-10-16T10:00:00.000Z", listed: true, name: "Ana" };
     expect(validateIdentity(id)).toEqual(id);
     expect(() => validateIdentity({ ...id, privateKey: { kty: "EC", crv: "P-256", x: "x", y: "y" } })).toThrow(/private key/);
     const thread = { ...addToThread(emptyThread(), msg("worker", { type: "text", text: "Hi" }, true)), businessKey: KA, name: "Bo" };
     expect(validateCoworkerThread(JSON.parse(JSON.stringify(thread)))).toEqual(thread);
     const sneaky = { ...addToThread(emptyThread(), msg("business", { type: "channel_left", channelId: "c".repeat(16), name: "x" }, false)), businessKey: KA, name: "Bo" };
-    expect(() => validateCoworkerThread(sneaky)).toThrow(/plain messages/);
+    expect(() => validateCoworkerThread(sneaky)).toThrow(/doesn't travel between coworkers/);
   });
 
   it("reads an account on a list entry, and refuses one that isn't an account", async () => {

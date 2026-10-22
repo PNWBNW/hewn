@@ -510,6 +510,16 @@ handling); likely a Fable session for the key agreement.
 - [x] ~~Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
   an option (2026-10-16).~~ Moot: the
   mailbox is retired and every message is a letter on chain (2026-10-22).
+- [ ] Who works for whom stays off the public chain (Joshua, 2026-10-22, from the security review):
+  making or accepting an offer today shows both names' hashes and both accounts in the
+  transaction (`employer_agreement_v4` calls the registry's `assert_is_owner` with them). A new
+  `employer_agreement_v5` authorises without a public ownership check. New Leo: a Fable session.
+- [ ] No program can be upgraded on mainnet (Joshua, 2026-10-22, pinned until the build is nearly
+  done): the registry, the registrar, agreements and worker profiles are `@admin` under one key
+  today, so an upgrade could change who passes their checks. `@noupgrade`, or a multisig with a
+  timelock, before mainnet.
+- [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
+  mainnet's names (Joshua, 2026-10-22).
 - [x] Terms of use and a privacy page, public at `/terms` and `/privacy` (Joshua, 2026-10-22):
   "we" is Hewn, run by Joshua Day; Washington State law; questions to hewnsupport@gmail.com. Setup's
   checkbox reads "I understand my passphrase can't be recovered, and that Hewn is testnet software
