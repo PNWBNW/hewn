@@ -78,7 +78,7 @@ function settleTo(payroll: Payroll, runId: string, workerId: string, target: Set
   if (!current || current.status === "settled") return payroll; // never touch a settled paycheck
   let next = payroll;
   if (current.status === "failed") next = markPaycheckSettlement(next, runId, workerId, { status: "pending" }); // a retry
-  if (target.status === "pending" && current.status === "pending" && !target.reference) return next;
+  if (target.status === "pending" && !target.reference && !target.attempt && !target.failure) return next; // nothing to note
   return markPaycheckSettlement(next, runId, workerId, target);
 }
 
@@ -89,13 +89,16 @@ type Stage =
   | { kind: "approving" }
   | { kind: "sent" }
   | { kind: "settled"; transactionId: string; feeMicrocredits?: bigint }
-  | { kind: "failed"; failure: string };
+  | { kind: "failed"; failure: string }
+  /** It may have gone through: never sent again unless the person says so. */
+  | { kind: "unconfirmed"; failure: string };
 
 /** What a paycheck looks like before the queue says anything about it this session. */
 function stageOf(p: Paycheck): Stage {
   const s = p.settlement;
   if (s.status === "settled") return { kind: "settled", transactionId: s.reference ?? "", ...(s.feeMicrocredits !== undefined ? { feeMicrocredits: s.feeMicrocredits } : {}) };
   if (s.status === "failed") return { kind: "failed", failure: s.failure ?? "Payment failed" };
+  if (s.failure) return { kind: "unconfirmed", failure: s.failure };
   return s.reference ? { kind: "sent" } : { kind: "waiting" };
 }
 
@@ -111,6 +114,8 @@ function stageLabel(stage: Stage): string {
       return stage.transactionId ? `Settled · ${shortAddress(stage.transactionId)}` : "Settled";
     case "failed":
       return `Failed · ${stage.failure}`;
+    case "unconfirmed":
+      return `Not confirmed · ${stage.failure}`;
   }
 }
 
@@ -132,6 +137,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({});
   const [note, setNote] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [againFor, setAgainFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
 
@@ -184,10 +190,25 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const totalDue = due.reduce((s, p) => s + p.net, 0n);
   const balance = records ? totalBalance(records) : null;
   const short = balance !== null && balance < centsToMinor(totalDue);
-  const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference);
+  const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   const links = new Map(rail.links.map((l) => [l.workerId, l.address]));
   const unlinked = due.filter((p) => !links.has(p.workerId));
+
+  /** The person checked Shield's activity and found no payment: free this paycheck to be paid again on the next run. */
+  async function payAgain(workerId: string) {
+    setAgainFor(null);
+    setError(null);
+    try {
+      await updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, { status: "failed", failure: "Marked to pay again after checking Shield" }) }));
+      setStages((all) => {
+        const { [workerId]: _gone, ...rest } = all;
+        return rest;
+      });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
 
   async function start(current: string) {
     if (!run) return;
@@ -215,7 +236,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "sent":
           setStage(e.workerId, { kind: "sent" });
-          void write(e.workerId, { status: "pending", reference: e.reference }).catch((err: unknown) => setError(errorMessage(err)));
+          void write(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
           break;
         case "broadcast":
           break;
@@ -241,14 +262,24 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "failed":
           setStage(e.workerId, { kind: "failed", failure: e.failure });
-          void write(e.workerId, { status: "failed", failure: e.failure }).catch((err: unknown) => setError(errorMessage(err)));
+          void write(e.workerId, { status: "failed", failure: e.failure, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
+          break;
+        case "unconfirmed":
+          setStage(e.workerId, { kind: "unconfirmed", failure: e.failure });
+          void write(e.workerId, { status: "pending", failure: e.failure, ...(e.reference ? { reference: e.reference } : {}), ...(e.attempt ? { attempt: e.attempt } : {}) }).catch(
+            (err: unknown) => setError(errorMessage(err)),
+          );
           break;
       }
+    };
+    // The record each transfer will spend is kept before Shield is asked: a later run checks it instead of paying twice.
+    const beforeSend = async (workerId: string, attempt: string) => {
+      await write(workerId, { status: "pending", attempt });
     };
     try {
       // The run as it is now, so a reopened panel resumes exactly what's outstanding.
       const latest = (await updateCompany((c) => c)).payroll.runs.find((r) => r.id === runId)!;
-      await runPayQueue({ wallet: railWallet, network: explorerNetwork(), run: latest, links, onProgress });
+      await runPayQueue({ wallet: railWallet, network: explorerNetwork(), run: latest, links, onProgress, beforeSend });
       loadedFor.current = null; // re-read the balance
       setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
     } catch (e) {
@@ -328,7 +359,13 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
                   <span
                     className={cn(
                       "basis-full text-xs sm:basis-auto",
-                      s.kind === "settled" ? "text-money-positive" : s.kind === "failed" ? "text-money-negative" : "text-muted-foreground",
+                      s.kind === "settled"
+                        ? "text-money-positive"
+                        : s.kind === "failed"
+                          ? "text-money-negative"
+                          : s.kind === "unconfirmed"
+                            ? "text-amber-700 dark:text-amber-400"
+                            : "text-muted-foreground",
                     )}
                   >
                     {stageLabel(s)}
@@ -337,7 +374,23 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
                         Retry
                       </Button>
                     )}
+                    {s.kind === "unconfirmed" && !running && againFor !== p.workerId && (
+                      <Button type="button" variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={() => setAgainFor(p.workerId)}>
+                        Pay again anyway
+                      </Button>
+                    )}
                   </span>
+                  {againFor === p.workerId && (
+                    <span className="flex basis-full flex-wrap items-center gap-2 text-xs">
+                      Only if Shield&apos;s activity shows no payment to {names.get(p.workerId) ?? "them"} for <Money cents={p.net} />.
+                      <Button type="button" variant="destructive" size="sm" className="min-h-11 sm:min-h-7" onClick={() => void payAgain(p.workerId)}>
+                        Pay again
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-7" onClick={() => setAgainFor(null)}>
+                        Keep it
+                      </Button>
+                    </span>
+                  )}
                   {paystubNote(p)}
                 </li>
               );

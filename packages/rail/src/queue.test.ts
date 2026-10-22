@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Paycheck, PayRun, Settlement } from "@pnw/payroll";
 import { FREEZELIST_PROGRAM } from "./exclusion";
 import fixture from "./fixtures/transaction.json";
-import { type PayQueueEvent, SPLIT_FUNCTION, TRANSFER_FUNCTION, outstanding, runPayQueue } from "./queue";
+import { type PayQueueEvent, SPLIT_FUNCTION, TRANSFER_FUNCTION, outstanding, recordTag, runPayQueue } from "./queue";
 import { USDCX_PROGRAM, centsToMinor } from "./records";
 import { type RailNetwork, RailNetworkError, type RailWallet } from "./types";
 
@@ -266,10 +266,13 @@ describe("runPayQueue", () => {
     expect(events[0]).toEqual({ kind: "planned", transfers: 2, splits: 0, change: centsToMinor(50_00n) });
   });
 
-  it("gives up on a transfer the wallet never answers for, after the cap", async () => {
+  it("stops waiting on a transfer the wallet never answers for, after the cap, and calls it unconfirmed, not failed", async () => {
     const wallet = new FakeWallet([centsToMinor(10_00n)], () => [{ status: "pending" }]);
-    const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)], { limits: { walletCapMs: 50, pollMinMs: 10, pollMaxMs: 20 } });
-    expect(result.failed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/No answer from the wallet/) }]);
+    const { events, result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)], { limits: { walletCapMs: 50, pollMinMs: 10, pollMaxMs: 20 } });
+    expect(result.failed).toEqual([]);
+    expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/No answer from Shield.*Check Shield's activity/) }]);
+    // It keeps the wallet's id, so the next run asks about it instead of paying again.
+    expect(events.find((e) => e.kind === "unconfirmed")).toMatchObject({ reference: "shield_0", attempt: expect.stringMatching(/^[0-9a-f]{32}$/) });
   });
 
   it("settles on the wallet's word when the explorer is slow, and fails when the explorer says rejected", async () => {
@@ -287,6 +290,72 @@ describe("runPayQueue", () => {
     expect(b.result.failed).toEqual([{ workerId: "w2", failure: "insufficient balance" }]);
   });
 
+  it("never pays twice: an explorer that can't be reached after Shield accepted only delays confirming", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n)], () => accepted(AT(1)));
+    const down: RailNetwork = {
+      fetchJson: async (path) => {
+        if (path.startsWith("transaction/")) throw new RailNetworkError("Service unavailable", 503);
+        return fakeNetwork().fetchJson(path);
+      },
+    };
+    const { result } = await settleRun(wallet, down, [paycheck("w1", 10_00n)], { limits: { confirmCapMs: 20, pollMinMs: 10 } });
+    expect(result).toEqual({ settled: [{ workerId: "w1", transactionId: AT(1) }], failed: [], unconfirmed: [] });
+  });
+
+  it("never pays twice: accepted without an id is unconfirmed", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n)], () => [{ status: "accepted" }]);
+    const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)]);
+    expect(result.failed).toEqual([]);
+    expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/gave no transaction id/) }]);
+  });
+
+  it("keeps each record's tag before asking Shield, and sends nothing for a payee whose tag couldn't be kept", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n), centsToMinor(20_00n)], (_c, n) => accepted(AT(n)));
+    const log: string[] = [];
+    const exec = wallet.executeTransaction.bind(wallet);
+    wallet.executeTransaction = async (o) => (log.push(`send ${o.inputs[0]}`), exec(o));
+    const beforeSend = async (workerId: string, attempt: string) => {
+      expect(attempt).toMatch(/^[0-9a-f]{32}$/);
+      log.push(`keep ${workerId}`);
+      if (workerId === "w2") throw new Error("These books changed in another tab or window");
+    };
+    const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n), paycheck("w2", 20_00n)], { beforeSend });
+    // Every tag kept before anything went to Shield; only w1's transfer was sent.
+    expect(log.slice(0, 2).sort()).toEqual(["keep w1", "keep w2"]);
+    expect(log.slice(2)).toEqual([`send ${ADDR(1)}`]);
+    expect(result.settled.map((r) => r.workerId)).toEqual(["w1"]);
+    expect(result.failed).toEqual([{ workerId: "w2", failure: "These books changed in another tab or window" }]);
+  });
+
+  it("never pays twice: a retry spends the very record the first try did, and one whose record is gone isn't sent", async () => {
+    // w1's first try was declined: its record is still there. w2's first try went out (its record is spent).
+    const wallet = new FakeWallet([centsToMinor(10_00n), centsToMinor(30_00n), centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
+    const tagOf = async (i: number) => recordTag(wallet.records[i]!.recordPlaintext);
+    const w1Tag = await tagOf(1); // the 30.00 record, though a 10.00 one would fit exactly
+    const w2Tag = await recordTag(plaintextOf(centsToMinor(20_00n), "gone"));
+    const { events, result } = await settleRun(wallet, fakeNetwork(), [
+      paycheck("w1", 10_00n, { status: "failed", failure: "Declined in Shield", attempt: w1Tag }),
+      paycheck("w2", 20_00n, { status: "pending", attempt: w2Tag }), // the page closed after Shield was asked
+    ]);
+    const transfers = wallet.calls.filter((c) => c.function === TRANSFER_FUNCTION);
+    expect(transfers).toHaveLength(1);
+    expect(transfers[0]!.inputs[0]).toBe(ADDR(1));
+    expect(transfers[0]!.inputs[2]).toBe(wallet.records[1]!.recordPlaintext); // the same record: the network lets only one through
+    expect(result.settled.map((r) => r.workerId)).toEqual(["w1"]);
+    expect(result.unconfirmed).toEqual([{ workerId: "w2", failure: expect.stringMatching(/record this payment was spending is gone/) }]);
+    expect(events.find((e) => e.kind === "unconfirmed")).toMatchObject({ workerId: "w2", attempt: w2Tag });
+  });
+
+  it("asks Shield again, briefly, about one sent on an earlier run, and leaves it unconfirmed if there's still no answer", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
+    wallet.know("shield_lost", [{ status: "pending" }]);
+    const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "pending", reference: "shield_lost", attempt: "ab".repeat(16) })], {
+      limits: { resumeCapMs: 30, pollMinMs: 10, pollMaxMs: 10 },
+    });
+    expect(wallet.calls).toEqual([]);
+    expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/No answer from Shield/) }]);
+  });
+
   it("refuses a run that isn't on the rail, a payee with no account, and a short balance before anything is signed", async () => {
     const wallet = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
     const base = { wallet, network: fakeNetwork(), ...fakeTime() };
@@ -294,6 +363,6 @@ describe("runPayQueue", () => {
     await expect(runPayQueue({ ...base, run: run([paycheck("w1", 10_00n)]), links: new Map() })).rejects.toThrow(/no account on the rail/);
     await expect(runPayQueue({ ...base, run: run([paycheck("w1", 20_00n)]), links: links("w1") })).rejects.toThrow(/Not enough balance/);
     expect(wallet.calls).toEqual([]);
-    expect(await runPayQueue({ ...base, run: run([paycheck("w1", 10_00n, { status: "settled" })]), links: links("w1") })).toEqual({ settled: [], failed: [] });
+    expect(await runPayQueue({ ...base, run: run([paycheck("w1", 10_00n, { status: "settled" })]), links: links("w1") })).toEqual({ settled: [], failed: [], unconfirmed: [] });
   });
 });

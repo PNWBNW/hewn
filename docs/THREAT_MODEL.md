@@ -144,6 +144,14 @@ The highest risk for a browser app.
   property-based tests over random entries. 🔜 P1
 - Strict TypeScript, CI blocks on any failing test or type error. ✅
 - Third-party audit of the vault and ledger core alongside the Leo audit. 🔜 budget line
+- **Paying someone twice** (2026-10-22, the security review). A transfer whose outcome isn't
+  known (Shield didn't answer in time, accepted it without an id, the page closed after asking,
+  an answer lost on the way back) is never sent again on its own: before Shield is asked, the
+  vault keeps a tag for the record the transfer will spend, and a later run sends it again only by
+  spending that same record (the network lets one of the two through), or, if the record is gone,
+  shows it as not confirmed until the person checks Shield's activity and chooses to pay again.
+  An explorer that can't be reached only delays confirming. Two tabs on the same books can't both
+  write: a write refuses when another tab wrote since (`books/vault_write.ts`). ✅
 
 ### T6 — Privacy leak through the chain (anchored/settled modes)
 - Public mappings hold only hashes, commitments, block heights. ✅ (existing programs) 🔜 `gl_core`

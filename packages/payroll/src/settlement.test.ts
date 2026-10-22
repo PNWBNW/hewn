@@ -73,6 +73,18 @@ describe("settlement fee and in-flight reference", () => {
     expect(done.runs[0]!.paychecks[0]!.settlement.status).toBe("settled");
     expect(() => markPaycheckSettlement(done, r.run.id, s.ana.id, { status: "pending", reference: "again" })).toThrow(/settled paycheck can't/);
   });
+
+  it("a pending paycheck notes the record a transfer is about to spend, and why an outcome isn't known", () => {
+    const s = setup();
+    const r = postPayRun(s.books, s.payroll, { ...s.input, mode: "rail" }, clock);
+    const tag = "ab".repeat(16);
+    const trying = markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag });
+    expect(trying.runs[0]!.paychecks[0]!.settlement).toEqual({ status: "pending", attempt: tag });
+    const unknown = markPaycheckSettlement(trying, r.run.id, s.ana.id, { status: "pending", attempt: tag, failure: "Check Shield's activity before paying again" });
+    expect(unknown.runs[0]!.paychecks[0]!.settlement.failure).toMatch(/Check Shield/);
+    expect(payrollFromJson(payrollToJson(unknown))).toEqual(unknown);
+    expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: "nope" })).toThrow(/32 hex/);
+  });
 });
 
 describe("checkDoublePay", () => {
