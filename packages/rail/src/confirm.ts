@@ -104,6 +104,14 @@ export function parseRejected(doc: unknown): string | null {
  * Resolves null while the explorer hasn't indexed the transaction yet.
  * Throws when the explorer reports it rejected.
  */
+/** The explorer says the transaction was rejected: a definite outcome, unlike an explorer that can't be reached. */
+export class TransactionRejected extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TransactionRejected";
+  }
+}
+
 export async function confirmTransaction(network: RailNetwork, transactionId: string): Promise<ConfirmedTransaction | null> {
   let doc: unknown;
   try {
@@ -113,7 +121,7 @@ export async function confirmTransaction(network: RailNetwork, transactionId: st
     throw e;
   }
   const rejected = parseRejected(doc);
-  if (rejected) throw new Error(rejected);
+  if (rejected) throw new TransactionRejected(rejected);
   if (!transactionOf(doc)) return null;
   const feeMicrocredits = parseFeeMicrocredits(doc);
   let height = parseHeight(doc);

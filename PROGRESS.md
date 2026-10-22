@@ -3935,3 +3935,34 @@ every kind through the reader into the vault the way the message check does; it 
 the fix.
 
 Tests: app 628/628 (+1); every package passes; both builds pass; `pnpm audit` clean.
+
+## 2026-10-22: never pay twice (fix 2 of the security review)
+
+Before, a paycheck whose payment had gone out could be marked failed and paid again by Retry: an
+explorer error in the three minutes after Shield accepted (a 429, a 503, a timeout), Shield not
+answering within 15 minutes, Shield accepting without an id, the page closing between the
+approval and the vault write, or two tabs paying one run.
+- **The record is the guard** (`packages/rail/src/queue.ts`): before Shield is asked for a
+  transfer, the pay screen keeps a tag for the record it will spend (`Settlement.attempt`, the first
+  16 bytes of SHA-256 over the record; awaited: if it can't be kept, nothing is sent). A later run
+  sends that paycheck again only by spending the very same record, so if the first transfer is
+  still on its way the network lets only one through. If the record is gone, the payment may have
+  gone out: it's shown as not confirmed, never sent on its own.
+- **Unknown isn't failed:** no answer in time, or accepted without an id, is "not confirmed"
+  (kept pending with what's known); a later run asks Shield about it again for two minutes. Only a
+  definite answer (declined, rejected by Shield or by the explorer) is "failed". An explorer that
+  can't be reached only delays confirming; after three minutes it settles on Shield's word, as
+  before.
+- **Paying again is a choice:** a not-confirmed row says to check Shield's activity, with "Pay
+  again anyway" ("only if Shield's activity shows no payment to them for this amount").
+- **Two tabs** (`books/vault_write.ts`): every vault write checks, under a lock across the
+  browser's tabs, that the stored books are still what this tab last saw, and refuses ("changed in
+  another tab or window… reload") instead of overwriting. That also stops two tabs undoing each
+  other's work anywhere in the app.
+- `docs/THREAT_MODEL.md` T5 has the paragraph.
+
+Tests: rail 44 (+5: an explorer down after acceptance settles; accepted without an id is
+unconfirmed; every tag kept before Shield is asked, and a payee whose tag can't be kept isn't
+sent; a retry spends the same record and one whose record is gone isn't sent; a lost one is asked
+about again, briefly); payroll +1 (the attempt note); app +2 (two tabs). Every package passes
+(1034); both builds pass; `pnpm audit` clean.

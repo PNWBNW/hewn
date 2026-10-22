@@ -40,6 +40,7 @@ import {
   normalizeUsername,
   vaultIdFor,
 } from "./account";
+import { saveOver } from "./vault_write";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
 import type { PersonalEvent } from "./events";
 import type { SharedCalendar } from "./shared_events";
@@ -217,6 +218,9 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const session = useRef<VaultSession | null>(null);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const companyRef = useRef<Company | null>(null);
+  // The record this tab last read or wrote, by its payload's IV (fresh on every write): a write finds
+  // whether another tab or window wrote since, and refuses rather than overwrite it.
+  const savedIv = useRef<string | null>(null);
   const pending = useRef<{ role: Role; session: VaultSession }[]>([]);
   const [status, setStatus] = useState<BooksStatus>("loading");
   const [legacyAvailable, setLegacyAvailable] = useState(false);
@@ -229,6 +233,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     const loaded = companyFromJson(await s.read());
     pending.current = [];
     session.current = s;
+    savedIv.current = s.record.payload.iv;
     companyRef.current = loaded;
     setVaultId(s.id);
     setCompany(loaded);
@@ -351,6 +356,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     setStayUntil(null);
     session.current?.lock();
     session.current = null;
+    savedIv.current = null;
     pending.current.forEach((p) => p.session.lock());
     pending.current = [];
     companyRef.current = null;
@@ -368,7 +374,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
         const current = companyRef.current;
         if (!s || !current) throw new Error("Books are locked");
         const next = op(current); // throws on any broken rule; nothing is saved
-        await store.save(await s.write(companyToJson(next)));
+        // Only over what this tab last saw: two tabs on the same books can't undo each other's writes (books/vault_write.ts).
+        savedIv.current = await saveOver(store, s, companyToJson(next), savedIv.current);
         companyRef.current = next;
         setCompany(next);
         return next;

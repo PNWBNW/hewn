@@ -117,9 +117,16 @@ export type Settlement = {
   reference?: string;
   height?: number;
   settledAt?: string;
+  /** Why it failed; on a pending rail paycheck, why its outcome isn't known yet (check before paying again). */
   failure?: string;
   /** Rail only: the network fee the employer actually paid, in microcredits (1,000,000 per credit). */
   feeMicrocredits?: bigint;
+  /**
+   * Rail only: a tag for the record a transfer was about to spend, written before Shield is asked
+   * (rail/queue.ts). A retry spends that same record if it's still there, so the network lets only
+   * one of the two through; if it's gone, the payment may have gone out and nothing is sent again.
+   */
+  attempt?: string;
 };
 
 export type Paycheck = {
@@ -595,11 +602,14 @@ export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId
   if (settlement.feeMicrocredits !== undefined && (typeof settlement.feeMicrocredits !== "bigint" || settlement.feeMicrocredits < 0n)) {
     throw new PayrollError("The network fee can't be negative");
   }
+  if (settlement.attempt !== undefined && (typeof settlement.attempt !== "string" || !/^[0-9a-f]{32}$/.test(settlement.attempt))) {
+    throw new PayrollError("A payment attempt is tagged with 32 hex characters");
+  }
   const from = paycheck.settlement.status;
   const to = settlement.status;
-  // pending → pending only to note the payment's id once it's been sent.
-  const allowed =
-    (from === "pending" && to !== "pending") || (from === "failed" && to === "pending") || (from === "pending" && to === "pending" && !!settlement.reference);
+  // pending → pending only to note what's known about the payment: the record it's about to spend, its id once sent, or why its outcome isn't known.
+  const noting = !!settlement.reference || !!settlement.attempt || !!settlement.failure;
+  const allowed = (from === "pending" && to !== "pending") || (from === "failed" && to === "pending") || (from === "pending" && to === "pending" && noting);
   if (!allowed) throw new PayrollError(`A ${from} paycheck can't become ${to}`);
   const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, settlement: { ...settlement } } : p));
   return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };
