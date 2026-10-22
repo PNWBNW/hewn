@@ -4050,5 +4050,7 @@ workflow that steals CI secrets) touch us.
 - The code is public under AGPL, so it can't be held to ransom. What a stolen login could reach:
   `main` (unprotected in all three repos, and Vercel ships Hewn's to production) and the testnet
   admin key in `testnet-staging`, which can't be replaced.
-- Joshua parked the fixes; the list is in `BUILD_PLAN.md` ("GitHub hardening, parked"). He is
-  checking his computers for Nx Console.
+- Joshua parked the fixes; the list is in `BUILD_PLAN.md` ("GitHub hardening, parked"). Whether
+  Nx Console was ever on one of his computers is unknown (`code --list-extensions | grep -i nrwl`
+  tells); if it was, sign out of GitHub everywhere, revoke tokens, and check whether the admin key
+  was ever in a `.env` there.
