@@ -115,10 +115,12 @@ async function describe(nameHash: string, address: string, kind: NameKind, reads
 /** An account → whoever holds it: a business name first, else a worker's, else an error. */
 export async function lookupAddress(address: string, reads: DirectoryReads = directoryReads): Promise<DirectoryEntry> {
   if (!isRailAddress(address)) throw new DirectoryError("That account isn't complete: 63 characters starting aleo1");
+  // An account's primary name counts only while the account still owns it (one sold back can linger as the primary).
+  const owns = async (hash: string | null) => !!hash && (await reads.nameOwner(bareField(hash))) === address;
   const employer = await reads.employerName(address);
-  if (employer) return describe(bareField(employer), address, "business", reads);
+  if (await owns(employer)) return describe(bareField(employer!), address, "business", reads);
   const worker = await reads.workerName(address);
-  if (worker) return describe(bareField(worker), address, "worker", reads);
+  if (await owns(worker)) return describe(bareField(worker!), address, "worker", reads);
   throw new DirectoryError("That account has no registered name");
 }
 

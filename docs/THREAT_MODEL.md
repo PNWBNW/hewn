@@ -389,4 +389,9 @@ public. Now every reader also checks the letter's sender, which only the record'
 - **Send times:** a received message dated in the future is taken as sent when it arrived.
 - **No sender shown:** the check stops with "Shield didn't say who sent a letter" rather than
   believing it. ✅
+- **Names:** the registrar stores whatever text it's given beside a name's hash, so anyone could
+  file "acme" against their own hash and show as acme on the job board, in an offer or in the
+  review list. A name is shown only when it hashes back to its hash and is a plain name (no
+  look-alike characters); an application's name likewise; an account's primary name only while
+  the account still owns it. Otherwise the account is shown. ✅
 

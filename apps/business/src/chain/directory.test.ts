@@ -96,6 +96,11 @@ describe("lookupAddress", () => {
     await expect(lookupAddress("aleo1" + "q".repeat(58), reads())).rejects.toThrow("That account has no registered name");
     await expect(lookupAddress("aleo1short", reads())).rejects.toThrow(/63 characters/);
   });
+
+  it("doesn't show a name the account no longer owns (sold back, and maybe someone else's now)", async () => {
+    const r = reads({ nameOwner: async () => "aleo1" + "z".repeat(58) });
+    await expect(lookupAddress(BIZ, r)).rejects.toThrow("That account has no registered name");
+  });
 });
 
 describe("lookup", () => {

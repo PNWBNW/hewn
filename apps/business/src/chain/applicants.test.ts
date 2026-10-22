@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { ThreadMessage } from "../books/thread";
 import { addApplicant, applicantWorkerId, emptyJobs, jobsFromJson, jobsToJson, putPosting, setApplicantStatus } from "../books/jobs";
 import { applicantKey, newHiringKey, packApplication } from "./applications";
-import { applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
+import { applicantLabel, applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
 import type { LetterRecord } from "./letters";
+import { computeNameHash } from "@pnw/records/registry/name_registry";
 
 const ids: Record<string, string> = { ana: "a".repeat(32), ben: "b".repeat(32), eve: "e".repeat(32) };
 const message = (postingId: string, name: string): ThreadMessage => ({
@@ -11,7 +12,7 @@ const message = (postingId: string, name: string): ThreadMessage => ({
   id: ids[name]!,
   from: "worker",
   sentAt: "2026-10-19T12:00:00.000Z",
-  body: { type: "application", postingId, name, nameHash: "123", message: "Hello", resume: "My resume." },
+  body: { type: "application", postingId, name, nameHash: computeNameHash(name), message: "Hello", resume: "My resume." },
 });
 const record = (envelope: Uint8Array, blockHeight: number): LetterRecord => ({ kind: "page", lookup: "ab".repeat(32), envelope: new Uint8Array(envelope), blockHeight });
 
@@ -32,7 +33,7 @@ describe("opening the letters under a posting", () => {
     expect(found.map((f) => [f.message.body.name, f.partiesKey])).toEqual([["ana", a.partiesKey]]);
     expect(unreadable).toBe(2);
     const applicant = applicantOf(found[0]!, "aleo1" + "q".repeat(58));
-    expect(applicant).toEqual({ partiesKey: a.partiesKey, name: "ana", nameHash: "123", address: "aleo1" + "q".repeat(58), appliedAt: "2026-10-19T12:00:00.000Z" });
+    expect(applicant).toEqual({ partiesKey: a.partiesKey, name: "ana", nameHash: computeNameHash("ana"), address: "aleo1" + "q".repeat(58), appliedAt: "2026-10-19T12:00:00.000Z" });
   });
 
   it("keeps an application only from the account that owns the name it claims", async () => {
@@ -48,6 +49,12 @@ describe("opening the letters under a posting", () => {
     expect(applicationFrom(fromEve!, ANA)).toBe("not theirs"); // Eve applying as ana.hewn
     expect(applicationFrom(noSender!, ANA)).toBe("not theirs");
     expect(applicationFrom(fromAna!, null)).toBe("unnamed");
+    // Eve's own name hash (so she owns it), but "ana" written beside it: the name doesn't check out.
+    const posing = { ...message("42", "ana"), body: { ...message("42", "ana").body, nameHash: computeNameHash("eve") } } as ThreadMessage;
+    const [fake] = (await openApplications([{ ...record(await packApplication(k.partiesKey, k.oneTimePublicKey, posing), 1), sender: EVE }], hiring, "42", new Set())).found;
+    expect(applicationFrom(fake!, EVE)).toBe("not theirs");
+    expect(applicantLabel({ name: "ana", nameHash: computeNameHash("eve"), address: EVE })).toMatch(/name not verified/);
+    expect(applicantLabel({ name: "ana", nameHash: computeNameHash("ana"), address: ANA })).toBe("ana.hewn");
   });
 });
 
