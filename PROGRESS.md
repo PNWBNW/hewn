@@ -4036,3 +4036,19 @@ Tests: app +1 (an offered link isn't payable). Every package passes (1043); both
 That closes the five fixes Joshua approved from the security review (#141 to this one). Next, as
 agreed: the hardening design for his review before any PR, and planning the private-agreements
 Leo work (a Fable session).
+
+## 2026-10-22: GitHub review after this year's incidents (no changes)
+
+Joshua asked whether GitHub's own breach (TeamPCP copied about 3,800 internal repositories in May
+through a poisoned VS Code extension, reportedly Nx Console 18.95.0), Grafana's extortion over a
+stolen token, and this month's GhostAction campaign (hijacked accounts pushing a "Security Audit"
+workflow that steals CI secrets) touch us.
+- Checked: every branch (255) and commit (1,927) of hewn, pnw_mvp_v2 and the portal, and all 789
+  Actions runs. None of GhostAction's workflow names, commit messages or addresses; only Joshua,
+  Claude and Dependabot ever committed; only our own workflows ever ran; no real key or token in
+  any history (the two `PRIVATE_KEY=` hits are placeholders in docs and a test).
+- The code is public under AGPL, so it can't be held to ransom. What a stolen login could reach:
+  `main` (unprotected in all three repos, and Vercel ships Hewn's to production) and the testnet
+  admin key in `testnet-staging`, which can't be replaced.
+- Joshua parked the fixes; the list is in `BUILD_PLAN.md` ("GitHub hardening, parked"). He is
+  checking his computers for Nx Console.

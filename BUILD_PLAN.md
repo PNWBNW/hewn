@@ -518,6 +518,18 @@ handling); likely a Fable session for the key agreement.
   done): the registry, the registrar, agreements and worker profiles are `@admin` under one key
   today, so an upgrade could change who passes their checks. `@noupgrade`, or a multisig with a
   timelock, before mainnet.
+- [ ] GitHub hardening, parked (Joshua, 2026-10-22, after a review of the GitHub incidents; nothing
+  changed yet). Settings, the only kind that stops someone holding Joshua's login: a ruleset on
+  `main` in both repos (pull request and CI required, no force-push or deletion; a stuck CI badge
+  then needs a re-run before merging), Vercel promoting to production by hand, passkey 2FA on
+  GitHub and Vercel, old tokens deleted; in pnw_mvp_v2, `testnet-staging` limited to `main` with
+  Joshua as reviewer and every key secret moved into it (the admin key can't be replaced: the
+  address is fixed in each `@admin` constructor). Workflows, against a poisoned tool only: hash
+  checks on the Leo 4.0.0 and snarkOS downloads (stop on a mismatch), an exact Leo version instead
+  of "latest" in deploy and upgrade, a read-only token for the plan gate; in Hewn, `pnpm/action-setup`
+  pinned to a commit and a 7-day Dependabot cooldown. Ruled out as no real gain or a later break:
+  dropping the key fallback, a main-only line in the workflows, commit pins in pnw_mvp_v2 (no
+  Dependabot there, so they'd freeze), the `work` trigger.
 - [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
   mainnet's names (Joshua, 2026-10-22).
 - [x] Terms of use and a privacy page, public at `/terms` and `/privacy` (Joshua, 2026-10-22):
