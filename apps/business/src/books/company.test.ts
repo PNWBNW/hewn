@@ -86,6 +86,16 @@ describe("company file", () => {
     expect(JSON.parse(companyToJson(companyFromJson(JSON.stringify(old))))).toMatchObject({ username: "ana@example.com" });
   });
 
+  it("keeps personal events inside the file, and leaves them out when there are none", () => {
+    const dimensions = emptyDimensions();
+    const event = { id: "ab".repeat(16), title: "Site meeting", date: "2026-10-22", allDay: false, start: "09:00", end: "10:00", createdAt: "2026-10-22T15:00:00.000Z", updatedAt: "2026-10-22T15:00:00.000Z" };
+    const withEvents = companyToJson({ books, payroll, sales, dimensions, events: [event] });
+    expect(companyFromJson(withEvents).events).toEqual([event]);
+    expect(JSON.parse(companyToJson({ books, payroll, sales, dimensions, events: [] }))).not.toHaveProperty("events");
+    const broken = { ...JSON.parse(withEvents), events: JSON.stringify([{ ...event, link: "javascript:alert(1)" }]) };
+    expect(() => companyFromJson(JSON.stringify(broken))).toThrow("https");
+  });
+
   it("opens files saved before accounts with no username", () => {
     const old = JSON.stringify({ format: "pnw-company", version: 1, books: booksToJson(books), payroll: payrollToJson(payroll), sales: salesToJson(sales), role: "business" });
     expect(companyFromJson(old).username).toBeUndefined();

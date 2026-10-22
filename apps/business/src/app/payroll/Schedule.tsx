@@ -8,7 +8,9 @@
 // Edits are drafts in the vault; "Publish to the team" sends the week to
 // everyone at once (chain/PublishTeamSchedule.tsx), and each person confirms
 // their own days or asks for a change. Answers are read with the rest of the
-// team's letters, when the tab opens and on "Check now".
+// team's letters, when the tab opens and on "Check now". Personal events
+// (books/events.ts, EventPanel.tsx) sit on the calendar too: only this
+// business sees them, and nothing about them is sent.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -44,6 +46,7 @@ import {
   weekStatus,
   withDay,
 } from "@/books/schedule";
+import { EventPanel, type EventPanelState } from "@/books/EventPanel";
 import { TeamCalendar } from "@/books/TeamCalendar";
 import { type TeamEntry, calendarEntries, personWeek } from "@/books/team_schedule";
 import { businessCalendar, businessSources } from "@/books/team_sources";
@@ -59,8 +62,9 @@ type Checking = { state: "idle" } | { state: "running"; run: number } | { state:
 type Row = { worker: Worker; partiesKey: string | undefined; reachable: boolean; draft: ScheduleWeek | undefined; published: PublishedWeek | undefined; status: WeekStatus };
 
 export function Schedule() {
-  const { payroll, rail, mailbox, schedule } = useOpenBooks();
+  const { payroll, rail, mailbox, schedule, events } = useOpenBooks();
   const today = todayIso();
+  const [eventPanel, setEventPanel] = useState<EventPanelState>(null);
   const [view, setView] = useState<"calendar" | "week">("calendar");
   const [weekStart, setWeekStart] = useState(() => scheduleWeekOf(today));
   const [publishing, setPublishing] = useState(false);
@@ -135,24 +139,38 @@ export function Schedule() {
       {check.state === "running" && <MailboxCheck key={check.run} onFinished={finished} />}
 
       {view === "calendar" ? (
-        <TeamCalendar
-          entries={entries}
-          today={today}
-          dayFooter={(date) => (
-            <Button
-              variant="outline"
-              size="sm"
-              className="min-h-11 self-start sm:min-h-8"
-              onClick={() => {
-                setWeekStart(scheduleWeekOf(date));
-                setView("week");
-              }}
-            >
-              <PencilLine aria-hidden />
-              Edit this week
-            </Button>
-          )}
-        />
+        <>
+          <Button variant="outline" size="sm" className="min-h-11 self-start sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date: today })}>
+            <Plus aria-hidden />
+            New event
+          </Button>
+          <TeamCalendar
+            entries={entries}
+            today={today}
+            events={events}
+            onEvent={(event) => setEventPanel({ kind: "view", event })}
+            dayFooter={(date) => (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date })}>
+                  <Plus aria-hidden />
+                  New event
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="min-h-11 self-start sm:min-h-8"
+                  onClick={() => {
+                    setWeekStart(scheduleWeekOf(date));
+                    setView("week");
+                  }}
+                >
+                  <PencilLine aria-hidden />
+                  Edit this week
+                </Button>
+              </div>
+            )}
+          />
+        </>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -179,6 +197,7 @@ export function Schedule() {
           {team.length === 0 ? <p className="text-sm text-muted-foreground">Add someone to your team first.</p> : rows.map((r) => <PersonWeek key={`${r.worker.id}:${weekStart}`} row={r} weekStart={weekStart} />)}
         </>
       )}
+      <EventPanel state={eventPanel} onClose={() => setEventPanel(null)} />
     </div>
   );
 }

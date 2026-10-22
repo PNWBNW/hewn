@@ -5,12 +5,14 @@
 // published them, their own standing out (books/TeamCalendar.tsx); and "My
 // week", their own days with both layers, which they confirm or ask to change
 // (chain/work/AnswerSchedule.tsx). New weeks arrive with their messages, read
-// when the page opens and on "Check now".
+// when the page opens and on "Check now". Personal events (books/events.ts,
+// EventPanel.tsx) sit on the calendar too, before any job as well: only this
+// person sees them, and nothing about them is sent.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, RefreshCw } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ListChecks, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
@@ -19,6 +21,7 @@ import { useWork } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
 import { addDays, blockLabel, dayOf, onCallDays, scheduleDays, scheduleWeekOf, weekShiftMinutes } from "@/books/schedule";
+import { EventPanel, type EventPanelState } from "@/books/EventPanel";
 import { TeamCalendar } from "@/books/TeamCalendar";
 import { calendarEntries, personWeek } from "@/books/team_schedule";
 import { workCalendar, workSources } from "@/books/team_sources";
@@ -31,7 +34,8 @@ const MessagesCheck = dynamic(() => import("@/chain/work/MessagesCheck"), { ssr:
 const AnswerSchedule = dynamic(() => import("@/chain/work/AnswerSchedule"), { ssr: false, loading });
 
 export default function SchedulePage() {
-  const { work } = useWork();
+  const { work, events } = useWork();
+  const [eventPanel, setEventPanel] = useState<EventPanelState>(null);
   const agreements = activeAgreements(work);
   const [chosen, setChosen] = useState("");
   const agreement = agreements.find((a) => a.agreementId === chosen) ?? agreements[0];
@@ -60,12 +64,30 @@ export default function SchedulePage() {
     <div className="flex flex-col gap-6">
       <PageHeader title="Schedule" summary="Everyone's shifts and on-call days, as your employer published them. Confirm your own each week, or ask for a change." />
       {agreements.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Accept an offer first; your schedule shows here once your employer publishes it.{" "}
-          <Link href="/work/offers" className="underline underline-offset-4">
-            Offers
-          </Link>
-        </p>
+        <>
+          <p className="text-sm text-muted-foreground">
+            Accept an offer first; your schedule shows here once your employer publishes it.{" "}
+            <Link href="/work/offers" className="underline underline-offset-4">
+              Offers
+            </Link>
+          </p>
+          <Button variant="outline" size="sm" className="min-h-11 self-start sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date: today })}>
+            <Plus aria-hidden />
+            New event
+          </Button>
+          <TeamCalendar
+            entries={[]}
+            today={today}
+            events={events}
+            onEvent={(event) => setEventPanel({ kind: "view", event })}
+            dayFooter={(date) => (
+              <Button variant="outline" size="sm" className="min-h-11 self-start sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date })}>
+                <Plus aria-hidden />
+                New event
+              </Button>
+            )}
+          />
+        </>
       ) : (
         <>
           {agreements.length > 1 && (
@@ -116,25 +138,39 @@ export default function SchedulePage() {
           {run !== null && <MessagesCheck key={run} onFinished={finished} />}
 
           {shown === "calendar" ? (
-            <TeamCalendar
-              entries={entries}
-              today={today}
-              {...(sources?.who ? { highlight: sources.who } : {})}
-              dayFooter={(date) => (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-h-11 self-start sm:min-h-8"
-                  onClick={() => {
-                    setWeekStart(scheduleWeekOf(date));
-                    setView("mine");
-                  }}
-                >
-                  <ListChecks aria-hidden />
-                  My week
-                </Button>
-              )}
-            />
+            <>
+              <Button variant="outline" size="sm" className="min-h-11 self-start sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date: today })}>
+                <Plus aria-hidden />
+                New event
+              </Button>
+              <TeamCalendar
+                entries={entries}
+                today={today}
+                events={events}
+                onEvent={(event) => setEventPanel({ kind: "view", event })}
+                {...(sources?.who ? { highlight: sources.who } : {})}
+                dayFooter={(date) => (
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEventPanel({ kind: "new", date })}>
+                      <Plus aria-hidden />
+                      New event
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-h-11 self-start sm:min-h-8"
+                      onClick={() => {
+                        setWeekStart(scheduleWeekOf(date));
+                        setView("mine");
+                      }}
+                    >
+                      <ListChecks aria-hidden />
+                      My week
+                    </Button>
+                  </div>
+                )}
+              />
+            </>
           ) : (
           <>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -213,6 +249,7 @@ export default function SchedulePage() {
           )}
         </>
       )}
+      <EventPanel state={eventPanel} onClose={() => setEventPanel(null)} />
     </div>
   );
 }
