@@ -41,6 +41,7 @@ import {
   vaultIdFor,
 } from "./account";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
+import type { PersonalEvent } from "./events";
 import type { Jobs } from "./jobs";
 import type { Schedule } from "./schedule";
 import type { Mailbox } from "./mailbox";
@@ -124,6 +125,8 @@ type BooksContextValue = {
   role: Role;
   /** A person's own side (agreements, hours, paystubs), or null on a business's books. */
   work: Work | null;
+  /** Personal events on this account's own calendar (books/events.ts); empty before the first. */
+  events: readonly PersonalEvent[];
   create: (input: SetupInput) => Promise<void>;
   /** Log in with a username and passphrase. Throws a message that never says which of the two was wrong. */
   /** `stay` (default true) keeps the books open on this device for 24 hours, until Log out. */
@@ -157,6 +160,7 @@ type BooksContextValue = {
 };
 
 const BooksContext = createContext<BooksContextValue | null>(null);
+const NO_EVENTS: readonly PersonalEvent[] = [];
 
 export function useBooks(): BooksContextValue {
   const ctx = useContext(BooksContext);
@@ -494,6 +498,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       schedule: company?.schedule ?? null,
       role: company ? roleOf(company) : "business",
       work: company?.work ?? null,
+      events: company?.events ?? NO_EVENTS,
       create,
       unlock,
       chooseAccount,

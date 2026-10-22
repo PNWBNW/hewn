@@ -7,12 +7,14 @@
 // call, then the hours with each shift as a block (shifts that overlap sit
 // side by side; a night shift carries into the next morning). Both sides use
 // it, the business and everyone who works there; it only draws what it's
-// given (books/team_schedule.ts `calendarEntries`).
+// given (books/team_schedule.ts `calendarEntries`). Personal events
+// (books/events.ts) sit on it too, in their own colour, and open when tapped.
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
+import { type PersonalEvent, onDay as coversDay } from "./events";
 import { addDays, blockMinutes, overnight, scheduleWeekOf, timeLabel } from "./schedule";
 import type { CalendarEntry } from "./team_schedule";
 
@@ -24,6 +26,8 @@ const SHOWN = 3; // chips a day square shows before "N more"
 const HOUR_PX = 44;
 const DATE_PX = 28; // the day number's row in a square
 const LANE_PX = 18; // one on-call bar
+/** Personal events' colour: never a person's, so they can't be mistaken for someone's shift. */
+const EVENT_COLOR = "#64748b";
 
 const minutesOf = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 const monthOf = (date: string) => date.slice(0, 7);
@@ -43,9 +47,15 @@ export type TeamCalendarProps = {
   highlight?: string;
   /** Shown under the day view, for that day (the business's edit link, say). */
   dayFooter?: (date: string) => React.ReactNode;
+  /** This account's personal events. */
+  events?: readonly PersonalEvent[];
+  /** Opens one (its details, to edit). */
+  onEvent?: (event: PersonalEvent) => void;
 };
 
-export function TeamCalendar({ entries, today, highlight, dayFooter }: TeamCalendarProps) {
+const NONE: readonly PersonalEvent[] = [];
+
+export function TeamCalendar({ entries, today, highlight, dayFooter, events = NONE, onEvent }: TeamCalendarProps) {
   const [month, setMonth] = useState(monthOf(today));
   const [day, setDay] = useState<string | null>(null);
   // Colours by first appearance, so a person keeps theirs as the months change.
@@ -60,7 +70,7 @@ export function TeamCalendar({ entries, today, highlight, dayFooter }: TeamCalen
     return [...seen.entries()];
   }, [entries]);
 
-  if (day) return <DayView day={day} entries={entries} today={today} colorOf={colorOf} highlight={highlight} onDay={setDay} onBack={() => setDay(null)} footer={dayFooter?.(day)} />;
+  if (day) return <DayView day={day} entries={entries} events={events} onEvent={onEvent} today={today} colorOf={colorOf} highlight={highlight} onDay={setDay} onBack={() => setDay(null)} footer={dayFooter?.(day)} />;
 
   const [y, m] = month.split("-").map(Number) as [number, number];
   const first = `${month}-01`;
@@ -98,7 +108,7 @@ export function TeamCalendar({ entries, today, highlight, dayFooter }: TeamCalen
           ))}
         </div>
         {weeks.map((w) => (
-          <WeekRow key={w} weekStart={w} month={month} entries={entries} today={today} colorOf={colorOf} highlight={highlight} onDay={setDay} />
+          <WeekRow key={w} weekStart={w} month={month} entries={entries} events={events} today={today} colorOf={colorOf} highlight={highlight} onDay={setDay} />
         ))}
       </div>
       {people.length > 0 && (
@@ -112,7 +122,13 @@ export function TeamCalendar({ entries, today, highlight, dayFooter }: TeamCalen
           ))}
         </ul>
       )}
-      {entries.length === 0 && <p className="text-sm text-muted-foreground">Nothing published yet.</p>}
+      {events.length > 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span aria-hidden className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: EVENT_COLOR }} />
+          Your personal events (only you see them)
+        </p>
+      )}
+      {entries.length === 0 && events.length === 0 && <p className="text-sm text-muted-foreground">Nothing on the calendar yet.</p>}
     </div>
   );
 }
@@ -157,6 +173,7 @@ function WeekRow({
   weekStart,
   month,
   entries,
+  events,
   today,
   colorOf,
   highlight,
@@ -165,6 +182,7 @@ function WeekRow({
   weekStart: string;
   month: string;
   entries: readonly CalendarEntry[];
+  events: readonly PersonalEvent[];
   today: string;
   colorOf: (key: string) => string;
   highlight: string | undefined;
@@ -177,11 +195,15 @@ function WeekRow({
     <div className="relative grid grid-cols-7 border-b last:border-b-0">
       {days.map((d, i) => {
         const shifts = entries.filter((e) => e.kind === "shift" && e.date === d).sort((a, b) => (a.start! < b.start! ? -1 : 1));
+        // Personal events first: all-day ones on every day they cover, timed ones on the day they start.
+        const mine = events.filter((e) => (e.allDay ? coversDay(e, d) : e.date === d));
         const hiddenSpans = spans.filter((s) => s.lane >= SHOWN && s.start <= i && i <= s.end).length;
         const room = Math.max(0, SHOWN - shownLanes);
-        const more = Math.max(0, shifts.length - room) + hiddenSpans;
+        const shownEvents = mine.slice(0, room);
+        const shiftRoom = Math.max(0, room - shownEvents.length);
+        const more = Math.max(0, mine.length - shownEvents.length) + Math.max(0, shifts.length - shiftRoom) + hiddenSpans;
         const onCallCount = entries.filter((e) => e.kind === "onCall" && e.date === d).length;
-        const label = `${longDay(d)}: ${shifts.length} ${shifts.length === 1 ? "shift" : "shifts"}${onCallCount ? `, ${onCallCount} on call` : ""}`;
+        const label = `${longDay(d)}: ${shifts.length} ${shifts.length === 1 ? "shift" : "shifts"}${onCallCount ? `, ${onCallCount} on call` : ""}${mine.length ? `, ${mine.length} ${mine.length === 1 ? "event" : "events"}` : ""}`;
         return (
           <button
             key={d}
@@ -197,7 +219,12 @@ function WeekRow({
             </span>
             <span aria-hidden style={{ height: shownLanes * LANE_PX }} className="shrink-0" />
             <span className="flex flex-col gap-0.5 px-0.5 pb-1">
-              {shifts.slice(0, room).map((e, j) => (
+              {shownEvents.map((e) => (
+                <Chip key={e.id} color={EVENT_COLOR} draft={false} strong>
+                  {e.allDay ? e.title : `${short(e.start!)} ${e.title}`}
+                </Chip>
+              ))}
+              {shifts.slice(0, shiftRoom).map((e, j) => (
                 <Chip key={j} color={colorOf(e.key)} draft={!!e.draft} strong={e.key === highlight}>
                   {firstName(e.name)} {short(e.start!)}
                 </Chip>
@@ -236,18 +263,19 @@ function Chip({ color, draft, strong, children }: { color: string; draft: boolea
   );
 }
 
-type Block = { entry: CalendarEntry; from: number; to: number; carried: boolean };
+type Block = ({ entry: CalendarEntry; event?: undefined } | { event: PersonalEvent; entry?: undefined }) & { from: number; to: number; carried: boolean };
 
-/** The day's shifts as blocks in minutes from midnight; a night shift from the day before carries in from 0. */
-function blocksOf(day: string, entries: readonly CalendarEntry[]): (Block & { lane: number; lanes: number })[] {
+/** The day's shifts and timed events as blocks in minutes from midnight; anything running past midnight the day before carries in from 0. */
+function blocksOf(day: string, entries: readonly CalendarEntry[], events: readonly PersonalEvent[]): (Block & { lane: number; lanes: number })[] {
   const yesterday = addDays(day, -1);
   const blocks: Block[] = [];
-  for (const e of entries) {
-    if (e.kind !== "shift" || !e.start || !e.end) continue;
-    const b = { start: e.start, end: e.end };
-    if (e.date === day) blocks.push({ entry: e, from: minutesOf(e.start), to: overnight(b) ? 24 * 60 : minutesOf(e.end), carried: false });
-    else if (e.date === yesterday && overnight(b) && minutesOf(e.end) > 0) blocks.push({ entry: e, from: 0, to: minutesOf(e.end), carried: true });
-  }
+  const place = (date: string, start: string, end: string, item: { entry: CalendarEntry } | { event: PersonalEvent }) => {
+    const b = { start, end };
+    if (date === day) blocks.push({ ...item, from: minutesOf(start), to: overnight(b) ? 24 * 60 : minutesOf(end), carried: false });
+    else if (date === yesterday && overnight(b) && minutesOf(end) > 0) blocks.push({ ...item, from: 0, to: minutesOf(end), carried: true });
+  };
+  for (const e of entries) if (e.kind === "shift" && e.start && e.end) place(e.date, e.start, e.end, { entry: e });
+  for (const e of events) if (!e.allDay) place(e.date, e.start!, e.end!, { event: e });
   blocks.sort((a, b) => a.from - b.from || b.to - a.to);
   // Lanes for overlapping blocks; each cluster of overlaps shares its lane count.
   const out: (Block & { lane: number; lanes: number })[] = [];
@@ -274,6 +302,8 @@ function blocksOf(day: string, entries: readonly CalendarEntry[]): (Block & { la
 function DayView({
   day,
   entries,
+  events,
+  onEvent,
   today,
   colorOf,
   highlight,
@@ -283,6 +313,8 @@ function DayView({
 }: {
   day: string;
   entries: readonly CalendarEntry[];
+  events: readonly PersonalEvent[];
+  onEvent: ((event: PersonalEvent) => void) | undefined;
   today: string;
   colorOf: (key: string) => string;
   highlight: string | undefined;
@@ -292,7 +324,8 @@ function DayView({
 }) {
   const week = Array.from({ length: 7 }, (_, i) => addDays(scheduleWeekOf(day), i));
   const onCall = entries.filter((e) => e.kind === "onCall" && e.date === day);
-  const blocks = blocksOf(day, entries);
+  const allDay = events.filter((e) => e.allDay && coversDay(e, day));
+  const blocks = blocksOf(day, entries, events);
   const [y, m] = day.split("-").map(Number) as [number, number];
   return (
     <div className="flex flex-col gap-3">
@@ -321,8 +354,16 @@ function DayView({
       <div className="flex gap-2 border-y py-2">
         <span className="w-12 shrink-0 pt-0.5 text-xs text-muted-foreground">All day</span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {allDay.map((e) => (
+            <button key={e.id} type="button" className="text-left" onClick={() => onEvent?.(e)}>
+              <Chip color={EVENT_COLOR} draft={false} strong>
+                {e.title}
+                {e.endDate && e.endDate !== e.date && ` · until ${longDay(e.endDate)}`}
+              </Chip>
+            </button>
+          ))}
           {onCall.length === 0 ? (
-            <span className="text-xs text-muted-foreground">Nobody on call.</span>
+            allDay.length === 0 && <span className="text-xs text-muted-foreground">Nobody on call.</span>
           ) : (
             onCall.map((e) => (
               <Chip key={e.key} color={colorOf(e.key)} draft={!!e.draft} strong={e.key === highlight}>
@@ -341,6 +382,32 @@ function DayView({
         ))}
         <div className="absolute bottom-0 left-14 right-0 top-0">
           {blocks.map((b, i) => {
+            if (b.event) {
+              const ev = b.event;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onEvent?.(ev)}
+                  className="absolute overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-xs font-semibold"
+                  style={{
+                    top: (b.from / 60) * HOUR_PX,
+                    height: Math.max(((b.to - b.from) / 60) * HOUR_PX, 22),
+                    left: `${(b.lane / b.lanes) * 100}%`,
+                    width: `calc(${100 / b.lanes}% - 2px)`,
+                    backgroundColor: `${EVENT_COLOR}40`,
+                    borderLeftColor: EVENT_COLOR,
+                  }}
+                >
+                  <span className="block truncate">{ev.title}</span>
+                  <span className="block truncate text-[11px] font-normal text-muted-foreground">
+                    {timeLabel(ev.start!)} – {timeLabel(ev.end!)}
+                    {b.carried ? " (from the night before)" : overnight({ start: ev.start!, end: ev.end! }) ? " (next day)" : ""}
+                    {ev.place && ` · ${ev.place}`}
+                  </span>
+                </button>
+              );
+            }
             const e = b.entry;
             const color = colorOf(e.key);
             const height = Math.max(((b.to - b.from) / 60) * HOUR_PX, 22);

@@ -258,6 +258,20 @@ each person is tagged by a one-way value from the key they share with the busine
    agrees. An edit made before sending shows to the business with what it was. A questioned shift
    waits out of pay runs unless the business pays it as sent.
 6. Later: shift swaps between coworkers, availability, open shifts.
+7. Personal events (Joshua, 2026-10-22): anyone, business or worker, puts their own events on the
+   calendar (timed, past midnight, or all day across several days; where, an https meeting link,
+   notes). Kept only in the encrypted books: nothing is sent, nothing goes on chain, and there is
+   no export to a phone calendar (events live only in the app).
+8. Shared events (Joshua, 2026-10-22, next): invites and answers as sealed letters, the guest list
+   visible to guests. A business invites its own team; a worker invites coworkers and their
+   employer. More than 8 guests go out in batches, one approval per 8.
+9. Business-to-business agreements and pass-through invites (Joshua, 2026-10-22, after 8): a typed
+   agreement between two businesses (subcontractor, general contractor, supplier or vendor,
+   services or consulting, joint venture, referral partnership, or a custom title) with written
+   terms that may run past one letter, an optional scope note and dates, approved by both sides in
+   Shield, letters only, no new program. Only then can one business invite the other, and the
+   partner passes the invite on to its own workers; no business invites another's workers. Guests
+   from outside the app and public events: later.
 
 **Exit criteria**
 
@@ -266,6 +280,7 @@ each person is tagged by a one-way value from the key they share with the busine
 - [x] A week published to the team shows the same shifts and on-call days on every member's calendar, and a republish that leaves a person's days alone keeps their confirmation (2026-10-20)
 - [x] A shift questioned by the business changes only after the person agrees, and both sides then show the agreed times (2026-10-20)
 - [ ] A shift clocked in 20 minutes late shows as late on the business's timecard
+- [x] A personal event (timed, past midnight, or all day) is kept in the encrypted books, reads back when they reopen, shows on the days it touches on that account's calendar, and is never sent (2026-10-22)
 
 ---
 

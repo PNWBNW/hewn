@@ -3820,3 +3820,25 @@ Joshua's wording, reviewed in chat before building. Testnet keeps it honest; the
 - `BUILD_PLAN.md`: the decision recorded; the old "mailbox moves to R2" decision marked moot.
 
 Tests: app 590/590 (+4); every package passes (988); both builds pass; `pnpm audit` clean.
+
+## 2026-10-22: personal events
+
+Joshua: anyone should be able to put an event on their calendar without inviting anyone, and
+events live only in the app (no phone calendar export). The first of three calendar steps; shared
+events with invites come next, then agreements between businesses (`BUILD_PLAN.md` Phase 9, items
+7 to 9).
+- **The model** (`books/events.ts`, pure): an event is timed (a date, a start and an end; an end at
+  or before the start runs past midnight, as a night shift does) or all day (a first and a last
+  day, up to a year). It may carry where (free text), an online meeting link (https only, so
+  nothing else hides behind it) and notes. Checked when saved and when read back; at most 2,000
+  per set of books.
+- **Where it lives:** inside the encrypted company file (`company.ts` `events`), so it is in the
+  vault and in a backup, and nowhere else. Nothing is sent and nothing needs an approval.
+- **On screen:** "New event" on the calendar of both Schedule pages (the business's Payroll →
+  Schedule and the worker's Schedule) and in each day's panel. Events show on the month's day
+  squares and in a day's hours in slate, apart from people's colours; all-day ones in their own
+  row. Tap one to see it, edit it or delete it (`books/EventPanel.tsx`). A worker without a job
+  yet still gets the calendar, for their own events.
+
+Tests: app 600/600 (+10: nine for events, one for the company file); every package passes (998);
+both builds pass.
