@@ -3,7 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { MailboxError, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import { validateIdentity } from "../books/directory";
-import { type Thread, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
+import { COWORKER_TYPES, type Thread, type ThreadBody, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
+import { emptyWork, updateCoworker } from "../books/work";
 import { COWORKER_KINDS, coworkerAccepts, mySide, newIdentity, pairKey, safetyCode } from "./coworkers";
 import { postToThread, readThread } from "./thread";
 
@@ -84,5 +85,39 @@ describe("a coworker conversation through the mailbox", () => {
     expect(r.skipped).toEqual([{ seq: 1, message: expect.stringMatching(/doesn't belong/) }]);
     // A business-and-person thread under the same key would use other slots entirely.
     expect(COWORKER_KINDS.business).not.toBe("thread_b");
+  });
+});
+
+describe("what a coworker sends, into the vault", () => {
+  it("keeps every kind the reader takes: a report notice, an event's key and an answer, group chats", async () => {
+    const [ana, bo] = await Promise.all([newIdentity("Ana"), newIdentity("Bo")]);
+    const key = await pairKey(ana, bo.publicKey);
+    const box = fakeMailbox();
+    const anaSide = mySide(ana.publicKey, bo.publicKey);
+    const bodies: ThreadBody[] = [
+      { type: "text", text: "Lunch?" },
+      { type: "report_notice", messageId: "1".repeat(32), category: "spam" },
+      { type: "event_key", circleId: "f".repeat(16), epoch: 0, key: "c3".repeat(32) },
+      { type: "event_answer", eventId: "2".repeat(32), rev: 1, title: "Site walkthrough", answer: "yes", note: "" },
+      { type: "group", groupId: "a".repeat(16), name: "Crew", admin: ana.publicKey, members: [{ name: "Ana", publicKey: ana.publicKey }, { name: "Bo", publicKey: bo.publicKey }] },
+      { type: "group_text", groupId: "a".repeat(16), text: "Hi all" },
+    ];
+    for (const [i, body] of bodies.entries()) await postToThread({ client: box, partiesKey: key, from: anaSide, nextOut: i, body, kinds: COWORKER_KINDS });
+    // Bo's vault: each one goes through the same update the message check uses, which checks the whole work file.
+    let work = emptyWork("Bo");
+    const r = await readThread({
+      client: box,
+      partiesKey: key,
+      reader: mySide(bo.publicKey, ana.publicKey),
+      thread: undefined,
+      kinds: COWORKER_KINDS,
+      accept: coworkerAccepts,
+      store: async (item) => void (work = updateCoworker(work, ana.publicKey, { businessKey: "b2".repeat(32), name: "Ana" }, (t) => ({ ...t, ...addToThread(t, item) }))),
+      skip: async () => {},
+    });
+    expect(r.failed).toBeUndefined();
+    expect(work.coworkers?.[ana.publicKey]?.items.map((i) => i.body.type)).toEqual(bodies.map((b) => b.type));
+    // Nothing the reader takes is something the vault refuses.
+    expect(COWORKER_TYPES.every((t) => coworkerAccepts({ type: t } as ThreadBody))).toBe(true);
   });
 });

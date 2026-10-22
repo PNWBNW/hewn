@@ -162,6 +162,14 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
 
 /** The kinds that only travel between coworkers. */
 export const GROUP_TYPES: readonly ThreadBody["type"][] = ["group", "group_text", "group_leave"];
+
+/**
+ * Everything that travels between two coworkers: plain messages, report notices, event invitations'
+ * keys and answers, and group chats; nothing a business or an offer sends. The one list both the
+ * reader (chain/coworkers.ts `coworkerAccepts`) and the vault (books/directory.ts) go by, so what
+ * arrives can always be kept.
+ */
+export const COWORKER_TYPES: readonly ThreadBody["type"][] = ["text", "report_notice", "event_key", "event_answer", ...GROUP_TYPES];
 export const MAX_GROUP = 25;
 
 /** A coworker's public key: an uncompressed P-256 point, hex. */

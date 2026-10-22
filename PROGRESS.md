@@ -3901,3 +3901,37 @@ coworkers at one job. Letters only, no new Leo program.
 Tests: app 627/627 (+27: the model, the letters end to end through a fake chain including a forged
 post and a long gap, who can be invited, the company file, the calendar drawing); every package
 passes; both builds pass.
+
+## 2026-10-22: security review, and the first fix (coworker conversations)
+
+After two rounds of dependency advisories, Joshua asked for a read-only review of our own code
+before building more. Five reviewers (server and web surface, vault and crypto, untrusted input,
+wallet and payments, the Leo programs) plus CI and secrets. Nothing leaked and no secret was ever
+committed in any of the three repositories' history; the CSP, the vault's crypto, offer acceptance
+and amounts held up. What needs work, and Joshua's calls:
+- **Fix now, one PR each (go-ahead given):** (1) coworker conversations refused event keys,
+  answers and report notices (this PR); (2) a paycheck can be paid twice when its outcome is
+  unknown (an explorer error after Shield accepted, no answer in time, the page closed mid-pay,
+  two tabs); (3) letters are trusted on their key alone: any team member can forge the team
+  schedule or an announcement, an application can claim any name, a group member can take over a
+  group's setup; (4) a registered name's text isn't checked against its hash, so anyone can show
+  as another business; (5) pay runs include people who haven't accepted their offer.
+- **New Leo, a Fable session:** who works for whom is readable on chain (`BUILD_PLAN.md`
+  decisions). **Pinned for later:** no upgradable programs on mainnet. **Accepted on testnet:**
+  name squatting.
+- **Hardening, design reviewed with Joshua before any PR:** a cap on what a letter unpacks to, a
+  cap on a backup's KDF rounds, the traction count's cache key and floor, Dependabot's 7-day
+  cooldown, the threat model's claims about the Shield relay, "stay logged in" and page views.
+- **For Joshua, in GitHub settings (`pnw_mvp_v2`):** restrict the `testnet-staging` environment to
+  `main` with a required reviewer; drop the `work` push trigger that hands the admin key to
+  whoever pushes there; the deploy and upgrade jobs build the newest Leo, unchecked, beside the key.
+
+**This PR: coworker conversations keep what they accept.** The reader took report notices (and,
+since #140, an event's key and answers) from a coworker, but the vault's check on a coworker
+conversation allowed only plain messages and group chats. Keeping one threw, the message check
+stopped at that coworker every time, and inviting a coworker failed to save. Now one list,
+`COWORKER_TYPES` (`books/thread.ts`), is what both the reader and the vault go by. A new test sends
+every kind through the reader into the vault the way the message check does; it fails without
+the fix.
+
+Tests: app 628/628 (+1); every package passes; both builds pass; `pnpm audit` clean.
