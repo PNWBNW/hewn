@@ -34,6 +34,9 @@ No server, no database. ✅ Structural, from the architecture.
   from the passphrase; associated data binds each ciphertext to its vault and role. ✅
 - Backups are the sealed record itself; nothing is decrypted to write one. Restore proves the
   passphrase and re-verifies the hash chain before replacing anything. ✅
+- A backup names its own PBKDF2 rounds, so a doctored one could ask for billions and keep the
+  device busy for hours. A record asking for more than ten times what this app writes is refused
+  before any round runs (`MAX_KDF_ITERATIONS`, 2026-10-22). ✅
 - Log out drops the key and plaintext from memory. Without "stay logged in": auto-lock after 15
   idle minutes, and any reload locks. ✅
 - ⚠️ **Stay logged in** (ticked by default at login, Joshua 2026-10-15): the open data key is also
