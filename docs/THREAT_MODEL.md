@@ -152,6 +152,9 @@ The highest risk for a browser app.
   shows it as not confirmed until the person checks Shield's activity and chooses to pay again.
   An explorer that can't be reached only delays confirming. Two tabs on the same books can't both
   write: a write refuses when another tab wrote since (`books/vault_write.ts`). ✅
+- **Paying the wrong account** (2026-10-22): a pay run pays only people whose agreement both sides
+  approved (`linked`); an offer not yet accepted carries an account found by a name lookup, not one
+  they signed for, so it can't be paid (`books/rail.ts` `payableLinks`). ✅
 
 ### T6 — Privacy leak through the chain (anchored/settled modes)
 - Public mappings hold only hashes, commitments, block heights. ✅ (existing programs) 🔜 `gl_core`

@@ -24,7 +24,7 @@ import { AccountSelect, Money, todayIso } from "@/books/display";
 import { formatMinutes } from "@/books/hours";
 import { hoursChanges, openShifts, within } from "@/books/hours_change";
 import { emptyMailbox, threadFor } from "@/books/mailbox";
-import { linkFor } from "@/books/rail";
+import { linkFor, payableLinks } from "@/books/rail";
 import { emptySchedule, markOnCallPaid } from "@/books/schedule";
 import { unpaidOnCallDates } from "@/books/team_schedule";
 import { businessSources } from "@/books/team_sources";
@@ -51,12 +51,14 @@ type Row = { include: boolean; hours: string; overtimeHours?: string; project?: 
 /** The "Paid from" choice that isn't a bank account: the business's own rail balance. */
 const RAIL = "rail";
 const LINK_FIRST = "Link on the rail first: Settings → Import team";
+const NOT_ACCEPTED = "Can't be paid on the rail until they accept their offer";
 
 export default function RunPayrollPage() {
   const { books, payroll, dimensions, rail, mailbox, schedule, updateCompany } = useOpenBooks();
   const router = useRouter();
   const team = payroll.workers.filter((w) => w.active);
-  const linked = useMemo(() => new Set(rail?.links.map((l) => l.workerId) ?? []), [rail]);
+  const linked = useMemo(() => new Set(payableLinks(rail).keys()), [rail]);
+  const offered = useMemo(() => new Set(rail?.links.filter((l) => l.status === "offered").map((l) => l.workerId) ?? []), [rail]);
   const today = todayIso();
   const [payDate, setPayDate] = useState(today);
   const [periodEnd, setPeriodEnd] = useState(today);
@@ -101,7 +103,7 @@ export default function RunPayrollPage() {
         const more = { ...(callout ? { callout } : {}), ...(onCall ? { onCall } : {}) };
         const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules, callout, onCall, onCallDates, more, questioned };
         // Paying on the rail needs an account for everyone included; a row without one stays out.
-        if (onRail && !linked.has(w.id)) return { ...base, row: { ...row, include: false }, paycheck: null, problem: LINK_FIRST };
+        if (onRail && !linked.has(w.id)) return { ...base, row: { ...row, include: false }, paycheck: null, problem: offered.has(w.id) ? NOT_ACCEPTED : LINK_FIRST };
         if (!row.include) return { ...base, row, paycheck: null, problem: null };
         try {
           const hours = w.payType === "hourly" ? (hoursValue.trim() ? Number(hoursValue) : undefined) : undefined;
@@ -115,7 +117,7 @@ export default function RunPayrollPage() {
           return { ...base, row, paycheck: null, problem: errorMessage(e) };
         }
       }),
-    [team, rows, payroll, payDate, onRail, linked, mailbox, periodStart, periodEnd, rail],
+    [team, rows, payroll, payDate, onRail, linked, offered, mailbox, periodStart, periodEnd, rail],
   );
 
   const included = preview.filter((p) => p.row.include);
@@ -253,7 +255,7 @@ export default function RunPayrollPage() {
                   <input
                     type="checkbox"
                     checked={row.include}
-                    disabled={problem === LINK_FIRST}
+                    disabled={problem === LINK_FIRST || problem === NOT_ACCEPTED}
                     onChange={(e) => setRows((r) => ({ ...r, [worker.id]: { ...row, include: e.target.checked } }))}
                     className="size-4 accent-[var(--hewn-green)]"
                   />
@@ -354,7 +356,7 @@ export default function RunPayrollPage() {
                   className="mt-3 sm:grid-cols-2"
                 />
               )}
-              {(row.include || problem === LINK_FIRST) && problem && <p className="mt-2 text-xs text-destructive">{problem}</p>}
+              {(row.include || problem === LINK_FIRST || problem === NOT_ACCEPTED) && problem && <p className="mt-2 text-xs text-destructive">{problem}</p>}
               {paycheck && (
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t pt-3 text-sm sm:grid-cols-5">
                   <Figure label="Gross" cents={paycheck.gross} />

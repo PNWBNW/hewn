@@ -37,7 +37,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money } from "@/books/display";
-import { shortAddress } from "@/books/rail";
+import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { useShield } from "./shield";
 import { usePaystubDelivery } from "./usePaystubDelivery";
@@ -192,7 +192,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const short = balance !== null && balance < centsToMinor(totalDue);
   const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
-  const links = new Map(rail.links.map((l) => [l.workerId, l.address]));
+  // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
+  const links = payableLinks(rail);
   const unlinked = due.filter((p) => !links.has(p.workerId));
 
   /** The person checked Shield's activity and found no payment: free this paycheck to be paid again on the next run. */
@@ -344,8 +345,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           {short && <p className="text-xs text-money-negative">Not enough on the rail for this run. Add funds to the account, then try again.</p>}
           {unlinked.length > 0 && (
             <p className="text-xs text-money-negative">
-              {unlinked.map((p) => names.get(p.workerId) ?? p.workerId).join(", ")} {unlinked.length === 1 ? "has" : "have"} no account on the rail yet: Settings →
-              Import team.
+              {unlinked.map((p) => names.get(p.workerId) ?? p.workerId).join(", ")} can&apos;t be paid on the rail yet: they need an accepted offer (Settings →
+              Import team, or Jobs → Offers).
             </p>
           )}
 

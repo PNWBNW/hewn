@@ -8,6 +8,7 @@ import {
   isRailAddress,
   linkFor,
   linkStatus,
+  payableLinks,
   markLinked,
   markOfferReceived,
   nextSeq,
@@ -188,6 +189,12 @@ describe("typed, offered and linked team members", () => {
     expect(linkStatus({ ...rail, links: [offered] }, "worker", "wkr-1")).toBe("offered");
     expect(linkStatus(rail, "worker", "wkr-1")).toBe("linked");
     expect(linkStatus(rail, "worker", "wkr-9")).toBe("typed");
+  });
+
+  it("pays only people whose agreement both sides approved, never an offer not yet accepted", () => {
+    const other: RailLink = { ...offered, workerId: "wkr-2", agreementId: "02".repeat(32), partiesKey: KEY_B, address: "aleo1" + "y".repeat(58) };
+    expect([...payableLinks({ ...rail, links: [link, other] })]).toEqual([["wkr-1", link.address]]);
+    expect(payableLinks(null).size).toBe(0);
   });
 
   it("becomes linked when the other side approves, keeping everything else", () => {

@@ -4017,3 +4017,22 @@ Tests: records +2 (the check, and the registrar read refusing "acme" against ano
 Cyrillic look-alike, upper case); app +1 (an account showing a name it no longer owns; the
 application test now also covers one posing as another name). Every package passes (1042); both
 builds pass; `pnpm audit` clean.
+
+## 2026-10-22: pay runs pay only people who accepted (fix 5 of the security review)
+
+Run payroll and the pay screen took every link on the rail, including `offered` ones: someone
+sent an offer but who hadn't accepted it, whose account came from a name lookup rather than from
+an agreement they signed. The worker form already said only linked people "can be paid on the
+rail".
+- `books/rail.ts` `payableLinks`: team member → account, for `linked` links only. Run payroll uses
+  it (an offered person's row says "Can't be paid on the rail until they accept their offer" and
+  can't be ticked), and so does the pay screen (the queue refuses a payee with no payable account
+  before anything is signed).
+- `docs/THREAT_MODEL.md` T5.
+
+Tests: app +1 (an offered link isn't payable). Every package passes (1043); both builds pass;
+`pnpm audit` clean.
+
+That closes the five fixes Joshua approved from the security review (#141 to this one). Next, as
+agreed: the hardening design for his review before any PR, and planning the private-agreements
+Leo work (a Fable session).
