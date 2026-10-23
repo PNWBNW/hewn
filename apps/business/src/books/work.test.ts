@@ -279,6 +279,13 @@ describe("coworkers' names as the chain confirmed them", () => {
     expect(forgetConfirmedName(gone, ana)).toBe(gone);
   });
 
+  it("keep a business's as a business's", () => {
+    const w = keepConfirmedName(withAgreement(), ana, "dayco", at, "business");
+    expect(w.confirmedNames?.[ana]).toEqual({ name: "dayco", checkedAt: at, kind: "business" });
+    expect(workFromJson(workToJson(w))).toEqual(w);
+    expect(() => workFromJson(workToJson({ ...w, confirmedNames: { [ana]: { name: "dayco", checkedAt: at, kind: "robot" } } } as unknown as Work))).toThrow();
+  });
+
   it("hold only registered names under accounts", () => {
     const w = withAgreement();
     expect(() => keepConfirmedName(w, "not-an-account", "ana_w", at)).toThrow(WorkError);

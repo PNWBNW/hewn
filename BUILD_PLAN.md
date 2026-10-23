@@ -504,8 +504,10 @@ handling); likely a Fable session for the key agreement.
   to write or paste into (2026-10-16). Offers sent before keep their files.
 - [x] Pay (type, rate, how often), employment type, hours a week and start date are boxes of their
   own in an offer, each negotiable in a counter-offer (2026-10-16).
-- [x] Letters on chain rotate to a new random key at least every 24 hours; old keys stay in the
-  vault so people keep their history (2026-10-16). Built with the letters (`docs/LETTERS.md`).
+- [ ] Letters on chain rotate to a new random key at least every 24 hours; old keys stay in the
+  vault so people keep their history (2026-10-16). **Not built** (found 2026-10-23: every
+  conversation keeps one key), and it may not be used at all (Joshua, 2026-10-23); if it is, by
+  key exchange rather than by sending the next key inside the old one.
 - [x] Hiring starts with the offer: a business sends a job offer to anyone by their registered name,
   and they join the team when they accept (2026-10-16). Team members never paid can be removed.
 - [x] ~~Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
@@ -540,6 +542,11 @@ handling); likely a Fable session for the key agreement.
   twin-curve way, not a longer safety code (Joshua, 2026-10-23): letters are sealed to accounts,
   so the business could only sit in the middle by listing an account of its own, and the chain
   would name that account's owner. The 30-digit code stays as a second check.
+- [ ] Every conversation twin-curve (Joshua, 2026-10-23, in this order): (1) confirmed names on
+  announcements and invitations (done); (2) a P-256 handshake in the business ↔ team member
+  conversation, so a view key alone no longer opens paystubs, announcement keys or business
+  invitations (design for review first); (3) rotation by handshake, if wanted; (4) v5 agreements
+  carry the two public halves (Leo, Fable); (5) optional: a second lock on reports to Hewn.
 - [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
   mainnet's names (Joshua, 2026-10-22).
 - [x] Terms of use and a privacy page, public at `/terms` and `/privacy` (Joshua, 2026-10-22):

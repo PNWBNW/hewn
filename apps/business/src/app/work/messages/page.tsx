@@ -26,6 +26,7 @@ const MessagesCheck = dynamic(() => import("@/chain/work/MessagesCheck"), { ssr:
 const Directory = dynamic(() => import("@/chain/work/Directory"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const GroupChat = dynamic(() => import("@/chain/work/GroupChat"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const CoworkerChat = dynamic(() => import("@/chain/work/CoworkerChat"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
+const ConfirmedFrom = dynamic(() => import("@/chain/confirmed_names"), { ssr: false });
 
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
@@ -118,6 +119,7 @@ function Messages() {
             <Megaphone aria-hidden className="size-4" /> {channel.name}
           </h2>
           <p className="text-xs text-muted-foreground">Announcements from {from?.name ?? "the business"}</p>
+          <ConfirmedFrom account={work.agreements.find((a) => a.partiesKey === channel.partiesKey)?.employerAddress} expect="business" />
         </div>
         {channel.left && <p className="text-xs text-muted-foreground">You&apos;re no longer in this channel; what&apos;s here stays on your device.</p>}
         <ol className="flex flex-col gap-3">

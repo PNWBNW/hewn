@@ -163,7 +163,7 @@ Results: [#155](https://github.com/PNWBNW/hewn/issues/155)
 Results: [#156](https://github.com/PNWBNW/hewn/issues/156)
 
 - **ANN-1 Post.** Business A makes a channel, adds Workers 1 and 2, and posts. *Expect:* both
-  receive it.
+  receive it, and the channel shows Business A's registered name "· confirmed on chain".
 - **ANN-2 Team schedule.** Publish a week's schedule to a big team. *Expect:* it arrives in parts
   and shows only once every part is in.
 - **ANN-3 Remove someone.** Take Worker 2 out, then post. *Expect:* Worker 2 can't read the new
@@ -176,7 +176,8 @@ Results: [#156](https://github.com/PNWBNW/hewn/issues/156)
 
 Results: [#157](https://github.com/PNWBNW/hewn/issues/157)
 
-- **EVT-1 Business invites.** Business A invites its team. Workers answer Going, Maybe or No.
+- **EVT-1 Business invites.** Business A invites its team. Each invitation shows the organizer's
+  registered name "· confirmed on chain". Workers answer Going, Maybe or No.
   *Expect:* A sees the answers. Change the time: *expect* everyone is asked again.
 - **EVT-2 Coworker invites.** Worker 1 invites Worker 2. *Expect:* the same.
 - **EVT-3 Many guests.** A guest list too long for one letter. *Expect:* every guest gets the

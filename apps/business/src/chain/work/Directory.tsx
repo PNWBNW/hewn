@@ -24,7 +24,7 @@ import { fanOut, keepSent } from "../groups";
 import { LetterBox } from "../letters";
 import { postToThread } from "../thread";
 import { LettersGate, useCoworkerLetters } from "./coworker_letters";
-import { ConfirmedNameLine, useCoworkerNames } from "./coworker_names";
+import { ConfirmedNameLine, useConfirmedNames } from "../confirmed_names";
 
 export type DirectoryProps = { businessKey: string; businessName: string; agreementRef: string };
 
@@ -48,7 +48,7 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const coworkers = coworkersFrom(workThread(work, businessKey)).filter((c) => c.publicKey !== identity?.publicKey);
-  const chainNames = useCoworkerNames(identity?.listed ? coworkers.map((c) => c.address) : []);
+  const chainNames = useConfirmedNames(identity?.listed ? coworkers.map((c) => c.address) : [], "person");
 
   async function join() {
     setBusy(true);
