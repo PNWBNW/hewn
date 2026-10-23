@@ -11,6 +11,13 @@
 // public keys and never sees it. Because the business relays the keys, it
 // could swap one; a safety code, compared in person, rules that out.
 //
+// Confirmed names (Joshua, 2026-10-23, the twin-curve way): letters are sealed
+// to an account, so a swapped key alone reads nothing; the business would have
+// to list an account of its own for a coworker. The app shows, next to each
+// coworker, the registered name the chain says owns their account
+// (chain/coworker_names.ts), and the business can't make that read as someone
+// else's. Kept here a day at a time, so an account is looked up once a day.
+//
 // Messages between coworkers go as letters on chain, so each entry also
 // carries the person's account on the network (Joshua, 2026-10-16: shared on opting in).
 // The business adds it from its own link to that person (the account the
@@ -150,4 +157,27 @@ export function validateCoworkerThread(raw: unknown): CoworkerThread {
     out.verifiedAt = raw.verifiedAt;
   }
   return out;
+}
+
+/** A coworker's registered name, as the chain confirmed it for their account, and when. */
+export type ConfirmedName = { name: string; checkedAt: string };
+
+/** How long a confirmed name is shown before the chain is asked again. */
+export const CONFIRM_AGAIN_MS = 24 * 60 * 60 * 1000;
+/** The most accounts kept; past it the longest unchecked go first. */
+export const MAX_CONFIRMED_NAMES = 2_000;
+const REGISTERED_NAME = /^[a-z0-9_]{3,16}$/;
+
+export function validateConfirmedName(raw: unknown): ConfirmedName {
+  if (!isObject(raw)) throw new DirectoryError("A confirmed name must be an object");
+  if (typeof raw.name !== "string" || !REGISTERED_NAME.test(raw.name)) throw new DirectoryError("A confirmed name is a registered name");
+  if (!isStamp(raw.checkedAt)) throw new DirectoryError("A confirmed name needs the time it was checked");
+  return { name: raw.name, checkedAt: raw.checkedAt };
+}
+
+/** Whether to ask the chain again: never asked, a day old, or stamped in the future. */
+export function confirmAgainDue(kept: ConfirmedName | undefined, now: number): boolean {
+  if (!kept) return true;
+  const at = Date.parse(kept.checkedAt);
+  return !Number.isFinite(at) || at > now || now - at >= CONFIRM_AGAIN_MS;
 }

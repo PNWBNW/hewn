@@ -24,6 +24,7 @@ import { fanOut, keepSent } from "../groups";
 import { LetterBox } from "../letters";
 import { postToThread } from "../thread";
 import { LettersGate, useCoworkerLetters } from "./coworker_letters";
+import { ConfirmedNameLine, useCoworkerNames } from "./coworker_names";
 
 export type DirectoryProps = { businessKey: string; businessName: string; agreementRef: string };
 
@@ -47,6 +48,7 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const coworkers = coworkersFrom(workThread(work, businessKey)).filter((c) => c.publicKey !== identity?.publicKey);
+  const chainNames = useCoworkerNames(identity?.listed ? coworkers.map((c) => c.address) : []);
 
   async function join() {
     setBusy(true);
@@ -104,6 +106,7 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">
         Coworkers who opted in see you as <span className="font-medium">{identity.name}</span>. The list updates when {businessName} next checks their messages.
+        Under each name is the registered name the network confirms for their account, which {businessName} can&apos;t fake.
       </p>
       {coworkers.length === 0 ? (
         <p className="text-sm text-muted-foreground">No one else here yet.</p>
@@ -114,7 +117,10 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
             return (
               <li key={c.publicKey}>
                 <Link href={`/work/messages?coworker=${coworkerTag(c.publicKey)}&at=${agreementRef}`} className="flex min-h-12 items-center gap-3 py-2">
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{c.name}</span>
+                    {c.address ? <ConfirmedNameLine shown={chainNames.get(c.address)} /> : <span className="block truncate text-xs text-muted-foreground">No account listed yet</span>}
+                  </span>
                   {work.coworkers?.[c.publicKey]?.verifiedAt && <span className="text-xs text-muted-foreground">Checked</span>}
                   {unread > 0 && (
                     <span className="rounded-full bg-primary px-2 text-xs font-medium text-primary-foreground" aria-label={`${unread} unread`}>

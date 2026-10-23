@@ -27,7 +27,10 @@ import {
   workToJson,
   confirmShift,
   validatePunch,
+  keepConfirmedName,
+  forgetConfirmedName,
 } from "./work";
+import { CONFIRM_AGAIN_MS, MAX_CONFIRMED_NAMES, confirmAgainDue } from "./directory";
 
 const EMPLOYER = "aleo1" + "k".repeat(58);
 const KEY = "ab".repeat(32);
@@ -260,6 +263,44 @@ describe("coworkers in the person's vault", () => {
     expect(w.coworkers?.[theirs]).toMatchObject({ businessKey: biz, name: "Bo", nextOut: 1 });
     expect(workFromJson(workToJson(w))).toEqual(w);
     expect(() => setIdentity(w, "nope", id)).toThrow();
+  });
+});
+
+describe("coworkers' names as the chain confirmed them", () => {
+  const ana = "aleo1" + "a".repeat(58);
+  const at = "2026-10-23T09:00:00.000Z";
+
+  it("are kept by account through a save, and forgotten", () => {
+    const w = keepConfirmedName(withAgreement(), ana, "ana_w", at);
+    expect(w.confirmedNames).toEqual({ [ana]: { name: "ana_w", checkedAt: at } });
+    expect(workFromJson(workToJson(w))).toEqual(w);
+    const gone = forgetConfirmedName(w, ana);
+    expect(gone.confirmedNames).toBeUndefined();
+    expect(forgetConfirmedName(gone, ana)).toBe(gone);
+  });
+
+  it("hold only registered names under accounts", () => {
+    const w = withAgreement();
+    expect(() => keepConfirmedName(w, "not-an-account", "ana_w", at)).toThrow(WorkError);
+    for (const bad of ["Ana", "an", "ana w", "a".repeat(17), ""]) expect(() => keepConfirmedName(w, ana, bad, at), bad).toThrow(WorkError);
+    expect(() => keepConfirmedName(w, ana, "ana_w", "yesterday")).toThrow(WorkError);
+  });
+
+  it("are asked about again after a day, or when never asked, or stamped in the future", () => {
+    const now = Date.parse(at);
+    expect(confirmAgainDue(undefined, now)).toBe(true);
+    expect(confirmAgainDue({ name: "ana_w", checkedAt: at }, now + CONFIRM_AGAIN_MS - 1)).toBe(false);
+    expect(confirmAgainDue({ name: "ana_w", checkedAt: at }, now + CONFIRM_AGAIN_MS)).toBe(true);
+    expect(confirmAgainDue({ name: "ana_w", checkedAt: at }, now - 1)).toBe(true);
+  });
+
+  it("drop the longest unchecked past the limit, never the one just kept", () => {
+    const account = (i: number) => "aleo1" + String(i).padStart(58, "x");
+    const names = Object.fromEntries(Array.from({ length: MAX_CONFIRMED_NAMES }, (_, i) => [account(i), { name: "ana_w", checkedAt: new Date(Date.parse(at) + i * 1000).toISOString() }]));
+    const w = keepConfirmedName({ ...withAgreement(), confirmedNames: names }, ana, "new_one", "2026-10-01T00:00:00.000Z");
+    expect(Object.keys(w.confirmedNames!)).toHaveLength(MAX_CONFIRMED_NAMES);
+    expect(w.confirmedNames![ana]?.name).toBe("new_one");
+    expect(w.confirmedNames![account(0)]).toBeUndefined();
   });
 });
 

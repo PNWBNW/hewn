@@ -421,7 +421,8 @@ reached. Built on the mailbox (sealed envelopes, lookup hashes, keep-until days,
 - **Team member ↔ team member:** private from the business too. Coworkers have a legal right to
   discuss pay and conditions with each other (NLRA in the US), so the business must not hold
   these keys. Each person makes a key pair in their own vault; the business only relays the
-  public halves, and a short safety code lets two people check nothing was swapped.
+  public halves. Each coworker's registered name is confirmed on chain for the account their
+  letters go to (2026-10-23), and a short safety code is a second check in person.
 - **Opt-in directory:** team members appear to each other only if they choose to; the business
   shares the list, never an address someone didn't agree to show.
 
@@ -535,6 +536,10 @@ handling); likely a Fable session for the key agreement.
   ever built, at 1 MB, checked when sending too, so nothing Hewn can send is cut short). Waiting
   for more data: the traction page's floor (its totals and the hidden-country count can single
   out a country's only visitor; anyone can add visits; bots may count).
+- [x] Coworkers are confirmed by the registered name the chain says owns their account, the
+  twin-curve way, not a longer safety code (Joshua, 2026-10-23): letters are sealed to accounts,
+  so the business could only sit in the middle by listing an account of its own, and the chain
+  would name that account's owner. The 30-digit code stays as a second check.
 - [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
   mainnet's names (Joshua, 2026-10-22).
 - [x] Terms of use and a privacy page, public at `/terms` and `/privacy` (Joshua, 2026-10-22):

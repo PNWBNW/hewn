@@ -18,7 +18,7 @@ import type { AttachmentRef } from "@pnw/sales";
 import { type ApplicationStatus, type Thread, emptyThread, validateThread } from "./thread";
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
 import { agreedChanges, hoursChanges } from "./hours_change";
-import { type CoworkerThread, type Identity, validateCoworkerThread, validateIdentity } from "./directory";
+import { type ConfirmedName, type CoworkerThread, type Identity, MAX_CONFIRMED_NAMES, validateConfirmedName, validateCoworkerThread, validateIdentity } from "./directory";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 import { type JobFields, validateJobFields } from "./terms_words";
 import { type WorkWeek, validateWorkWeek } from "./work_week";
@@ -132,6 +132,8 @@ export type Work = {
   identities?: Record<string, Identity>;
   /** Conversations with coworkers, by their public key. */
   coworkers?: Record<string, CoworkerThread>;
+  /** Coworkers' registered names as the chain confirmed them, by account (books/directory.ts `ConfirmedName`). */
+  confirmedNames?: Record<string, ConfirmedName>;
   /** Jobs this person applied to on the board (docs/JOB_BOARD.md); the conversation is the thread under the application's key. */
   applications?: Application[];
 };
@@ -452,6 +454,16 @@ export function validateWork(raw: unknown): Work {
       }
       if (Object.keys(cw).length > 0) work.coworkers = cw;
     }
+    if (raw.confirmedNames !== undefined) {
+      if (!isObject(raw.confirmedNames)) throw new WorkError("The confirmed names must be an object");
+      const names: Record<string, ConfirmedName> = {};
+      for (const [address, c] of Object.entries(raw.confirmedNames)) {
+        if (!ADDRESS.test(address)) throw new WorkError("A confirmed name is filed under an account");
+        names[address] = validateConfirmedName(c);
+      }
+      if (Object.keys(names).length > MAX_CONFIRMED_NAMES) throw new WorkError("Too many confirmed names");
+      if (Object.keys(names).length > 0) work.confirmedNames = names;
+    }
   } catch (e) {
     throw e instanceof WorkError ? e : new WorkError(e instanceof Error ? e.message : "The coworker data couldn't be read");
   }
@@ -594,6 +606,26 @@ export function applyAgreedHours(work: Work, partiesKey: string, thread: Thread 
 }
 
 /** Sets the person's key pair for one business's directory. */
+/** Keeps the name the chain confirmed for a coworker's account; past the limit, the longest unchecked are dropped. */
+export function keepConfirmedName(work: Work, address: string, name: string, checkedAt: string): Work {
+  const names = { ...work.confirmedNames, [address]: { name, checkedAt } };
+  const extra = Object.keys(names).length - MAX_CONFIRMED_NAMES;
+  if (extra > 0) {
+    const oldest = Object.entries(names)
+      .filter(([a]) => a !== address)
+      .sort((x, y) => (x[1].checkedAt < y[1].checkedAt ? -1 : 1))
+      .slice(0, extra);
+    for (const [a] of oldest) delete names[a];
+  }
+  return validateWork({ ...work, confirmedNames: names });
+}
+
+/** Forgets a confirmed name: the chain no longer says that account is a person's. */
+export function forgetConfirmedName(work: Work, address: string): Work {
+  if (!work.confirmedNames?.[address]) return work;
+  return validateWork({ ...work, confirmedNames: Object.fromEntries(Object.entries(work.confirmedNames).filter(([a]) => a !== address)) });
+}
+
 export const setIdentity = (work: Work, businessKey: string, id: Identity): Work => validateWork({ ...work, identities: { ...work.identities, [businessKey]: id } });
 
 /** Applies `change` to the conversation with one coworker (a new one if there was none). */

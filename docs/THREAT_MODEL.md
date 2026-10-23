@@ -266,11 +266,17 @@ employers); the private half stays in their vault. The business passes on the na
 keys of those who opted in, and nothing else, and only to them. Two coworkers derive their key
 with ECDH and HKDF-SHA256 (salt `PNW::COWORKER::v1`, both public keys as info): the business never
 holds it, and their conversation uses its own slots (`cw_a`/`cw_b`) and accepts plain messages
-only. The business relays the public keys, so it could swap one and sit in the middle; a safety
-code (SHA-256 over both keys, 30 digits) is shown on both phones, and coworkers who compare it in
-person and find it matches have ruled that out ("The numbers match" marks it checked). Leaving
-the directory sends an empty list to the person who left. ⚠️ Accepted until checked in person;
-✅ once checked.
+only. The business relays the public keys, so it could try to sit in the middle. Swapping a key
+alone gets it nothing: letters are sealed to the coworker's account on the Aleo curve, and a
+coworker's letters are believed only from that account. It would have to list an account of its
+own, so next to each coworker the app shows the registered name the chain confirms for their
+account (its primary name, still owned by it, its text checked against its hash;
+`chain/coworker_names.ts`, Joshua 2026-10-23), which the business can't make read as anyone
+else's. A business's account listed as a coworker is flagged. Names are kept in the vault a day at
+a time; the explorer sees which accounts are looked up. The safety code (SHA-256 over both keys,
+30 digits) stays as a second check in person ("The numbers match" marks it checked). Leaving
+the directory sends an empty list to the person who left. ✅ once a coworker's name is confirmed
+on chain or the code is checked in person; ⚠️ while their name can't be confirmed.
 
 **Group chats** (`books/groups.ts`, `chain/groups.ts`). No group key: every group message is sent
 to each member separately through the private conversation the two coworkers already share,
