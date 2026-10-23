@@ -105,11 +105,12 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
             partiesKey,
             reader: "worker",
             thread: workThread(work, partiesKey),
+            twin: true,
             store: async (item) => {
               await updateWork((w) => updateWorkThread(w, partiesKey, (t) => addToThread(t, item)));
             },
-            skip: async (seq) => {
-              await updateWork((w) => updateWorkThread(w, partiesKey, (t) => skipIncoming(t, seq)));
+            skip: async (seq, via) => {
+              await updateWork((w) => updateWorkThread(w, partiesKey, (t) => skipIncoming(t, seq, via)));
             },
           });
         }

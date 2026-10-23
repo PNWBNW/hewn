@@ -59,6 +59,7 @@ export async function sendChannelKey(
         partiesKey: m.partiesKey,
         from: "business",
         nextOut: m.thread?.nextOut ?? 0,
+        ring: m.thread?.ring ?? null,
         body: left ? { type: "channel_left", channelId: ch.id, name: ch.name } : { type: "channel", channelId: ch.id, name: ch.name, epoch: ch.epoch, key: ch.key },
       });
       result.sent.push({ workerId: m.workerId, partiesKey: m.partiesKey, item });

@@ -102,6 +102,8 @@ export type Reach = {
   from: Side;
   kinds?: ThreadKinds;
   nextOut: number;
+  /** A business ↔ person conversation's key ring (books/key_ring.ts); left out between coworkers. */
+  ring?: PostInput["ring"];
   client: PostInput["client"];
   keep: (item: ThreadItem) => Promise<void>;
 };
@@ -120,6 +122,7 @@ export async function sendEventKeys(reaches: readonly Reach[], circle: Circle, f
         from: r.from,
         ...(r.kinds ? { kinds: r.kinds } : {}),
         nextOut: r.nextOut,
+        ...(r.ring !== undefined ? { ring: r.ring } : {}),
         body: { type: "event_key", circleId: circle.id, epoch: circle.epoch, key: circle.key },
       });
       await r.keep(item);

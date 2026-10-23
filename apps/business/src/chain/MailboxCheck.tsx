@@ -18,6 +18,7 @@ import { checkAcceptances } from "./acceptance";
 import { businessListening, checkEvents } from "./events";
 import { scanHours } from "./mailbox_scan";
 import { useLetters } from "./letter_reader";
+import { keepHalvesReady } from "./key_ring";
 import { letterReader, letterThread } from "./letters";
 import { readThread } from "./thread";
 
@@ -84,12 +85,16 @@ function Check({ onFinished }: MailboxCheckProps) {
             partiesKey,
             reader: "business",
             thread: threadFor(mailbox, partiesKey),
+            twin: true,
             store: async (item) => {
               latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => addToThread(t, item)) }))).mailbox;
             },
-            skip: async (seq) => {
-              await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => skipIncoming(t, seq)) }));
+            skip: async (seq, via) => {
+              latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => skipIncoming(t, seq, via)) }))).mailbox;
             },
+          });
+          await keepHalvesReady(threadFor(latest, partiesKey)?.ring, async (change) => {
+            latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => ({ ...t, ring: change(t.ring) })) }))).mailbox;
           });
         }
         // Invitations, now that any new calendar keys are in.

@@ -387,6 +387,22 @@ Events with guests (`docs/LETTERS.md`, "Shared events").
 - **Answers and keys** travel in the existing conversations, sealed with their keys, so a view key
   alone doesn't open a coworker's answer (the same as coworker chat).
 
+## Business ↔ team member conversations: the handshake (2026-10-23)
+
+`docs/TWIN_CURVE_CONVERSATIONS.md`, `books/key_ring.ts`. The agreement is the first lock: a
+conversation starts under the parties key in the agreement record, which a view key opens. Each
+side then makes a P-256 key pair in its vault and sends only the public half, riding on a message
+it sends anyway; once both halves are in, both sides make the same key, which never travels, and
+write under it in its own slots.
+- **A view key** opens the letters from before the switch and the public halves, not what follows. ✅
+- **A swapped half:** a half counts only from the other side's account (the sender check), and a
+  view key can't send. ✅
+- **An older app** never answers; the conversation stays under the parties key and keeps working. ✅
+- **Lost keys:** a side whose books come back without them reads the agreement's stream to the end
+  and starts again; what was sent under the lost key stays unreadable to it. ⚠️ Until agreed
+  backups are built.
+- ⚠️ Paystubs and timesheets still travel under the parties key (the next step).
+
 ## Who a letter is from (2026-10-22)
 
 The security review found that, apart from event invitations, a letter was believed because it

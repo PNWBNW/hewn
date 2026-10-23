@@ -24,6 +24,7 @@ import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./sc
 import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, validateHoursChange } from "./hours_change";
 import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from "./report";
 import { MAX_EVENT_TITLE } from "./events";
+import { type HalfOnWire, type KeyRing, emptyRing, noteReceived, noteSent, validateHalfOnWire, validateKeyRing } from "./key_ring";
 
 export type Side = "business" | "worker";
 
@@ -114,15 +115,17 @@ export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus | "applied", str
 export type OfferStep = Extract<ThreadBody, { type: "counter" | "stands" | "revised" }>;
 export const isOfferStep = (b: ThreadBody): b is OfferStep => b.type === "counter" || b.type === "stands" || b.type === "revised";
 
-export type ThreadMessage = { version: 1; id: string; from: Side; sentAt: string; body: ThreadBody };
+/** `half`: a key half for the conversation's handshake (books/key_ring.ts), between a business and a person it hired. */
+export type ThreadMessage = { version: 1; id: string; from: Side; sentAt: string; body: ThreadBody; half?: HalfOnWire };
 
 /**
  * A message as a vault keeps it: whose it is, and the slot it travelled in.
  * `receivedAt` is when the other side's app picked it up: for theirs, when
  * this device did; for mine, from the other side's receipt. `read` marks one
- * of theirs as seen here.
+ * of theirs as seen here. `via` is the key pair's stream it travelled on
+ * (books/key_ring.ts); none means the agreement's.
  */
-export type ThreadItem = ThreadMessage & { mine: boolean; seq: number; receivedAt?: string; read?: true; reported?: Reported };
+export type ThreadItem = ThreadMessage & { mine: boolean; seq: number; receivedAt?: string; read?: true; reported?: Reported; via?: string };
 
 /** One of their messages this side reported, and when (books/report.ts). Kept only on this device. */
 export type Reported = { category: ReportCategory; at: string };
@@ -133,6 +136,8 @@ export type Thread = {
   nextIn: number;
   /** This side's next unused slot. */
   nextOut: number;
+  /** Between a business and a person it hired: the keys made by handshake (books/key_ring.ts). */
+  ring?: KeyRing;
 };
 
 /** Who may send what. */
@@ -405,7 +410,15 @@ export function validateMessage(raw: unknown, from: Side): ThreadMessage {
   if (may !== "either" && may !== from) throw new ThreadError("That side can't send that kind of message");
   // The person asks only for times they'd like; a business may question hours without new times.
   if (body.type === "hours_change" && from === "worker" && !body.proposed) throw new ThreadError("Say the times you'd like");
-  return { version: 1, id: raw.id, from, sentAt: raw.sentAt, body };
+  const message: ThreadMessage = { version: 1, id: raw.id, from, sentAt: raw.sentAt, body };
+  if (raw.half !== undefined) {
+    try {
+      message.half = validateHalfOnWire(raw.half);
+    } catch (e) {
+      throw new ThreadError(e instanceof Error ? e.message : "A key half couldn't be read");
+    }
+  }
+  return message;
 }
 
 function validateItem(raw: unknown): ThreadItem {
@@ -429,6 +442,10 @@ function validateItem(raw: unknown): ThreadItem {
     if (raw.mine || !isObject(r) || !isReportCategory(r.category) || !isStamp(r.at)) throw new ThreadError("Only their messages can be marked reported");
     item.reported = { category: r.category, at: r.at };
   }
+  if (raw.via !== undefined) {
+    if (typeof raw.via !== "string" || !/^[0-9a-f]{16}$/.test(raw.via)) throw new ThreadError("A message's stream must be a key pair's");
+    item.via = raw.via;
+  }
   return item;
 }
 
@@ -441,24 +458,41 @@ export function validateThread(raw: unknown): Thread {
   if (!isSeq(raw.nextIn) || !isSeq(raw.nextOut)) throw new ThreadError("A thread's slots must be whole numbers");
   const byId = new Map<string, ThreadItem>();
   for (const item of raw.items.map(validateItem)) byId.set(item.id, item);
-  return { items: [...byId.values()].sort(byTime), nextIn: raw.nextIn, nextOut: raw.nextOut };
+  const thread: Thread = { items: [...byId.values()].sort(byTime), nextIn: raw.nextIn, nextOut: raw.nextOut };
+  if (raw.ring !== undefined) {
+    try {
+      thread.ring = validateKeyRing(raw.ring);
+    } catch (e) {
+      throw new ThreadError(e instanceof Error ? e.message : "A conversation's keys couldn't be read");
+    }
+  }
+  return thread;
 }
 
 const byTime = (a: ThreadItem, b: ThreadItem) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.id < b.id ? -1 : 1);
 
-/** Keeps one message (the same id twice is kept once) and moves the right slot past it. */
+/**
+ * Keeps one message (the same id twice is kept once) and moves the right slot past it: the
+ * agreement's, or the key pair's it travelled on. A key half it carries goes into the ring.
+ */
 export function addToThread(thread: Thread, item: ThreadItem): Thread {
   const fresh = validateItem(item);
   const items = [...thread.items.filter((i) => i.id !== fresh.id), fresh].sort(byTime);
-  return fresh.mine
-    ? { ...thread, items, nextOut: Math.max(thread.nextOut, fresh.seq + 1) }
-    : { ...thread, items, nextIn: Math.max(thread.nextIn, fresh.seq + 1) };
+  let next: Thread = { ...thread, items };
+  if (!fresh.via) next = fresh.mine ? { ...next, nextOut: Math.max(thread.nextOut, fresh.seq + 1) } : { ...next, nextIn: Math.max(thread.nextIn, fresh.seq + 1) };
+  if (fresh.via || fresh.half) {
+    const ring = thread.ring ?? emptyRing();
+    next.ring = validateKeyRing(fresh.mine ? noteSent(ring, fresh) : noteReceived(ring, fresh));
+  }
+  return next;
 }
 
-/** Moves past an incoming slot that couldn't be read. */
-export function skipIncoming(thread: Thread, seq: number): Thread {
+/** Moves past an incoming slot that couldn't be read: the agreement's, or a key pair's. */
+export function skipIncoming(thread: Thread, seq: number, via?: string): Thread {
   if (!isSeq(seq)) throw new ThreadError("A slot must be a whole number");
-  return { ...thread, nextIn: Math.max(thread.nextIn, seq + 1) };
+  if (!via) return { ...thread, nextIn: Math.max(thread.nextIn, seq + 1) };
+  if (!thread.ring) return thread;
+  return { ...thread, ring: noteReceived(thread.ring, { seq, via }) };
 }
 
 /** A fresh message id: 16 random bytes, hex. */

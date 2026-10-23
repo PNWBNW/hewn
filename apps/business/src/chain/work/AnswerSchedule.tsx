@@ -62,6 +62,7 @@ function AnswerFlow({ partiesKey, employerAddress, employer, scheduleId, weekSta
         partiesKey,
         from: "worker",
         nextOut: workThread(work, partiesKey)?.nextOut ?? 0,
+        ring: workThread(work, partiesKey)?.ring ?? null,
         body: { type: "schedule_answer", scheduleId, weekStart, answer, note },
       });
       await updateWork((w) => updateWorkThread(w, partiesKey, (t) => addToThread(t, item)));

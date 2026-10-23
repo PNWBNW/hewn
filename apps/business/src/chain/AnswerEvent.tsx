@@ -81,6 +81,7 @@ function AnswerFlow({ invite: key, answer, onClose }: AnswerEventProps) {
         from: reach.from,
         ...(reach.kinds ? { kinds: reach.kinds } : {}),
         nextOut: reach.nextOut,
+        ...(reach.ring !== undefined ? { ring: reach.ring } : {}),
         body: { type: "event_answer", eventId: invite.eventId, rev: invite.rev, title: invite.details.title, answer, note },
       });
       await reach.keep(item);

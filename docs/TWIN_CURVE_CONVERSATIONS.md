@@ -1,6 +1,8 @@
 # Twin-curve conversations between a business and its people
 
-**Status:** design, for Joshua's review (2026-10-23). Nothing here is built yet.
+**Status:** approved by Joshua (2026-10-23). Built: the handshake for the conversation's messages
+(`books/key_ring.ts`, `chain/key_ring.ts`). Next: paystubs and timesheets on the same keys, then
+the agreed backups.
 
 ## Why
 
@@ -29,17 +31,20 @@ outer lock, and adds backups that both people have to agree to.
 
 1. **Each side makes a fresh P-256 key pair for the conversation,** in its own vault. The private
    half never leaves it.
-2. **The public half rides on the next message that side sends anyway** (a message, a timesheet,
-   a paystub, a channel key): one more field in the body, `keyHalf: { epoch, publicKey }`. No
-   extra letter, no extra Shield approval. It keeps riding until that side has seen the other's
-   half.
-3. **When a side holds both halves for an epoch,** it works out the new key:
-   HKDF-SHA256 over ECDH(its private half, the other's public half), salt `PNW::PAIR::v1`, info the
-   agreement id, the epoch and both public halves (lower first). Both sides arrive at the same key
-   without it ever travelling.
-4. **From then on it sends under the new key,** in that epoch's own slots. The reader looks in the
-   old key's slots and the new key's, so a letter sent just before the switch still arrives.
-5. **Every old key stays in the vault,** so the whole history stays readable on that device.
+2. **The public half rides on the next message that side sends anyway** (a message, a channel
+   key, an invitation's key, the coworker directory): one more field beside the body,
+   `half: { publicKey }`. No extra letter, no extra Shield approval. It keeps riding until the
+   answer comes.
+3. **The other side answers** with its own half on the next message it sends, on the same stream
+   the start came on (`half: { publicKey, answers }`), so it can always be read.
+4. **When a side holds both halves,** it works out the new key: HKDF-SHA256 over ECDH(its private
+   half, the other's public half), salt the agreement's parties key, info `PNW::PAIR::v1` and both
+   public halves (lower first). Both sides arrive at the same key without it ever travelling.
+5. **From then on it sends under the new key,** in that key's own slots (a stream). A reader reads
+   the agreement's stream and every pair's it holds both halves of, so nothing sent around the
+   switch is missed, and a side that lost its keys still reads the agreement's stream to the end
+   and can start again: the other side answers there.
+6. **Every old key stays in the vault,** so the whole history stays readable on that device.
 
 A side that never sends a half (someone on an older version of the app) never switches, and
 nothing breaks: the conversation stays under the agreement's key until both halves exist.

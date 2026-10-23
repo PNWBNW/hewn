@@ -17,7 +17,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Flag, Lock, RefreshCw, Send, TriangleAlert } from "lucide-react";
+import { Flag, KeyRound, Lock, RefreshCw, Send, TriangleAlert } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
@@ -41,7 +41,9 @@ import {
   preview,
   skipIncoming,
 } from "@/books/thread";
+import { addHalves, isTwinSealed } from "@/books/key_ring";
 import { FeeChoice } from "./FeeChoice";
+import { makeHalves } from "./key_ring";
 import { useLetters } from "./letter_reader";
 import { LETTER_BYTES, type LetterWallet, letterThread } from "./letters";
 import { Report } from "./Report";
@@ -67,6 +69,12 @@ export type ConversationProps = {
   show?: (item: ThreadItem) => boolean;
   /** The other side's account: messages go to it as letters on chain, through Shield. */
   peer: string;
+  /**
+   * A business and a person it hired: the conversation moves from the agreement's key to one made by
+   * handshake (books/key_ring.ts). Left out for coworkers and applicants, whose keys already come
+   * from key exchange.
+   */
+  twin?: true;
 };
 
 /** How messages travel: letters, through Shield. */
@@ -141,6 +149,7 @@ function ConversationView({
   subtitle,
   show,
   peer,
+  twin,
   transport,
   gate,
 }: ConversationProps & { transport: Transport | null; gate?: ReactNode }) {
@@ -159,6 +168,17 @@ function ConversationView({
   // This send's fee, starting from the device's switch.
   const [feeMode, setFeeMode] = useState<FeeMode>(() => readFeeMode());
 
+  /** Makes the key halves this conversation needs and keeps them in the vault; the ring the next send uses. */
+  const prepare = useCallback(async () => {
+    const ring = latest.current?.ring;
+    if (!twin) return ring;
+    const made = await makeHalves(ring);
+    if (!made) return ring;
+    const now = new Date().toISOString();
+    await update((t) => ({ ...t, ring: addHalves(t.ring, made, now) }));
+    return addHalves(ring, made, now);
+  }, [twin, update]);
+
   const check = useCallback(async () => {
     if (!transport) return;
     setChecking(true);
@@ -172,9 +192,11 @@ function ConversationView({
         thread: latest.current,
         ...(kinds ? { kinds } : {}),
         ...(accept ? { accept } : {}),
+        ...(twin ? { twin } : {}),
         store: (item) => update((t) => addToThread(t, item)),
-        skip: (seq) => update((t) => skipIncoming(t, seq)),
+        skip: (seq, via) => update((t) => skipIncoming(t, seq, via)),
       });
+      await prepare();
       if (r.off) setStatus("Messages are off on this server.");
       else if (r.failed) setStatus(`Couldn't check for new messages: ${r.failed}`);
       else if (r.skipped.length > 0) setStatus(`${r.skipped.length} ${r.skipped.length === 1 ? "message" : "messages"} couldn't be read and ${r.skipped.length === 1 ? "was" : "were"} skipped.`);
@@ -184,7 +206,7 @@ function ConversationView({
     } finally {
       setChecking(false);
     }
-  }, [transport, partiesKey, side, update, kinds, accept, show]);
+  }, [transport, partiesKey, side, update, kinds, accept, show, twin, prepare]);
 
   useEffect(() => {
     if (started.current || !transport) return;
@@ -204,11 +226,13 @@ function ConversationView({
     setSending(true);
     setError(null);
     try {
+      const ring = await prepare();
       const item = await postToThread({
         client: transport.writer,
         partiesKey,
         from: side,
         nextOut: latest.current?.nextOut ?? 0,
+        ...(twin ? { ring: ring ?? null } : {}),
         body: { type: "text", text: body },
         ...(kinds ? { kinds } : {}),
         ...(transport.letters ? { feeMode } : {}),
@@ -229,11 +253,16 @@ function ConversationView({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold">{title}</h2>
-          {subtitle ?? (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Lock aria-hidden className="size-3" /> Sealed to the two of you
-            </p>
-          )}
+          {subtitle ??
+            (twin && isTwinSealed(thread?.ring) ? (
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <KeyRound aria-hidden className="size-3" /> Sealed with a key only the two of you hold
+              </p>
+            ) : (
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Lock aria-hidden className="size-3" /> Sealed to the two of you
+              </p>
+            ))}
         </div>
         <Button variant="outline" size="sm" className="min-h-11 shrink-0 sm:min-h-8" disabled={checking || !transport} onClick={() => void check()}>
           <RefreshCw aria-hidden className={cn(checking && "animate-spin")} />
@@ -269,7 +298,7 @@ function ConversationView({
                 {...(peer ? { account: peer } : {})}
                 place={kinds ? "coworker" : item.body.type === "application" ? "application" : "conversation"}
                 wallet={transport?.wallet ?? null}
-                notice={transport ? { client: transport.writer, partiesKey, side, nextOut: latest.current?.nextOut ?? 0, ...(kinds ? { kinds } : {}) } : null}
+                notice={transport ? { client: transport.writer, partiesKey, side, nextOut: latest.current?.nextOut ?? 0, ...(kinds ? { kinds } : {}), ...(twin ? { ring: latest.current?.ring ?? null } : {}) } : null}
                 feeMode={feeMode}
                 onDone={(category, notice) =>
                   update((t) => {

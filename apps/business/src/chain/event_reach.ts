@@ -61,6 +61,7 @@ export function useEventReach(wallet: LetterWallet) {
         conversationKey: key,
         from: "worker",
         nextOut: (work ? workThread(work, key) : undefined)?.nextOut ?? 0,
+        ring: (work ? workThread(work, key) : undefined)?.ring ?? null,
         client,
         keep: async (item) => {
           await updateCompany((co) => ({ ...co, work: updateWorkThread(co.work!, key, (t) => addToThread(t, item)) }));
@@ -74,6 +75,7 @@ export function useEventReach(wallet: LetterWallet) {
       conversationKey: key,
       from: "business",
       nextOut: threadFor(mailbox, key)?.nextOut ?? 0,
+      ring: threadFor(mailbox, key)?.ring ?? null,
       client,
       keep: async (item) => {
         await updateCompany((co) => ({ ...co, mailbox: updateThread(co.mailbox ?? emptyMailbox(), key, workerId, (t) => addToThread(t, item)) }));

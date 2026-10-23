@@ -79,6 +79,7 @@ function SendFlow({ onClose }: { onClose: () => void }) {
           partiesKey: copy.partiesKey,
           from: "business",
           nextOut: threadFor(box, copy.partiesKey)?.nextOut ?? 0,
+          ring: threadFor(box, copy.partiesKey)?.ring ?? null,
           body: { type: "directory", entries: copy.entries },
         });
         box = updateThread(box, copy.partiesKey, copy.workerId, (t) => addToThread(t, item));

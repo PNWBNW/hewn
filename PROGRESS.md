@@ -4146,3 +4146,35 @@ invitations. Joshua's rules: the agreement stays the first lock, and a backup on
 only when both people agree, covering the conversation up to that point (then a fresh handshake).
 Also what a "public half" exposes (nothing usable), what a view key opens before and after, costs,
 and the tests it ships with. Docs only; nothing built until Joshua approves.
+
+## 2026-10-23: the handshake, business ↔ team member messages (twin curve, step 2a)
+
+Built from `docs/TWIN_CURVE_CONVERSATIONS.md` (approved). A conversation between a business and a
+person it hired starts under the agreement's parties key, as before; each side's app then makes a
+P-256 key pair in its vault and its public half rides on the next message it sends. The other side
+answers with its own half on the same stream; with both halves, both apps make the same key
+(HKDF over ECDH, salted with the parties key), which never travels, and write under it in its own
+slots. A view key now opens the letters from before the switch and the public halves, nothing
+after.
+- `books/key_ring.ts` (pure): the ring, what a send carries and where it goes, what a read keeps,
+  guards against putting halves in twice from an older copy. `chain/key_ring.ts`: halves, the
+  pair's key, `keepHalvesReady`.
+- `chain/thread.ts`: `postToThread` takes the ring (`ring`), `readThread` reads every stream it
+  holds a key for (`twin`), so an answer read early opens a new stream in the same check. Messages
+  carry `half`, items `via` (their stream), threads `ring` (`books/thread.ts`).
+- Every send in that conversation passes the ring (messages, offers, hours, schedules, directory,
+  channel keys, invitation keys and answers, report notices); the checks (both sides' message
+  checks, the business's mailbox check, the person's offers) read every stream and make the halves
+  the conversation needs. Coworkers and applicants are unchanged: their keys already come from key
+  exchange.
+- The conversation's subtitle reads "Sealed with a key only the two of you hold" once switched.
+- An older app never answers and nothing breaks; a side whose books come back without its keys
+  starts again on the agreement's stream and the other side answers there.
+- Docs: `docs/LETTERS.md`, `docs/THREAT_MODEL.md`, the design's status, `dev_testing_guide.md`
+  MSG-3. Paystubs and timesheets still use the parties key: that's next, then agreed backups.
+
+Tests: app +11 (`chain/key_ring.test.ts`: the switch with no extra letter; an onlooker with the
+parties key opens only the letters before it; an older app; both sides starting at once; lost keys
+and a fresh start; a half answering one never made, a start answered once, no double start from a
+stale copy, a malformed half makes its message unreadable, halves dropped where there is no
+handshake, a ring can't write under a half-made pair).

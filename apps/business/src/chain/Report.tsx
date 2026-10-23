@@ -44,7 +44,7 @@ export type ReportProps = {
   /** Shield, when it's connected to this account: the report goes as a letter. Without it, email or copy only. */
   wallet: LetterWallet | null;
   /** The conversation's own way of sending, for the notice to the sender; null when it can't send now. */
-  notice: { client: PostInput["client"]; partiesKey: string; side: Side; nextOut: number; kinds?: ThreadKinds } | null;
+  notice: { client: PostInput["client"]; partiesKey: string; side: Side; nextOut: number; kinds?: ThreadKinds; ring?: PostInput["ring"] } | null;
   feeMode: FeeMode;
   /** Keeps the outcome: the message marked reported, and the notice when one went. */
   onDone: (category: ReportCategory, notice?: ThreadItem) => Promise<void>;
@@ -93,6 +93,7 @@ export function Report({ item, name, account, place, wallet, notice, feeMode, on
       body: { type: "report_notice", messageId: item.id, category: c },
       feeMode,
       ...(notice.kinds ? { kinds: notice.kinds } : {}),
+      ...(notice.ring !== undefined ? { ring: notice.ring } : {}),
     });
   }
 
