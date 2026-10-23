@@ -35,6 +35,13 @@ everything about them private. A customer can:
 9. The chain doesn't need to know a payment happened to tie a review to it: a payment simply
    opens the chance for another review.
 10. A directory listing is free for now; $1 later, in a new version.
+11. Reviews only inside Hewn, and only between two parties who made an agreement first.
+12. Whether a job's reviews go public at its end is a term of the agreement, agreed by both and
+    locked in when it is accepted.
+13. One listing per business, one field: it can update the listing and say more in its own
+    words, but not post more (businesses shouldn't spend network fees to be found).
+14. Spam on free requests: recipients mute first; a private posting pass only if it becomes a
+    problem.
 
 ## Accounts
 
@@ -61,8 +68,8 @@ posting, and turning it off hides the listing (the chain keeps that it once exis
   pair and seals the inquiry under the key exchange with the listing's inquiry key, the way an
   application reaches a business through a job posting's hiring key. The inquiry reveals the
   customer's account to that business, since the business has to be able to answer.
-- Open question: listing more than one field (the registered one plus up to two more the
-  business declares).
+- One listing per business, in the field its name was registered under (decision 13). It can
+  update the listing and describe other work in its own words.
 
 ## The request board
 
@@ -109,8 +116,9 @@ they are.
   so someone set on reading a field's requests could register one. This stops casual browsing and
   scraping, not a determined snoop.
 - Every business it went to can keep what it read.
-- Free posts invite spam. Recipients can mute a post; if spam becomes a problem, posting takes a
-  private pass record (one per registered person, without saying which).
+- Free posts invite spam. Recipients mute a post first; only if spam becomes a problem does
+  posting take a private pass record (one per registered person, without saying which; decision
+  14).
 
 ### Business posts
 
@@ -164,6 +172,19 @@ private closure record as proof the job was done.
 
 ## Reviews
 
+### Who can review (decision 11)
+
+Only the customer on a `hewn_service_v1` agreement, about that agreement's business:
+
+- `note_review` takes the customer's own agreement record (and returns it), so only someone who
+  holds one can write a review, and only about the business named in it. No agreement, no review.
+- Agreements are made only between registered names. The business's name is checked on chain
+  when it offers (its name is public anyway). The customer's is checked by the business's app
+  before the offer goes out, the way names are confirmed today, not on chain: a public check would
+  put the customer's account on the chain next to the business's.
+- A review can be noted only while the agreement is Active, Work marked complete, Complete or in
+  Warranty, and at most 24 per job (the app offers one per payment, decision 9).
+
 ### At each payment
 
 Each time the customer pays, the app offers a review: stars, a few fixed tags (on time, clean,
@@ -177,11 +198,19 @@ one:
   entry was written then and can't be changed, dropped or added to later. Each hash also covers
   the one before it, so the chain of entries is fixed.
 
-### Going public
+### Going public, if the agreement says so (decision 12)
 
-Once the job is **Complete, in Warranty or Closed**, the customer posts the job's reviews: every
-entry and the job's average, in one approval. The program checks every entry against its hash and
-that none is missing, so a rough patch at payment 2 stays in.
+The offer carries one more term: **reviews go public at the end, yes or no**. The customer sees it
+before accepting, and accepting locks it into the agreement record; neither side can change it
+later, except by a change order both accept.
+
+- **Yes:** once the job is **Complete, in Warranty or Closed**, either side can post the job's
+  reviews: every entry and the job's average, in one approval. The program checks every entry
+  against its hash and that none is missing, so a rough patch at payment 2 stays in, whoever
+  posts. A business can't hold good reviews back from a customer who forgets to post, nor
+  drop a bad one.
+- **No:** the reviews stay between the two of them for good. The business still saw each one as
+  it was written.
 
 **A prospective customer sees,** on a business's listing:
 - the overall average across its reviewed jobs;
@@ -199,10 +228,11 @@ business. It holds no money and no single rating, and it only moves when a whole
 post, so it is a small, documented exception to the leakage guard (Joshua, 2026-10-23: reviews
 stay cached until the job ends, then post).
 
-**Open questions:**
-- If the customer never posts, should the business be able to post them? It holds every entry,
-  and the hashes stop it dropping or changing one.
-- Should the business get one public reply per job?
+**Open question: a business's reply.** When a job's reviews go public, should the business be
+able to post one short public reply under them, for every reader to see beside the reviews
+("We came back on the 14th and replaced the valve at no charge")? Like a reply under a review on
+a map listing. Without it, the public sees only the customer's side. With it, the business can
+answer a bad review in public, once per job, after the reviews post and never before.
 
 ## Calendar
 
@@ -215,7 +245,7 @@ from the customer unless the business chooses to show them (decision 4).
 | Program | Calls (sketch) | Public state |
 |---|---|---|
 | `hewn_market_v1` | `list`, `update_listing`, `set_taking_clients` (the business, by its name); `post_request`, `add_recipients`, `edit_request`, `close_request` (by the post's secret); `answer` (a business, by its name); `post_business`, `close_business` | Listings; posts as sealed bytes, sealed-key pages and a secret's hash; answers as sealed bytes under tags; the business posts' facts and words |
-| `hewn_service_v1` | `offer`, `accept`, `withdraw`, `change`, `accept_change`, `mark_complete`, `confirm_complete`, `close`, `cancel`, `terminate`, `dispute`, `clear_dispute`; `note_review`, `post_reviews` | Agreement id hash → status, heights, the warranty's end; review hashes under tags; posted reviews and the count of reviewed jobs per business |
+| `hewn_service_v1` | `offer`, `accept`, `withdraw`, `change`, `accept_change`, `mark_complete`, `confirm_complete`, `close`, `cancel`, `terminate`, `dispute`, `clear_dispute`; `note_review` (the customer, with their agreement record), `post_reviews` (either side, when the terms say public) | Agreement id hash → status, heights, the warranty's end; review hashes under tags; posted reviews and the count of reviewed jobs per business |
 
 Both free for now, `@noupgrade`; $1 later is `hewn_market_v2`, with the app reading both, the way
 it reads both letters programs.
@@ -236,13 +266,14 @@ it reads both letters programs.
    Charging to *browse* (more directory or board pages) can't be enforced: reading the chain is
    free for anyone with the explorer, so the charge would only be a toll in our app, and every
    page would need a Shield approval. Recommendation: browsing stays free.
-2. More than one field per listing.
-3. Who can post reviews if the customer doesn't, and a business reply.
-4. Spam on free requests: mute first, a private pass if needed.
-5. Payment-time prompts happen in the app; a modified app could note reviews without paying. The
-   hash chain caps how many entries a job can hold (24); is that enough?
+2. A business's one public reply under a job's reviews ("Reviews", above).
+3. Payment-time prompts happen in the app; a modified app could note reviews without paying. Only
+   the customer on the agreement can, at most 24 per job, while the job is under way.
 
 ## Building order (when greenlit)
+
+One Leo program per Fable session (Joshua, 2026-10-23): `hewn_service_v1` first, then
+`hewn_market_v1`.
 
 1. Accounts: the customer side of a personal account.
 2. `hewn_service_v1` and the agreement screens: offer, accept, the statuses, invoices and payment.
@@ -261,4 +292,8 @@ Including inputs that must fail:
 - nothing closes while it's disputed, and an agreement can't skip warranty when its terms set one;
 - reviews can't post before the job is complete, in warranty or closed;
 - a posting with an entry missing, changed or added is refused;
-- reviews post only once per job.
+- reviews post only once per job;
+- noting a review without the agreement record, about another business, after closing, or past
+  24 is refused;
+- posting reviews when the agreement says they stay private is refused, and so is changing that
+  term without both sides.
