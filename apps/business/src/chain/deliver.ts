@@ -21,8 +21,10 @@ import { KINDS, MailboxError, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type PaycheckDelivery, type PaystubDocument, canonicalPaystub, markPaycheckDelivery, paystubDocument, paystubHash, yearToDate } from "@pnw/payroll";
 import type { Company } from "../books/company";
+import { threadFor } from "../books/mailbox";
 import { bumpSeq, linkFor, nextSeq } from "../books/rail";
 import { packPayload } from "./compress";
+import { documentKey } from "./key_ring";
 
 /**
  * What goes in the envelope, as JSON. `document` is the paystub in its
@@ -130,7 +132,8 @@ export async function deliverPaystub({ company, runId, workerId, client, now, fe
   const contents = paystubEnvelope(company, runId, workerId);
   const seq = nextSeq(link, KINDS.paystub);
   const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(contents)));
-  const key = partiesKeyFromHex(link.partiesKey);
+  // After the handshake, under the pair's key, which a view key can't reach (chain/key_ring.ts).
+  const key = partiesKeyFromHex(await documentKey(link.partiesKey, threadFor(company.mailbox, link.partiesKey)?.ring));
   let sealed;
   try {
     sealed = await seal(key, KINDS.paystub, seq, bytes);

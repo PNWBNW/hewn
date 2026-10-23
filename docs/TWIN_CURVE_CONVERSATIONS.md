@@ -1,8 +1,9 @@
 # Twin-curve conversations between a business and its people
 
 **Status:** approved by Joshua (2026-10-23). Built: the handshake for the conversation's messages
-(`books/key_ring.ts`, `chain/key_ring.ts`). Next: paystubs and timesheets on the same keys, then
-the agreed backups.
+(`books/key_ring.ts`, `chain/key_ring.ts`), and paystubs and timesheets on the same keys (they
+keep their own slot numbers; only the key each slot is sealed with changes). Next: the agreed
+backups.
 
 ## Why
 

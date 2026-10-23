@@ -4178,3 +4178,22 @@ parties key opens only the letters before it; an older app; both sides starting 
 and a fresh start; a half answering one never made, a start answered once, no double start from a
 stale copy, a malformed half makes its message unreadable, halves dropped where there is no
 handshake, a ring can't write under a half-made pair).
+
+## 2026-10-23: paystubs and timesheets on the handshake's keys (twin curve, step 2a, part 2)
+
+Once a side writes under a pair's key (`ring.out`), its paystubs (the business) and timesheets
+(the person) are sealed under it too, so a view key no longer opens them. They keep their own
+slot numbers, one count per kind as before; only the key each slot is sealed with changes, so the
+books, the records and the screens are untouched.
+- `chain/key_ring.ts`: `documentKey` (what a send seals with), `slotKeys` (every key a slot may be
+  under, newest pair first, then the agreement's), `findSlot`, and `laterSlotExists`: a slot sealed
+  with a key the reader lost is passed once a later one opens (looking up to 4 ahead), instead of
+  waiting for ever.
+- `chain/deliver.ts` and `chain/work/timesheet.ts` seal with `documentKey`; `chain/work/inbox.ts`
+  (paystubs) and `chain/mailbox_scan.ts` (hours) read with `slotKeys`.
+- Docs: `docs/LETTERS.md`, `docs/THREAT_MODEL.md`, the design's status, `dev_testing_guide.md`
+  WORK-2, `BUILD_PLAN.md`. Next: backups both people agree to.
+
+Tests: app +5 (a paystub and a week of hours sealed under the pair's key that the parties key
+doesn't open; paystubs read across the switch in one run; an onlooker with the parties key gets
+only those before it; a paystub under a lost key passed once a later one arrives, and not before).

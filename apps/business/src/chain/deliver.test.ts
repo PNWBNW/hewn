@@ -10,6 +10,9 @@ import { type Rail, linkFor } from "../books/rail";
 import { unpackPayload } from "./compress";
 import { REIMPORT_MESSAGE, deliverPaystub, paystubEnvelope, recordDelivery } from "./deliver";
 import { LETTER_BYTES } from "./letters";
+import { pairId } from "../books/key_ring";
+import { emptyMailbox } from "../books/mailbox";
+import { newHalf, pairKeyHex } from "./key_ring";
 
 const W4_SINGLE: W4 = { filingStatus: "single", dependentCredit: 0n, otherIncome: 0n, extraDeductions: 0n, extraWithholding: 0n };
 const clock = { now: () => "2026-10-16T12:00:00.000Z" };
@@ -67,6 +70,20 @@ function setup({ legacy = false, settle = true } = {}) {
 }
 
 const paycheckOf = (c: Company, runId: string, workerId: string) => c.payroll.runs.find((r) => r.id === runId)!.paychecks.find((p) => p.workerId === workerId)!;
+
+describe("a paystub after the handshake (chain/key_ring.ts)", () => {
+  it("is sealed under the pair's key, which the agreement's key doesn't open", async () => {
+    const { company, runId, workerId } = setup();
+    const pair = { mine: await newHalf(), theirs: (await newHalf()).publicKey, sent: true as const, nextIn: 0, nextOut: 0, createdAt: "2026-10-23T12:00:00.000Z" };
+    const withRing: Company = { ...company, mailbox: { ...emptyMailbox(), threads: { [KEY]: { workerId, items: [], nextIn: 0, nextOut: 0, ring: { pairs: [pair], out: pairId(pair) } } } } };
+    const client = fakeClient(201);
+    await deliverPaystub({ company: withRing, runId, workerId, client, now });
+    const pairKey = partiesKeyFromHex(await pairKeyHex(KEY, pair));
+    expect(client.puts[0]!.lookup).toBe(lookupId(pairKey, KINDS.paystub, 0));
+    await expect(open(partiesKeyFromHex(KEY), KINDS.paystub, 0, client.puts[0]!.envelope)).rejects.toThrow();
+    await expect(open(pairKey, KINDS.paystub, 0, client.puts[0]!.envelope)).resolves.toBeTruthy();
+  });
+});
 
 describe("deliverPaystub", () => {
   it("seals the paystub and its settlement to slot 0, then records the delivery and advances the slot", async () => {
