@@ -132,7 +132,7 @@ export type Work = {
   identities?: Record<string, Identity>;
   /** Conversations with coworkers, by their public key. */
   coworkers?: Record<string, CoworkerThread>;
-  /** Coworkers' registered names as the chain confirmed them, by account (books/directory.ts `ConfirmedName`). */
+  /** Registered names as the chain confirmed them (coworkers, employers, organizers), by account (books/directory.ts `ConfirmedName`). */
   confirmedNames?: Record<string, ConfirmedName>;
   /** Jobs this person applied to on the board (docs/JOB_BOARD.md); the conversation is the thread under the application's key. */
   applications?: Application[];
@@ -606,9 +606,9 @@ export function applyAgreedHours(work: Work, partiesKey: string, thread: Thread 
 }
 
 /** Sets the person's key pair for one business's directory. */
-/** Keeps the name the chain confirmed for a coworker's account; past the limit, the longest unchecked are dropped. */
-export function keepConfirmedName(work: Work, address: string, name: string, checkedAt: string): Work {
-  const names = { ...work.confirmedNames, [address]: { name, checkedAt } };
+/** Keeps the name the chain confirmed for an account; past the limit, the longest unchecked are dropped. */
+export function keepConfirmedName(work: Work, address: string, name: string, checkedAt: string, kind?: "business"): Work {
+  const names: Record<string, ConfirmedName> = { ...work.confirmedNames, [address]: kind ? { name, checkedAt, kind } : { name, checkedAt } };
   const extra = Object.keys(names).length - MAX_CONFIRMED_NAMES;
   if (extra > 0) {
     const oldest = Object.entries(names)
@@ -620,7 +620,7 @@ export function keepConfirmedName(work: Work, address: string, name: string, che
   return validateWork({ ...work, confirmedNames: names });
 }
 
-/** Forgets a confirmed name: the chain no longer says that account is a person's. */
+/** Forgets a confirmed name. */
 export function forgetConfirmedName(work: Work, address: string): Work {
   if (!work.confirmedNames?.[address]) return work;
   return validateWork({ ...work, confirmedNames: Object.fromEntries(Object.entries(work.confirmedNames).filter(([a]) => a !== address)) });

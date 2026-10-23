@@ -4116,3 +4116,23 @@ scenario ids, a results template, and the rule that anything exposing data or mo
 wrongly goes privately through the Security tab. `dev_testing_guide.md` now opens with that
 purpose, has a "Posting your results" section with the template, and links each area to its
 issue. Docs only.
+
+## 2026-10-23: confirmed names on announcements and invitations (twin curve, step 1)
+
+Joshua's order for making every conversation twin-curve starts here (`BUILD_PLAN.md`). The check
+from #148 now runs wherever a post is believed from one account:
+- An announcement channel shows the registered name the chain confirms for the employer's
+  account, which posts are only believed from; it should be a business's.
+- An invitation, and the "Waiting for your answer" list, show it for the organizer's account
+  (`books/event_contacts.ts` `organizerAccount`: a person's employer, a business; a coworker or a
+  business's team member, a person).
+- The other kind of account is flagged in red ("A person's account …, not a business's").
+- `chain/confirmed_names.tsx` (moved from `chain/work/coworker_names.tsx`, now for both kinds):
+  a person's vault keeps business names too (`ConfirmedName.kind`); a business's books keep the
+  answers for the tab only. Screens outside `src/chain` load it on demand.
+- `BUILD_PLAN.md`: the 24-hour rotation line said built; it isn't, and Joshua may not use it, so
+  it's unticked and says so. The twin-curve order is recorded.
+
+Tests: app +4 (where an invitation's organizer posts from, for a person, a coworker and a
+business; a business's confirmed name kept as one). Every package passes; both builds pass;
+`pnpm audit` clean.

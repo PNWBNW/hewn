@@ -20,11 +20,12 @@ import { FormError, errorMessage } from "./AuthCard";
 import { useOpenBooks } from "./BooksProvider";
 import { todayIso } from "./display";
 import { EventDetailsList, eventWhen } from "./EventDetailsList";
-import { myAnswerIn, threadOfContact } from "./event_contacts";
+import { myAnswerIn, organizerAccount, threadOfContact } from "./event_contacts";
 import {
   ANSWER_LABEL,
   type CalendarEvent,
   type GuestAnswer,
+  type Invite,
   answerCounts,
   answersFor,
   canDelete,
@@ -45,6 +46,8 @@ import { EVENT_ANSWERS, type EventAnswer } from "./thread";
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
 const SendEvent = dynamic(() => import("@/chain/SendEvent"), { ssr: false, loading });
 const AnswerEvent = dynamic(() => import("@/chain/AnswerEvent"), { ssr: false, loading });
+/** Who the chain says the organizer's account belongs to (chain/confirmed_names.tsx). */
+const ConfirmedFrom = dynamic(() => import("@/chain/confirmed_names"), { ssr: false });
 
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
@@ -174,7 +177,7 @@ export function HostedView({ id, onEdit, onDone }: { id: string; onEdit: () => v
 
 /** One invitation this account received. */
 export function InviteView({ inviteKey: key, onDone }: { inviteKey: string; onDone: () => void }) {
-  const { calendar, mailbox, work, updateCompany } = useOpenBooks();
+  const { calendar, mailbox, work, rail, updateCompany } = useOpenBooks();
   const [answering, setAnswering] = useState<EventAnswer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const invite = calendar?.invites.find((i) => inviteKey(i) === key);
@@ -210,6 +213,7 @@ export function InviteView({ inviteKey: key, onDone }: { inviteKey: string; onDo
         <DialogDescription>
           From {invite.organizer}. {status}
         </DialogDescription>
+        <OrganizerName invite={invite} books={{ work, rail }} />
       </DialogHeader>
       <div className="flex flex-col gap-4">
         <EventDetailsList details={invite.details} />
@@ -250,9 +254,15 @@ export function InviteView({ inviteKey: key, onDone }: { inviteKey: string; onDo
   );
 }
 
+/** The registered name the chain confirms for the account an invitation came from. */
+function OrganizerName({ invite, books }: { invite: Invite; books: Parameters<typeof organizerAccount>[1] }) {
+  const from = organizerAccount(invite.from, books);
+  return from ? <ConfirmedFrom account={from.account} expect={from.expect} /> : null;
+}
+
 /** Invitations waiting for this account's answer, at the top of a Schedule page. Nothing when there are none. */
 export function InvitationsWaiting({ onOpen }: { onOpen: (key: string) => void }) {
-  const { calendar, mailbox, work } = useOpenBooks();
+  const { calendar, mailbox, work, rail } = useOpenBooks();
   const waiting = waitingInvites(calendar, myAnswerIn({ mailbox, work }), todayIso());
   if (waiting.length === 0) return null;
   return (
@@ -269,6 +279,7 @@ export function InvitationsWaiting({ onOpen }: { onOpen: (key: string) => void }
               <span className="block truncate text-xs text-muted-foreground">
                 {eventWhen(i.details)} · from {i.organizer}
               </span>
+              <OrganizerName invite={i} books={{ work, rail }} />
             </span>
             <Button size="sm" variant="outline" className="min-h-11 sm:min-h-8" onClick={() => onOpen(inviteKey(i))}>
               Answer

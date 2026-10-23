@@ -159,8 +159,8 @@ export function validateCoworkerThread(raw: unknown): CoworkerThread {
   return out;
 }
 
-/** A coworker's registered name, as the chain confirmed it for their account, and when. */
-export type ConfirmedName = { name: string; checkedAt: string };
+/** A registered name as the chain confirmed it for an account, and when; `kind` is there for a business's (a person's has none). */
+export type ConfirmedName = { name: string; checkedAt: string; kind?: "business" };
 
 /** How long a confirmed name is shown before the chain is asked again. */
 export const CONFIRM_AGAIN_MS = 24 * 60 * 60 * 1000;
@@ -172,7 +172,8 @@ export function validateConfirmedName(raw: unknown): ConfirmedName {
   if (!isObject(raw)) throw new DirectoryError("A confirmed name must be an object");
   if (typeof raw.name !== "string" || !REGISTERED_NAME.test(raw.name)) throw new DirectoryError("A confirmed name is a registered name");
   if (!isStamp(raw.checkedAt)) throw new DirectoryError("A confirmed name needs the time it was checked");
-  return { name: raw.name, checkedAt: raw.checkedAt };
+  if (raw.kind !== undefined && raw.kind !== "business") throw new DirectoryError("A confirmed name is a person's or a business's");
+  return raw.kind === "business" ? { name: raw.name, checkedAt: raw.checkedAt, kind: "business" } : { name: raw.name, checkedAt: raw.checkedAt };
 }
 
 /** Whether to ask the chain again: never asked, a day old, or stamped in the future. */

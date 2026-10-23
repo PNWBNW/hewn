@@ -274,7 +274,9 @@ account (its primary name, still owned by it, its text checked against its hash;
 `chain/coworker_names.ts`, Joshua 2026-10-23), which the business can't make read as anyone
 else's. A business's account listed as a coworker is flagged. Names are kept in the vault a day at
 a time; the explorer sees which accounts are looked up. The safety code (SHA-256 over both keys,
-30 digits) stays as a second check in person ("The numbers match" marks it checked). Leaving
+30 digits) stays as a second check in person ("The numbers match" marks it checked). The same
+check runs on announcement channels (the employer's account, expected to be a business's) and on
+invitations (the organizer's account), and flags the other kind of account. Leaving
 the directory sends an empty list to the person who left. ✅ once a coworker's name is confirmed
 on chain or the code is checked in person; ⚠️ while their name can't be confirmed.
 

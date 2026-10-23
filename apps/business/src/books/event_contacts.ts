@@ -40,6 +40,24 @@ export function threadOfContact(c: Contact, books: { mailbox?: Mailbox | null; w
   return books.work ? workThread(books.work, c.partiesKey) : threadFor(books.mailbox, c.partiesKey);
 }
 
+/**
+ * The account an invitation's organizer posts from (the only one its posts are believed from), and
+ * what kind of account it should be: a person's employer is a business, a business's team member
+ * and a coworker are people. Undefined when these books don't know it.
+ */
+export function organizerAccount(c: Contact, books: { work?: Work | null; rail?: Rail | null }): { account: string; expect: "person" | "business" } | undefined {
+  if (c.via === "coworker") {
+    const address = books.work ? coworkersFrom(workThread(books.work, c.businessKey)).find((e) => e.publicKey === c.publicKey)?.address : undefined;
+    return address ? { account: address, expect: "person" } : undefined;
+  }
+  if (books.work) {
+    const employer = books.work.agreements.find((a) => a.partiesKey === c.partiesKey)?.employerAddress;
+    return employer ? { account: employer, expect: "business" } : undefined;
+  }
+  const link = books.rail?.links.find((l) => l.partiesKey === c.partiesKey);
+  return link ? { account: link.address, expect: "person" } : undefined;
+}
+
 /** This account's latest answer to an invitation, from its own conversation with the organizer. */
 export const myAnswerIn =
   (books: { mailbox?: Mailbox | null; work?: Work | null }) =>

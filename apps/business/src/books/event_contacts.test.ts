@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addToThread, emptyThread, validateMessage } from "./thread";
 import { emptyMailbox, updateThread } from "./mailbox";
-import { jobGuests, myAnswerIn, teamGuests, threadOfContact } from "./event_contacts";
+import { jobGuests, myAnswerIn, organizerAccount, teamGuests, threadOfContact } from "./event_contacts";
 import { type Invite, eventWho } from "./shared_events";
 import { type Work, emptyWork, upsertAgreement, updateWorkThread } from "./work";
 import type { Rail } from "./rail";
@@ -62,5 +62,36 @@ describe("who a person can invite at a job", () => {
     expect(myAnswerIn({ mailbox })(invite)).toMatchObject({ answer: "yes", rev: 1 });
     expect(myAnswerIn({ mailbox: emptyMailbox() })(invite)).toBeUndefined();
     expect(emptyThread().items).toEqual([]);
+  });
+});
+
+describe("the account an invitation's organizer posts from", () => {
+  const agreement = { agreementId: "01".repeat(32), partiesKey: KEY_A, employerAddress: ADDR("q"), employerNameHash: "9", status: "active" as const };
+  const directory = (entries: { name: string; publicKey: string; address?: string }[]) =>
+    ({ ...validateMessage({ version: 1, id: "d".repeat(32), from: "business", sentAt: "2026-10-22T15:00:00.000Z", body: { type: "directory", entries } }, "business"), mine: false, seq: 0 });
+
+  it("is a person's employer, a business, for an invitation through their agreement", () => {
+    const work = upsertAgreement(emptyWork("Ana"), agreement);
+    expect(organizerAccount({ via: "pair", partiesKey: KEY_A }, { work })).toEqual({ account: ADDR("q"), expect: "business" });
+    expect(organizerAccount({ via: "pair", partiesKey: KEY_B }, { work })).toBeUndefined();
+  });
+
+  it("is a coworker's listed account, a person, and nothing when the directory has none", () => {
+    let work: Work = upsertAgreement(emptyWork("Ana"), agreement);
+    work = updateWorkThread(work, KEY_A, (t) => addToThread(t, directory([{ name: "Lee", publicKey: LEE, address: ADDR("p") }, { name: "No account", publicKey: NOBODY }])));
+    expect(organizerAccount({ via: "coworker", businessKey: KEY_A, publicKey: LEE }, { work })).toEqual({ account: ADDR("p"), expect: "person" });
+    expect(organizerAccount({ via: "coworker", businessKey: KEY_A, publicKey: NOBODY }, { work })).toBeUndefined();
+  });
+
+  it("is a team member's account, a person, for a business", () => {
+    const rail: Rail = {
+      version: 1,
+      network: "testnet",
+      address: ADDR("q"),
+      linkedAt: "2026-10-14T18:00:00.000Z",
+      links: [{ workerId: "w1", address: ADDR("z"), nameHash: "1", agreementId: "01".repeat(32), status: "linked", partiesKey: KEY_A }],
+    };
+    expect(organizerAccount({ via: "pair", partiesKey: KEY_A }, { rail })).toEqual({ account: ADDR("z"), expect: "person" });
+    expect(organizerAccount({ via: "pair", partiesKey: KEY_B }, { rail })).toBeUndefined();
   });
 });
