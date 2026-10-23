@@ -4197,3 +4197,17 @@ books, the records and the screens are untouched.
 Tests: app +5 (a paystub and a week of hours sealed under the pair's key that the parties key
 doesn't open; paystubs read across the switch in one run; an onlooker with the parties key gets
 only those before it; a paystub under a lost key passed once a later one arrives, and not before).
+
+## 2026-10-23: fix, a side that answered the handshake can start over from nothing
+
+Found while designing the backups: if the side that *answered* a handshake later opens Hewn on a
+fresh device with no books, it reads the conversation from the start, sees the other side's old
+start, and answers it again with a new half. The other side ignored a second answer to a start it
+had already paired, so each wrote under a key the other couldn't make.
+- `books/key_ring.ts` `noteReceived`: a second answer to an answered start now makes a fresh pair
+  from this side's same private half and the new one (`again`, its own stream id), and this side
+  writes under it. Only an answer from the other side's account gets this far (the sender check).
+- `docs/THREAT_MODEL.md` (the handshake, lost keys).
+
+Tests: app +1 (the fresh-device case end to end; it fails without the fix). The test chain now
+refuses a slot already sent under, as letters do.

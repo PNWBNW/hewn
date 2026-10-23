@@ -3,7 +3,7 @@
 // goes): who writes where, under which key, and what someone holding only the
 // agreement's key can still open.
 import { describe, expect, it } from "vitest";
-import { open, partiesKeyFromHex } from "@pnw/mailbox";
+import { MailboxError, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { addHalves, emptyRing, isTwinSealed, noteReceived, pairId, validateKeyRing } from "../books/key_ring";
 import { type Side, type Thread, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
 import { makeHalves, newHalf, pairKeyHex } from "./key_ring";
@@ -18,6 +18,8 @@ function chain() {
   return {
     slots,
     async put(lookup: string, envelope: Uint8Array) {
+      // As with letters: a slot this account already sent under is refused, and the send steps over it.
+      if (slots.has(lookup)) throw new MailboxError("CONFLICT", "taken");
       slots.set(lookup, new Uint8Array(envelope));
     },
     async get(lookup: string) {
@@ -193,6 +195,29 @@ describe("the handshake", () => {
     const sealed = await worker.say("Under a fresh key");
     expect(sealed.via).toBe(worker.thread.ring?.out);
     expect(await business.check()).toEqual(["Under a fresh key"]);
+  });
+  it("gets going again when the side that answered comes back on a fresh device with nothing", async () => {
+    const box = chain();
+    const business = party("business", box);
+    const worker = party("worker", box);
+    await business.say("Hello");
+    await worker.check();
+    await worker.say("Hi");
+    await business.check();
+    await business.say("Under our key");
+    await worker.check();
+    // The person starts over on a new device: no conversation, no keys. They read from the start,
+    // see the business's old start, and answer it again with a new half.
+    worker.thread = emptyThread();
+    expect(await worker.check()).toEqual(["Hello"]);
+    await worker.say("New phone");
+    // The business takes the second answer to its old start as a fresh pair, and writes under it.
+    expect(await business.check()).toEqual(["New phone"]);
+    await business.say("Welcome back");
+    expect(await worker.check()).toEqual(["Welcome back"]);
+    await worker.say("Thanks");
+    expect(await business.check()).toEqual(["Thanks"]);
+    expect(isTwinSealed(business.thread.ring) && isTwinSealed(worker.thread.ring)).toBe(true);
   });
 });
 
