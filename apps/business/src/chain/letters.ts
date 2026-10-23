@@ -238,6 +238,11 @@ export class LetterBox {
     return (await this.read()).all.get(lookup) ?? [];
   }
 
+  /** The copy of a letter this account sent under `lookup` (its SentLetter), or null: how a restore gets this side's own messages back. */
+  async getSent(lookup: string): Promise<Uint8Array<ArrayBuffer> | null> {
+    return (await this.read()).sentCopies.get(lookup) ?? null;
+  }
+
   /** Whether this account has sent a letter under `lookup` (read afresh). */
   async hasSent(lookup: string): Promise<boolean> {
     this.refresh();
@@ -263,12 +268,15 @@ export class LetterBox {
   }
 
   private async load(): Promise<Letters> {
-    const out: Letters = { received: new Map(), all: new Map(), sent: new Set() };
+    const out: Letters = { received: new Map(), all: new Map(), sent: new Set(), sentCopies: new Map() };
     const raw = (await Promise.all(LETTER_PROGRAMS.map((p) => this.wallet.requestRecords(p, true)))).flatMap((r) => (Array.isArray(r) ? r : []));
     for (const r of raw) {
       const letter = parseLetterRecord(r);
       if (!letter) continue;
-      if (letter.kind === "sent") out.sent.add(letter.lookup);
+      if (letter.kind === "sent") {
+        out.sent.add(letter.lookup);
+        if (!out.sentCopies.has(letter.lookup)) out.sentCopies.set(letter.lookup, letter.envelope);
+      }
       else {
         if (!out.received.has(letter.lookup)) out.received.set(letter.lookup, letter);
         out.all.set(letter.lookup, [...(out.all.get(letter.lookup) ?? []), letter]);
@@ -279,7 +287,7 @@ export class LetterBox {
   }
 }
 
-type Letters = { received: Map<string, LetterRecord>; all: Map<string, LetterRecord[]>; sent: Set<string> };
+type Letters = { received: Map<string, LetterRecord>; all: Map<string, LetterRecord[]>; sent: Set<string>; sentCopies: Map<string, Uint8Array<ArrayBuffer>> };
 
 /**
  * Sends one announcement to many accounts: one Shield approval for each

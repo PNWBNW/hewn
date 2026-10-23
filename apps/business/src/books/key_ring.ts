@@ -62,11 +62,16 @@ export type KeyRing = {
   out?: string;
   /** Starts from the other side, waiting for a half to answer with. */
   toAnswer?: { publicKey: string; on: string }[];
+  /** After a backup: start a fresh handshake, so the backup covers the conversation only up to here. */
+  refresh?: true;
+  /** Backups this side made of the conversation, by the request both agreed to (books/conversation_backup.ts). */
+  backups?: { requestId: string; at: string }[];
 };
 
 /** How many pairs a ring keeps; each backup (later) adds one. */
 export const MAX_PAIRS = 32;
 const MAX_TO_ANSWER = 4;
+const MAX_BACKUPS = 64;
 const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
 const MAX_SEQ = 0xffff_ffff;
 
@@ -148,6 +153,18 @@ export function validateKeyRing(raw: unknown): KeyRing {
     });
     if (ring.toAnswer.length === 0) delete ring.toAnswer;
   }
+  if (raw.refresh !== undefined) {
+    if (raw.refresh !== true) throw new KeyRingError("Refresh is true or missing");
+    ring.refresh = true;
+  }
+  if (raw.backups !== undefined) {
+    if (!Array.isArray(raw.backups) || raw.backups.length > MAX_BACKUPS) throw new KeyRingError("Too many backups in one conversation");
+    ring.backups = raw.backups.map((b: unknown) => {
+      if (!isObject(b) || typeof b.requestId !== "string" || !/^[0-9a-f]{32}$/.test(b.requestId) || !isStamp(b.at)) throw new KeyRingError("A backup needs its request and time");
+      return { requestId: b.requestId, at: b.at };
+    });
+    if (ring.backups.length === 0) delete ring.backups;
+  }
   return ring;
 }
 
@@ -226,8 +243,27 @@ export function noteReceived(ring: KeyRing, item: { seq: number; via?: string; h
 /** What `prepareRing` has to make: a half to start with (a ring with nothing in it), and one for each start to answer. */
 export function halvesNeeded(ring: KeyRing | undefined): { start: boolean; answer: { publicKey: string; on: string }[] } {
   const answer = ring?.toAnswer ?? [];
-  return { start: (ring?.pairs.length ?? 0) === 0 && answer.length === 0, answer };
+  const fresh = (ring?.pairs.length ?? 0) === 0 && answer.length === 0;
+  // A refresh after a backup starts again, unless a start of this side's is already waiting.
+  const refresh = !!ring?.refresh && !ring.pairs.some((p) => !p.theirs);
+  return { start: fresh || refresh, answer };
 }
+
+/**
+ * After a backup both sides agreed to: this side made its copy. The side that allowed it starts the
+ * fresh keys (`refresh`), its half riding on the Allow; the side that asked answers that start.
+ */
+export function noteBackup(ring: KeyRing | undefined, requestId: string, at: string, refresh: boolean): KeyRing {
+  const base = ring ?? emptyRing();
+  if (base.backups?.some((b) => b.requestId === requestId)) return base;
+  return validateKeyRing({ ...base, ...(refresh ? { refresh: true as const } : {}), backups: [...(base.backups ?? []), { requestId, at }].slice(-MAX_BACKUPS) });
+}
+
+/** Whether this side made its copy for that request. */
+export const backedUp = (ring: KeyRing | undefined, requestId: string): boolean => !!ring?.backups?.some((b) => b.requestId === requestId);
+
+/** The pairs a backup made now covers: those with both halves, made before `before` (the moment both agreed). Newest first. */
+export const pairsBefore = (ring: KeyRing | undefined, before: string): Pair[] => establishedPairs(ring).filter((p) => p.createdAt < before);
 
 /** Halves made for a ring (chain/key_ring.ts `makeHalves`): a start of this side's, and answers to theirs. */
 export type HalvesMade = { start?: Half; answers?: { to: { publicKey: string; on: string }; half: Half }[] };
@@ -255,5 +291,8 @@ export function addHalves(ring: KeyRing | undefined, made: HalvesMade, now: stri
   const next: KeyRing = { pairs };
   if (ring?.out) next.out = ring.out;
   if (toAnswer.length > 0) next.toAnswer = toAnswer;
+  // A refresh is done once its start is in.
+  if (ring?.refresh && !(made.start && need.start)) next.refresh = true;
+  if (ring?.backups) next.backups = ring.backups;
   return validateKeyRing(next);
 }

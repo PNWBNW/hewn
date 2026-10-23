@@ -17,7 +17,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Flag, KeyRound, Lock, RefreshCw, Send, TriangleAlert } from "lucide-react";
+import { Archive, Flag, KeyRound, Lock, RefreshCw, Send, TriangleAlert } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
@@ -38,14 +38,19 @@ import {
   markItemsRead,
   markReported,
   markThreadRead,
+  newMessageId,
   preview,
   skipIncoming,
 } from "@/books/thread";
-import { addHalves, isTwinSealed } from "@/books/key_ring";
+import { addHalves, isTwinSealed, noteBackup } from "@/books/key_ring";
+import { backupRequests, canAskBackup } from "@/books/conversation_backup";
+import { useOpenBooks } from "@/books/BooksProvider";
 import { FeeChoice } from "./FeeChoice";
 import { makeHalves } from "./key_ring";
+import { type BackupActions, BackupCard } from "./BackupCard";
+import { backupContents, writeBackup } from "./conversation_backup";
 import { useLetters } from "./letter_reader";
-import { LETTER_BYTES, type LetterWallet, letterThread } from "./letters";
+import { LETTER_BYTES, LetterBox, type LetterWallet, letterReader, letterThread } from "./letters";
 import { Report } from "./Report";
 import { type PostInput, type ReadInput, type ThreadKinds, postToThread, readThread } from "./thread";
 
@@ -86,6 +91,8 @@ type Transport = {
   refresh?: () => void;
   /** Shield, connected to this account: what a report to Hewn goes through. */
   wallet?: LetterWallet;
+  /** This account, and its letters to itself: where a conversation backup goes (chain/conversation_backup.ts). */
+  self?: { account: string; box: LetterBox; read: (lookup: string) => Promise<Uint8Array | null> };
 };
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -102,7 +109,18 @@ export default function Conversation(props: ConversationProps) {
 function LetterConversation(props: ConversationProps) {
   const { state, connect, error, address, mismatch, letters, wallet } = useLetters();
   const { peer } = props;
-  const transport = useMemo<Transport | null>(() => (letters ? { ...letterThread(wallet, peer, { letters }), letters: true, wallet } : null), [letters, wallet, peer]);
+  const transport = useMemo<Transport | null>(
+    () =>
+      letters
+        ? {
+            ...letterThread(wallet, peer, { letters }),
+            letters: true,
+            wallet,
+            ...(address ? { self: { account: address, box: new LetterBox({ wallet, to: address }), read: letterReader(letters, address).get } } : {}),
+          }
+        : null,
+    [letters, wallet, peer, address],
+  );
 
   let gate: ReactNode = null;
   if (mismatch && address) {
@@ -246,6 +264,67 @@ function ConversationView({
     }
   }
 
+  // Backups both sides agree to (books/conversation_backup.ts): only where the handshake runs.
+  const { backupKey } = useOpenBooks();
+  const [backingUp, setBackingUp] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const requests = backupRequests(thread);
+  const sendBody = useCallback(
+    async (body: Parameters<typeof postToThread>[0]["body"]) => {
+      if (!transport) throw new Error("Connect Shield first");
+      const ring = await prepare();
+      const item = await postToThread({ client: transport.writer, partiesKey, from: side, nextOut: latest.current?.nextOut ?? 0, ...(twin ? { ring: ring ?? null } : {}), body, ...(transport.letters ? { feeMode } : {}) });
+      await update((t) => addToThread(t, item));
+    },
+    [transport, prepare, partiesKey, side, twin, feeMode, update],
+  );
+  /** This side's copy: the keys up to `before`, as a letter to its own account. */
+  const writeCopy = useCallback(
+    async (requestId: string, passphrase: string, before: string, refresh: boolean) => {
+      const self = transport?.self;
+      if (!self) throw new Error("Connect Shield first");
+      const key = await backupKey(passphrase, self.account, true);
+      const backup = await backupContents({ partiesKey, side, peer, ring: latest.current?.ring, requestId, before });
+      await writeBackup({ box: self.box, read: self.read, key, backup, ...(transport?.letters ? { feeMode } : {}) });
+      const at = new Date().toISOString();
+      await update((t) => ({ ...t, ring: noteBackup(t.ring, requestId, at, refresh) }));
+    },
+    [transport, backupKey, partiesKey, side, peer, feeMode, update],
+  );
+  const backupActions: BackupActions | null =
+    twin && transport?.self
+      ? {
+          allow: async (requestId, passphrase) => {
+            setBackingUp(true);
+            try {
+              // This side's copy first, then the Allow, carrying this side's half for the fresh keys.
+              await writeCopy(requestId, passphrase, new Date().toISOString(), true);
+              await sendBody({ type: "backup_answer", requestId, allow: true });
+            } finally {
+              setBackingUp(false);
+            }
+          },
+          decline: async (requestId) => {
+            setBackingUp(true);
+            try {
+              await sendBody({ type: "backup_answer", requestId, allow: false });
+            } finally {
+              setBackingUp(false);
+            }
+          },
+          copy: async (requestId, passphrase) => {
+            const request = backupRequests(latest.current).find((r) => r.requestId === requestId);
+            if (!request?.answer?.allow) throw new Error("That backup wasn't allowed");
+            setBackingUp(true);
+            try {
+              await writeCopy(requestId, passphrase, request.answer.at, false);
+            } finally {
+              setBackingUp(false);
+            }
+          },
+        }
+      : null;
+
   const lastMine = [...items].reverse().find((i) => i.mine);
 
   return (
@@ -280,7 +359,17 @@ function ConversationView({
         {items.length === 0 && <li className="text-sm text-muted-foreground">No messages yet. Say hello.</li>}
         {items.map((item) => (
           <li key={item.id} className={cn("flex flex-col gap-0.5", item.mine ? "items-end" : "items-start")}>
-            <Bubble item={item} title={title} offersHref={offersHref} />
+            {item.body.type === "backup_request" || item.body.type === "backup_answer" ? (
+              <BackupCard
+                item={item}
+                request={requests.find((r) => r.requestId === (item.body as { requestId: string }).requestId)}
+                title={title}
+                actions={backupActions}
+                busy={backingUp}
+              />
+            ) : (
+              <Bubble item={item} title={title} offersHref={offersHref} />
+            )}
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
               {stamp(item.sentAt)}
               {item === lastMine && (item.receivedAt ? ` · Received ${stamp(item.receivedAt)}` : transport?.letters ? " · On the network" : " · Sent")}
@@ -348,6 +437,47 @@ function ConversationView({
                 ? "Long: it may go as a page (a bigger network fee than a letter)."
                 : "Each message is a sealed letter on the network: one approval in Shield."}
           </p>
+        </div>
+      )}
+      {backupActions && canAskBackup(thread) && (
+        <div className="flex flex-col gap-2 border-t pt-2">
+          {!asking ? (
+            <Button variant="ghost" size="sm" className="min-h-11 self-start sm:min-h-8" onClick={() => setAsking(true)}>
+              <Archive aria-hidden /> Back up this conversation…
+            </Button>
+          ) : (
+            <div className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3 text-sm">
+              <p>
+                Ask {title} to back up this conversation, up to here, on the network? Nothing happens unless they allow it. Then each of you keeps your own
+                copy, sealed to your account and your passphrase, and the conversation carries on under fresh keys.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  className="min-h-11 sm:min-h-9"
+                  disabled={backingUp}
+                  onClick={() =>
+                    void (async () => {
+                      setBackingUp(true);
+                      setError(null);
+                      try {
+                        await sendBody({ type: "backup_request", requestId: newMessageId() });
+                        setAsking(false);
+                      } catch (e) {
+                        setError(errorMessage(e));
+                      } finally {
+                        setBackingUp(false);
+                      }
+                    })()
+                  }
+                >
+                  {backingUp ? "Approve it in Shield…" : `Ask ${title}`}
+                </Button>
+                <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={backingUp} onClick={() => setAsking(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <FormError message={error} />

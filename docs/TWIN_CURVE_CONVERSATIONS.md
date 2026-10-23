@@ -1,9 +1,9 @@
 # Twin-curve conversations between a business and its people
 
-**Status:** approved by Joshua (2026-10-23). Built: the handshake for the conversation's messages
-(`books/key_ring.ts`, `chain/key_ring.ts`), and paystubs and timesheets on the same keys (they
-keep their own slot numbers; only the key each slot is sealed with changes). Next: the agreed
-backups.
+**Status:** approved by Joshua (2026-10-23) and built: the handshake for the conversation's
+messages, paystubs and timesheets (`books/key_ring.ts`, `chain/key_ring.ts`), and backups both
+people agree to (`books/conversation_backup.ts`, `chain/conversation_backup.ts`, the cards in the
+conversation and the restore panel on Messages).
 
 ## Why
 
@@ -37,7 +37,9 @@ outer lock, and adds backups that both people have to agree to.
    `half: { publicKey }`. No extra letter, no extra Shield approval. It keeps riding until the
    answer comes.
 3. **The other side answers** with its own half on the next message it sends, on the same stream
-   the start came on (`half: { publicKey, answers }`), so it can always be read.
+   the start came on (`half: { publicKey, answers }`), so it can always be read. Only the half
+   travels outside: the message itself goes inside, sealed under the new pair's key (`sealed`), so
+   even the answer is closed to a view key, and a backup covers exactly what came before it.
 4. **When a side holds both halves,** it works out the new key: HKDF-SHA256 over ECDH(its private
    half, the other's public half), salt the agreement's parties key, info `PNW::PAIR::v1` and both
    public halves (lower first). Both sides arrive at the same key without it ever travelling.

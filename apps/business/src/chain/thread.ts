@@ -26,9 +26,9 @@ import { MAX_PAYLOAD_BYTES, MailboxError, type MailboxClient, lookupId, open, pa
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { packPayload, unpackPayload } from "./compress";
 import { sendReceipt } from "./receipts";
-import { type KeyRing, sendPlan } from "../books/key_ring";
+import { type KeyRing, emptyRing, noteReceived, sendPlan } from "../books/key_ring";
 import { GROUP_TYPES, type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, addToThread, emptyThread, newMessageId, skipIncoming, validateMessage } from "../books/thread";
-import { pairStreams, sendingKey } from "./key_ring";
+import { pairKeyHex, pairStreams, sendingKey } from "./key_ring";
 
 export const THREAD_KINDS: Record<Side, string> = { business: "thread_b", worker: "thread_w" };
 
@@ -72,14 +72,16 @@ export async function postToThread({ client, partiesKey, from, nextOut, body, no
   const raw: Record<string, unknown> = { version: 1, id: id ?? newMessageId(), from, sentAt: (now ?? (() => new Date()))().toISOString(), body };
   if (plan.half) raw.half = plan.half;
   const message: ThreadMessage = validateMessage(raw, from);
-  const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(message)));
-  if (bytes.length > MAX_PAYLOAD_BYTES) throw new ThreadError("That message is too long to send");
   const kind = (kinds ?? THREAD_KINDS)[from];
+  // Answering a handshake: the message goes inside, under the new pair's key (books/thread.ts "sealed").
+  const answering = plan.half?.answers ? ring?.pairs.find((p) => p.mine.publicKey === plan.half!.publicKey && p.theirs) : undefined;
+  const innerKey = answering ? partiesKeyFromHex(await pairKeyHex(partiesKey, answering)) : null;
   const sending = await sendingKey(partiesKey, ring ?? undefined, plan.via);
   const first = plan.via ? sending.nextOut! : nextOut;
   const key = partiesKeyFromHex(sending.key);
   try {
     for (let seq = first; seq < first + MAX_TAKEN; seq++) {
+      const bytes = await wireBytes(message, innerKey, kind, seq);
       const sealed = await seal(key, kind, seq, bytes);
       try {
         await (feeMode ? client.put(sealed.lookup, sealed.envelope, { feeMode }) : client.put(sealed.lookup, sealed.envelope));
@@ -90,8 +92,54 @@ export async function postToThread({ client, partiesKey, from, nextOut, body, no
     }
   } finally {
     key.fill(0);
+    innerKey?.fill(0);
   }
   throw new ThreadError("Couldn't find a free slot for the message; try again");
+}
+
+const toBase64 = (b: Uint8Array) => btoa(Array.from(b, (x) => String.fromCharCode(x)).join(""));
+const fromBase64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+/**
+ * What a message's letter carries: the message itself, or, answering a handshake, only its id, time
+ * and half outside, and the message sealed inside under the new pair's key, bound to this slot.
+ */
+async function wireBytes(message: ThreadMessage, innerKey: Uint8Array | null, kind: string, seq: number): Promise<Uint8Array> {
+  if (!innerKey) {
+    const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(message)));
+    if (bytes.length > MAX_PAYLOAD_BYTES) throw new ThreadError("That message is too long to send");
+    return bytes;
+  }
+  const { half, ...rest } = message;
+  const inner = await seal(innerKey, kind, seq, await packPayload(new TextEncoder().encode(JSON.stringify(rest))));
+  const outer: ThreadMessage = validateMessage({ version: 1, id: message.id, from: message.from, sentAt: message.sentAt, body: { type: "sealed", inner: toBase64(inner.envelope) }, half }, message.from);
+  const bytes = await packPayload(new TextEncoder().encode(JSON.stringify(outer)));
+  if (bytes.length > MAX_PAYLOAD_BYTES) throw new ThreadError("That message is too long to send");
+  return bytes;
+}
+
+/**
+ * Opens a sealed message's inside with the pair its half makes (`ring` as it stands once the half is
+ * noted). Throws when the pair isn't one this side holds both halves of, or the inside doesn't open.
+ */
+export async function openSealed(outer: ThreadMessage, ring: KeyRing, partiesKey: string, kind: string, seq: number, from: Side): Promise<ThreadMessage> {
+  if (outer.body.type !== "sealed" || !outer.half?.answers) throw new ThreadError("That isn't a sealed message");
+  const pair = ring.pairs.find((p) => p.theirs === outer.half!.publicKey && p.mine.publicKey === outer.half!.answers);
+  if (!pair) throw new ThreadError("A sealed message under a key this side never started");
+  return openInner(outer, await pairKeyHex(partiesKey, pair), kind, seq, from);
+}
+
+/** Opens a sealed message's inside with `innerKeyHex`; the inside must be the same message. */
+export async function openInner(outer: ThreadMessage, innerKeyHex: string, kind: string, seq: number, from: Side): Promise<ThreadMessage> {
+  if (outer.body.type !== "sealed") throw new ThreadError("That isn't a sealed message");
+  const k = partiesKeyFromHex(innerKeyHex);
+  try {
+    const inner = validateMessage(JSON.parse(new TextDecoder().decode(await unpackPayload(await open(k, kind, seq, fromBase64(outer.body.inner))))), from);
+    if (inner.id !== outer.id || inner.body.type === "sealed") throw new ThreadError("A sealed message's inside isn't the message");
+    return { ...inner, ...(outer.half ? { half: outer.half } : {}) };
+  } finally {
+    k.fill(0);
+  }
 }
 
 export type ReadInput = {
@@ -157,7 +205,13 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
         if (!bytes) break; // the end of their side on this stream
         let item: ThreadItem;
         try {
-          const message = validateMessage(JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, kind, seq, bytes)))), from);
+          let message = validateMessage(JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, kind, seq, bytes)))), from);
+          // An answer to a handshake: its inside opens with the pair its half makes.
+          if (message.body.type === "sealed") {
+            if (!twin) throw new ThreadError("A sealed message belongs to a conversation with a handshake");
+            const noted = noteReceived(local.ring ?? emptyRing(), { seq, ...(stream.via ? { via: stream.via } : {}), ...(message.half ? { half: message.half } : {}), receivedAt: stamp() });
+            message = await openSealed(message, noted, partiesKey, kind, seq, from);
+          }
           // Group chat kinds only travel between coworkers, under their own filter.
           const allowed = accept ?? ((b: ThreadMessage["body"]) => !GROUP_TYPES.includes(b.type));
           if (!allowed(message.body)) throw new ThreadError("That kind of message doesn't belong in this conversation");

@@ -22,6 +22,7 @@ const loading = () => <p className="text-sm text-muted-foreground">Loading…</p
 const Conversation = dynamic(() => import("@/chain/Conversation"), { ssr: false, loading });
 const Channel = dynamic(() => import("@/chain/Channel"), { ssr: false, loading });
 const MessagesCheck = dynamic(() => import("@/chain/MessagesCheck"), { ssr: false });
+const RestoreBackups = dynamic(() => import("@/chain/RestoreBackups"), { ssr: false });
 const SendDirectory = dynamic(() => import("@/chain/SendDirectory"), { ssr: false, loading });
 
 export default function MessagesPage() {
@@ -188,6 +189,12 @@ function Messages() {
             </Button>
           </div>
         ))}
+      <details className="rounded-md border p-3">
+        <summary className="min-h-11 cursor-pointer text-sm font-medium sm:min-h-0">Restore conversations backed up on the network</summary>
+        <div className="mt-2">
+          <RestoreBackups />
+        </div>
+      </details>
     </div>
   );
 }

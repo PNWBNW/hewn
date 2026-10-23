@@ -394,14 +394,22 @@ conversation starts under the parties key in the agreement record, which a view 
 side then makes a P-256 key pair in its vault and sends only the public half, riding on a message
 it sends anyway; once both halves are in, both sides make the same key, which never travels, and
 write under it in its own slots.
-- **A view key** opens the letters from before the switch and the public halves, not what follows. ✅
+- **A view key** opens the letters from before the switch and the public halves, not what follows;
+  the answer that completes a handshake carries its words sealed under the new key. ✅
 - **A swapped half:** a half counts only from the other side's account (the sender check), and a
   view key can't send. ✅
 - **An older app** never answers; the conversation stays under the parties key and keeps working. ✅
 - **Lost keys:** a side whose books come back without them reads the agreement's stream to the end
-  and starts again; what was sent under the lost key stays unreadable to it. A side that answered
-  the first handshake and comes back with nothing answers the old start again, and the other side
-  takes that as a fresh pair from the same half (2026-10-23). ⚠️ Until agreed backups are built.
+  and starts again; what was sent under the lost key stays unreadable to it, unless both sides
+  agreed to a backup. A side that answered the first handshake and comes back with nothing answers
+  the old start again, and the other side takes that as a fresh pair from the same half. ✅
+- **Backups on chain, both agreeing** (Joshua, 2026-10-23): either side asks, the other allows or
+  declines; nothing is backed up without Allow. Each side's copy is a letter to its own account
+  (only its wallet finds the record) sealed with a key from its username and passphrase (PBKDF2,
+  600k rounds, salted with the account), so a view key alone can't open it, and the passphrase is
+  checked against the books first. It covers the keys made before both agreed; the keys refresh
+  straight after, so nothing later is in it. ⚠️ A copy is only as strong as its passphrase, and
+  stays on chain for good.
 - **Paystubs and timesheets** go under the pair's key once a side writes under it; a reader tries
   every key it holds, and passes a slot sealed with a key it lost once a later one arrives. ✅
 
