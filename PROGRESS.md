@@ -4095,10 +4095,11 @@ Tests: app +10 (a business listing its own account or another person's shows tha
 owner; a sold name, a hash mismatch, an unreachable chain and a non-account are never
 confirmed; the vault keeps, forgets, refreshes after a day and caps confirmed names).
 
-## 2026-10-23: TESTING.md, scenarios for testing by hand
+## 2026-10-23: dev_testing_guide.md, scenarios for testing by hand
 
-Joshua asked for a top-level page that people helping with testing can work from. `TESTING.md`
-covers what the automated tests can't: real wallets, real phones, the chain, and trying to cheat.
+Joshua asked for a top-level page that people helping with testing can work from (named
+`dev_testing_guide.md` at his call). It covers what the automated tests can't: real wallets, real
+phones, the chain, and trying to cheat.
 Fifteen areas (accounts, books and backups, names, offers, messages, coworkers, announcements,
 the calendar, hours and paystubs, pay runs, the job board, the books, phones and wallets,
 privacy, the web side), each scenario with an id, what to do, what should happen, and a

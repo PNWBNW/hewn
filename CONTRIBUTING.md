@@ -57,9 +57,9 @@ saying what's in it and how it fits: `apps/business`, `apps/site`, `packages`, `
 
 ## Testing by hand
 
-[`TESTING.md`](TESTING.md) lists the scenarios to try with real wallets and phones, what should
-happen in each, and where to look for breaks. Report anything that exposes data or moves money
-wrongly privately, as [`SECURITY.md`](SECURITY.md) describes.
+[`dev_testing_guide.md`](dev_testing_guide.md) lists the scenarios to try with real wallets and
+phones, what should happen in each, and where to look for breaks. Report anything that exposes
+data or moves money wrongly privately, as [`SECURITY.md`](SECURITY.md) describes.
 
 ## Forking
 
