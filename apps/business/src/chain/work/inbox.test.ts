@@ -1,7 +1,7 @@
 import { KINDS, MailboxError, lookupId, openReceipt, partiesKeyFromHex, receiptLookup, seal } from "@pnw/mailbox";
 import { type PaystubDocument, canonicalPaystub, paystubDocument, paystubHash } from "@pnw/payroll";
 import { describe, expect, it } from "vitest";
-import { type ReceivedPaystub, type Work, addPaystub, bumpWorkSeq, emptyWork, upsertAgreement } from "../../books/work";
+import { type ReceivedPaystub, type Work, addPaystub, bumpWorkSeq, emptyWork, updateWorkThread, upsertAgreement } from "../../books/work";
 import { type PaystubEnvelope, parsePaystubEnvelope, scanPaystubs } from "./inbox";
 
 const AID = "01".repeat(32);
@@ -172,5 +172,56 @@ describe("scanPaystubs", () => {
     expect(result.received.map((p) => p.agreementId)).toEqual([other.agreementId]);
     expect(box.gets).toHaveLength(3); // one miss for the active agreement, a hit and a miss for the paused one
     expect(box.gets).not.toContain(lookupId(partiesKeyFromHex(pending.partiesKey), KINDS.paystub, 0));
+  });
+});
+
+describe("paystubs after the handshake (chain/key_ring.ts)", () => {
+  /** A ring holding a pair whose key both sides can make, as a handshake leaves it. */
+  async function handshaken() {
+    const { newHalf, pairKeyHex } = await import("../key_ring");
+    const { pairId } = await import("../../books/key_ring");
+    const mine = await newHalf();
+    const theirs = await newHalf();
+    const pair = { mine, theirs: theirs.publicKey, sent: true as const, nextIn: 0, nextOut: 0, createdAt: "2026-10-23T12:00:00.000Z" };
+    const ring = { pairs: [pair], out: pairId(pair) };
+    const work = updateWorkThread(base(), KEY_HEX, (t) => ({ ...t, ring }));
+    return { work, pairKey: partiesKeyFromHex(await pairKeyHex(KEY_HEX, pair)) };
+  }
+
+  it("reads paystubs sealed before the switch and after it, in one run", async () => {
+    const { work, pairKey } = await handshaken();
+    const s0 = await seal(key, KINDS.paystub, 0, bytes(envelope()));
+    const s1 = await seal(pairKey, KINDS.paystub, 1, bytes(envelope({ settlement: { transactionId: "at1" + "z".repeat(58) } })));
+    const box = fakeMailbox({ [s0.lookup]: s0.envelope, [s1.lookup]: s1.envelope });
+    const v = vault(work);
+    const result = await scanPaystubs({ work: v.work, client: box.client, store: v.store, skip: v.skip });
+    expect(result.received.map((p) => p.seq)).toEqual([0, 1]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it("gives someone holding only the agreement's key (a view key) the paystubs from before the switch, nothing after", async () => {
+    const { pairKey } = await handshaken();
+    const s0 = await seal(key, KINDS.paystub, 0, bytes(envelope()));
+    const s1 = await seal(pairKey, KINDS.paystub, 1, bytes(envelope()));
+    const box = fakeMailbox({ [s0.lookup]: s0.envelope, [s1.lookup]: s1.envelope });
+    const v = vault(base());
+    const result = await scanPaystubs({ work: v.work, client: box.client, store: v.store, skip: v.skip });
+    expect(result.received.map((p) => p.seq)).toEqual([0]);
+  });
+
+  it("passes a paystub sealed with a key these books lost once a later one arrives, instead of waiting for ever", async () => {
+    const { work, pairKey } = await handshaken();
+    const lost = partiesKeyFromHex("cd".repeat(32));
+    const s0 = await seal(lost, KINDS.paystub, 0, bytes(envelope()));
+    const s1 = await seal(pairKey, KINDS.paystub, 1, bytes(envelope({ settlement: { transactionId: "at1" + "z".repeat(58) } })));
+    const box = fakeMailbox({ [s0.lookup]: s0.envelope, [s1.lookup]: s1.envelope });
+    const v = vault(work);
+    const result = await scanPaystubs({ work: v.work, client: box.client, store: v.store, skip: v.skip });
+    expect(result.skipped.map((s) => s.seq)).toEqual([0]);
+    expect(result.received.map((p) => p.seq)).toEqual([1]);
+    // With nothing after it, an unopened slot is simply not there yet.
+    const alone = fakeMailbox({ [s0.lookup]: s0.envelope });
+    const w = vault(work);
+    expect((await scanPaystubs({ work: w.work, client: alone.client, store: w.store, skip: w.skip })).skipped).toEqual([]);
   });
 });

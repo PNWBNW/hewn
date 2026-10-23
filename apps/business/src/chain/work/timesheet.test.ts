@@ -2,7 +2,9 @@ process.env.TZ = "America/Los_Angeles";
 
 import { MailboxError, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { describe, expect, it } from "vitest";
-import { type Work, emptyWork, punch, recordTimesheet, upsertAgreement } from "../../books/work";
+import { type Work, emptyWork, punch, recordTimesheet, updateWorkThread, upsertAgreement } from "../../books/work";
+import { pairId } from "../../books/key_ring";
+import { newHalf, pairKeyHex } from "../key_ring";
 import { unpackPayload } from "../compress";
 import { LETTER_BYTES } from "../letters";
 import { TIMESHEET_KIND, sendTimesheet } from "./timesheet";
@@ -50,6 +52,17 @@ describe("sendTimesheet", () => {
     await expect(open(partiesKeyFromHex("cd".repeat(32)), TIMESHEET_KIND, 0, puts[0]!.envelope)).rejects.toThrow();
     const wire = new TextDecoder("utf-8", { fatal: false }).decode(puts[0]!.envelope);
     expect(wire).not.toMatch(/2026-10-13|timesheet|510/);
+  });
+
+  it("after the handshake, seals under the pair's key, which the agreement's key doesn't open", async () => {
+    const pair = { mine: await newHalf(), theirs: (await newHalf()).publicKey, sent: true as const, nextIn: 0, nextOut: 0, createdAt: "2026-10-23T12:00:00.000Z" };
+    const work = updateWorkThread(weekOfWork(), KEY_HEX, (t) => ({ ...t, ring: { pairs: [pair], out: pairId(pair) } }));
+    const { client, puts } = fakeClient();
+    await sendTimesheet({ work, agreementId: AID, weekStart: "2026-10-11", client, now });
+    const pairKey = partiesKeyFromHex(await pairKeyHex(KEY_HEX, pair));
+    expect(puts[0]!.lookup).toBe(lookupId(pairKey, TIMESHEET_KIND, 0));
+    await expect(open(key, TIMESHEET_KIND, 0, puts[0]!.envelope)).rejects.toThrow();
+    expect(JSON.parse(new TextDecoder().decode(await unpackPayload(await open(pairKey, TIMESHEET_KIND, 0, puts[0]!.envelope))))).toMatchObject({ weekStart: "2026-10-11" });
   });
 
   it("takes the slot after the last one sent", async () => {

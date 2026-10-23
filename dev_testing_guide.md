@@ -198,7 +198,8 @@ Results: [#158](https://github.com/PNWBNW/hewn/issues/158)
 - **WORK-1 Hours.** Worker 1 clocks in and out and sends a timesheet. *Expect:* Business A gets it,
   and changed hours need both sides to agree.
 - **WORK-2 Paystub.** After a pay run, Worker 1 gets a paystub. *Expect:* its figures match the
-  run, and only Worker 1 and Business A can see it.
+  run, and only Worker 1 and Business A can see it. Try it both before and after the two have
+  exchanged a message each (MSG-3): it arrives either way.
 - **Break it:** clocking across midnight, a time-zone change, daylight saving, a shift over 24
   hours.
 

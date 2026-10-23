@@ -14,10 +14,11 @@
 // and the clock are injected. Nothing here logs a key, a lookup or a document.
 // ---------------------------------------------------------------------------
 
-import { KINDS, MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
+import { KINDS, MailboxError, type MailboxClient, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { receivedPaystubHash } from "../../books/paystub_document";
-import { type ReceivedPaystub, type Work, WorkError, nextWorkSeq } from "../../books/work";
+import { type ReceivedPaystub, type Work, WorkError, nextWorkSeq, workThread } from "../../books/work";
 import { unpackPayload } from "../compress";
+import { findSlot, laterSlotExists, slotKeys } from "../key_ring";
 import { sendReceipt } from "../receipts";
 
 /** What the employer's app seals (src/chain/deliver.ts), read back. */
@@ -93,49 +94,56 @@ export async function scanPaystubs({ work, client: shared, clientFor, store, ski
   const result: ScanResult = { received: [], skipped: [], off: false };
   for (const agreement of scannable(work)) {
     const client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">> = clientFor ? clientFor(agreement.employerAddress) : shared!;
-    const key = partiesKeyFromHex(agreement.partiesKey);
-    try {
-      let seq = nextWorkSeq(work, agreement.agreementId, "paystub");
-      for (let read = 0; read < most; read++, seq++) {
-        const lookup = lookupId(key, KINDS.paystub, seq);
-        let bytes: Uint8Array | null;
-        try {
-          bytes = await client.get(lookup);
-        } catch (e) {
-          if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") {
-            result.off = true;
-            return result;
-          }
-          result.failed = e instanceof Error ? e.message : "The mailbox couldn't be read";
+    // Each slot is sealed with the agreement's key or, after the handshake, a pair's (chain/key_ring.ts).
+    const ring = workThread(work, agreement.partiesKey)?.ring;
+    const keys = await slotKeys(agreement.partiesKey, ring);
+    let seq = nextWorkSeq(work, agreement.agreementId, "paystub");
+    for (let read = 0; read < most; read++, seq++) {
+      let found: Awaited<ReturnType<typeof findSlot>>;
+      try {
+        found = await findSlot((l) => client.get(l), keys, KINDS.paystub, seq);
+        if (!found && ring && (await laterSlotExists((l) => client.get(l), keys, KINDS.paystub, seq))) {
+          // Sealed with a key these books no longer hold; a later paystub has come, so this one is passed.
+          result.skipped.push({ agreementId: agreement.agreementId, seq, message: "Sealed with a key these books no longer have" });
+          await skip(agreement.agreementId, seq);
+          continue;
+        }
+      } catch (e) {
+        if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") {
+          result.off = true;
           return result;
         }
-        if (!bytes) break; // the end of this agreement's mailbox
-        let paystub: ReceivedPaystub;
-        try {
-          const envelope = parsePaystubEnvelope(await unpackPayload(await open(key, KINDS.paystub, seq, bytes)));
-          const { hash } = receivedPaystubHash(envelope.document);
-          paystub = {
-            agreementId: agreement.agreementId,
-            seq,
-            lookup,
-            receivedAt: stamp(),
-            document: envelope.document,
-            settlement: envelope.settlement,
-            businessName: envelope.businessName,
-            paystubHash: hash,
-          };
-        } catch (e) {
-          result.skipped.push({ agreementId: agreement.agreementId, seq, message: e instanceof Error ? e.message : "The paystub couldn't be read" });
-          await skip(agreement.agreementId, seq);
-          continue; // the pin stays: nothing of it is in the vault
-        }
-        await store(paystub); // in the vault first…
-        result.received.push(paystub);
-        await client.drop(lookup).catch(() => {}); // …then the pin goes; a pin that lingers is harmless
-        if (client.put) await sendReceipt({ put: client.put.bind(client) }, agreement.partiesKey, KINDS.paystub, seq); // the sender learns it arrived
+        result.failed = e instanceof Error ? e.message : "The mailbox couldn't be read";
+        return result;
       }
-    } finally {
-      key.fill(0);
+      if (!found) break; // the end of this agreement's mailbox
+      const { lookup, bytes } = found;
+      let paystub: ReceivedPaystub;
+      const key = partiesKeyFromHex(found.key);
+      try {
+        const envelope = parsePaystubEnvelope(await unpackPayload(await open(key, KINDS.paystub, seq, bytes)));
+        const { hash } = receivedPaystubHash(envelope.document);
+        paystub = {
+          agreementId: agreement.agreementId,
+          seq,
+          lookup,
+          receivedAt: stamp(),
+          document: envelope.document,
+          settlement: envelope.settlement,
+          businessName: envelope.businessName,
+          paystubHash: hash,
+        };
+      } catch (e) {
+        result.skipped.push({ agreementId: agreement.agreementId, seq, message: e instanceof Error ? e.message : "The paystub couldn't be read" });
+        await skip(agreement.agreementId, seq);
+        continue; // the pin stays: nothing of it is in the vault
+      } finally {
+        key.fill(0);
+      }
+      await store(paystub); // in the vault first…
+      result.received.push(paystub);
+      await client.drop(lookup).catch(() => {}); // …then the pin goes; a pin that lingers is harmless
+      if (client.put) await sendReceipt({ put: client.put.bind(client) }, agreement.partiesKey, KINDS.paystub, seq); // the sender learns it arrived
     }
   }
   return result;

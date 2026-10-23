@@ -10,6 +10,7 @@
 // The salt ties the key to this one conversation. Nothing here logs a key.
 // ---------------------------------------------------------------------------
 
+import { lookupId, partiesKeyFromHex } from "@pnw/mailbox";
 import { type Half, type HalvesMade, type KeyRing, type Pair, addHalves, establishedPairs, halvesNeeded, pairId } from "../books/key_ring";
 
 const subtle = () => globalThis.crypto.subtle;
@@ -86,4 +87,55 @@ export async function keepHalvesReady(ring: KeyRing | undefined, keep: (change: 
   if (!made) return;
   const now = new Date().toISOString();
   await keep((latest) => addHalves(latest, made, now));
+}
+
+// ---- Paystubs and timesheets -------------------------------------------------------------
+// They keep their own numbered slots, one count per kind as before; only the key each slot is
+// sealed with changes. The sender seals under the pair it writes under (else the agreement's
+// key), and a reader tries every key it holds, newest first. A slot sealed with a key this side
+// no longer has (its books came back without it) can't be opened; once a later slot opens, it is
+// skipped rather than waited on for ever.
+
+/** How far past an unopened slot a reader looks for a later one. */
+export const LOOK_AHEAD = 4;
+
+/** Every key a slot of this conversation may be sealed with: each pair's, newest first, then the agreement's. */
+export async function slotKeys(partiesKey: string, ring: KeyRing | undefined): Promise<string[]> {
+  const keys: string[] = [];
+  for (const p of establishedPairs(ring)) keys.push(await pairKeyHex(partiesKey, p));
+  keys.push(partiesKey);
+  return keys;
+}
+
+/** The key a paystub or a timesheet goes out under: the pair this side writes under, else the agreement's. */
+export async function documentKey(partiesKey: string, ring: KeyRing | undefined): Promise<string> {
+  const pair = ring?.out ? ring.pairs.find((p) => pairId(p) === ring.out) : undefined;
+  return pair?.theirs ? pairKeyHex(partiesKey, pair) : partiesKey;
+}
+
+/** Finds slot `seq` of `kind` under whichever of `keys` it was sealed with; null when none has it. Read errors are thrown. */
+export async function findSlot(
+  get: (lookup: string) => Promise<Uint8Array | null>,
+  keys: readonly string[],
+  kind: string,
+  seq: number,
+): Promise<{ key: string; lookup: string; bytes: Uint8Array } | null> {
+  for (const key of keys) {
+    const k = partiesKeyFromHex(key);
+    let lookup: string;
+    try {
+      lookup = lookupId(k, kind, seq);
+    } finally {
+      k.fill(0);
+    }
+    const bytes = await get(lookup);
+    if (bytes) return { key, lookup, bytes };
+  }
+  return null;
+}
+
+/** Whether a slot after `seq` opens with one of `keys`: then `seq` was sealed with a key this side doesn't hold. */
+export async function laterSlotExists(get: (lookup: string) => Promise<Uint8Array | null>, keys: readonly string[], kind: string, seq: number): Promise<boolean> {
+  for (let ahead = 1; ahead <= LOOK_AHEAD; ahead++) if (await findSlot(get, keys, kind, seq + ahead)) return true;
+  return false;
 }

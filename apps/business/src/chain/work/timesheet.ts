@@ -14,8 +14,9 @@
 import { MailboxError, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type TimesheetPayload, buildTimesheet, timecardPunchIds } from "../../books/hours";
-import { type SentTimesheet, type Work, WorkError, agreementFor, nextWorkSeq } from "../../books/work";
+import { type SentTimesheet, type Work, WorkError, agreementFor, nextWorkSeq, workThread } from "../../books/work";
 import { packPayload } from "../compress";
+import { documentKey } from "../key_ring";
 
 export const TIMESHEET_KIND = "timesheet";
 
@@ -41,7 +42,8 @@ export async function sendTimesheet({ work, agreementId, weekStart, client, now,
   const at = (now ?? (() => new Date()))();
   const payload = buildTimesheet(work, agreementId, weekStart, at);
   const seq = nextWorkSeq(work, agreementId, "timesheet");
-  const key = partiesKeyFromHex(agreement.partiesKey);
+  // After the handshake, under the pair's key, which a view key can't reach (chain/key_ring.ts).
+  const key = partiesKeyFromHex(await documentKey(agreement.partiesKey, workThread(work, agreement.partiesKey)?.ring));
   let sealed;
   try {
     sealed = await seal(key, TIMESHEET_KIND, seq, await packPayload(new TextEncoder().encode(JSON.stringify(payload))));

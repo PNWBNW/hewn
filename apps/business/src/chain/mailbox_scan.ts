@@ -11,11 +11,12 @@
 // Pure apart from the injected reader and vault writes. Nothing here logs a key, a lookup or an hour.
 // ---------------------------------------------------------------------------
 
-import { MailboxError, type MailboxClient, lookupId, open, partiesKeyFromHex } from "@pnw/mailbox";
-import { type Mailbox, type ReceivedHours, nextHoursSeq, validateTimesheetPayload } from "../books/mailbox";
+import { MailboxError, type MailboxClient, open, partiesKeyFromHex } from "@pnw/mailbox";
+import { type Mailbox, type ReceivedHours, nextHoursSeq, threadFor, validateTimesheetPayload } from "../books/mailbox";
 import { mailboxLinks } from "../books/mailbox_feed";
 import type { Rail } from "../books/rail";
 import { unpackPayload } from "./compress";
+import { findSlot, laterSlotExists, slotKeys } from "./key_ring";
 import { sendReceipt } from "./receipts";
 import { TIMESHEET_KIND } from "./work/timesheet";
 
@@ -57,50 +58,57 @@ export async function scanHours({ rail, mailbox, client: shared, clientFor, stor
   const known = mailbox ?? { version: 1 as const, hours: [] };
   for (const link of links) {
     const client: Pick<MailboxClient, "get" | "drop"> & Partial<Pick<MailboxClient, "put">> = clientFor ? clientFor(link.address) : shared!;
-    const key = partiesKeyFromHex(link.partiesKey!);
-    try {
-      let seq = nextHoursSeq(known, link.agreementId);
-      for (let read = 0; read < most; read++, seq++) {
-        const lookup = lookupId(key, TIMESHEET_KIND, seq);
-        let bytes: Uint8Array | null;
-        try {
-          bytes = await client.get(lookup);
-        } catch (e) {
-          if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") {
-            result.off = true;
-            return result;
-          }
-          result.failed = e instanceof Error ? e.message : "The mailbox couldn't be read";
+    // Each slot is sealed with the agreement's key or, after the handshake, a pair's (chain/key_ring.ts).
+    const ring = threadFor(mailbox, link.partiesKey!)?.ring;
+    const keys = await slotKeys(link.partiesKey!, ring);
+    let seq = nextHoursSeq(known, link.agreementId);
+    for (let read = 0; read < most; read++, seq++) {
+      let found: Awaited<ReturnType<typeof findSlot>>;
+      try {
+        found = await findSlot((l) => client.get(l), keys, TIMESHEET_KIND, seq);
+        if (!found && ring && (await laterSlotExists((l) => client.get(l), keys, TIMESHEET_KIND, seq))) {
+          // Sealed with a key these books no longer hold; a later week has come, so this one is passed.
+          result.skipped.push({ agreementId: link.agreementId, seq, message: "Sealed with a key these books no longer have" });
+          await skip(link.agreementId, seq);
+          continue;
+        }
+      } catch (e) {
+        if (e instanceof MailboxError && e.code === "NOT_CONFIGURED") {
+          result.off = true;
           return result;
         }
-        if (!bytes) break; // the end of this agreement's mailbox
-        let item: ReceivedHours;
-        try {
-          const opened = await unpackPayload(await open(key, TIMESHEET_KIND, seq, bytes));
-          const payload = validateTimesheetPayload(JSON.parse(new TextDecoder().decode(opened)), link.agreementId);
-          item = {
-            agreementId: link.agreementId,
-            seq,
-            lookup,
-            receivedAt: stamp(),
-            workerId: link.workerId,
-            weekStart: payload.weekStart,
-            entries: payload.entries,
-            totalMinutes: payload.totalMinutes,
-            sentAt: payload.sentAt,
-          };
-        } catch (e) {
-          result.skipped.push({ agreementId: link.agreementId, seq, message: e instanceof Error ? e.message : "The hours couldn't be read" });
-          await skip(link.agreementId, seq);
-          continue; // the pin stays: nothing of it is in the vault
-        }
-        await store(item); // in the vault first…
-        result.received.push(item);
-        await client.drop(lookup).catch(() => {}); // …then the pin goes; a pin that lingers is harmless
-        if (client.put) await sendReceipt({ put: client.put.bind(client) }, link.partiesKey!, TIMESHEET_KIND, seq); // the sender learns it arrived
+        result.failed = e instanceof Error ? e.message : "The mailbox couldn't be read";
+        return result;
       }
-    } finally {
-      key.fill(0);
+      if (!found) break; // the end of this agreement's mailbox
+      const { lookup, bytes } = found;
+      let item: ReceivedHours;
+      const key = partiesKeyFromHex(found.key);
+      try {
+        const opened = await unpackPayload(await open(key, TIMESHEET_KIND, seq, bytes));
+        const payload = validateTimesheetPayload(JSON.parse(new TextDecoder().decode(opened)), link.agreementId);
+        item = {
+          agreementId: link.agreementId,
+          seq,
+          lookup,
+          receivedAt: stamp(),
+          workerId: link.workerId,
+          weekStart: payload.weekStart,
+          entries: payload.entries,
+          totalMinutes: payload.totalMinutes,
+          sentAt: payload.sentAt,
+        };
+      } catch (e) {
+        result.skipped.push({ agreementId: link.agreementId, seq, message: e instanceof Error ? e.message : "The hours couldn't be read" });
+        await skip(link.agreementId, seq);
+        continue; // the pin stays: nothing of it is in the vault
+      } finally {
+        key.fill(0);
+      }
+      await store(item); // in the vault first…
+      result.received.push(item);
+      await client.drop(lookup).catch(() => {}); // …then the pin goes; a pin that lingers is harmless
+      if (client.put) await sendReceipt({ put: client.put.bind(client) }, link.partiesKey!, TIMESHEET_KIND, seq); // the sender learns it arrived
     }
   }
   return result;

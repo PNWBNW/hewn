@@ -401,7 +401,8 @@ write under it in its own slots.
 - **Lost keys:** a side whose books come back without them reads the agreement's stream to the end
   and starts again; what was sent under the lost key stays unreadable to it. ⚠️ Until agreed
   backups are built.
-- ⚠️ Paystubs and timesheets still travel under the parties key (the next step).
+- **Paystubs and timesheets** go under the pair's key once a side writes under it; a reader tries
+  every key it holds, and passes a slot sealed with a key it lost once a later one arrives. ✅
 
 ## Who a letter is from (2026-10-22)
 
