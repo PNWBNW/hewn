@@ -4136,3 +4136,13 @@ from #148 now runs wherever a post is believed from one account:
 Tests: app +4 (where an invitation's organizer posts from, for a person, a coworker and a
 business; a business's confirmed name kept as one). Every package passes; both builds pass;
 `pnpm audit` clean.
+
+## 2026-10-23: design for twin-curve conversations and agreed backups (for review)
+
+`docs/TWIN_CURVE_CONVERSATIONS.md`: the business ↔ team member conversation moves from the key
+in the agreement record to P-256 key exchange, with each side's public half riding on messages it
+sends anyway, so a view key alone no longer opens paystubs, announcement keys or business
+invitations. Joshua's rules: the agreement stays the first lock, and a backup on chain happens
+only when both people agree, covering the conversation up to that point (then a fresh handshake).
+Also what a "public half" exposes (nothing usable), what a view key opens before and after, costs,
+and the tests it ships with. Docs only; nothing built until Joshua approves.
