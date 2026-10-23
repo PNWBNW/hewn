@@ -55,6 +55,12 @@ The root `README.md` has the map. Every folder with more than a few files has it
 saying what's in it and how it fits: `apps/business`, `apps/site`, `packages`, `brand`, `docs`,
 `archive`.
 
+## Testing by hand
+
+[`dev_testing_guide.md`](dev_testing_guide.md) lists the scenarios to try with real wallets and
+phones, what should happen in each, and where to look for breaks. Report anything that exposes
+data or moves money wrongly privately, as [`SECURITY.md`](SECURITY.md) describes.
+
 ## Forking
 
 Hewn is AGPL-3.0: use it, study it, change it, share it. If you run a changed copy as a service for
