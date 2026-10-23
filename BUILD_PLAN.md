@@ -429,6 +429,22 @@ reached. Built on the mailbox (sealed envelopes, lookup hashes, keep-until days,
 Needs its own design doc and Joshua's greenlight before any code (a new screen and new key
 handling); likely a Fable session for the key agreement.
 
+## Customers (design, Joshua 2026-10-23)
+
+Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`hewn_market_v1`,
+`hewn_service_v1`) and new screens.
+
+- [ ] A personal account can also be a customer.
+- [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
+- [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
+  up later; business posts, public or sealed. Free for now; $1 later in a new version.
+- [ ] Service agreements with a specified end: complete (both confirm), warranty, closed; change
+  orders, cancel, terminate, dispute.
+- [ ] Invoices paid in private USDCx straight from the customer's wallet; the customer brings their
+  own USDCx.
+- [ ] Reviews at each payment, private to the business until the job is complete, in warranty or
+  closed, then public with the job's average.
+
 ## Deferred
 
 | Advanced feature | Why it waits | What ships instead |
