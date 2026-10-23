@@ -4282,3 +4282,21 @@ leaving the device, the inputs built the same every time, the worker's half read
 record, a v5 withdrawal with the SentOffer and its two refusals; a v5 acceptance seeding the
 business's ring; the half fields kept and checked on links and agreements). Every package passes
 (1100); both builds pass; `pnpm audit` clean. Nothing on the network until v5 is deployed.
+
+## 2026-10-23 — Customers: the design, for review (docs only)
+
+`docs/CUSTOMERS.md`, from the conversation with Joshua today: a personal account can be a
+customer too; a directory of businesses taking new clients (field of work from the name's
+industry code, their own words for what they are and do, a region, an inquiry key); requests
+sealed once and their key sealed to each listed business in the chosen field, so the public sees
+only that a request exists, refreshable for businesses that open up later and extendable a page
+of about 25 at a time; business posts, public or sealed; service agreements built like
+`employer_agreement_v5` with a specified end (complete when both confirm, warranty to a set
+height, closed by the condition the terms name; change orders, cancel, terminate, dispute);
+invoices paid with private USDCx straight to the business; reviews at each payment, sent privately
+to the business at once and hashed on chain, posted together with the job's average once it is
+complete, in warranty or closed (one count of reviewed jobs per business, a documented exception
+to the leakage guard). Open questions listed in the doc, among them: browsing stays free
+(reading the chain can't be charged for), who may post reviews if the customer doesn't. Plan
+section added to `BUILD_PLAN.md`. No code; nothing built until greenlit, and the two programs
+need a Fable session.
