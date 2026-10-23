@@ -42,6 +42,8 @@ everything about them private. A customer can:
     words, but not post more (businesses shouldn't spend network fees to be found).
 14. Spam on free requests: recipients mute first; a private posting pass only if it becomes a
     problem.
+15. A business can post one public reply to each review, once the reviews are public.
+16. At most 24 reviews per job for now; long, continuous jobs may need more later.
 
 ## Accounts
 
@@ -183,7 +185,8 @@ Only the customer on a `hewn_service_v1` agreement, about that agreement's busin
   before the offer goes out, the way names are confirmed today, not on chain: a public check would
   put the customer's account on the chain next to the business's.
 - A review can be noted only while the agreement is Active, Work marked complete, Complete or in
-  Warranty, and at most 24 per job (the app offers one per payment, decision 9).
+  Warranty, and at most 24 per job for now (the app offers one per payment, decision 9). A long,
+  continuous job may need more later: a later version can raise the cap.
 
 ### At each payment
 
@@ -228,11 +231,11 @@ business. It holds no money and no single rating, and it only moves when a whole
 post, so it is a small, documented exception to the leakage guard (Joshua, 2026-10-23: reviews
 stay cached until the job ends, then post).
 
-**Open question: a business's reply.** When a job's reviews go public, should the business be
-able to post one short public reply under them, for every reader to see beside the reviews
-("We came back on the 14th and replaced the valve at no charge")? Like a reply under a review on
-a map listing. Without it, the public sees only the customer's side. With it, the business can
-answer a bad review in public, once per job, after the reviews post and never before.
+**The business's replies (decision 15).** Once a job's reviews are public, the business can post
+one short public reply to each review, shown beneath it ("We came back on the 14th and replaced
+the valve at no charge"). One per review, written once, never changed; only for reviews that went
+public. While the job is under way, the business answers in the conversation, privately, as it
+always could.
 
 ## Calendar
 
@@ -245,7 +248,7 @@ from the customer unless the business chooses to show them (decision 4).
 | Program | Calls (sketch) | Public state |
 |---|---|---|
 | `hewn_market_v1` | `list`, `update_listing`, `set_taking_clients` (the business, by its name); `post_request`, `add_recipients`, `edit_request`, `close_request` (by the post's secret); `answer` (a business, by its name); `post_business`, `close_business` | Listings; posts as sealed bytes, sealed-key pages and a secret's hash; answers as sealed bytes under tags; the business posts' facts and words |
-| `hewn_service_v1` | `offer`, `accept`, `withdraw`, `change`, `accept_change`, `mark_complete`, `confirm_complete`, `close`, `cancel`, `terminate`, `dispute`, `clear_dispute`; `note_review` (the customer, with their agreement record), `post_reviews` (either side, when the terms say public) | Agreement id hash → status, heights, the warranty's end; review hashes under tags; posted reviews and the count of reviewed jobs per business |
+| `hewn_service_v1` | `offer`, `accept`, `withdraw`, `change`, `accept_change`, `mark_complete`, `confirm_complete`, `close`, `cancel`, `terminate`, `dispute`, `clear_dispute`; `note_review` (the customer, with their agreement record), `post_reviews` (either side, when the terms say public), `reply_review` (the business, once per posted review) | Agreement id hash → status, heights, the warranty's end; review hashes under tags; posted reviews and the count of reviewed jobs per business |
 
 Both free for now, `@noupgrade`; $1 later is `hewn_market_v2`, with the app reading both, the way
 it reads both letters programs.
@@ -266,8 +269,7 @@ it reads both letters programs.
    Charging to *browse* (more directory or board pages) can't be enforced: reading the chain is
    free for anyone with the explorer, so the charge would only be a toll in our app, and every
    page would need a Shield approval. Recommendation: browsing stays free.
-2. A business's one public reply under a job's reviews ("Reviews", above).
-3. Payment-time prompts happen in the app; a modified app could note reviews without paying. Only
+2. Payment-time prompts happen in the app; a modified app could note reviews without paying. Only
    the customer on the agreement can, at most 24 per job, while the job is under way.
 
 ## Building order (when greenlit)
@@ -296,4 +298,6 @@ Including inputs that must fail:
 - noting a review without the agreement record, about another business, after closing, or past
   24 is refused;
 - posting reviews when the agreement says they stay private is refused, and so is changing that
-  term without both sides.
+  term without both sides;
+- a second reply to the same review, a reply to a review that isn't public, or a reply from
+  anyone but the reviewed business is refused.
