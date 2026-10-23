@@ -198,6 +198,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
           partiesKey,
           from: "business",
           nextOut: threadFor(mailbox, partiesKey)?.nextOut ?? 0,
+          ring: threadFor(mailbox, partiesKey)?.ring ?? null,
           body: { type: "revised", agreementId: old.agreementId, newAgreementId: sent.link.agreementId, note },
         });
         await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, workerId, (t) => addToThread(t, item)) }));

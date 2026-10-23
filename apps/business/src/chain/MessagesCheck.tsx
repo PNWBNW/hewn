@@ -17,6 +17,7 @@ import { type Mailbox, emptyMailbox, threadFor, updateThread } from "@/books/mai
 import { addToThread, skipIncoming } from "@/books/thread";
 import { businessListening, checkEvents } from "./events";
 import { useLetters } from "./letter_reader";
+import { keepHalvesReady } from "./key_ring";
 import { letterThread } from "./letters";
 import { readThread } from "./thread";
 
@@ -42,8 +43,9 @@ function Check({ onFinished }: MessagesCheckProps) {
       if (!letters) return onFinished("Connect Shield (open a conversation) to check for messages.");
       // Team members and people with an offer out, then everyone who applied to a posting (their conversations are filed under the posting).
       const people = [
-        ...rail.links.filter((l) => l.partiesKey && (l.status === "linked" || l.status === "offered")).map((l) => ({ partiesKey: l.partiesKey!, address: l.address, workerId: l.workerId })),
-        ...(jobs?.postings ?? []).flatMap((p) => (p.applicants ?? []).map((a) => ({ partiesKey: a.partiesKey, address: a.address, workerId: applicantWorkerId(a.partiesKey) }))),
+        // Team members' conversations move to keys made by handshake (`twin`); an applicant's key already comes from key exchange.
+        ...rail.links.filter((l) => l.partiesKey && (l.status === "linked" || l.status === "offered")).map((l) => ({ partiesKey: l.partiesKey!, address: l.address, workerId: l.workerId, twin: true })),
+        ...(jobs?.postings ?? []).flatMap((p) => (p.applicants ?? []).map((a) => ({ partiesKey: a.partiesKey, address: a.address, workerId: applicantWorkerId(a.partiesKey), twin: false }))),
       ];
       let latest: Mailbox | null | undefined = mailbox;
       for (const link of people) {
@@ -53,15 +55,21 @@ function Check({ onFinished }: MessagesCheckProps) {
           partiesKey,
           reader: "business",
           thread: threadFor(mailbox, partiesKey),
+          ...(link.twin ? { twin: true as const } : {}),
           store: async (item) => {
             latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => addToThread(t, item)) }))).mailbox;
           },
-          skip: async (seq) => {
-            await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => skipIncoming(t, seq)) }));
+          skip: async (seq, via) => {
+            latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => skipIncoming(t, seq, via)) }))).mailbox;
           },
         });
         if (r.off) return onFinished("Connect Shield (open a conversation) to check for messages.");
         if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
+        if (link.twin) {
+          await keepHalvesReady(threadFor(latest, partiesKey)?.ring, async (change) => {
+            latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => ({ ...t, ring: change(t.ring) })) }))).mailbox;
+          });
+        }
       }
       // Invitations, now that any new calendar keys are in.
       await checkEvents(letters, businessListening(rail, latest), calendar, updateCompany);

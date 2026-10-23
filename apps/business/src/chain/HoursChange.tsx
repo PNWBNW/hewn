@@ -109,6 +109,7 @@ function Flow({ workerId, workerName, partiesKey, mode, onClose }: HoursChangePr
         partiesKey,
         from: "business",
         nextOut: threadFor(mailbox, partiesKey)?.nextOut ?? 0,
+        ring: threadFor(mailbox, partiesKey)?.ring ?? null,
         body: b,
       });
       await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, workerId, (t) => addToThread(t, item)) }));

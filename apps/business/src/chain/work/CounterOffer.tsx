@@ -59,6 +59,7 @@ export default function CounterOffer({ agreementId, partiesKey, terms, employer,
         partiesKey,
         from: "worker",
         nextOut: workThread(work, partiesKey)?.nextOut ?? 0,
+        ring: workThread(work, partiesKey)?.ring ?? null,
         body: { type: "counter", agreementId, proposal: parsed.proposal, note },
       });
       await updateWork((w) => updateWorkThread(w, partiesKey, (t) => addToThread(t, item)));

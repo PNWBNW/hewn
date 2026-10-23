@@ -76,6 +76,7 @@ function KeepFlow({ workerId, workerName, partiesKey, agreementId, onClose }: Ke
         partiesKey,
         from: "business",
         nextOut: threadFor(mailbox, partiesKey)?.nextOut ?? 0,
+        ring: threadFor(mailbox, partiesKey)?.ring ?? null,
         body: { type: "stands", agreementId, note },
       });
       await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, workerId, (t) => addToThread(t, item)) }));

@@ -50,14 +50,15 @@ function Messages() {
   const finished = useCallback((message: string | null) => setCheck({ done: message }), []);
   // One conversation per business: its agreements share a key. Offers withdrawn before acceptance don't count.
   // The address bar names a conversation by one of its agreement ids, never by its key.
-  const byKey = new Map<string, { partiesKey: string; name: string; ref: string; address: string }>();
+  // `twin`: a conversation with an employer moves to keys made by handshake; an application's key already comes from key exchange.
+  const byKey = new Map<string, { partiesKey: string; name: string; ref: string; address: string; twin: boolean }>();
   for (const a of work.agreements) {
     if (a.status === "terminated" && !a.acceptedAt) continue;
-    if (!byKey.has(a.partiesKey)) byKey.set(a.partiesKey, { partiesKey: a.partiesKey, name: employerLabel(a), ref: a.agreementId, address: a.employerAddress });
+    if (!byKey.has(a.partiesKey)) byKey.set(a.partiesKey, { partiesKey: a.partiesKey, name: employerLabel(a), ref: a.agreementId, address: a.employerAddress, twin: true });
   }
   // A job applied to on the board is a conversation too, named by its posting.
   for (const a of work.applications ?? []) {
-    if (!byKey.has(a.partiesKey)) byKey.set(a.partiesKey, { partiesKey: a.partiesKey, name: `${a.employerName ? `${a.employerName}.${BRAND.nameSuffix}` : "A business"} · ${a.title}`, ref: a.postingId, address: a.employerAddress });
+    if (!byKey.has(a.partiesKey)) byKey.set(a.partiesKey, { partiesKey: a.partiesKey, name: `${a.employerName ? `${a.employerName}.${BRAND.nameSuffix}` : "A business"} · ${a.title}`, ref: a.postingId, address: a.employerAddress, twin: false });
   }
   const people = [...byKey.values()]
     .map((p) => ({ ...p, thread: workThread(work, p.partiesKey) }))
@@ -146,7 +147,7 @@ function Messages() {
         <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
         </Link>
-        <Conversation key={open.partiesKey} side="worker" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/work/offers" peer={open.address} />
+        <Conversation key={open.partiesKey} side="worker" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/work/offers" peer={open.address} {...(open.twin ? { twin: true as const } : {})} />
       </div>
     );
   }

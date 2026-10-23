@@ -58,7 +58,7 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
       const id = identity ?? (await newIdentity(shown));
       if (!employer) throw new Error("No agreement with this business");
       const client = new LetterBox({ wallet: shield.wallet, to: employer });
-      const item = await postToThread({ client, partiesKey: businessKey, from: "worker", nextOut: workThread(work, businessKey)?.nextOut ?? 0, body: { type: "directory_join", name: shown, publicKey: id.publicKey } });
+      const item = await postToThread({ client, partiesKey: businessKey, from: "worker", nextOut: workThread(work, businessKey)?.nextOut ?? 0, ring: workThread(work, businessKey)?.ring ?? null, body: { type: "directory_join", name: shown, publicKey: id.publicKey } });
       await updateWork((w) => updateWorkThread(setIdentity(w, businessKey, { ...id, name: shown, listed: true }), businessKey, (t) => addToThread(t, item)));
     } catch (e) {
       setError(errorMessage(e));
@@ -74,7 +74,7 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
     try {
       if (!employer) throw new Error("No agreement with this business");
       const client = new LetterBox({ wallet: shield.wallet, to: employer });
-      const item = await postToThread({ client, partiesKey: businessKey, from: "worker", nextOut: workThread(work, businessKey)?.nextOut ?? 0, body: { type: "directory_leave" } });
+      const item = await postToThread({ client, partiesKey: businessKey, from: "worker", nextOut: workThread(work, businessKey)?.nextOut ?? 0, ring: workThread(work, businessKey)?.ring ?? null, body: { type: "directory_leave" } });
       await updateWork((w) => updateWorkThread(setIdentity(w, businessKey, { ...identity, listed: false }), businessKey, (t) => addToThread(t, item)));
     } catch (e) {
       setError(errorMessage(e));

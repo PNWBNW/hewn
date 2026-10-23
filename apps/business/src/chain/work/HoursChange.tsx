@@ -77,6 +77,7 @@ function Flow({ partiesKey, employerAddress, employer, mode, onClose }: WorkHour
         partiesKey,
         from: "worker",
         nextOut: workThread(work, partiesKey)?.nextOut ?? 0,
+        ring: workThread(work, partiesKey)?.ring ?? null,
         body: b,
       });
       // Agreeing applies the change here as the thread takes the answer (books/work.ts applyAgreedHours).

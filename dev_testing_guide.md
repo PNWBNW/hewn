@@ -138,6 +138,11 @@ Results: [#154](https://github.com/PNWBNW/hewn/issues/154)
   arrives, in order, after checking messages.
 - **MSG-2 Report.** Report a message. *Expect:* Hewn's account receives it as a letter, and the
   copy for email works.
+- **MSG-3 The handshake.** Business A and Worker 1 each send one message and check. *Expect:* the
+  conversation's subtitle changes to "Sealed with a key only the two of you hold", with no extra
+  letter or Shield approval, and every message before and after stays in the thread, in order.
+  Then restore Worker 1's books from a backup made *before* the handshake: *expect* Worker 1 can
+  still message, and after one message each way the subtitle comes back.
 - **Break it:** HTML or a `<script>` in a message (shown as plain text?); a message sent while the
   other side's phone is offline; a very long message.
 

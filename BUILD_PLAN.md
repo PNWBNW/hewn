@@ -545,9 +545,9 @@ handling); likely a Fable session for the key agreement.
 - [ ] Every conversation twin-curve (Joshua, 2026-10-23, in this order): (1) confirmed names on
   announcements and invitations (done); (2) a P-256 handshake in the business ↔ team member
   conversation, so a view key alone no longer opens paystubs, announcement keys or business
-  invitations (design for review: `docs/TWIN_CURVE_CONVERSATIONS.md`; the agreement stays the
-  first lock, and backups on chain only when both people agree, up to that point, Joshua
-  2026-10-23); (3) rotation by handshake, if wanted; (4) v5 agreements
+  invitations (`docs/TWIN_CURVE_CONVERSATIONS.md`, approved: the agreement stays the first lock,
+  and backups on chain only when both people agree, up to that point, Joshua 2026-10-23; built
+  for messages, next paystubs and timesheets, then the backups); (3) rotation by handshake, if wanted; (4) v5 agreements
   carry the two public halves (Leo, Fable); (5) optional: a second lock on reports to Hewn.
 - [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
   mainnet's names (Joshua, 2026-10-22).

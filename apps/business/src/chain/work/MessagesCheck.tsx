@@ -21,6 +21,7 @@ import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey } from "../coworkers";
 import { readChannel } from "../channels";
 import { checkEvents, workListening } from "../events";
 import { useLetters } from "../letter_reader";
+import { keepHalvesReady } from "../key_ring";
 import { letterReader, letterThread } from "../letters";
 import { readThread } from "../thread";
 
@@ -49,17 +50,22 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
         latest = await updateWork(op);
       };
       const employers = new Map([...work.agreements.map((a) => [a.partiesKey, a.employerAddress] as const), ...(work.applications ?? []).map((a) => [a.partiesKey, a.employerAddress] as const)]);
+      // An employer's conversation moves to keys made by handshake; an application's key already comes from key exchange.
+      const hired = new Set(work.agreements.map((a) => a.partiesKey));
       for (const [partiesKey, employer] of employers) {
+        const twin = hired.has(partiesKey);
         const r = await readThread({
           client: letterThread(wallet, employer, { letters }).reader,
           partiesKey,
           reader: "worker",
           thread: workThread(work, partiesKey),
+          ...(twin ? { twin: true as const } : {}),
           store: (item) => apply((w) => updateWorkThread(w, partiesKey, (t) => addToThread(t, item))),
-          skip: (seq) => apply((w) => updateWorkThread(w, partiesKey, (t) => skipIncoming(t, seq))),
+          skip: (seq, via) => apply((w) => updateWorkThread(w, partiesKey, (t) => skipIncoming(t, seq, via))),
         });
         if (r.off) return onFinished("Connect Shield (open a conversation) to check for messages.");
         if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
+        if (twin) await keepHalvesReady(workThread(latest, partiesKey)?.ring, (change) => apply((w) => updateWorkThread(w, partiesKey, (t) => ({ ...t, ring: change(t.ring) }))));
       }
       // Channels as they stand after the threads (new keys may have just arrived).
       for (const channel of latest.channels ?? []) {
