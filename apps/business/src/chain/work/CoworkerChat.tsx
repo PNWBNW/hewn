@@ -4,12 +4,15 @@
 // A private conversation with one coworker: the key only the two of you can
 // make (chain/coworkers.ts), the shared conversation screen in coworker mode
 // (its own slots, plain messages only; letters to their account, which the
-// business's directory carries), and the safety code to compare in person.
+// business's directory carries), the registered name the chain confirms for
+// that account (chain/coworker_names.ts), and the safety code to compare in
+// person as a second check.
 // Nothing here logs a key or a message.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from "react";
-import { Lock, ShieldCheck } from "lucide-react";
+import { Lock, ShieldCheck, TriangleAlert } from "lucide-react";
+import { BRAND } from "@/brand";
 import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
@@ -18,6 +21,7 @@ import { coworkersFrom } from "@/books/directory";
 import { updateCoworker, workThread } from "@/books/work";
 import Conversation from "../Conversation";
 import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey, safetyCode } from "../coworkers";
+import { type ShownName, useCoworkerNames } from "./coworker_names";
 
 /** Their one-to-one messages, report notices and answers to invitations; group messages show in the group. */
 const onlyText = (i: ThreadItem) => ["text", "report_notice", "event_key", "event_answer"].includes(i.body.type);
@@ -34,6 +38,7 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
   const thread = work.coworkers?.[publicKey];
   // Their account, from the latest list the business passed on.
   const address = coworkersFrom(workThread(work, businessKey)).find((c) => c.publicKey === publicKey)?.address;
+  const chainName = useCoworkerNames([address]).get(address ?? "");
 
   useEffect(() => {
     if (!identity) return;
@@ -74,12 +79,7 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
         accept={coworkerAccepts}
         show={onlyText}
         peer={address}
-        subtitle={
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            {verified ? <ShieldCheck aria-hidden className="size-3" /> : <Lock aria-hidden className="size-3" />}
-            {verified ? "Checked in person: only the two of you can read this" : "Only the two of you can read this"}
-          </p>
-        }
+        subtitle={<WhoThisIs shown={chainName} name={name} checked={!!verified} />}
       />
       <details className="rounded-md border p-3 text-sm" open={showCode} onToggle={(e) => setShowCode(e.currentTarget.open)}>
         <summary className="min-h-11 cursor-pointer font-medium sm:min-h-0">{verified ? "Safety code (checked)" : "Check the safety code with " + name}</summary>
@@ -87,6 +87,7 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
           <p className="font-mono text-lg tracking-wider">{code}</p>
           <p className="text-xs text-muted-foreground">
             Next time you&apos;re together, open this on both phones. If the numbers match, nobody, the business included, is in the middle of your conversation.
+            Their confirmed name above already shows the account is theirs; this is a second check.
           </p>
           {!verified && (
             <Button
@@ -100,5 +101,32 @@ export default function CoworkerChat({ businessKey, publicKey, name }: CoworkerC
         </div>
       </details>
     </div>
+  );
+}
+
+/** Under the conversation's title: whose account this is, as far as the chain confirms it. */
+function WhoThisIs({ shown, name, checked }: { shown: ShownName | undefined; name: string; checked: boolean }) {
+  if (shown?.status === "business") {
+    const whose = shown.name ? `${shown.name}.${BRAND.nameSuffix}` : "a business";
+    return (
+      <p className="flex items-start gap-1 text-xs text-destructive">
+        <TriangleAlert aria-hidden className="mt-0.5 size-3 shrink-0" />
+        This account belongs to a business ({whose}), not a person. Check with {name} in person before you send anything private.
+      </p>
+    );
+  }
+  if (shown?.status === "confirmed") {
+    return (
+      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+        <ShieldCheck aria-hidden className="size-3 shrink-0" />
+        {shown.name}.{BRAND.nameSuffix}, confirmed on chain{checked ? " and checked in person" : ""}: only the two of you can read this
+      </p>
+    );
+  }
+  return (
+    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+      <Lock aria-hidden className="size-3 shrink-0" />
+      {shown?.status === "unconfirmed" ? "Only their account can read this. Their name isn't confirmed on chain yet" : "Only their account can read this. Checking their name on chain…"}
+    </p>
   );
 }

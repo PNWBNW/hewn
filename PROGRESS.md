@@ -4068,3 +4068,29 @@ does) before any round runs, on import, unlock and passphrase change.
 
 Tests: vault +1 (fails without the limit). Every package passes; both builds pass; `pnpm audit`
 clean.
+
+## 2026-10-23: coworkers confirmed by their registered name on chain (hardening D)
+
+Joshua chose the twin-curve way over Signal's 60-digit safety numbers. Letters are sealed to an
+account on the Aleo curve, and since the security review a coworker's letters are believed only
+from the account the business listed for them, so swapping a coworker's P-256 key gets the
+business nothing: to sit in the middle it would have to list an account of its own. The app now
+shows, under each coworker, the registered name the chain confirms for their account: "ana_w.hewn
+· confirmed on chain". The business can't make another account read as theirs.
+- `chain/coworker_names.ts` `checkAccountName`: through `lookupAddress` (the account's primary
+  name, still owned by it, its text checked against its hash). A business's account comes back
+  as one and is flagged in red; anything the chain doesn't stand behind, or a read that fails,
+  is "not confirmed", never a name.
+- `books/directory.ts` `ConfirmedName`, `confirmAgainDue`; `books/work.ts` `confirmedNames`
+  (by account, at most 2,000), `keepConfirmedName`, `forgetConfirmedName`: kept in the vault a
+  day at a time, so each account is looked up once a day.
+- `chain/work/coworker_names.tsx`: the lookups, one at a time and never twice at once, and the
+  line under a name. The coworker list and the chat's subtitle use it; the safety code stays as a
+  second check in person, and says so.
+- Nothing new on chain, no fee, no signature, no new program. The explorer sees which accounts
+  are looked up, as with every name lookup. `docs/THREAT_MODEL.md` (Coworkers).
+- Not tried in a browser: it needs a worker account with coworkers and live registry reads.
+
+Tests: app +10 (a business listing its own account or another person's shows that account's
+owner; a sold name, a hash mismatch, an unreachable chain and a non-account are never
+confirmed; the vault keeps, forgets, refreshes after a day and caps confirmed names).
