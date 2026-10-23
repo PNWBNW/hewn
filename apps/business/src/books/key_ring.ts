@@ -43,6 +43,11 @@ export type Pair = {
   theirs?: string;
   /** This side's half has gone out (as a start, or as the answer). */
   sent?: true;
+  /**
+   * Made again from this side's start, answered a second time with a new half: the other side lost
+   * its keys and started over. Its own stream, beside the first.
+   */
+  again?: true;
   /** Answering their start: the stream it came on, where the answer goes. */
   answerOn?: string;
   /** This pair's own slots. */
@@ -72,8 +77,8 @@ export class KeyRingError extends Error {
   }
 }
 
-/** A pair's stream id, from its own half: the same on every device of this side, and never the key. */
-export const pairId = (p: Pick<Pair, "mine">): string => p.mine.publicKey.slice(2, 18);
+/** A pair's stream id, from its own half (and theirs, for a pair made again): never the key. */
+export const pairId = (p: Pick<Pair, "mine" | "theirs" | "again">): string => (p.again && p.theirs ? p.mine.publicKey.slice(2, 12) + p.theirs.slice(2, 8) : p.mine.publicKey.slice(2, 18));
 
 export const emptyRing = (): KeyRing => ({ pairs: [] });
 
@@ -117,6 +122,10 @@ function validatePair(raw: unknown): Pair {
   if (raw.answerOn !== undefined) {
     if (!isStream(raw.answerOn)) throw new KeyRingError("An answer goes on a stream");
     pair.answerOn = raw.answerOn;
+  }
+  if (raw.again !== undefined) {
+    if (raw.again !== true || !pair.theirs) throw new KeyRingError("A pair made again has both halves");
+    pair.again = true;
   }
   return pair;
 }
@@ -186,17 +195,27 @@ export function noteSent(ring: KeyRing, item: { seq: number; via?: string; half?
 }
 
 /** After reading the other side's `item` (on stream `via`): its slot is read, and a half it carried is kept. */
-export function noteReceived(ring: KeyRing, item: { seq: number; via?: string; half?: HalfOnWire }): KeyRing {
+export function noteReceived(ring: KeyRing, item: { seq: number; via?: string; half?: HalfOnWire; receivedAt?: string; sentAt?: string }): KeyRing {
   let next = ring;
   if (item.via) next = update(next, item.via, (p) => ({ ...p, nextIn: Math.max(p.nextIn, item.seq + 1) }));
   const half = item.half;
   if (!half) return next;
   if (half.answers) {
+    if (next.pairs.some((p) => p.theirs === half.publicKey)) return next; // already taken in
     // Their answer to one of this side's starts: the pair is made, and this side writes under it.
-    const pair = next.pairs.find((p) => p.mine.publicKey === half.answers && !p.theirs);
-    if (!pair || next.pairs.some((p) => p.theirs === half.publicKey)) return next;
-    next = update(next, pairId(pair), (p) => ({ ...p, theirs: half.publicKey, sent: true }));
-    return { ...next, out: pairId(pair) };
+    const waiting = next.pairs.find((p) => p.mine.publicKey === half.answers && !p.theirs);
+    if (waiting) {
+      const made: Pair = { ...waiting, theirs: half.publicKey, sent: true };
+      return { ...next, pairs: next.pairs.map((p) => (p === waiting ? made : p)), out: pairId(made) };
+    }
+    // A second answer to a start already answered: the other side lost its keys and answered it
+    // again from scratch. This side still holds that start's private half, so the two can make a
+    // fresh key from it; it gets its own stream and this side writes under it.
+    const answered = next.pairs.find((p) => p.mine.publicKey === half.answers && p.theirs);
+    if (!answered) return next;
+    const again: Pair = { mine: answered.mine, theirs: half.publicKey, sent: true, again: true, nextIn: 0, nextOut: 0, createdAt: item.receivedAt ?? item.sentAt ?? answered.createdAt };
+    const pairs = [...next.pairs, again].slice(-MAX_PAIRS);
+    return { ...next, pairs, out: pairId(again) };
   }
   // Their start: answered once, whichever copy of it arrives.
   if (next.pairs.some((p) => p.theirs === half.publicKey) || next.toAnswer?.some((t) => t.publicKey === half.publicKey)) return next;

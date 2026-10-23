@@ -399,8 +399,9 @@ write under it in its own slots.
   view key can't send. ✅
 - **An older app** never answers; the conversation stays under the parties key and keeps working. ✅
 - **Lost keys:** a side whose books come back without them reads the agreement's stream to the end
-  and starts again; what was sent under the lost key stays unreadable to it. ⚠️ Until agreed
-  backups are built.
+  and starts again; what was sent under the lost key stays unreadable to it. A side that answered
+  the first handshake and comes back with nothing answers the old start again, and the other side
+  takes that as a fresh pair from the same half (2026-10-23). ⚠️ Until agreed backups are built.
 - **Paystubs and timesheets** go under the pair's key once a side writes under it; a reader tries
   every key it holds, and passes a slot sealed with a key it lost once a later one arrives. ✅
 
