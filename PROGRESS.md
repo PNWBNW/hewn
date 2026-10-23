@@ -4107,3 +4107,12 @@ privacy, the web side), each scenario with an id, what to do, what should happen
 or moves money); a severity guide; and the known gaps, so they aren't reported as new. The plain
 phone browser pairing with Shield, never tried on a real phone, is marked the most valuable test.
 Linked from `README.md` and `CONTRIBUTING.md`. Docs only.
+
+## 2026-10-23: manual-test issues for the dev testing guide
+
+Joshua: the guide is for developers using the app, who try a scenario and post the result on
+GitHub. One issue per area (his call), #150 to #164, labelled `manual-test`, each listing its
+scenario ids, a results template, and the rule that anything exposing data or moving money
+wrongly goes privately through the Security tab. `dev_testing_guide.md` now opens with that
+purpose, has a "Posting your results" section with the template, and links each area to its
+issue. Docs only.

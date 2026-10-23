@@ -1,12 +1,14 @@
-# Testing Hewn by hand
+# Dev testing guide
 
-The automated tests (`pnpm test`, over a thousand of them) check the logic. They can't hold a
-phone, approve something in Shield, lose a network connection halfway through a payment, or think
-like someone trying to cheat. This page is for the people who can. Each scenario says what to do
-and what should happen; anything else is a finding. The **Break it** lines are where we'd look
-first if we were trying to make it fail.
+For developers using the app itself. Each scenario here is one we think could cause problems, or
+whose exact outcome we're not sure of. Pick one, try it in the app, then post what happened as a
+comment on that area's GitHub issue (linked under each heading), so every scenario builds up a
+record of who tried it, where, and what they saw. Each scenario says what to do and what should
+happen; anything else is a finding. The **Break it** lines are where we'd look first if we were
+trying to make it fail. The automated tests (`pnpm test`) cover the logic; this covers what they
+can't: real wallets, real phones, the chain, and someone trying to cheat.
 
-Scenarios have ids (`PAY-2`) so a report can name the one it's about.
+Scenarios have ids (`PAY-2`) so a comment can name the one it's about.
 
 ## Before you start
 
@@ -31,16 +33,29 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
   bundle (`pnpm --filter @pnw/business build:static`, then serve `apps/business/out/`).
 - Note the date, the time and the commit on `main` you tested, so a finding can be reproduced.
 
-## Reporting what you find
+## Posting your results
 
-- **Anything that exposes someone's data, moves money wrongly, or lets one account pass as
-  another:** report it privately through the repository's **Security** tab (see
-  [`SECURITY.md`](SECURITY.md)), not in a public issue.
-- **Other bugs:** a GitHub issue. Blur account addresses in screenshots; never attach a backup.
-- **From inside the app:** the Report button on any message sends it to Hewn as a sealed letter,
-  and you can copy it to hewnsupport@gmail.com.
-- **Say:** the scenario id, your steps, what you expected, what happened, the device, browser and
-  wallet, which account kind, and any transaction ids (they're public, so they're safe to share).
+1. Find the area's issue (linked under each heading below; all of them carry the
+   [`manual-test`](https://github.com/PNWBNW/hewn/issues?q=label%3Amanual-test) label).
+2. Post **one comment per scenario you tried**, starting with its id:
+
+   ```
+   Scenario: PAY-2
+   Tested: <date>, commit <short sha on main>
+   Device / browser / wallet:
+   Account kinds used:
+   Result: as expected | different | couldn't test
+   What happened (if different, or why not tested):
+   Transaction ids (public, fine to share):
+   ```
+
+3. "As expected" is worth posting too: it tells us the scenario has been tried, and where.
+
+**Comments are public.** Anything that exposes someone's data, moves money wrongly, or lets one
+account pass as another goes privately through the repository's **Security** tab (see
+[`SECURITY.md`](SECURITY.md)), never in a comment. Never post a key, seed phrase, passphrase or backup file, and blur accounts in screenshots. From inside
+the app, the Report button on any message sends it to Hewn as a sealed letter, and you can copy it
+to hewnsupport@gmail.com.
 
 | How bad | Looks like |
 |---|---|
@@ -50,6 +65,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 | Low | wording, layout, slowness |
 
 ## 1. Accounts and logging in (`ACC`)
+
+Results: [#150](https://github.com/PNWBNW/hewn/issues/150)
 
 - **ACC-1 New business.** Make an account with a username and a passphrase, link Shield, register
   a `name.hewn`. *Expect:* the app keeps you on setup until all three are done, then opens the
@@ -70,6 +87,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 2. Books, backups and tabs (`VAULT`)
 
+Results: [#151](https://github.com/PNWBNW/hewn/issues/151)
+
 - **VAULT-1 Backup and restore.** Settings → Download a backup; in a fresh browser profile,
   Restore from a backup with the same passphrase. *Expect:* the same books.
 - **VAULT-2 Restore, wrong passphrase.** *Expect:* refused; the books on that device untouched.
@@ -87,6 +106,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 3. Names and finding people (`NAME`)
 
+Results: [#152](https://github.com/PNWBNW/hewn/issues/152)
+
 - **NAME-1 Find.** Look up a business and a person by `name.hewn`, by bare name, and by `aleo1…`
   account. *Expect:* only exact names are found.
 - **NAME-2 Look-alikes.** Register `a1ice` while `alice` exists. *Expect:* the app always shows
@@ -95,6 +116,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
   Latin `a`, 2 or 17 characters (names are 3 to 16 of `a–z`, `0–9`, `_`).
 
 ## 4. Offers and agreements (`OFFER`)
+
+Results: [#153](https://github.com/PNWBNW/hewn/issues/153)
 
 - **OFFER-1 Hire.** Business A offers Worker 1 by name. Worker 1 sees the terms, sends a
   counter-offer, A revises, Worker 1 accepts. *Expect:* each step arrives on the other side, and
@@ -109,6 +132,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 5. Messages with the business (`MSG`)
 
+Results: [#154](https://github.com/PNWBNW/hewn/issues/154)
+
 - **MSG-1 Both ways.** Business A and Worker 1 message each other. *Expect:* every message
   arrives, in order, after checking messages.
 - **MSG-2 Report.** Report a message. *Expect:* Hewn's account receives it as a letter, and the
@@ -117,6 +142,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
   other side's phone is offline; a very long message.
 
 ## 6. Coworkers (`CW`)
+
+Results: [#155](https://github.com/PNWBNW/hewn/issues/155)
 
 - **CW-1 Opt in.** Worker 1 and Worker 2 each let coworkers find them at Business A; A checks its
   messages. *Expect:* each sees the other, and under the name "`name.hewn` · confirmed on chain"
@@ -133,6 +160,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 7. Announcements (`ANN`)
 
+Results: [#156](https://github.com/PNWBNW/hewn/issues/156)
+
 - **ANN-1 Post.** Business A makes a channel, adds Workers 1 and 2, and posts. *Expect:* both
   receive it.
 - **ANN-2 Team schedule.** Publish a week's schedule to a big team. *Expect:* it arrives in parts
@@ -145,6 +174,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 8. Shared calendar (`EVT`)
 
+Results: [#157](https://github.com/PNWBNW/hewn/issues/157)
+
 - **EVT-1 Business invites.** Business A invites its team. Workers answer Going, Maybe or No.
   *Expect:* A sees the answers. Change the time: *expect* everyone is asked again.
 - **EVT-2 Coworker invites.** Worker 1 invites Worker 2. *Expect:* the same.
@@ -156,6 +187,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 9. Hours, schedules and paystubs (`WORK`)
 
+Results: [#158](https://github.com/PNWBNW/hewn/issues/158)
+
 - **WORK-1 Hours.** Worker 1 clocks in and out and sends a timesheet. *Expect:* Business A gets it,
   and changed hours need both sides to agree.
 - **WORK-2 Paystub.** After a pay run, Worker 1 gets a paystub. *Expect:* its figures match the
@@ -164,6 +197,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
   hours.
 
 ## 10. Pay runs (`PAY`): money moves here
+
+Results: [#159](https://github.com/PNWBNW/hewn/issues/159)
 
 - **PAY-1 Pay.** Business A runs payroll for Workers 1 and 2 on the rail. *Expect:* Shield asks
   for each payment, the money arrives, and the paystubs go out.
@@ -182,6 +217,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 11. Job board (`JOB`)
 
+Results: [#160](https://github.com/PNWBNW/hewn/issues/160)
+
 - **JOB-1 Post.** Business A posts a job ($1 in USDCx), features it ($5 a day, up to 30 days),
   edits it and closes it.
 - **JOB-2 Apply.** Worker 3 applies with a résumé. *Expect:* Business A sees the application with
@@ -194,6 +231,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 12. The books (`BOOKS`)
 
+Results: [#161](https://github.com/PNWBNW/hewn/issues/161)
+
 - **BOOKS-1** Invoices, estimates, bills, transactions, projects: every entry balances (debits
   equal credits), and reports tie out to the transactions.
 - **BOOKS-2** Taxes: the figures are labelled as testnet estimates, not advice.
@@ -201,6 +240,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
   of the year, deleting something another entry uses, importing a messy file.
 
 ## 13. Phones and wallets (`DEV`)
+
+Results: [#162](https://github.com/PNWBNW/hewn/issues/162)
 
 - **DEV-1** The Shield extension on a computer.
 - **DEV-2** Shield's own browser on a phone.
@@ -212,6 +253,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 
 ## 14. Privacy: what must never show (`PRIV`)
 
+Results: [#163](https://github.com/PNWBNW/hewn/issues/163)
+
 - **PRIV-1 The chain.** Look up your transactions on the explorer. *Expect:* no amounts, names,
   memos or accounts in public state; with private fees, no sender either.
 - **PRIV-2 The network.** Watch the browser's network panel while you use the app. *Expect:*
@@ -222,6 +265,8 @@ Scenarios have ids (`PAY-2`) so a report can name the one it's about.
 - **PRIV-4 Traction.** `/traction` shows totals only, and no country under 5 visitors.
 
 ## 15. The web side (`WEB`)
+
+Results: [#164](https://github.com/PNWBNW/hewn/issues/164)
 
 - **WEB-1** Put `<b>`, `<img src=x onerror=alert(1)>` and `<script>` into every text box: names,
   memos, messages, offer letters, event notes, job descriptions. *Expect:* always shown as plain
