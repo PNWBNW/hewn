@@ -75,12 +75,20 @@ point.
    (only that wallet finds and opens it), and a key from that person's passphrase (PBKDF2, the
    same strength as the books), so a view key alone can't open it. One letter, and one Shield
    approval, for each side.
-4. **Then both sides start a fresh handshake,** so the backed-up keys cover the conversation only
-   up to that point. What follows needs a new backup, and a new agreement to it.
-5. **Restoring:** on a new device, connect Shield and enter the passphrase. The app finds its
-   backup letters and opens the history they cover; the conversation then carries on with a
-   fresh handshake.
-6. **Declined, or never asked:** nothing is backed up. Lost books mean that conversation's
+4. **Then the keys refresh,** so the backed-up keys cover the conversation only up to that
+   point. What follows needs a new backup, and a new agreement to it. The refresh is a gain in
+   itself (Joshua): the copy holds the old keys, and the conversation carries on under keys the
+   copy doesn't have.
+5. **It feels like nothing happened (Joshua).** The refresh rides on letters already going: the
+   Allow carries the answering side's new half, and the asker's next message carries theirs. Until
+   both halves are in, each side keeps sending under the current key, so nobody waits and nothing
+   is resent. The conversation stays one thread: every message before the backup stays where it
+   was, in order, on both sides' screens, and new ones follow straight on. The only sign is a
+   small line in the thread, "Backed up to here, both agreed", where it happened.
+6. **Restoring:** on a new device, connect Shield and enter the passphrase. The app finds its
+   backup letters and opens the history they cover, into the same thread; the conversation then
+   carries on with a fresh handshake.
+7. **Declined, or never asked:** nothing is backed up. Lost books mean that conversation's
    history from the switch onwards is gone for that person; the conversation itself carries on
    after a fresh handshake.
 
@@ -112,5 +120,7 @@ point.
 Including inputs that must fail: a half from an account other than the other side's is ignored;
 a half for another agreement or a past epoch is ignored; an old-version peer keeps the
 conversation working; both sides sending halves at once agree on one key; a letter sent under the
-old key just before the switch still arrives; a backup is never made without Allow; a restored
+old key just before the switch still arrives; a backup is never made without Allow; after a backup the thread
+on both sides still holds every earlier message, in order, and the next message needs no extra
+letter or approval; a restored
 backup opens exactly the epochs it covers and nothing after; a wrong passphrase opens nothing.
