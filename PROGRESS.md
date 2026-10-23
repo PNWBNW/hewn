@@ -4310,3 +4310,10 @@ lock in at acceptance, and then either side can post them (the hashes stop eithe
 changing one); one listing per business, one field; spam is muted first, a private pass only if
 needed; one Leo program per Fable session, `hewn_service_v1` first. Still open: a business's one
 public reply under a job's reviews. Docs only.
+
+## 2026-10-23 — Customers design: a business replies once to each review
+
+Joshua's answers in `docs/CUSTOMERS.md`: once a job's reviews are public, the business can post
+one public reply to each review (written once, never changed; `reply_review`); 24 reviews per job
+stays for now, with a later version able to raise it for long, continuous jobs. No open
+questions left on reviews. Docs only.
