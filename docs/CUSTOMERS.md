@@ -32,8 +32,9 @@ everything about them private. A customer can:
 7. A request is readable only by businesses in the field the customer picks; to anyone else it
    is private. The customer can refresh it so businesses that open up later see it.
 8. Getting USDCx is the customer's responsibility. Hewn has no part in it.
-9. The chain doesn't need to know a payment happened to tie a review to it: a payment simply
-   opens the chance for another review.
+9. Each payment issues the customer a one-use review ticket, automatically, in the same
+   transaction as the payment, so a business can't hold one back and nobody reviews without
+   paying (changed 2026-10-23; at first a payment only opened the chance in the app).
 10. A directory listing is free for now; $1 later, in a new version.
 11. Reviews only inside Hewn, and only between two parties who made an agreement first.
 12. Whether a job's reviews go public at its end is a term of the agreement, agreed by both and
@@ -159,15 +160,35 @@ If one side goes silent at the end, the other can close it after a grace period 
 both sides' records then say it closed without the other's confirmation. Each side keeps a
 private closure record as proof the job was done.
 
-## Invoices and payment
+## Invoices and payment, through the agreement (decision 9)
 
-- Invoices come from the sales side the business already uses (customers, invoices,
-  receivables), sent as a letter under the agreement's conversation.
-- The customer pays from their own Shield wallet with a private USDCx transfer straight to the
-  business. Hewn never holds the money, so it isn't in the middle of it.
-- The customer's app sends a "paid" letter with the payment; the business's books post it
-  (receivable to cash) once it's seen.
-- Deposits, progress payments and a final invoice are just invoices; the final one is marked so.
+1. **The business invoices through the program** (`invoice`), from the sales side it already uses
+   (customers, invoices, receivables). The amount and whether it's the final invoice are locked
+   into a private `Invoice` record the customer receives; the details (lines, notes) follow as a
+   letter in their conversation.
+2. **The customer pays it** (`pay`), in one Shield approval and one transaction:
+   - the `Invoice` record is used up, so it can't be paid twice;
+   - exactly its amount moves as a private USDCx transfer from the customer's wallet straight to
+     the business's (a call into the USDCx program, with its exclusion proof, in the same
+     transaction). The program never holds the money, so neither does Hewn;
+   - both sides get a private `Receipt`, the business's books post it (receivable to cash), and
+     the customer's show it as paid;
+   - the customer gets a one-use `ReviewTicket` for that agreement.
+3. **A final invoice, once paid,** is what the "final invoice paid" closure condition checks, on
+   chain, with nobody's word needed.
+
+On chain: only a spent-invoice marker (a hash) and block heights. Never the amount or the parties.
+
+**To prove first:** this is one transaction calling a second program with private records.
+Shield's in-browser prover dropped exactly that in payroll (four separate transactions since).
+The job board's fee is a two-program call that works, but it's a public transfer. So before
+`hewn_service_v1` is written, a tiny probe program on testnet checks a private USDCx transfer
+inside another program's call, from Shield on a computer and on a phone. If it fails, payment
+stays a plain transfer and reviews go back to the app's prompt (no ticket).
+
+**Audit:** the program moves money (straight through, never held), so it gets a third-party audit
+before mainnet, like every program touching real money.
+
 - **The customer's side:** a list of bills and payments, per business and per job.
 - **USDCx:** the customer brings their own. The app says only what's needed ("You'll need USDCx
   in Shield to pay this"), without recommending where to get it.
@@ -178,19 +199,22 @@ private closure record as proof the job was done.
 
 Only the customer on a `hewn_service_v1` agreement, about that agreement's business:
 
-- `note_review` takes the customer's own agreement record (and returns it), so only someone who
-  holds one can write a review, and only about the business named in it. No agreement, no review.
+- `note_review` takes the customer's own agreement record (and returns it) and uses up a
+  `ReviewTicket` from a payment on that agreement, so only someone who holds one and paid can
+  write a review, and only about the business named in it. No agreement and no payment, no
+  review.
 - Agreements are made only between registered names. The business's name is checked on chain
   when it offers (its name is public anyway). The customer's is checked by the business's app
   before the offer goes out, the way names are confirmed today, not on chain: a public check would
   put the customer's account on the chain next to the business's.
 - A review can be noted only while the agreement is Active, Work marked complete, Complete or in
-  Warranty, and at most 24 per job for now (the app offers one per payment, decision 9). A long,
-  continuous job may need more later: a later version can raise the cap.
+  Warranty, one per payment (a ticket each, decision 9), and at most 24 per job for now. A long,
+  continuous job may need more later: a later version can raise the cap. A ticket not used
+  before the job ends just lapses.
 
 ### At each payment
 
-Each time the customer pays, the app offers a review: stars, a few fixed tags (on time, clean,
+Each time the customer pays, the payment's ticket lets them write a review: stars, a few fixed tags (on time, clean,
 communicates, fair price, would hire again), and a comment. One per payment, all optional. Each
 one:
 
@@ -248,7 +272,7 @@ from the customer unless the business chooses to show them (decision 4).
 | Program | Calls (sketch) | Public state |
 |---|---|---|
 | `hewn_market_v1` | `list`, `update_listing`, `set_taking_clients` (the business, by its name); `post_request`, `add_recipients`, `edit_request`, `close_request` (by the post's secret); `answer` (a business, by its name); `post_business`, `close_business` | Listings; posts as sealed bytes, sealed-key pages and a secret's hash; answers as sealed bytes under tags; the business posts' facts and words |
-| `hewn_service_v1` | `offer`, `accept`, `withdraw`, `change`, `accept_change`, `mark_complete`, `confirm_complete`, `close`, `cancel`, `terminate`, `dispute`, `clear_dispute`; `note_review` (the customer, with their agreement record), `post_reviews` (either side, when the terms say public), `reply_review` (the business, once per posted review) | Agreement id hash → status, heights, the warranty's end; review hashes under tags; posted reviews and the count of reviewed jobs per business |
+| `hewn_service_v1` | `offer`, `accept`, `withdraw`, `change`, `accept_change`, `invoice`, `pay` (the USDCx transfer, the receipts and the review ticket in one), `mark_complete`, `confirm_complete`, `close`, `cancel`, `terminate`, `dispute`, `clear_dispute`; `note_review` (the customer, with their agreement record and a ticket), `post_reviews` (either side, when the terms say public), `reply_review` (the business, once per posted review) | Agreement id hash → status, heights, the warranty's end; spent-invoice markers; review hashes under tags; posted reviews and the count of reviewed jobs per business |
 
 Both free for now, `@noupgrade`; $1 later is `hewn_market_v2`, with the app reading both, the way
 it reads both letters programs.
@@ -269,14 +293,14 @@ it reads both letters programs.
    Charging to *browse* (more directory or board pages) can't be enforced: reading the chain is
    free for anyone with the explorer, so the charge would only be a toll in our app, and every
    page would need a Shield approval. Recommendation: browsing stays free.
-2. Payment-time prompts happen in the app; a modified app could note reviews without paying. Only
-   the customer on the agreement can, at most 24 per job, while the job is under way.
 
 ## Building order (when greenlit)
 
 One Leo program per Fable session (Joshua, 2026-10-23): `hewn_service_v1` first, then
 `hewn_market_v1`.
 
+0. The probe: a private USDCx transfer inside another program's call, proven by Shield on a
+   computer and a phone (a tiny test program, flagged as Leo).
 1. Accounts: the customer side of a personal account.
 2. `hewn_service_v1` and the agreement screens: offer, accept, the statuses, invoices and payment.
 3. `hewn_market_v1`, the directory first, then sealed requests and answers.
@@ -295,8 +319,10 @@ Including inputs that must fail:
 - reviews can't post before the job is complete, in warranty or closed;
 - a posting with an entry missing, changed or added is refused;
 - reviews post only once per job;
-- noting a review without the agreement record, about another business, after closing, or past
-  24 is refused;
+- noting a review without the agreement record, without a ticket, with a ticket from another
+  agreement or one already used, about another business, after closing, or past 24 is refused;
+- paying an invoice twice, paying less or more than it says, paying another customer's invoice,
+  or paying without the USDCx is refused, and a refused payment moves nothing;
 - posting reviews when the agreement says they stay private is refused, and so is changing that
   term without both sides;
 - a second reply to the same review, a reply to a review that isn't public, or a reply from

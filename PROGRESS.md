@@ -4317,3 +4317,15 @@ Joshua's answers in `docs/CUSTOMERS.md`: once a job's reviews are public, the bu
 one public reply to each review (written once, never changed; `reply_review`); 24 reviews per job
 stays for now, with a later version able to raise it for long, continuous jobs. No open
 questions left on reviews. Docs only.
+
+## 2026-10-23 — Customers design: paying an invoice issues the review ticket
+
+Joshua: reviews tie to real payments after all, with nothing for the business to hold back. In
+`docs/CUSTOMERS.md`, the business invoices through `hewn_service_v1` (a private `Invoice` record,
+amount locked); the customer's `pay` uses it up and, in one transaction, moves exactly that
+amount as a private USDCx transfer straight to the business, gives both sides a `Receipt` and the
+customer a one-use `ReviewTicket`, which `note_review` requires. "Final invoice paid" becomes an
+on-chain closure check, and no invoice is paid twice. First a probe on testnet: Shield's prover
+with a private USDCx call inside another program (payroll's multi-program proofs failed; the job
+board's public one works). If it fails, payment stays a plain transfer and reviews go back to the
+app's prompt. The program moves money, so a third-party audit before mainnet. Docs only.
