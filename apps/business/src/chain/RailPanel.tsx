@@ -38,7 +38,8 @@ import { type Rail, type RailLink, addLink, setRegistered, shortAddress, validat
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
 import { assertKindFree } from "./account_kind";
-import { finalAgreementIds } from "./offer";
+import { AGREEMENT_PROGRAMS } from "./agreement_programs";
+import { finalAgreements } from "./offer";
 import { partiesKeysOf } from "./parties_key";
 import { RegisterFlow } from "./RegisterBusiness";
 import { useShield } from "./shield";
@@ -166,13 +167,17 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
     started.current = true;
     // The records once more, raw: the parties key for each link, and which
     // offers this app sent have been accepted (a FinalAgreement with that id).
-    Promise.all([scanAgreementRecords(wallet.requestRecords, address), wallet.requestRecords(PROGRAMS.layer1.employer_agreement, true)]).then(
-      async ([found, raw]) => {
-        const records = Array.isArray(raw) ? raw : [];
+    Promise.all([scanAgreementRecords(wallet.requestRecords, address, AGREEMENT_PROGRAMS), ...AGREEMENT_PROGRAMS.map((p) => wallet.requestRecords(p, true))]).then(
+      async ([found, ...raws]) => {
+        const records = raws.flatMap((raw) => (Array.isArray(raw) ? raw : []));
         setKeys(partiesKeysOf(records));
-        const finals = finalAgreementIds(records);
+        const accepted = finalAgreements(records);
+        const finals = new Set(accepted.keys());
         // Accepted offers become linked; anyone an offer was hiring joins the team (books/hiring.ts).
-        if (finals.size > 0) await updateCompany((c) => acceptOffers(c, finals, new Date().toISOString()));
+        if (finals.size > 0) {
+          const halves = new Map([...accepted].flatMap(([id, f]) => (f.workerHalf ? [[id, f.workerHalf] as const] : [])));
+          await updateCompany((c) => acceptOffers(c, finals, new Date().toISOString(), halves));
+        }
         setRows(found);
       },
       (e: unknown) => setError(errorMessage(e)),

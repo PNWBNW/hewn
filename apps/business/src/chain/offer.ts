@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { ENV } from "@pnw/config/env";
-import { PROGRAMS, VERSIONS } from "@pnw/config/programs";
+import { VERSIONS } from "@pnw/config/programs";
 import { computeAgreementValues, computeOfferTimeHash, computePartiesKey } from "@pnw/handshake/engine";
 import { PAY_FREQUENCY_CODES, type ComputedAgreementValues } from "@pnw/handshake/types";
 import { MAX_PAYLOAD_BYTES, MailboxError, keepUntilAfter, partiesKeyFromHex, seal } from "@pnw/mailbox";
@@ -24,7 +24,9 @@ import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
 import { type RailLink, isRailAddress } from "../books/rail";
+import { AGREEMENT_V5, OFFER_PROGRAM as CURRENT_OFFER_PROGRAM, carriesHalves, halfFromRecord, halfToInput } from "./agreement_programs";
 import { bareDirectoryName } from "./directory";
+import { newHalf } from "./key_ring";
 import { byteArrayHex } from "./parties_key";
 import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
 import type { EmploymentType } from "../books/terms_words";
@@ -46,9 +48,12 @@ export const MAILBOX_OFF_MESSAGE = "Offers need the mailbox; it's off on this se
 /** Shown when the person has no registered name on the rail. */
 export const NO_NAME_MESSAGE = "They need to register a name first";
 
-export const OFFER_PROGRAM = PROGRAMS.layer1.employer_agreement;
-/** `create_job_offer` without the license approval (employer_agreement_v4 edition 2); same 16 inputs. */
+/** Where a new offer goes unless the input says (chain/agreement_programs.ts). */
+export const OFFER_PROGRAM = CURRENT_OFFER_PROGRAM;
+/** v4: `create_job_offer` without the license approval (edition 2); same 16 inputs. */
 export const OFFER_FUNCTION = "create_offer_open";
+/** v5: 8 inputs, the terms and the hashes as structs, and the employer's key half. */
+export const OFFER_FUNCTION_V5 = "create_offer";
 /** The terms always go to slot 0 of the `terms` kind: one agreement, one parties key, one document. */
 export const TERMS_SLOT = 0;
 
@@ -193,6 +198,39 @@ export function createJobOfferInputs(i: OfferInputs): string[] {
   ];
 }
 
+/**
+ * The offer's 8 inputs for employer_agreement_v5 `create_offer`: the same values as v4's 16, with
+ * the numeric terms and the hashes grouped as the program's structs, then the employer's public
+ * half (x and y, 64 bytes).
+ */
+export function createOfferInputsV5(i: OfferInputs, employerHalf: string): string[] {
+  const terms = [
+    `industry_code: ${i.industryCode}u8`,
+    `pay_frequency_code: ${i.frequencyCode}u8`,
+    `start_epoch: ${i.epochs.start}u32`,
+    `end_epoch: ${i.epochs.end}u32`,
+    `review_epoch: ${i.epochs.review}u32`,
+    "agreement_rev: 1u16",
+    `schema_v: ${VERSIONS.schema_v}u16`,
+    `policy_v: ${VERSIONS.policy_v}u16`,
+  ];
+  const hashes = [
+    `terms_doc_hash: ${bytesToAleoU8Array(i.computed.terms_doc_hash)}`,
+    `terms_root: ${bytesToAleoU8Array(i.computed.terms_root)}`,
+    `offer_time_hash: ${bytesToAleoU8Array(i.computed.offer_time_hash)}`,
+  ];
+  return [
+    bytesToAleoU8Array(i.computed.agreement_id),
+    bytesToAleoU8Array(i.computed.parties_key),
+    `${bareField(i.employerNameHash)}field`,
+    `${bareField(i.workerNameHash)}field`,
+    i.workerAddress,
+    `{ ${terms.join(", ")} }`,
+    `{ ${hashes.join(", ")} }`,
+    halfToInput(employerHalf),
+  ];
+}
+
 // ---- Who the offer goes to ---------------------------------------------------------------
 
 /** Who was found to send an offer to (see directory.ts for the lookup itself). */
@@ -224,14 +262,33 @@ export async function resolveBusinessName(text: string, suffix: string, ownAddre
 
 /** The agreement ids (hex, no `0x`) of every unspent FinalAgreement among the employer's records. */
 export function finalAgreementIds(records: unknown[]): Set<string> {
-  const ids = new Set<string>();
+  return new Set(finalAgreements(records).keys());
+}
+
+/** Every unspent FinalAgreement by agreement id, with the worker's public half when the record carries one (v5). */
+export function finalAgreements(records: unknown[]): Map<string, { workerHalf?: string }> {
+  const out = new Map<string, { workerHalf?: string }>();
   for (const raw of records) {
     const rec = raw as Record<string, unknown> | null;
     if (!rec || typeof rec !== "object" || rec.spent === true || rec.recordName !== "FinalAgreement") continue;
-    const id = byteArrayHex(typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "", "agreement_id");
-    if (id) ids.add(id);
+    const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
+    const id = byteArrayHex(plaintext, "agreement_id");
+    if (!id) continue;
+    const workerHalf = halfFromRecord(byteArrayHex(plaintext, "worker_half", 64));
+    out.set(id, workerHalf ? { workerHalf } : {});
   }
-  return ids;
+  return out;
+}
+
+/** The employer's unspent SentOffer (v5) for an agreement, as Shield gave it: the one input of `withdraw_offer`. */
+export function sentOfferPlaintext(records: unknown[], agreementId: string): string | null {
+  for (const raw of records) {
+    const rec = raw as Record<string, unknown> | null;
+    if (!rec || typeof rec !== "object" || rec.spent === true || rec.recordName !== "SentOffer") continue;
+    const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
+    if (byteArrayHex(plaintext, "agreement_id") === bareHex(agreementId)) return plaintext;
+  }
+  return null;
 }
 
 // ---- Sending ---------------------------------------------------------------------------------
@@ -265,6 +322,8 @@ export type SendOfferInput = OfferDates & {
    * one (a revised offer keeps the conversation). Missing means a fresh one.
    */
   partiesKey?: string;
+  /** The agreement program the offer goes to; the app's current one when left out (chain/agreement_programs.ts). */
+  program?: string;
   currentHeight: number;
   /** Only `put` is used; a fake with that one method does for tests. */
   /**
@@ -398,8 +457,12 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
     else throw e;
   }
 
-  // 2. The offer itself, signed in Shield.
-  const inputs = createJobOfferInputs({
+  // 2. The offer itself, signed in Shield. To v5 it carries this business's public half, made here
+  // and kept on the link with its private part (books/key_ring.ts); the worker's comes back in the acceptance.
+  const program = input.program ?? OFFER_PROGRAM;
+  const twin = carriesHalves(program);
+  const half = twin ? await newHalf() : undefined;
+  const offerInputs: OfferInputs = {
     computed,
     employerNameHash: input.employerNameHash,
     workerNameHash: input.workerNameHash,
@@ -407,9 +470,10 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
     industryCode: input.industryCode,
     frequencyCode: FREQUENCY_CODES[worker.frequency],
     epochs,
-  });
+  };
+  const inputs = half ? createOfferInputsV5(offerInputs, half.publicKey) : createJobOfferInputs(offerInputs);
   onProgress?.("approving");
-  const { transactionId: walletId } = await wallet.executeTransaction({ program: OFFER_PROGRAM, function: OFFER_FUNCTION, inputs, privateFee: false, ...(input.feeMode ? { feeMode: input.feeMode } : {}) });
+  const { transactionId: walletId } = await wallet.executeTransaction({ program, function: half ? OFFER_FUNCTION_V5 : OFFER_FUNCTION, inputs, privateFee: false, ...(input.feeMode ? { feeMode: input.feeMode } : {}) });
   if (!walletId) throw new OfferError("Shield didn't take the offer");
   onProgress?.("sent");
   const transactionId = await awaitAccepted(wallet, walletId, input);
@@ -423,6 +487,7 @@ export async function sendOffer(input: SendOfferInput): Promise<SentOffer> {
     partiesKey,
     status: "offered",
     offeredAt: terms.offeredAt,
+    ...(twin ? { program, half } : {}),
   };
   return { link, terms, transactionId, inputs, slotTaken };
 }
@@ -445,10 +510,15 @@ export function withdrawOfferInputs(link: Pick<RailLink, "agreementId" | "partie
   return [bytesToAleoU8Array(link.agreementId), bytesToAleoU8Array(link.partiesKey), `${bareField(employerNameHash)}field`, `${bareField(link.nameHash)}field`];
 }
 
+/** v5: the employer's own SentOffer record is the one input, so nothing public names anyone. */
+export const WITHDRAW_FUNCTION_V5 = "withdraw_offer";
+
 export type WithdrawInput = {
-  link: Pick<RailLink, "agreementId" | "partiesKey" | "nameHash" | "terms">;
+  link: Pick<RailLink, "agreementId" | "partiesKey" | "nameHash" | "terms" | "program">;
   employerNameHash: string;
   wallet: OfferWallet;
+  /** Shield's records, for a v5 offer: the SentOffer to withdraw with. */
+  requestRecords?: (programId: string, all?: boolean) => Promise<unknown[]>;
   clock?: Clock;
   sleep?: Sleep;
   limits?: Partial<OfferLimits>;
@@ -456,8 +526,17 @@ export type WithdrawInput = {
 
 /** Withdraws a pending offer in Shield and waits for the network. Returns the transaction id. */
 export async function withdrawOffer(input: WithdrawInput): Promise<string> {
-  const inputs = withdrawOfferInputs(input.link, input.employerNameHash);
-  const { transactionId: walletId } = await input.wallet.executeTransaction({ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs, privateFee: false });
+  let call: { program: string; function: string; inputs: string[] };
+  if (carriesHalves(input.link.program)) {
+    if (!input.requestRecords) throw new OfferError("Connect Shield to withdraw this offer");
+    const records = await input.requestRecords(AGREEMENT_V5, true);
+    const sent = sentOfferPlaintext(Array.isArray(records) ? records : [], input.link.agreementId);
+    if (!sent) throw new OfferError("This offer's record isn't in Shield; check the account, then try again");
+    call = { program: AGREEMENT_V5, function: WITHDRAW_FUNCTION_V5, inputs: [sent] };
+  } else {
+    call = { program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(input.link, input.employerNameHash) };
+  }
+  const { transactionId: walletId } = await input.wallet.executeTransaction({ ...call, privateFee: false });
   if (!walletId) throw new OfferError("Shield didn't take the withdrawal");
   return awaitAccepted(input.wallet, walletId, input);
 }

@@ -329,3 +329,16 @@ describe("confirming a long shift", () => {
     expect(updatePunch(c, "p1", { at: "2026-10-14T12:00:00.000Z" }).punches.find((p) => p.id === "p2")).not.toHaveProperty("confirmed");
   });
 });
+
+describe("an agreement's key half (employer_agreement_v5)", () => {
+  const half = { publicKey: "04" + "a".repeat(128), privateKey: { kty: "EC", crv: "P-256", x: "x", y: "y", d: "d" } };
+  it("is kept through a save and through a later upsert without it", () => {
+    const w = withAgreement();
+    const id = w.agreements[0]!.agreementId;
+    const kept = upsertAgreement(w, { ...w.agreements[0]!, program: "employer_agreement_v5.aleo", half });
+    expect(workFromJson(workToJson(kept)).agreements[0]).toMatchObject({ program: "employer_agreement_v5.aleo", half });
+    const again = upsertAgreement(kept, { ...w.agreements[0]!, status: "active" });
+    expect(agreementFor(again, id)).toMatchObject({ program: "employer_agreement_v5.aleo", half, status: "active" });
+    expect(() => upsertAgreement(w, { ...w.agreements[0]!, half: { publicKey: "nope", privateKey: half.privateKey } })).toThrow(WorkError);
+  });
+});

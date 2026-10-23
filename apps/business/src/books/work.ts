@@ -19,6 +19,7 @@ import { type ApplicationStatus, type Thread, emptyThread, validateThread } from
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
 import { agreedChanges, hoursChanges } from "./hours_change";
 import { type ConfirmedName, type CoworkerThread, type Identity, MAX_CONFIRMED_NAMES, validateConfirmedName, validateCoworkerThread, validateIdentity } from "./directory";
+import { type Half, seedPair, validateHalf } from "./key_ring";
 import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileRefs, validateLetter, validateOfferFiles } from "./offer_letter";
 import { type JobFields, validateJobFields } from "./terms_words";
 import { type WorkWeek, validateWorkWeek } from "./work_week";
@@ -60,6 +61,13 @@ export type WorkAgreement = {
   employerNameHash: string;
   employerName?: string;
   status: AgreementStatus;
+  /**
+   * The agreement program the record came from; absent means employer_agreement_v4. With v5,
+   * `half` is this person's P-256 key pair for the agreement (books/key_ring.ts): the public part
+   * went with the acceptance, the private part stays here, the employer's is in the record.
+   */
+  program?: string;
+  half?: Half;
   terms?: Terms;
   /** The offer letter's attached files, saved in this vault: one per file in `terms.files`, same fingerprints. */
   files?: AttachmentRef[];
@@ -268,6 +276,17 @@ export function validateAgreement(raw: unknown): WorkAgreement {
     }
   }
   if (raw.acceptedAt !== undefined) a.acceptedAt = isoDate(raw.acceptedAt, "Accepted at");
+  if (raw.program !== undefined) {
+    if (typeof raw.program !== "string" || !/^[a-z0-9_]+\.[a-z0-9]+$/.test(raw.program)) throw new WorkError("An agreement's program must be a program id");
+    a.program = raw.program;
+  }
+  if (raw.half !== undefined) {
+    try {
+      a.half = validateHalf(raw.half);
+    } catch (e) {
+      throw new WorkError(e instanceof Error ? e.message : "An agreement's key half couldn't be read");
+    }
+  }
   return a;
 }
 
@@ -499,6 +518,8 @@ export function upsertAgreement(work: Work, agreement: WorkAgreement): Work {
   if (previous?.terms && !fresh.terms) merged.terms = previous.terms;
   if (previous?.employerName && !fresh.employerName) merged.employerName = previous.employerName;
   if (previous?.acceptedAt && !fresh.acceptedAt) merged.acceptedAt = previous.acceptedAt;
+  if (previous?.half && !fresh.half) merged.half = previous.half;
+  if (previous?.program && !fresh.program) merged.program = previous.program;
   return validateWork({ ...work, agreements: [...work.agreements.filter((a) => a.agreementId !== fresh.agreementId), merged] });
 }
 
@@ -624,6 +645,11 @@ export function keepConfirmedName(work: Work, address: string, name: string, che
 export function forgetConfirmedName(work: Work, address: string): Work {
   if (!work.confirmedNames?.[address]) return work;
   return validateWork({ ...work, confirmedNames: Object.fromEntries(Object.entries(work.confirmedNames).filter(([a]) => a !== address)) });
+}
+
+/** The conversation with an employer starts under the pair the agreement's records carry (books/key_ring.ts `seedPair`). */
+export function seedAgreementPair(work: Work, partiesKey: string, mine: Half, theirs: string, now: string): Work {
+  return updateWorkThread(work, partiesKey, (t) => ({ ...t, ring: seedPair(t.ring, mine, theirs, now) }));
 }
 
 export const setIdentity = (work: Work, businessKey: string, id: Identity): Work => validateWork({ ...work, identities: { ...work.identities, [businessKey]: id } });

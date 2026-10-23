@@ -34,6 +34,8 @@ import {
   withdrawOfferInputs,
 } from "./offer";
 import { offerTermsKind } from "./offer_files";
+import { AGREEMENT_V5, halfToInput } from "./agreement_programs";
+import { OFFER_FUNCTION_V5, WITHDRAW_FUNCTION_V5, createOfferInputsV5, finalAgreements, sentOfferPlaintext, withdrawOffer as withdraw } from "./offer";
 import { canonicalTerms, parseTerms } from "./terms";
 
 const EMPLOYER = "aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n";
@@ -535,5 +537,65 @@ describe("the work week in an offer", () => {
     const plain = await sendOffer(input());
     expect(plain.terms).not.toHaveProperty("workWeek");
     await expect(sendOffer(input({ workWeek: { ...week, timeZone: "Nowhere/Here" } }))).rejects.toThrow(/time zone/);
+  });
+});
+
+describe("offers to employer_agreement_v5", () => {
+  it("go as 8 inputs: the same values as v4's 16, the terms and the hashes as structs, then this business's public half, kept on the link with its private part", async () => {
+    const client = fakeClient(201);
+    const wallet = fakeWallet();
+    const sent = await sendOffer(input({ client, wallet, program: AGREEMENT_V5 }));
+    const call = wallet.calls[0]!;
+    expect(call.program).toBe(AGREEMENT_V5);
+    expect(call.function).toBe(OFFER_FUNCTION_V5);
+    expect(call.inputs).toHaveLength(8);
+    expect(sent.link.program).toBe(AGREEMENT_V5);
+    expect(sent.link.half?.publicKey).toMatch(/^04[0-9a-f]{128}$/);
+    expect(sent.link.half?.privateKey.d).toBeTruthy();
+    const canonical = canonicalTerms(sent.terms);
+    const computed = { ...computeAgreementValues(EMPLOYER, WORKER, canonical, Math.floor(NOW.getTime() / 1000)), parties_key: `0x${sent.link.partiesKey}` };
+    const v4 = portalInputs(computed, { employerNameHash: EMPLOYER_HASH, workerNameHash: WORKER_HASH, workerAddress: WORKER, industryCode: 9, payFrequency: 3, startEpoch: dateToHeight("2026-11-02", HEIGHT, NOW.getTime()), endEpoch: 0, reviewEpoch: dateToHeight("2027-01-31", HEIGHT, NOW.getTime()) });
+    expect(call.inputs.slice(0, 5)).toEqual(v4.slice(0, 5));
+    expect(call.inputs[5]).toBe(`{ industry_code: ${v4[5]}, pay_frequency_code: ${v4[6]}, start_epoch: ${v4[7]}, end_epoch: ${v4[8]}, review_epoch: ${v4[9]}, agreement_rev: ${v4[10]}, schema_v: ${v4[11]}, policy_v: ${v4[12]} }`);
+    expect(call.inputs[6]).toBe(`{ terms_doc_hash: ${v4[13]}, terms_root: ${v4[14]}, offer_time_hash: ${v4[15]} }`);
+    expect(call.inputs[7]).toBe(halfToInput(sent.link.half!.publicKey));
+    expect(call.inputs[7]!.match(/u8/g)).toHaveLength(64);
+    // Only the public half leaves the device: the private part is on the link, not in the inputs.
+    expect(call.inputs.join(" ")).not.toContain(sent.link.half!.privateKey.d);
+  });
+
+  it("build the same 8 inputs from the same values every time", () => {
+    const computed = computeAgreementValues(EMPLOYER, WORKER, "terms", 1_760_000_000);
+    const i = { computed: { ...computed, parties_key: `0x${"ab".repeat(32)}` }, employerNameHash: EMPLOYER_HASH, workerNameHash: WORKER_HASH, workerAddress: WORKER, industryCode: 9, frequencyCode: 3, epochs: { start: 10, end: 0, review: 10 } };
+    const half = "04" + "ef".repeat(64);
+    expect(createOfferInputsV5(i, half)).toEqual(createOfferInputsV5(i, half));
+    expect(() => createOfferInputsV5(i, "not-a-half")).toThrow();
+  });
+
+  it("read the worker's half from a v5 FinalAgreement, and nothing from a v4 one", () => {
+    const workerHalf = "04" + "cd".repeat(64);
+    const id = "11".repeat(32);
+    const v5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  agreement_id: ${bytesToAleoU8Array(id)}.private,\n  worker_half: ${halfToInput(workerHalf)}.private\n}` };
+    const v4 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  agreement_id: ${bytesToAleoU8Array("22".repeat(32))}.private\n}` };
+    const found = finalAgreements([v5, v4, { recordName: "SentOffer", spent: false, recordPlaintext: v5.recordPlaintext }]);
+    expect(found.get(id)).toEqual({ workerHalf });
+    expect(found.get("22".repeat(32))).toEqual({});
+    expect(found.size).toBe(2);
+  });
+
+  it("are withdrawn with the SentOffer record alone, found among Shield's v5 records", async () => {
+    const wallet = fakeWallet();
+    const id = "11".repeat(32);
+    const plaintext = `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${bytesToAleoU8Array(id)}.private\n}`;
+    const records = [{ recordName: "SentOffer", spent: true, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext.replace(bytesToAleoU8Array(id), bytesToAleoU8Array("33".repeat(32))) }];
+    expect(sentOfferPlaintext(records, id)).toBe(plaintext);
+    expect(sentOfferPlaintext(records, "44".repeat(32))).toBeNull();
+    const link = { agreementId: id, partiesKey: "ab".repeat(32), nameHash: WORKER_HASH, program: AGREEMENT_V5 };
+    const asked: string[] = [];
+    await withdraw({ link, employerNameHash: EMPLOYER_HASH, wallet, requestRecords: async (p) => (asked.push(p), records), ...instant });
+    expect(asked).toEqual([AGREEMENT_V5]);
+    expect(wallet.calls[0]).toMatchObject({ program: AGREEMENT_V5, function: WITHDRAW_FUNCTION_V5, inputs: [plaintext], privateFee: false });
+    await expect(withdraw({ link, employerNameHash: EMPLOYER_HASH, wallet, ...instant })).rejects.toThrow(/Connect Shield/);
+    await expect(withdraw({ link, employerNameHash: EMPLOYER_HASH, wallet, requestRecords: async () => [], ...instant })).rejects.toThrow(/record isn't in Shield/);
   });
 });

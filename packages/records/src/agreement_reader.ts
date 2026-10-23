@@ -51,9 +51,10 @@ function parseAgreementRecord(
     if (!plaintext) return null;
     if (spent) return null;
 
-    // Accept both FinalAgreement (accepted) and PendingAgreement (sent, awaiting acceptance)
+    // Accept FinalAgreement (accepted), PendingAgreement (sent, awaiting acceptance) and, from
+    // employer_agreement_v5, SentOffer (the employer's own copy of a pending offer).
     const isFinal = recordName === "FinalAgreement";
-    const isPending = recordName === "PendingAgreement";
+    const isPending = recordName === "PendingAgreement" || recordName === "SentOffer";
     if (!isFinal && !isPending) return null;
 
     // Parse fields from the record plaintext
@@ -104,13 +105,17 @@ function parseAgreementRecord(
 export async function scanAgreementRecords(
   requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>,
   employerAddress: Address,
+  /** Every agreement program to read, newest first; the first record found for an agreement wins. */
+  programs: readonly string[] = [PROGRAMS.layer1.employer_agreement],
 ): Promise<WorkerRecord[]> {
   try {
     console.log("[PNW] Scanning wallet for agreement records...");
-    const records = await requestRecords(PROGRAMS.layer1.employer_agreement, true);
-    console.log("[PNW] Agreement records from wallet:", records?.length ?? 0);
-
-    if (!Array.isArray(records)) return [];
+    const records: unknown[] = [];
+    for (const program of programs) {
+      const found = await requestRecords(program, true);
+      if (Array.isArray(found)) records.push(...found);
+    }
+    console.log("[PNW] Agreement records from wallet:", records.length);
 
     const workers: WorkerRecord[] = [];
     const seenAgreements = new Set<string>();

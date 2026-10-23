@@ -437,3 +437,14 @@ describe("an offer's other inputs", () => {
     expect(() => validateLink({ ...offered, offerInputs: { industryCode: 4, reviewDate: "soon", endDate: "" } })).toThrow(/dates/);
   });
 });
+
+describe("a link's key half (employer_agreement_v5)", () => {
+  const half = { publicKey: "04" + "a".repeat(128), privateKey: { kty: "EC", crv: "P-256", x: "x", y: "y", d: "d" } };
+  it("round-trips with its program, and refuses a half that isn't one", async () => {
+    const { validateLink } = await import("./rail");
+    const base = { workerId: "wkr-1", address: "aleo1" + "z".repeat(58), nameHash: "1", agreementId: "01".repeat(32), partiesKey: "ab".repeat(32), status: "offered" as const };
+    expect(validateLink({ ...base, program: "employer_agreement_v5.aleo", half })).toMatchObject({ program: "employer_agreement_v5.aleo", half });
+    expect(() => validateLink({ ...base, half: { publicKey: "04" + "a".repeat(128) } })).toThrow(/private key/);
+    expect(() => validateLink({ ...base, program: "not a program" })).toThrow(/program id/);
+  });
+});

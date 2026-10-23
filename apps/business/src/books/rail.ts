@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AttachmentRef } from "@pnw/sales";
+import { type Half, validateHalf } from "./key_ring";
 import { LetterError, validateFileRefs } from "./offer_letter";
 import { type Terms, validateTerms } from "./work";
 
@@ -45,6 +46,13 @@ export type RailLink = {
    * team member is imported again.
    */
   partiesKey?: string;
+  /**
+   * The agreement program the offer went to; absent means employer_agreement_v4. With v5, `half`
+   * is this business's P-256 key pair for the agreement (books/key_ring.ts): the public part went
+   * in the offer, the private part stays here, and the worker's comes back in the acceptance.
+   */
+  program?: string;
+  half?: Half;
   /** The next unused slot in this person's mailbox, per kind of document. Missing means 0. */
   mailboxSeq?: { [K in MailboxKind]?: number };
   /** `offered` until the other side approves the agreement; links from before this existed load as `linked`. */
@@ -197,6 +205,17 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
     link.partiesKey = l.partiesKey;
   } else if (!options.allowLegacyLinks || link.status === "offered") {
     throw new RailError("Each link needs the agreement's parties key");
+  }
+  if (l.program !== undefined) {
+    if (typeof l.program !== "string" || !/^[a-z0-9_]+\.[a-z0-9]+$/.test(l.program)) throw new RailError("A link's program must be a program id");
+    link.program = l.program;
+  }
+  if (l.half !== undefined) {
+    try {
+      link.half = validateHalf(l.half);
+    } catch (e) {
+      throw new RailError(e instanceof Error ? e.message : "A link's key half couldn't be read");
+    }
   }
   if (l.mailboxSeq !== undefined) {
     const seq = l.mailboxSeq as Record<string, unknown> | null;

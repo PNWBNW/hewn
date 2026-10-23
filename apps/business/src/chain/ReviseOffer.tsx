@@ -138,7 +138,7 @@ function ReviseFlow({ workerId, proposal, mode: initialMode, onClose }: ReviseOf
     // 1. The current offer comes off the chain.
     setStage("withdrawing");
     try {
-      await withdrawOffer({ link: old, employerNameHash: rail.businessNameHash, wallet: shield });
+      await withdrawOffer({ link: old, employerNameHash: rail.businessNameHash, wallet: shield, requestRecords: (p, all) => wallet.requestRecords(p, all) });
       await updateCompany((c) => (c.rail ? { ...c, rail: removeLink(c.rail, workerId) } : c));
       // Its files (from before offers stopped carrying them) go with it.
       for (const ref of old.offerFiles ?? []) await discardAttachment(ref.attachmentId).catch(() => {});

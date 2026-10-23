@@ -127,6 +127,11 @@ Results: [#153](https://github.com/PNWBNW/hewn/issues/153)
   never arrives cut short.
 - **OFFER-3 Not yet accepted.** Business A offers Worker 3, who doesn't answer. *Expect:* Worker 3
   can't be paid on the rail: "Can't be paid on the rail until they accept their offer".
+- **OFFER-4 v5 agreements (once `employer_agreement_v5` is deployed and the app switched).**
+  Business A offers Worker 1; Worker 1 accepts. *Expect:* the transaction's public inputs show an
+  agreement id and one field, no name hash and no account; the conversation reads "Sealed with a
+  key only the two of you hold" before either side has sent a message; a paystub sent right after
+  arrives. Withdraw a second, unanswered offer: *expect* it works with no name in the transaction.
 - **Break it:** Business B uses Business A's display name and sends Worker 1 an offer. *Expect:*
   Worker 1 sees B's registered name, never A's.
 

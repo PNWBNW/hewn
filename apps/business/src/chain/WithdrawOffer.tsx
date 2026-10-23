@@ -65,6 +65,7 @@ function WithdrawFlow({ workerId, onClose }: WithdrawOfferProps) {
       await withdrawOffer({
         link,
         employerNameHash: rail.businessNameHash,
+        requestRecords: (p, all) => wallet.requestRecords(p, all),
         wallet: {
           executeTransaction: async (opts) => {
             const r = await wallet.executeTransaction(opts);

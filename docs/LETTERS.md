@@ -120,7 +120,7 @@ a malformed address and a non-record input must all be rejected. Positive: `Lett
 | The recipient | the letter, the sender's address (sender ciphertext), the parcel's contents (parties key) |
 | The sender | its own copy, on any device |
 | An auditor given a view key | that letters exist and their lookups. Between a business and a person it hired, the letters from before their handshake too (the same view key opens their agreement record, which carries the parties key), and the public key halves; nothing after it, not even the answer that completes the handshake, whose words are sealed under the new key (2026-10-23, `docs/TWIN_CURVE_CONVERSATIONS.md`). Not a conversation backup: it is sealed with a key from its owner's passphrase too. Not the contents of an application or a coworker chat, whose keys come from key exchange and stay in the vault. Paystubs and timesheets too: after the handshake they go under the pair's key |
-| Hewn's wallet (testnet only) | a copy of every agreement, parties key included, but no letters: they are sealed to their recipients. After a pair's handshake, that key opens nothing new. On mainnet, agreements carry no such copy (`employer_agreement_v5`, BUILD_PLAN.md) |
+| Hewn's wallet (testnet only) | a copy of every v4 agreement, parties key included, but no letters: they are sealed to their recipients. After a pair's handshake, that key opens nothing new. A v5 agreement (staged, 2026-10-23) has no such copy, and its records carry two public halves instead of a key for the conversation |
 
 The recipient's address is never shown: record owners are encrypted. So with private fees (the
 switch shipped in #79), the public footprint of a letter is "someone sent a Hewn letter at block N".
