@@ -1,7 +1,8 @@
 import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
 import { describe, expect, it } from "vitest";
-import { ACCEPT, acceptInputs, acceptTimeHash, parseAgreementRecord, parseAgreementRecords, readAgreementRecords } from "./agreements";
+import { ACCEPT, acceptCall, acceptInputs, acceptTimeHash, parseAgreementRecord, parseAgreementRecords, readAgreementRecords } from "./agreements";
+import { AGREEMENT_V4, AGREEMENT_V5, halfToInput } from "../agreement_programs";
 
 const WORKER = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px";
 const EMPLOYER = "aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n";
@@ -44,6 +45,7 @@ describe("agreement records", () => {
     const r = parseAgreementRecord(pending, WORKER);
     expect(r).toEqual({
       kind: "pending",
+      program: "employer_agreement_v4.aleo",
       agreementId: hex((i) => i + 1),
       partiesKey: hex((i) => (i * 7 + 3) % 256),
       employerAddress: EMPLOYER,
@@ -101,5 +103,44 @@ describe("accept_job_offer inputs", () => {
     expect(() => acceptInputs(parseAgreementRecord(final, WORKER)!, 1)).toThrow(/pending/);
     expect(() => acceptTimeHash(-1)).toThrow();
     expect(() => acceptTimeHash(1.5)).toThrow();
+  });
+});
+
+describe("employer_agreement_v5 records", () => {
+  const employerHalf = "04" + "ab".repeat(64);
+  const workerHalf = "04" + "cd".repeat(64);
+  const pendingV5 = { recordName: "PendingAgreement", spent: false, recordPlaintext: PENDING_PLAINTEXT.replace("employer_address", `employer_half: ${halfToInput(employerHalf)}.private,\n  employer_address`) };
+  const finalV5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: pendingV5.recordPlaintext.replace("employer_half", `worker_half: ${halfToInput(workerHalf)}.private,\n  employer_half`) };
+
+  it("carry the employer's half in the offer and both halves once accepted", () => {
+    const p = parseAgreementRecord(pendingV5, WORKER, AGREEMENT_V5)!;
+    expect(p).toMatchObject({ kind: "pending", program: AGREEMENT_V5, employerHalf });
+    expect(p.workerHalf).toBeUndefined();
+    const f = parseAgreementRecord(finalV5, WORKER, AGREEMENT_V5)!;
+    expect(f).toMatchObject({ kind: "final", program: AGREEMENT_V5, employerHalf, workerHalf });
+    // A v4 record has no halves, and a v5 one read as v4 shows none.
+    expect(parseAgreementRecord(pending, WORKER)!.employerHalf).toBeUndefined();
+    expect(parseAgreementRecord(pendingV5, WORKER, AGREEMENT_V4)!.employerHalf).toBeUndefined();
+  });
+
+  it("accept with the person's public half as the third input, and v4 with two", () => {
+    const p = parseAgreementRecord(pendingV5, WORKER, AGREEMENT_V5)!;
+    const call = acceptCall(p, 1_760_000_000, workerHalf);
+    expect(call).toEqual({ program: AGREEMENT_V5, function: "accept_offer", inputs: [p.plaintext, acceptTimeHash(1_760_000_000), halfToInput(workerHalf)] });
+    expect(() => acceptCall(p, 1_760_000_000)).toThrow(/key half/);
+    const v4 = acceptCall(parseAgreementRecord(pending, WORKER)!, 1_760_000_000);
+    expect(v4).toEqual({ ...ACCEPT, inputs: acceptInputs(parseAgreementRecord(pending, WORKER)!, 1_760_000_000) });
+  });
+
+  it("are read from every program the app uses, the newer program's copy winning", async () => {
+    const calls: string[] = [];
+    const requestRecords = async (program: string) => {
+      calls.push(program);
+      return program === AGREEMENT_V5 ? [finalV5] : [pending];
+    };
+    const found = await readAgreementRecords(requestRecords, WORKER, [AGREEMENT_V5, AGREEMENT_V4]);
+    expect(calls).toEqual([AGREEMENT_V5, AGREEMENT_V4]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ kind: "final", program: AGREEMENT_V5, workerHalf });
   });
 });

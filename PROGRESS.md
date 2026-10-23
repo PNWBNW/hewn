@@ -4246,3 +4246,39 @@ nothing after, and a wrong passphrase finding nothing; a decline making no copy 
 keys; only the first answer from the side that didn't ask counting; what a copy holds and ten
 inputs it refuses; the refresh started once, only by the side that allowed; a sealed message without
 its half refused, and one whose inside doesn't open skipped).
+
+## 2026-10-23: employer_agreement_v5 staged, and the app's paths for it (twin curve, step 4)
+
+Joshua switched the session to Fable 5.1 for the Leo. Step 3 (rotation) is skipped at his call.
+- **pnw_mvp_v2 PR #210, `employer_agreement_v5.aleo`, staged, not deployed.** Three decisions on
+  record ship in one immutable program: the P-256 public halves ride in the records (the
+  employer's with the offer, the worker's with the acceptance, both in every `FinalAgreement`),
+  so the first letter after acceptance is twin-curve; no registry call, so no name hash or
+  account in any public finalize input (the offer binds the signer in the record, accepting takes
+  the worker's own record, every later step the holder's own copy); two parties, no DAO copy, a
+  `SentOffer` record to the employer so withdrawing names nobody. `@noupgrade`. The offer's inputs
+  went to 17, over Aleo's 16, so the numeric terms and the hashes travel as two structs; records
+  keep v4's field names (`owner` first), so the app's readers read both. Leo 4.0.0 compiles it
+  (15.7 KB) and `leo test` passes 15/15, 11 of them refusals, now a plan-gate step; a deploy
+  option, a migration note with the on-network must-fail list, a staged manifest entry.
+- **Hewn, this PR:** `chain/agreement_programs.ts` names which agreement programs the app reads
+  and which it offers through (v4 today; the flip to v5 is two constants, with pnw_mvp_v2's
+  manifest PR). `sendOffer` to v5 makes a half, sends its public part as the 8th input and keeps
+  the pair on the rail link (`RailLink.half`, `program`); `withdrawOffer` to v5 takes the
+  `SentOffer` from Shield; the import and the acceptance check read every program and, for a v5
+  acceptance, seed the mailbox thread's ring from the two halves (`books/key_ring.ts` `seedPair`,
+  `books/hiring.ts`). The person's side reads v5 records with their halves
+  (`chain/work/agreements.ts`), accepts with a fresh half kept on the agreement before Shield is
+  asked (`acceptCall`), and seeds its ring once both halves are in (`seedAgreementPair`). A v4
+  agreement works exactly as before.
+- Docs: `docs/TWIN_CURVE_CONVERSATIONS.md`, `docs/THREAT_MODEL.md` (agreements v5),
+  `docs/LETTERS.md`, `BUILD_PLAN.md` (step 4 built and staged; agreement privacy written),
+  `dev_testing_guide.md` OFFER-4. `packages/records` reads SentOffer records and several programs.
+
+Tests: app +14 (seeding a pair: fresh, idempotent, filling a waiting start, keeping a different
+answer, not moving `out`; v5 records with their halves and read across programs, the newer
+winning; the acceptance call for v5 and v4; a v5 offer's 8 inputs with only the public half
+leaving the device, the inputs built the same every time, the worker's half read from a final
+record, a v5 withdrawal with the SentOffer and its two refusals; a v5 acceptance seeding the
+business's ring; the half fields kept and checked on links and agreements). Every package passes
+(1100); both builds pass; `pnpm audit` clean. Nothing on the network until v5 is deployed.

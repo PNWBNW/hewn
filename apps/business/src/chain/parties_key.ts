@@ -30,7 +30,8 @@ export function partiesKeysOf(records: unknown[]): Map<string, string> {
     const rec = raw as Record<string, unknown> | null;
     if (!rec || typeof rec !== "object") continue;
     if (rec.spent === true) continue;
-    if (rec.recordName !== "FinalAgreement" && rec.recordName !== "PendingAgreement") continue;
+    // v5's SentOffer is the employer's copy of a pending offer (chain/agreement_programs.ts).
+    if (rec.recordName !== "FinalAgreement" && rec.recordName !== "PendingAgreement" && rec.recordName !== "SentOffer") continue;
     const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
     const agreementId = byteArrayHex(plaintext, "agreement_id");
     const partiesKey = byteArrayHex(plaintext, "parties_key", 32);

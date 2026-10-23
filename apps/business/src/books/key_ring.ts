@@ -99,7 +99,7 @@ export function validateHalfOnWire(raw: unknown): HalfOnWire {
   return { publicKey: raw.publicKey, answers: raw.answers };
 }
 
-function validateHalf(raw: unknown): Half {
+export function validateHalf(raw: unknown): Half {
   if (!isObject(raw) || typeof raw.publicKey !== "string" || !PUBLIC_KEY.test(raw.publicKey)) throw new KeyRingError("A key half needs its public key");
   const jwk = raw.privateKey;
   if (!isObject(jwk) || jwk.kty !== "EC" || jwk.crv !== "P-256" || typeof jwk.d !== "string" || typeof jwk.x !== "string" || typeof jwk.y !== "string") {
@@ -247,6 +247,29 @@ export function halvesNeeded(ring: KeyRing | undefined): { start: boolean; answe
   // A refresh after a backup starts again, unless a start of this side's is already waiting.
   const refresh = !!ring?.refresh && !ring.pairs.some((p) => !p.theirs);
   return { start: fresh || refresh, answer };
+}
+
+/**
+ * A pair both halves of which came in the agreement's records (employer_agreement_v5: the
+ * employer's with the offer, the worker's with the acceptance), so the conversation starts under
+ * it. Idempotent: a pair with this side's half already there gets the other half if it had none;
+ * the ring writes under it when it wrote under nothing yet. A half that is this side's own, or a
+ * pair already holding a different other half, changes nothing.
+ */
+export function seedPair(ring: KeyRing | undefined, mine: Half, theirs: string, createdAt: string): KeyRing {
+  const base = ring ?? emptyRing();
+  if (!PUBLIC_KEY.test(theirs) || theirs === mine.publicKey) return base;
+  const have = base.pairs.find((p) => p.mine.publicKey === mine.publicKey);
+  let pairs: Pair[];
+  if (have) {
+    if (have.theirs) return base;
+    pairs = base.pairs.map((p) => (p === have ? { ...p, theirs, sent: true as const } : p));
+  } else {
+    if (base.pairs.some((p) => p.theirs === theirs)) return base;
+    pairs = [...base.pairs, { mine, theirs, sent: true as const, nextIn: 0, nextOut: 0, createdAt }].slice(-MAX_PAIRS);
+  }
+  const seeded = pairs.find((p) => p.mine.publicKey === mine.publicKey)!;
+  return validateKeyRing({ ...base, pairs, ...(base.out ? {} : { out: pairId(seeded) }) });
 }
 
 /**

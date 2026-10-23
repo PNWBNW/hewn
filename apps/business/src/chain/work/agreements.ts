@@ -11,7 +11,7 @@
 
 import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
-import { PROGRAMS } from "@pnw/config/programs";
+import { AGREEMENT_PROGRAMS, AGREEMENT_V4, carriesHalves, halfFromRecord, halfToInput } from "../agreement_programs";
 import { byteArrayHex } from "../parties_key";
 
 export type AgreementRecord = {
@@ -29,13 +29,18 @@ export type AgreementRecord = {
   termsDocHash: string;
   /** The record exactly as the wallet gave it: the first input of accept_job_offer. */
   plaintext: string;
+  /** The program the record came from (chain/agreement_programs.ts). */
+  program: string;
+  /** v5: the employer's public half from the offer, and the worker's once accepted (`04` + x + y, hex). */
+  employerHalf?: string;
+  workerHalf?: string;
 };
 
 const ADDRESS = (field: string) => new RegExp(`${field}:\\s*(aleo1[a-z0-9]{58})`);
 const FIELD = (field: string) => new RegExp(`${field}:\\s*(\\d+)field`);
 
 /** One record, or null if it isn't an unspent agreement record owned by this person. */
-export function parseAgreementRecord(raw: unknown, workerAddress: string): AgreementRecord | null {
+export function parseAgreementRecord(raw: unknown, workerAddress: string, program: string = AGREEMENT_V4): AgreementRecord | null {
   const rec = raw as Record<string, unknown> | null;
   if (!rec || typeof rec !== "object") return null;
   if (rec.spent === true) return null;
@@ -51,14 +56,21 @@ export function parseAgreementRecord(raw: unknown, workerAddress: string): Agree
   const employerNameHash = plaintext.match(FIELD("employer_name_hash"))?.[1];
   const workerNameHash = plaintext.match(FIELD("worker_name_hash"))?.[1];
   if (!agreementId || !partiesKey || !termsDocHash || !employerNameHash || !workerNameHash) return null;
-  return { kind, agreementId, partiesKey, employerAddress: employer, workerAddress: worker, employerNameHash, workerNameHash, termsDocHash, plaintext };
+  const record: AgreementRecord = { kind, agreementId, partiesKey, employerAddress: employer, workerAddress: worker, employerNameHash, workerNameHash, termsDocHash, plaintext, program };
+  if (carriesHalves(program)) {
+    const employerHalf = halfFromRecord(byteArrayHex(plaintext, "employer_half", 64));
+    const workerHalf = halfFromRecord(byteArrayHex(plaintext, "worker_half", 64));
+    if (employerHalf) record.employerHalf = employerHalf;
+    if (workerHalf) record.workerHalf = workerHalf;
+  }
+  return record;
 }
 
 /** Every agreement record this person holds, one per agreement (a final copy wins over a pending one). */
-export function parseAgreementRecords(records: unknown[], workerAddress: string): AgreementRecord[] {
+export function parseAgreementRecords(records: unknown[], workerAddress: string, program: string = AGREEMENT_V4): AgreementRecord[] {
   const byId = new Map<string, AgreementRecord>();
   for (const raw of records) {
-    const r = parseAgreementRecord(raw, workerAddress);
+    const r = parseAgreementRecord(raw, workerAddress, program);
     if (!r) continue;
     const seen = byId.get(r.agreementId);
     if (!seen || (seen.kind === "pending" && r.kind === "final")) byId.set(r.agreementId, r);
@@ -66,10 +78,18 @@ export function parseAgreementRecords(records: unknown[], workerAddress: string)
   return [...byId.values()];
 }
 
-/** Reads the person's agreement records from Shield. */
-export async function readAgreementRecords(requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>, workerAddress: string): Promise<AgreementRecord[]> {
-  const records = await requestRecords(PROGRAMS.layer1.employer_agreement, true);
-  return parseAgreementRecords(Array.isArray(records) ? records : [], workerAddress);
+/** Reads the person's agreement records from Shield, from every agreement program the app uses (an id found in a newer one wins). */
+export async function readAgreementRecords(
+  requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>,
+  workerAddress: string,
+  programs: readonly string[] = AGREEMENT_PROGRAMS,
+): Promise<AgreementRecord[]> {
+  const byId = new Map<string, AgreementRecord>();
+  for (const program of programs) {
+    const records = await requestRecords(program, true);
+    for (const r of parseAgreementRecords(Array.isArray(records) ? records : [], workerAddress, program)) if (!byId.has(r.agreementId)) byId.set(r.agreementId, r);
+  }
+  return [...byId.values()];
 }
 
 const OBJ_ACCEPT_TIME = 0x6008;
@@ -92,10 +112,20 @@ export function acceptTimeHash(epochSeconds: number): string {
   return toU8Array(domainHash(DOMAIN_TAGS.DOC, tlvEncode(OBJ_ACCEPT_TIME, [{ tag: 0x01, value: u32be(epochSeconds) }])));
 }
 
-export const ACCEPT = { program: PROGRAMS.layer1.employer_agreement, function: "accept_job_offer" } as const;
+export const ACCEPT = { program: AGREEMENT_V4, function: "accept_job_offer" } as const;
 
 /** The two inputs of `employer_agreement_v4::accept_job_offer`. */
 export function acceptInputs(record: Pick<AgreementRecord, "kind" | "plaintext">, epochSeconds: number): string[] {
   if (record.kind !== "pending") throw new Error("Only a pending offer can be accepted");
   return [record.plaintext, acceptTimeHash(epochSeconds)];
+}
+
+/**
+ * The acceptance for whichever program the offer came from: v4's two inputs, or v5's three, the
+ * third this person's public half (`04` + x + y), which the record then carries to the employer.
+ */
+export function acceptCall(record: Pick<AgreementRecord, "kind" | "plaintext" | "program">, epochSeconds: number, half?: string): { program: string; function: string; inputs: string[] } {
+  if (!carriesHalves(record.program)) return { ...ACCEPT, inputs: acceptInputs(record, epochSeconds) };
+  if (!half) throw new Error("Accepting this offer needs a key half");
+  return { program: record.program, function: "accept_offer", inputs: [...acceptInputs(record, epochSeconds), halfToInput(half)] };
 }

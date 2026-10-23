@@ -12,6 +12,10 @@ export const PROGRAMS = {
     paystub_receipts: "paystub_receipts.aleo",
     payroll_audit_log: "payroll_audit_log.aleo",
     employer_agreement: "employer_agreement_v4.aleo",
+    // v5 (staged 2026-10-23, pnw_mvp_v2 docs/migrations/2026-10-23-agreement-v5.md): two parties, the
+    // P-256 public halves in the records, no registry call. Read and offered to once deployed:
+    // apps/business/src/chain/agreement_programs.ts says which programs are live for the app.
+    employer_agreement_v5: "employer_agreement_v5.aleo",
     employer_license_registry: "employer_license_registry.aleo",
     employer_profiles: "employer_profiles_v2.aleo",
     worker_profiles: "pnw_worker_profiles_v2.aleo",

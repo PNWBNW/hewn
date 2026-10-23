@@ -516,7 +516,9 @@ handling); likely a Fable session for the key agreement.
 - [ ] Who works for whom stays off the public chain (Joshua, 2026-10-22, from the security review):
   making or accepting an offer today shows both names' hashes and both accounts in the
   transaction (`employer_agreement_v4` calls the registry's `assert_is_owner` with them). A new
-  `employer_agreement_v5` authorises without a public ownership check. New Leo: a Fable session.
+  `employer_agreement_v5` authorises without a public ownership check. **Written and staged**
+  (2026-10-23, pnw_mvp_v2 PR #210, with the halves and the two-party change); ticked once deployed
+  and the app switched.
 - [ ] No program can be upgraded on mainnet (Joshua, 2026-10-22, pinned until the build is nearly
   done): the registry, the registrar, agreements and worker profiles are `@admin` under one key
   today, so an upgrade could change who passes their checks. `@noupgrade`, or a multisig with a
@@ -547,8 +549,11 @@ handling); likely a Fable session for the key agreement.
   conversation, so a view key alone no longer opens paystubs, announcement keys or business
   invitations (`docs/TWIN_CURVE_CONVERSATIONS.md`, approved: the agreement stays the first lock,
   and backups on chain only when both people agree, up to that point, Joshua 2026-10-23; built
-  for messages, paystubs and timesheets, and the agreed backups); (3) rotation by handshake, if wanted; (4) v5 agreements
-  carry the two public halves (Leo, Fable); (5) optional: a second lock on reports to Hewn.
+  for messages, paystubs and timesheets, and the agreed backups); (3) rotation by handshake: skipped (Joshua, 2026-10-23); (4) v5 agreements
+  carry the two public halves (Leo, Fable): built and staged, `employer_agreement_v5.aleo`
+  (pnw_mvp_v2 PR #210) and the app's v5 paths behind one flip
+  (`apps/business/src/chain/agreement_programs.ts`), waiting on Joshua's deploy; (5) optional: a
+  second lock on reports to Hewn.
 - [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
   mainnet's names (Joshua, 2026-10-22).
 - [x] Terms of use and a privacy page, public at `/terms` and `/privacy` (Joshua, 2026-10-22):

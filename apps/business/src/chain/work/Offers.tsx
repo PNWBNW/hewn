@@ -22,7 +22,7 @@ import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
-import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, updateWorkThread, upsertAgreement, workThread } from "@/books/work";
+import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, seedAgreementPair, updateWorkThread, upsertAgreement, workThread } from "@/books/work";
 import { ChangeList, QuotedNote } from "@/books/NegotiationView";
 import { addToThread, answerFor, openCounter, proposalChanges, proposalOf, revisedFrom, revisionOf, skipIncoming } from "@/books/thread";
 import { BRAND } from "@/brand";
@@ -31,7 +31,9 @@ import { employmentLabel, hoursLine } from "@/books/terms_words";
 import { workWeekSummary } from "@/books/work_week";
 import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
 import { readThread } from "../thread";
-import { ACCEPT, type AgreementRecord, acceptInputs, readAgreementRecords } from "./agreements";
+import { type AgreementRecord, acceptCall, readAgreementRecords } from "./agreements";
+import { carriesHalves } from "../agreement_programs";
+import { newHalf } from "../key_ring";
 import { executeAndWait } from "./execute";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
 import { LetterBox, letterReader, letterThread } from "../letters";
@@ -78,7 +80,14 @@ function toAgreement(row: Row, previous: WorkAgreement | undefined, acceptedAt?:
   if (row.verified && row.terms.terms) a.terms = row.terms.terms;
   if (acceptedAt) a.acceptedAt = acceptedAt;
   else if (previous?.acceptedAt) a.acceptedAt = previous.acceptedAt;
+  if (carriesHalves(row.record.program)) a.program = row.record.program;
   return a;
+}
+
+/** A v5 agreement's pair, once this person's half (kept at acceptance) and the employer's (in the record) are both here. */
+function seedFromRecord(w: Parameters<typeof seedAgreementPair>[0], record: AgreementRecord, now: string) {
+  const mine = agreementFor(w, record.agreementId)?.half;
+  return mine && record.employerHalf ? seedAgreementPair(w, record.partiesKey, mine, record.employerHalf, now) : w;
 }
 
 function OffersFlow({ address, onClose }: { address: string; onClose: () => void }) {
@@ -147,8 +156,15 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           if (employerName) row.employerName = employerName;
           found.push(row);
         }
-        // Everything found goes to the vault, so the list stands without Shield.
-        await updateWork((w) => found.reduce((acc, row) => upsertAgreement(acc, toAgreement(row, agreementFor(acc, row.record.agreementId))), w));
+        // Everything found goes to the vault, so the list stands without Shield; a v5 agreement accepted from this
+        // device seeds its conversation's pair from the halves (in case the save after accepting didn't happen).
+        const now = new Date().toISOString();
+        await updateWork((w) =>
+          found.reduce((acc, row) => {
+            const next = upsertAgreement(acc, toAgreement(row, agreementFor(acc, row.record.agreementId)));
+            return row.record.kind === "final" ? seedFromRecord(next, row.record, now) : next;
+          }, w),
+        );
         setRows(found);
       } catch (e) {
         setError(errorMessage(e));
@@ -168,9 +184,14 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
     setNote("Approve the acceptance in Shield, then wait for the network. This can take a minute or two.");
     try {
       const seconds = Math.floor(Date.now() / 1000);
-      await executeAndWait(wallet, { ...ACCEPT, inputs: acceptInputs(row.record, seconds) });
-      const accepted: Row = { ...row, status: "active", record: { ...row.record, kind: "final" } };
-      await updateWork((w) => upsertAgreement(w, toAgreement(accepted, agreementFor(w, row.record.agreementId), new Date(seconds * 1000).toISOString())));
+      // To v5 the acceptance carries this person's public half; the private part is in the vault before Shield is asked.
+      const twin = carriesHalves(row.record.program);
+      const half = twin ? (agreementFor(work, row.record.agreementId)?.half ?? (await newHalf())) : undefined;
+      if (half) await updateWork((w) => upsertAgreement(w, { ...toAgreement(row, agreementFor(w, row.record.agreementId)), half }));
+      await executeAndWait(wallet, acceptCall(row.record, seconds, half?.publicKey));
+      const accepted: Row = { ...row, status: "active", record: { ...row.record, kind: "final", ...(half ? { workerHalf: half.publicKey } : {}) } };
+      const acceptedAt = new Date(seconds * 1000).toISOString();
+      await updateWork((w) => seedFromRecord(upsertAgreement(w, toAgreement(accepted, agreementFor(w, row.record.agreementId), acceptedAt)), accepted.record, acceptedAt));
       setRows((all) => (all ?? []).map((r) => (r.record.agreementId === row.record.agreementId ? accepted : r)));
       setNote("Accepted. You can clock in from Home.");
     } catch (e) {

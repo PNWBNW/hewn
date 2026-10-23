@@ -18,6 +18,8 @@
 
 import { type Payroll, type W4, type Worker, addWorker, hasBeenPaid, removeWorker, updateWorker } from "@pnw/payroll";
 import type { Company } from "./company";
+import { seedPair } from "./key_ring";
+import { emptyMailbox, updateThread } from "./mailbox";
 import { type RailLink, type Registered, addLink, linkFor, markLinked, removeLink, removePartyLink, setRegistered } from "./rail";
 
 /** Until their own W-4 arrives: single, nothing else claimed (the IRS default for a missing W-4). */
@@ -56,16 +58,23 @@ export const isOfferOut = (company: { rail?: Company["rail"] | null }, workerId:
  * Every offer that has been accepted (`finals`: the agreement ids) becomes linked; anyone it
  * was hiring joins the team (active).
  */
-export function acceptOffers(company: Company, finals: ReadonlySet<string>, linkedAt: string): Company {
+export function acceptOffers(company: Company, finals: ReadonlySet<string>, linkedAt: string, workerHalves?: ReadonlyMap<string, string>): Company {
   if (!company.rail) return company;
   let rail = company.rail;
   let payroll: Payroll = company.payroll;
+  let mailbox = company.mailbox;
   for (const l of company.rail.links) {
     if (l.status !== "offered" || !finals.has(l.agreementId)) continue;
     if (l.joinsOnAccept && payroll.workers.some((w) => w.id === l.workerId)) payroll = updateWorker(payroll, l.workerId, { active: true });
     rail = markLinked(rail, l.workerId, linkedAt);
+    // A v5 acceptance brings the worker's public half: with this business's, the conversation starts under their pair.
+    const theirs = workerHalves?.get(l.agreementId);
+    if (l.half && l.partiesKey && theirs) {
+      const { half, partiesKey, workerId } = l;
+      mailbox = updateThread(mailbox ?? emptyMailbox(), partiesKey, workerId, (t) => ({ ...t, ring: seedPair(t.ring, half, theirs, linkedAt) }));
+    }
   }
-  return { ...company, rail, payroll };
+  return { ...company, rail, payroll, ...(mailbox ? { mailbox } : {}) };
 }
 
 /**

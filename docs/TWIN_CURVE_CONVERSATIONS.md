@@ -115,12 +115,24 @@ point.
 - A few hundred conversation keys fit in one backup letter.
 - A backup's passphrase lock is only as strong as the passphrase.
 
+## New agreements: the halves in the records (built, staged)
+
+`employer_agreement_v5.aleo` (pnw_mvp_v2, `docs/migrations/2026-10-23-agreement-v5.md`) carries
+the employer's public half in the offer and the worker's in the acceptance, both in every
+`FinalAgreement` copy. Each side keeps its private half in its vault from the moment it sends
+(the business on the rail link, the person on the agreement) and, once the other's half is in the
+record, seeds the conversation's ring with that pair (`books/key_ring.ts` `seedPair`), so the first
+letter after acceptance is already under a key no view key reaches. The offer's terms and the
+negotiation before acceptance still go under the record's random `parties_key` (and the handshake
+over letters runs there too); a v4 agreement keeps working exactly as before. The app reads
+records from every agreement program it ever used and sends new offers to one
+(`chain/agreement_programs.ts`): the flip to v5 is two constants, in the same PR as pnw_mvp_v2's
+manifest, once Joshua deploys it.
+
 ## Later, not in this design
 
-- New agreements carrying the two public halves from the start (`employer_agreement_v5`, Leo,
-  in a Fable session), so even the first letter is twin-curve.
 - The same agreed backups for coworker chats, whose keys already live only in the vault.
-- Rotation by a fresh handshake, if it is wanted at all.
+- Rotation by a fresh handshake: skipped (Joshua, 2026-10-23).
 - A second lock on reports to Hewn.
 
 ## Tests it ships with
