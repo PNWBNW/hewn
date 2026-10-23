@@ -440,8 +440,10 @@ Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`he
   up later; business posts, public or sealed. Free for now; $1 later in a new version.
 - [ ] Service agreements with a specified end: complete (both confirm), warranty, closed; change
   orders, cancel, terminate, dispute.
-- [ ] Invoices paid in private USDCx straight from the customer's wallet; the customer brings their
-  own USDCx.
+- [ ] Invoices paid through the agreement: one transaction moves the private USDCx straight from
+  the customer's wallet to the business's and issues receipts and a one-use review ticket; the
+  customer brings their own USDCx. A probe on testnet first (Shield's prover and a private call
+  into USDCx).
 - [ ] Reviews at each payment, private to the business until the job is complete, in warranty or
   closed, then public with the job's average.
 
