@@ -143,6 +143,16 @@ Results: [#154](https://github.com/PNWBNW/hewn/issues/154)
   letter or Shield approval, and every message before and after stays in the thread, in order.
   Then restore Worker 1's books from a backup made *before* the handshake: *expect* Worker 1 can
   still message, and after one message each way the subtitle comes back.
+- **MSG-4 Backup, both agreeing.** Worker 1 taps "Back up this conversation…" and asks. Business A
+  sees the request: Decline once (*expect* "Nothing was backed up", and Worker 1 can ask again),
+  then ask again and Allow with the passphrase (*expect* two Shield approvals). Worker 1 sees "allowed"
+  and backs up their copy (*expect* one approval). *Expect* "Backed up to here, both agreed", the
+  next messages need no extra letter, and every earlier message stays in the thread. A wrong
+  passphrase must be refused before anything is sent.
+- **MSG-5 Restore.** On a fresh browser profile, set Worker 1 up again (same username and
+  passphrase), import the agreement, then Messages → "Restore conversations backed up on the
+  network". *Expect* the conversation back up to the backup, both sides' messages, and nothing sent
+  after it. A wrong passphrase finds nothing.
 - **Break it:** HTML or a `<script>` in a message (shown as plain text?); a message sent while the
   other side's phone is offline; a very long message.
 

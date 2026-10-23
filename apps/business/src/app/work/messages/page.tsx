@@ -23,6 +23,7 @@ import { employerLabel } from "../shared";
 
 const Conversation = dynamic(() => import("@/chain/Conversation"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const MessagesCheck = dynamic(() => import("@/chain/work/MessagesCheck"), { ssr: false });
+const RestoreBackups = dynamic(() => import("@/chain/RestoreBackups"), { ssr: false });
 const Directory = dynamic(() => import("@/chain/work/Directory"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const GroupChat = dynamic(() => import("@/chain/work/GroupChat"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 const CoworkerChat = dynamic(() => import("@/chain/work/CoworkerChat"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
@@ -242,6 +243,12 @@ function Messages() {
           </CardContent>
         </Card>
       )}
+      <details className="rounded-md border p-3">
+        <summary className="min-h-11 cursor-pointer text-sm font-medium sm:min-h-0">Restore conversations backed up on the network</summary>
+        <div className="mt-2">
+          <RestoreBackups />
+        </div>
+      </details>
     </div>
   );
 }

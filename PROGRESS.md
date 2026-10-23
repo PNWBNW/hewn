@@ -4211,3 +4211,38 @@ had already paired, so each wrote under a key the other couldn't make.
 
 Tests: app +1 (the fresh-device case end to end; it fails without the fix). The test chain now
 refuses a slot already sent under, as letters do.
+
+## 2026-10-23: backups both people agree to (twin curve, step 2b)
+
+Built from `docs/TWIN_CURVE_CONVERSATIONS.md` with Joshua's rules: a backup on chain only when both
+agree, covering the conversation only up to that point, the conversation carrying straight on.
+- **Asking and answering:** "Back up this conversation…" sends a `backup_request`; the other side
+  sees a card with Allow… and Decline (`backup_answer`). Allow asks for the passphrase, makes that
+  side's copy, then sends the Allow carrying its half for fresh keys; the asker then sees "allowed"
+  and backs up its own copy. Both end at "Backed up to here, both agreed"; a decline at "Nothing was
+  backed up". `chain/BackupCard.tsx`, in the conversation.
+- **A copy** (`chain/conversation_backup.ts`): a letter to the account's own account, sealed with a
+  key from its username and passphrase (`books/account.ts` `conversationBackupKey`: PBKDF2, 600k,
+  salted with the account; the provider's `backupKey` checks the passphrase against the books
+  first). It holds the conversation and the keys of the pairs made before both agreed
+  (`books/key_ring.ts` `pairsBefore`).
+- **Fresh keys straight after** (`noteBackup`): the side that allowed starts a new handshake, its
+  half riding on the Allow, and the asker's next message answers it. That answer now carries its
+  words sealed inside under the new key (`sealed`, `chain/thread.ts` `openSealed`), so nothing after
+  the point is in a copy, and, in every handshake, even the answer is closed to a view key.
+- **Restoring** (`chain/RestoreBackups.tsx`, on both Messages pages): Shield and the passphrase
+  find the account's copies; each brings its conversation back into the same thread, the other
+  side's letters and this side's own (from its sent copies, `LetterBox.getSent`), with any key half
+  dropped so a restored history never restarts a handshake.
+- `books/conversation_backup.ts`: what a copy holds, where each request stands (`backupStep`), one
+  request open at a time. Docs: the design's status, `docs/THREAT_MODEL.md` (backups, lost keys),
+  `docs/LETTERS.md`, `dev_testing_guide.md` MSG-4 and MSG-5, `BUILD_PLAN.md`.
+- Not tried in a browser: it needs two Shield accounts on testnet (MSG-4, MSG-5).
+
+Tests: app +11 (the whole flow end to end: ask, allow with fresh keys on the Allow, the asker's
+copy, both copies holding the one earlier pair, no extra letter for the refresh, the thread whole on
+both sides; a restore on a fresh device bringing back both sides' messages up to the point and
+nothing after, and a wrong passphrase finding nothing; a decline making no copy and changing no
+keys; only the first answer from the side that didn't ask counting; what a copy holds and ten
+inputs it refuses; the refresh started once, only by the side that allowed; a sealed message without
+its half refused, and one whose inside doesn't open skipped).

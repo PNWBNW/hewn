@@ -105,6 +105,19 @@ export function accountSecret(username: string, passphrase: string): string {
   return `hewn:v1\n${username}\n${passphrase.normalize("NFKC")}`;
 }
 
+/**
+ * The key a conversation backup on chain is sealed with (books/conversation_backup.ts): from the
+ * same unlock secret as the books, salted with the account the backup letter goes to, so the same
+ * username and passphrase open it on any device. 64 hex characters.
+ */
+export async function conversationBackupKey(secret: string, account: string, iterations: number = KDF_ITERATIONS): Promise<string> {
+  const subtle = globalThis.crypto.subtle;
+  const salt = new Uint8Array(await subtle.digest("SHA-256", new TextEncoder().encode(`PNW::BACKUP::v1\n${account}`)));
+  const material = await subtle.importKey("raw", new TextEncoder().encode(secret), "PBKDF2", false, ["deriveBits"]);
+  const bits = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, material, 256);
+  return Array.from(new Uint8Array(bits), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /** An account that opened. The session holds its (non-extractable) data key. */
 export type FoundAccount = { role: Role; session: VaultSession };
 

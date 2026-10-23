@@ -7,6 +7,7 @@ import { MailboxError, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { addHalves, emptyRing, isTwinSealed, noteReceived, pairId, validateKeyRing } from "../books/key_ring";
 import { type Side, type Thread, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
 import { makeHalves, newHalf, pairKeyHex } from "./key_ring";
+import { unpackPayload } from "./compress";
 import { postToThread, readThread } from "./thread";
 
 const KEY = "ab".repeat(32);
@@ -117,27 +118,28 @@ describe("the handshake", () => {
     await business.check();
     await business.say("Got it");
 
-    // An onlooker with the agreement's key reads both sides' agreement streams.
+    // An onlooker with the agreement's key reads both sides' agreement streams: the start, and of the
+    // answer only its outside (the half); the answer itself is sealed under the new key.
     const onlookerAsBusiness = party("business", box, false);
     const onlookerAsWorker = party("worker", box, false);
-    expect(await onlookerAsBusiness.check()).toEqual(["Thanks!"]);
+    expect(await onlookerAsBusiness.check()).toEqual([]);
     expect(await onlookerAsWorker.check()).toEqual(["Welcome aboard"]);
-    // No letter after the switch opens with the agreement's key.
+    // Only those two letters open with the agreement's key, and neither shows what the person wrote.
     const agreementKey = partiesKeyFromHex(KEY);
-    let opened = 0;
+    const opened: string[] = [];
     for (const [, envelope] of box.slots) {
       for (const kind of ["thread_b", "thread_w"]) {
         for (let seq = 0; seq < 4; seq++) {
           try {
-            await open(agreementKey, kind, seq, envelope);
-            opened++;
+            opened.push(new TextDecoder().decode(await unpackPayload(await open(agreementKey, kind, seq, envelope))));
           } catch {
             // not under this key
           }
         }
       }
     }
-    expect(opened).toBe(2);
+    expect(opened).toHaveLength(2);
+    expect(opened.join(" ")).not.toMatch(/Thanks!|bank details|Got it/);
   });
 
   it("keeps working with someone whose app doesn't take part: everything stays under the agreement's key", async () => {
@@ -263,6 +265,33 @@ describe("what a key half can and can't do", () => {
     expect(await business.check()).toEqual([]);
     expect(business.thread.ring).toBeUndefined();
     expect(business.thread.nextIn).toBe(1);
+  });
+
+  it("refuses a sealed message that doesn't carry the half it answers with", async () => {
+    const { validateMessage } = await import("../books/thread");
+    const base = { version: 1, id: "1".repeat(32), from: "worker", sentAt: "2026-10-23T12:00:00.000Z", body: { type: "sealed", inner: "AAAA" } };
+    expect(() => validateMessage(base, "worker")).toThrow();
+    const start = { publicKey: (await newHalf()).publicKey };
+    expect(() => validateMessage({ ...base, half: start }, "worker")).toThrow();
+  });
+
+  it("skips an answer whose inside doesn't open with the pair its half makes", async () => {
+    const box = chain();
+    const business = party("business", box);
+    const worker = party("worker", box);
+    await business.say("Hello");
+    await worker.check();
+    // The person's answer, but with its inside sealed under some other key.
+    const forged = await worker.say("Hi");
+    const { seal, lookupId } = await import("@pnw/mailbox");
+    const { packPayload } = await import("./compress");
+    const other = partiesKeyFromHex("cd".repeat(32));
+    const inner = await seal(other, "thread_w", forged.seq, await packPayload(new TextEncoder().encode(JSON.stringify({ version: 1, id: forged.id, from: "worker", sentAt: forged.sentAt, body: { type: "text", text: "Hi" } }))));
+    const outer = { version: 1, id: forged.id, from: "worker", sentAt: forged.sentAt, body: { type: "sealed", inner: btoa(String.fromCharCode(...inner.envelope)) }, half: forged.half };
+    const lookup = lookupId(partiesKeyFromHex(KEY), "thread_w", forged.seq);
+    box.slots.set(lookup, new Uint8Array((await seal(partiesKeyFromHex(KEY), "thread_w", forged.seq, await packPayload(new TextEncoder().encode(JSON.stringify(outer))))).envelope));
+    expect(await business.check()).toEqual([]);
+    expect(isTwinSealed(business.thread.ring)).toBe(false);
   });
 
   it("is dropped in a conversation that has no handshake (coworkers, applicants)", async () => {

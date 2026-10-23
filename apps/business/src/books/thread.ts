@@ -91,7 +91,16 @@ export type ThreadBody =
   /** An organizer gives the other side the key its invitations are sealed with (books/shared_events.ts): once for each circle and key number. */
   | { type: "event_key"; circleId: string; epoch: number; key: string }
   /** A guest answers revision `rev` of the invitation to event `eventId` (its title, so the conversation reads), with a note. */
-  | { type: "event_answer"; eventId: string; rev: number; title: string; answer: EventAnswer; note: string };
+  | { type: "event_answer"; eventId: string; rev: number; title: string; answer: EventAnswer; note: string }
+  /** Asking to back the conversation up on chain, up to here (docs/TWIN_CURVE_CONVERSATIONS.md): nothing happens without the other's Allow. */
+  | { type: "backup_request"; requestId: string }
+  /** The answer to a backup request; Allow carries this side's half for the fresh keys that follow. */
+  | { type: "backup_answer"; requestId: string; allow: boolean }
+  /**
+   * A message that answers a handshake (books/key_ring.ts): the half rides outside, the message
+   * itself inside, sealed under the new pair's key, so only the two sides open even this one.
+   */
+  | { type: "sealed"; inner: string };
 
 /** A guest's answer to an invitation. */
 export const EVENT_ANSWERS = ["yes", "maybe", "no"] as const;
@@ -163,6 +172,9 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   report_notice: "either",
   event_key: "either",
   event_answer: "either",
+  backup_request: "either",
+  backup_answer: "either",
+  sealed: "either",
 };
 
 /** The kinds that only travel between coworkers. */
@@ -179,6 +191,8 @@ export const MAX_GROUP = 25;
 
 /** A coworker's public key: an uncompressed P-256 point, hex. */
 export const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
+/** The longest inner envelope a sealed message carries, base64: a page's worth. */
+export const MAX_SEALED_INNER = 12_000;
 export const MAX_DIRECTORY = 500;
 const ALEO_ADDRESS = /^aleo1[02-9ac-hj-np-z]{58}$/;
 const directoryName = (v: unknown): string => {
@@ -388,6 +402,19 @@ function validateBody(raw: unknown): ThreadBody {
       if (typeof raw.note !== "string" || [...raw.note].length > MAX_EVENT_ANSWER_NOTE) throw new ThreadError(`A note can be at most ${MAX_EVENT_ANSWER_NOTE} characters`);
       return { type: "event_answer", eventId, rev, title: title.trim(), answer: answer as EventAnswer, note: raw.note.trim() };
     }
+    case "backup_request": {
+      if (typeof raw.requestId !== "string" || !/^[0-9a-f]{32}$/.test(raw.requestId)) throw new ThreadError("A backup request needs its id");
+      return { type: "backup_request", requestId: raw.requestId };
+    }
+    case "backup_answer": {
+      if (typeof raw.requestId !== "string" || !/^[0-9a-f]{32}$/.test(raw.requestId)) throw new ThreadError("A backup answer names its request");
+      if (typeof raw.allow !== "boolean") throw new ThreadError("A backup answer allows it or not");
+      return { type: "backup_answer", requestId: raw.requestId, allow: raw.allow };
+    }
+    case "sealed": {
+      if (typeof raw.inner !== "string" || raw.inner.length === 0 || raw.inner.length > MAX_SEALED_INNER || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw.inner)) throw new ThreadError("A sealed message carries its envelope");
+      return { type: "sealed", inner: raw.inner };
+    }
     case "report_notice": {
       if (typeof raw.messageId !== "string" || !/^[0-9a-f]{32}$/.test(raw.messageId)) throw new ThreadError("A report notice names the message");
       if (!isReportCategory(raw.category) || !notifiesSender(raw.category)) throw new ThreadError("That kind of report isn't one the sender is told about");
@@ -418,6 +445,7 @@ export function validateMessage(raw: unknown, from: Side): ThreadMessage {
       throw new ThreadError(e instanceof Error ? e.message : "A key half couldn't be read");
     }
   }
+  if (body.type === "sealed" && !message.half?.answers) throw new ThreadError("A sealed message carries the half it answers with");
   return message;
 }
 
@@ -593,6 +621,9 @@ export function preview(item: ThreadItem | undefined): string {
     const verb = { yes: "going to", maybe: "a maybe for", no: "not going to" }[b.answer];
     return `${item.mine ? "You're" : "They're"} ${verb} “${b.title}”`;
   }
+  if (b.type === "backup_request") return item.mine ? "You asked to back up this conversation" : "Asked to back up this conversation";
+  if (b.type === "backup_answer") return b.allow ? (item.mine ? "You allowed the backup" : "Allowed the backup") : item.mine ? "You declined the backup" : "Declined the backup";
+  if (b.type === "sealed") return "A sealed message";
   if (b.type === "report_notice") return item.mine ? `You reported their message as ${REPORT_AS[b.category]}` : `Reported your message as ${REPORT_AS[b.category]}`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";

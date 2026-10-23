@@ -33,6 +33,7 @@ import {
   LEGACY_VAULT_ID,
   ROLES,
   accountSecret,
+  conversationBackupKey,
   checkAccountPassphrase,
   findAccounts,
   hasLegacyVault,
@@ -155,6 +156,12 @@ type BooksContextValue = {
    * backup from before accounts needs only the passphrase (pass null for the username).
    */
   restore: (fileText: string, username: string | null, passphrase: string, stay?: boolean) => Promise<void>;
+  /**
+   * The key a conversation backup for `account` is sealed with, from this account's username and
+   * `passphrase` (books/account.ts `conversationBackupKey`). With `check`, the passphrase must open
+   * these books first, so a typo can't make a backup nobody can restore.
+   */
+  backupKey: (passphrase: string, account: string, check: boolean) => Promise<string>;
   /** Seals a photo or PDF into the vault and returns the reference a bill keeps. */
   addAttachment: (file: File) => Promise<AttachmentRef>;
   /** Opens a sealed file, checking it against the fingerprint the bill holds. */
@@ -447,6 +454,25 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store],
   );
 
+  const backupKey = useCallback(
+    async (passphrase: string, account: string, check: boolean) => {
+      const username = company?.username ?? null;
+      const secret = username ? accountSecret(username, passphrase) : passphrase;
+      if (check) {
+        const s = session.current;
+        if (!s) throw new Error("The books are locked");
+        await unlockVault(s.record, secret).then(
+          (opened) => opened.lock(),
+          () => {
+            throw new Error("That isn't the passphrase for these books");
+          },
+        );
+      }
+      return conversationBackupKey(secret, account);
+    },
+    [company?.username],
+  );
+
   const readAttachment = useCallback(
     async (ref: AttachmentRef): Promise<Blob> => {
       const s = session.current;
@@ -521,11 +547,12 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       updateCompany,
       downloadBackup,
       restore,
+      backupKey,
       addAttachment,
       readAttachment,
       discardAttachment,
     }),
-    [status, legacyAvailable, vaultId, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, stayUntil, update, updateCompany, downloadBackup, restore, addAttachment, readAttachment, discardAttachment],
+    [status, legacyAvailable, vaultId, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, stayUntil, update, updateCompany, downloadBackup, restore, backupKey, addAttachment, readAttachment, discardAttachment],
   );
   return <BooksContext.Provider value={value}>{children}</BooksContext.Provider>;
 }
