@@ -4300,3 +4300,13 @@ to the leakage guard). Open questions listed in the doc, among them: browsing st
 (reading the chain can't be charged for), who may post reviews if the customer doesn't. Plan
 section added to `BUILD_PLAN.md`. No code; nothing built until greenlit, and the two programs
 need a Fable session.
+
+## 2026-10-23 — Customers design: reviews only between agreed parties, public by agreement
+
+Joshua's answers folded into `docs/CUSTOMERS.md`: only the customer on a service agreement can
+note a review (`note_review` takes their agreement record), only while the job is under way and
+at most 24 per job; whether a job's reviews go public at its end is a term both agree to and
+lock in at acceptance, and then either side can post them (the hashes stop either dropping or
+changing one); one listing per business, one field; spam is muted first, a private pass only if
+needed; one Leo program per Fable session, `hewn_service_v1` first. Still open: a business's one
+public reply under a job's reviews. Docs only.
