@@ -4094,3 +4094,15 @@ shows, under each coworker, the registered name the chain confirms for their acc
 Tests: app +10 (a business listing its own account or another person's shows that account's
 owner; a sold name, a hash mismatch, an unreachable chain and a non-account are never
 confirmed; the vault keeps, forgets, refreshes after a day and caps confirmed names).
+
+## 2026-10-23: TESTING.md, scenarios for testing by hand
+
+Joshua asked for a top-level page that people helping with testing can work from. `TESTING.md`
+covers what the automated tests can't: real wallets, real phones, the chain, and trying to cheat.
+Fifteen areas (accounts, books and backups, names, offers, messages, coworkers, announcements,
+the calendar, hours and paystubs, pay runs, the job board, the books, phones and wallets,
+privacy, the web side), each scenario with an id, what to do, what should happen, and a
+"Break it" line; how to report (privately through the Security tab for anything that exposes data
+or moves money); a severity guide; and the known gaps, so they aren't reported as new. The plain
+phone browser pairing with Shield, never tried on a real phone, is marked the most valuable test.
+Linked from `README.md` and `CONTRIBUTING.md`. Docs only.

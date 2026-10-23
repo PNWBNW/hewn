@@ -195,6 +195,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 | [`PROGRESS.md`](PROGRESS.md) | A dated log of every change, with test counts |
 | [`CLAUDE.md`](CLAUDE.md) | The project's rules: privacy floor, key handling, boundaries |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md) | Running it, the rules in short, forking, and how to report a problem privately |
+| [`TESTING.md`](TESTING.md) | Testing by hand: scenarios for people helping to find bugs, failures and ways in |
 | [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2) (submodule) | **The Leo programs** (the on-chain side) and the deployed-program manifest |
 | [`pnw_employment_portal_v1`](https://github.com/PNWBNW/pnw_employment_portal_v1) (submodule) | The original PNW portal, retired on 2026-10-13. Its libraries became `packages/`; its README points here |
 
