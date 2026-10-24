@@ -7,7 +7,7 @@ vi.mock("./registry/name_registry", () => ({
 }));
 
 import { queryNamePlaintext, queryWorkerName } from "./registry/name_registry";
-import { scanAgreementRecords } from "./agreement_reader";
+import { checkAgreementStatus, scanAgreementRecords } from "./agreement_reader";
 
 const EMPLOYER = "aleo1employer00000000000000000000000000000000000000000000000000";
 const WORKER_A = "aleo1workera000000000000000000000000000000000000000000000000000";
@@ -115,5 +115,25 @@ describe("scanAgreementRecords", () => {
         throw new Error("no");
       }, EMPLOYER),
     ).toEqual([]);
+  });
+});
+
+describe("checkAgreementStatus", () => {
+  it("reads the status from the program it is given, and v4 when none is", async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      urls.push(url);
+      return new Response('"3u8"', { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const id = "ab".repeat(32);
+      expect(await checkAgreementStatus(id, "employer_agreement_v5.aleo")).toBe("terminated");
+      expect(await checkAgreementStatus(id)).toBe("terminated");
+      expect(urls[0]).toContain("/program/employer_agreement_v5.aleo/mapping/agreement_status/");
+      expect(urls[1]).toContain("/program/employer_agreement_v4.aleo/mapping/agreement_status/");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

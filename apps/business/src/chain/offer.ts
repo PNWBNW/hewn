@@ -24,7 +24,7 @@ import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
 import { type RailLink, isRailAddress } from "../books/rail";
-import { AGREEMENT_V5, OFFER_PROGRAM as CURRENT_OFFER_PROGRAM, carriesHalves, halfFromRecord, halfToInput } from "./agreement_programs";
+import { AGREEMENT_V4, AGREEMENT_V5, OFFER_PROGRAM as CURRENT_OFFER_PROGRAM, carriesHalves, halfFromRecord, halfToInput } from "./agreement_programs";
 import { bareDirectoryName } from "./directory";
 import { newHalf } from "./key_ring";
 import { byteArrayHex } from "./parties_key";
@@ -534,7 +534,8 @@ export async function withdrawOffer(input: WithdrawInput): Promise<string> {
     if (!sent) throw new OfferError("This offer's record isn't in Shield; check the account, then try again");
     call = { program: AGREEMENT_V5, function: WITHDRAW_FUNCTION_V5, inputs: [sent] };
   } else {
-    call = { program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(input.link, input.employerNameHash) };
+    // A link without a program is a v4 offer, whichever program new offers go to now.
+    call = { program: AGREEMENT_V4, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(input.link, input.employerNameHash) };
   }
   const { transactionId: walletId } = await input.wallet.executeTransaction({ ...call, privateFee: false });
   if (!walletId) throw new OfferError("Shield didn't take the withdrawal");

@@ -34,7 +34,7 @@ import {
   withdrawOfferInputs,
 } from "./offer";
 import { offerTermsKind } from "./offer_files";
-import { AGREEMENT_V5, halfToInput } from "./agreement_programs";
+import { AGREEMENT_V4, AGREEMENT_V5, halfToInput } from "./agreement_programs";
 import { OFFER_FUNCTION_V5, WITHDRAW_FUNCTION_V5, createOfferInputsV5, finalAgreements, sentOfferPlaintext, withdrawOffer as withdraw } from "./offer";
 import { canonicalTerms, parseTerms } from "./terms";
 
@@ -241,7 +241,7 @@ describe("sendOffer", () => {
     const wallet = fakeWallet();
     const stages: string[] = [];
     const letter = letterFromText("Framing crew lead.\n\nSteel toes on site.");
-    const sent = await sendOffer(input({ client, wallet, letter, onProgress: (s) => stages.push(s) }));
+    const sent = await sendOffer(input({ program: AGREEMENT_V4, client, wallet, letter, onProgress: (s) => stages.push(s) }));
     expect(stages).toEqual(["sealing", "mailbox", "approving", "sent", "accepted"]);
     expect(client.puts).toHaveLength(1); // the terms alone
     // The terms may be swept the day after the offer expires (7 days on).
@@ -259,7 +259,7 @@ describe("sendOffer", () => {
   it("puts the pay, employment type and hours in the terms, and the record's hash covers them", async () => {
     const client = fakeClient();
     const wallet = fakeWallet();
-    const sent = await sendOffer(input({ client, wallet, worker: { id: "wkr-1", payType: "salary", rate: 6_500_000n, frequency: "monthly" }, employmentType: "full_time", hoursPerWeek: "40" }));
+    const sent = await sendOffer(input({ client, wallet, program: AGREEMENT_V4, worker: { id: "wkr-1", payType: "salary", rate: 6_500_000n, frequency: "monthly" }, employmentType: "full_time", hoursPerWeek: "40" }));
     if (sent.terms.version !== 2) throw new Error("unreachable");
     expect([sent.terms.payType, sent.terms.rate, sent.terms.frequency, sent.terms.employmentType, sent.terms.hoursPerWeek]).toEqual(["salary", "6500000", "monthly", "full_time", "40"]);
     const computed = computeAgreementValues(EMPLOYER, WORKER, canonicalTerms(sent.terms), Math.floor(NOW.getTime() / 1000));
@@ -283,14 +283,14 @@ describe("sendOffer", () => {
     const client = fakeClient(201);
     const wallet = fakeWallet();
     const stages: string[] = [];
-    const sent = await sendOffer(input({ client, wallet, onProgress: (s) => stages.push(s) }));
+    const sent = await sendOffer(input({ client, wallet, program: AGREEMENT_V4, onProgress: (s) => stages.push(s) }));
 
     // Mailbox first, then the wallet.
     expect(stages).toEqual(["sealing", "mailbox", "approving", "sent", "accepted"]);
     expect(client.puts).toHaveLength(1);
     expect(wallet.calls).toHaveLength(1);
     const call = wallet.calls[0]!;
-    expect(call.program).toBe(OFFER_PROGRAM);
+    expect(call.program).toBe(AGREEMENT_V4);
     expect(call.function).toBe(OFFER_FUNCTION);
     expect(call.privateFee).toBe(false);
     expect(call.inputs).toEqual(sent.inputs);
@@ -451,7 +451,7 @@ describe("offer → link", () => {
   });
 
   it("keeps the offer time when the same agreement is imported as a full link", async () => {
-    const sent = await sendOffer(input());
+    const sent = await sendOffer(input({ program: AGREEMENT_V4 }));
     const offered = addLink(rail, sent.link);
     const imported = addLink(offered, { workerId: "wkr-1", address: WORKER, nameHash: WORKER_HASH, agreementId: sent.link.agreementId, partiesKey: sent.link.partiesKey!, status: "linked", linkedAt: "2026-10-16T09:00:00.000Z" });
     expect(linkFor(imported, "wkr-1")).toEqual({ ...sent.link, status: "linked", linkedAt: "2026-10-16T09:00:00.000Z" });
@@ -476,11 +476,20 @@ describe("withdrawing an offer", () => {
   });
 
   it("signs once with privateFee false and waits for it", async () => {
-    const sent = await sendOffer(input());
+    const sent = await sendOffer(input({ program: AGREEMENT_V4 }));
     const wallet = fakeWallet();
     const tx = await withdrawOffer({ link: sent.link, employerNameHash: EMPLOYER_HASH, wallet, ...instant });
     expect(tx).toBe(TX);
-    expect(wallet.calls).toEqual([{ program: OFFER_PROGRAM, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(sent.link, EMPLOYER_HASH), privateFee: false }]);
+    expect(wallet.calls).toEqual([{ program: AGREEMENT_V4, function: WITHDRAW_FUNCTION, inputs: withdrawOfferInputs(sent.link, EMPLOYER_HASH), privateFee: false }]);
+  });
+
+  it("withdraws an offer without a program from v4, whichever program new offers go to", async () => {
+    const sent = await sendOffer(input({ program: AGREEMENT_V4 }));
+    const { program: _p, ...link } = sent.link;
+    const wallet = fakeWallet();
+    await withdrawOffer({ link, employerNameHash: EMPLOYER_HASH, wallet, ...instant });
+    expect(wallet.calls[0]!.program).toBe(AGREEMENT_V4);
+    expect(wallet.calls[0]!.function).toBe(WITHDRAW_FUNCTION);
   });
 
   it("fails when the network doesn't accept the withdrawal", async () => {
