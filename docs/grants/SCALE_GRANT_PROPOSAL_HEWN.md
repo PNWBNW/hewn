@@ -120,11 +120,16 @@ Hewn uses Aleo's primitives directly:
   day job built this much, carefully.
 - GitHub: [PNWBNW](https://github.com/PNWBNW) · LinkedIn: _[add]_
 
-**With thanks to** Kufre-abasi Bassey, who has tested Hewn and helped shape it from the earliest
-idea-board stages.
+**Kufre-abasi Bassey: front-end developer and tester (part-time, with the grant)**
+- A software developer focused on front-end work in TypeScript and JavaScript, who has worked on
+  [aleomail](https://github.com/Minimask-labs/aleomail), a zero-knowledge email service on Aleo.
+- Has tested Hewn and helped shape it since the earliest idea-board stages.
+- With the grant: the customer side's screens, testing on real phones and wallets, and
+  helping the first businesses get set up.
+- GitHub: [kufre-abasi](https://github.com/kufre-abasi)
 
-**What the grant adds:** one or two part-time developers (Leo and TypeScript, and testing), and
-an LLC to own the project, hold its funds and sign with partners.
+**What the grant adds:** paid time for Kufre, room for a second part-time developer if the budget
+allows, and an LLC to own the project, hold its funds and sign with partners.
 
 ---
 
@@ -259,7 +264,7 @@ building, bring on help, and set up a proper company to take Hewn to mainnet.
 | Line | What it pays for | Amount |
 |---|---|---|
 | Founder development time | Twelve months of building, moving from nights and weekends toward more hours | $24,000 |
-| One or two part-time developers | Leo and TypeScript work on the customer side and mainnet, and testing on real devices | $18,000 |
+| Part-time developer: Kufre-abasi Bassey | Front end for the customer side, testing on real phones and wallets, onboarding the first businesses; a second part-timer if it stretches | $18,000 |
 | LLC and legal | Forming the company, an operating agreement, terms of service and privacy policy, and a lawyer's review of the payments model (Hewn never holds funds) | $6,000 |
 | Security review | An independent review of the programs that move money, before mainnet | $9,000 |
 | Infrastructure and mainnet deploy | Hosting, domain, and the network fees to deploy the programs on mainnet | $3,000 |

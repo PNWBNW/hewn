@@ -4340,3 +4340,6 @@ risks, and a modest ask ($60,000 over 12 months: founder time, one or two part-t
 an LLC and legal review, a security review of the programs that move money, mainnet deploy) in
 four milestones ending with 10 businesses and 50 workers on mainnet. Placeholders for Joshua:
 LinkedIn, current traction numbers, contact email. Docs only.
+Then: Kufre-abasi Bassey named as the planned part-time front-end developer and tester (his
+GitHub, his work on aleomail), paid from the developer line; his OK to be named is Joshua's to
+confirm.
