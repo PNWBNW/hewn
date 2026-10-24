@@ -4489,3 +4489,11 @@ that time on Hewn counts from; the picture is drawn from them, never stored). Te
 program checked against the registry, one card per business name, a one-time claim for existing
 businesses. Mainnet: the card is the picture of the business's ANS name NFT. To settle: soulbound
 or moving with the name. Docs only.
+
+## 2026-10-24 — Hewn art: the business card is bound to its name
+
+`docs/HEWN_ART.md` (Joshua): a business's card is bound to its `name.hewn`, never sold or traded on
+its own; it moves only with the name in a two-sided handover, marked publicly "under new ownership
+since". Handing over a wallet's key was weighed and ruled out (the old holder could never be shown to
+have lost access). Agreements stay tied to the business's wallet in v5; a business sale isn't
+designed further for now. Docs only.
