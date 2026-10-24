@@ -4329,3 +4329,18 @@ on-chain closure check, and no invoice is paid twice. First a probe on testnet: 
 with a private USDCx call inside another program (payroll's multi-program proofs failed; the job
 board's public one works). If it fails, payment stays a plain transfer and reviews go back to the
 app's prompt. The program moves money, so a third-party audit before mainnet. Docs only.
+
+## 2026-10-24 — SCALE grant proposal for Hewn (draft for Joshua)
+
+`docs/grants/SCALE_GRANT_PROPOSAL_HEWN.md` (and a PDF beside it), on Aleo's template, after a pass
+over the whole project: what changed since the PNW proposal, the problem and why it needs Aleo,
+the team (Joshua, building with Claude Code), market, the architecture and the 16 testnet programs, what's next and its
+risks, and a modest ask ($60,000 over 12 months: founder time, one or two part-time developers,
+an LLC and legal review, a security review of the programs that move money, mainnet deploy) in
+four milestones ending with 10 businesses and 50 workers on mainnet. Placeholders for Joshua:
+LinkedIn, current traction numbers, contact email. Docs only.
+Traction filled in (19 visitors, 9 countries, 35 visits since 2026-10-19). Then (Joshua): Kufre-abasi Bassey thanked for occasional testing and early brainstorming, not
+named as a hire (an offer is Joshua's to make if the grant comes through); the developer line is
+one or two part-time contractors, paid through Hewn itself once it's on mainnet (it can't pay
+real money before). No LinkedIn; contact
+hewnsupport@gmail.com.
