@@ -4469,3 +4469,14 @@ a contour map of its land from its `name.hewn` with the hatched cross-section be
 Hewn is one cyan contour climbing a level a year (no pine on a business's card); its constellation
 in the map's corner; the slopes shaded from the real sun, dark paper with cream lines at night,
 seasonal tints. A valley scene was tried and dropped. Concept image added. Docs only.
+
+## 2026-10-24 — Hewn art: every card private, a business's card optionally public
+
+`docs/HEWN_ART.md` (Joshua): every card is private, paystubs face and back alike and credential
+cards too: private records on Aleo, shown only in the owner's app (and the business's copy of a
+paystub); proving a fact means sharing a proof of that fact, never a card. A business's card is the
+one exception: it may be public if the business chooses (its name and time on Hewn, public already).
+The paystub card designed: the face (log, constellation, period, employer, dates, a checked
+"issued by" line), the back (the paystub itself and a way to make a proof of income), the
+year-end log. Still to settle: net pay on the face or not, dashed rings for corrections, the season
+on the bark. The public verify page becomes proofs, and a public page for a business's card. Docs only.
