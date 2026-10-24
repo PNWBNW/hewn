@@ -146,9 +146,14 @@ minted in the same setup that registers its `name.hewn`.
 - **On chain:** the business's name hash, its owner (public, as a business's name already is) and
   the block height it was issued at, which is where its time on Hewn counts from. The picture is
   drawn from those, by anyone, the same way every time; it is never stored on chain.
-- **Testnet:** a small program of its own (new Leo), minting one card per business name, checked
-  against the name registry (only the name's owner, only a business name, only once). Businesses
-  that already exist claim theirs once, from Settings.
+- **Testnet:** a small program of its own, `hewn_cards_v1` (staged 2026-10-24 in `pnw_mvp_v2`,
+  `src/layer1/hewn_cards_v1.aleo`): one card per business name, checked against the name registry
+  (only the name's owner, only a business name, only once). On chain it keeps one entry per card,
+  `cards[name_hash] = { issued_at, shown }`, and nothing else. Businesses that already exist claim
+  theirs once, from Settings.
+- **Time on Hewn counts from the card's issue** (Joshua, 2026-10-24): the block height the card
+  was issued at, which anyone can check. An account that existed before the cards starts counting
+  when it claims its card; the registry doesn't record when a name was registered.
 - **Mainnet:** a business's `name.hewn` will itself be an NFT under the Aleo Name Service (ARC-721),
   so the card can be that NFT's picture: one NFT, not two, shown in every ANS-aware wallet and
   explorer.
@@ -172,11 +177,14 @@ Workers get a tenure card too, issued automatically at setup like a business's, 
   public, and can switch it either way in Settings whenever they like. Public, anyone can see it and
   draw it from their name; hidden, it shows only in their own app. A business's card is always
   public.
-- **How hiding works on chain:** the card itself is a private record the worker always holds;
-  making it public adds a public entry (the name's hash and the height it was issued at) that
-  anyone can read, and hiding it removes that entry. Honest limit, which the app says when they
-  switch: the chain keeps its history, so hiding stops the card showing from then on but can't
-  erase that it was public before.
+- **How hiding works on chain** (Joshua, 2026-10-24: the registry check runs at issue): a
+  worker's card is the same one public entry as a business's, `cards[name_hash] = { issued_at,
+  shown }`, issued shown or hidden as they choose at setup; `show_card` and `hide_card` flip
+  `shown`, and every app draws the card only while it is true. Honest limit, which the app says
+  when they switch: issuing the card is a public transaction (the registry check names the name's
+  hash and the account, as every registry check does), and the chain keeps its history, so hiding
+  stops the card showing from then on but can't erase that it was issued, or that it was shown
+  before. What being shown adds is the app's permission to draw the card where the name appears.
 - **What being public adds:** only when they joined Hewn. Their name and its account are already
   public on the registry (and on mainnet under the Aleo Name Service).
 
@@ -250,6 +258,10 @@ or the hours.
    the season moves on.
 2. **Paystub rings** on the person's Paystubs and the business's paystub view, and in the PDF.
    App only: no Leo.
+   **The cards program**, `hewn_cards_v1` (staged 2026-10-24; deploy, then the app: a business's
+   card issued in the same setup that registers its name, a worker asked at setup whether theirs
+   is shown, the switch in Settings, existing accounts claiming theirs once, and the public page
+   that draws a business's card from its name).
 3. **Credential cards**, which need a credential program: the deployed `credential_nft_v3` and
    `v4` check agreements in `employer_agreement_v4`, so a v5 agreement can't mint one. A new
    program (new Leo, Fable 5.1 at high effort, must-fail tests), then the cards.
@@ -259,9 +271,7 @@ or the hours.
 
 ## Open questions
 
-1. Time on Hewn: from the name's registration on chain if the registry keeps the height,
-   otherwise from the first agreement.
-2. One credential opened on its own: the same land with that landmark brought forward and its
+1. One credential opened on its own: the same land with that landmark brought forward and its
    star lit, or a closer view of the landmark.
-3. Still rough in the renders: where the hills open round the river some valley sides are bare and
+2. Still rough in the renders: where the hills open round the river some valley sides are bare and
    smooth, and the morning haze greys the range a little.
