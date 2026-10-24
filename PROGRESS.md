@@ -4480,3 +4480,12 @@ The paystub card designed: the face (log, constellation, period, employer, dates
 "issued by" line), the back (the paystub itself and a way to make a proof of income), the
 year-end log. Still to settle: net pay on the face or not, dashed rings for corrections, the season
 on the bark. The public verify page becomes proofs, and a public page for a business's card. Docs only.
+
+## 2026-10-24 — Hewn art: every business is issued a public card
+
+`docs/HEWN_ART.md` (Joshua): a business's card is issued automatically at account setup, a public
+NFT on Aleo minted alongside its `name.hewn` (on chain: the name hash, the owner, the issue height
+that time on Hewn counts from; the picture is drawn from them, never stored). Testnet: a small new
+program checked against the registry, one card per business name, a one-time claim for existing
+businesses. Mainnet: the card is the picture of the business's ANS name NFT. To settle: soulbound
+or moving with the name. Docs only.

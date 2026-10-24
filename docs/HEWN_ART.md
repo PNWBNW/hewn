@@ -78,6 +78,23 @@ card says only who it is and how long it has been on Hewn.
 - **To settle:** past about nine years the cyan contour nears the summit; it could then start a
   second ring low on the mountain, like a second lap.
 
+### Issued with the account (Joshua, 2026-10-24)
+
+Every business gets its card automatically when it sets up its account: a **public NFT** on Aleo,
+minted in the same setup that registers its `name.hewn`.
+
+- **On chain:** the business's name hash, its owner (public, as a business's name already is) and
+  the block height it was issued at, which is where its time on Hewn counts from. The picture is
+  drawn from those, by anyone, the same way every time; it is never stored on chain.
+- **Testnet:** a small program of its own (new Leo), minting one card per business name, checked
+  against the name registry (only the name's owner, only a business name, only once). Businesses
+  that already exist claim theirs once, from Settings.
+- **Mainnet:** a business's `name.hewn` will itself be an NFT under the Aleo Name Service (ARC-721),
+  so the card can be that NFT's picture: one NFT, not two, shown in every ANS-aware wallet and
+  explorer.
+- **To settle:** whether the card stays with the wallet that registered the name (soulbound) or
+  moves with the name if the name ever moves.
+
 ## The paystub
 
 ![The paystub card](art/paystub-2026-10-24.png)
@@ -126,9 +143,9 @@ or the hours.
   Aleo; its card shows only in its owner's app (and, for a paystub, the business's copy). Nothing
   about a person is ever shown publicly through their cards. When someone needs to prove something
   (a job, a licence, an income), they share a proof of that one fact, not a card.
-- **The one exception: a business's card may be public**, if the business chooses. It shows only
-  the business's name and its time on Hewn, both public already, so anyone can see it (on its job
-  postings, say) and redraw it from its name.
+- **The one exception: a business's card is public** (Joshua, 2026-10-24). It shows only the
+  business's name and its time on Hewn, both public already, so anyone can see it (on its job
+  postings and its directory listing, say) and redraw it from its name.
 - What goes into any card: hashes, the `name.hewn`, the kind of credential, its dates, the
   paycheck's number in the year and the time on Hewn. Never a wage, an amount, hours, an address or
   an account in the art itself.
