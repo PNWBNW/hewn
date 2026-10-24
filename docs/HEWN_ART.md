@@ -239,7 +239,8 @@ or the hours.
 
 ## Building it
 
-1. **The renderer**, a package of its own (`packages/art`). The business's map and the paystub
+1. **The renderer**, a package of its own (`packages/art`), starting from the prototypes behind
+   these renders (`art/prototype/`: the 2D cards, the 3D land and the 100-name checker). The business's map and the paystub
    rings are SVG: deterministic text, testable byte for byte, crisp at any size and in PDFs. A
    worker's land is a 3D scene (three.js, pinned, loaded only on the pages that show it). Its
    **scene** is deterministic and tested as data (the same name and records give the same terrain,
