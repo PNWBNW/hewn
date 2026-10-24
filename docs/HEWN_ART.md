@@ -42,10 +42,13 @@ and sets behind the person's ridgeline; at night the moon rises in its real phas
 the stars come out, with the person's constellation glowing among them (faint by day). Ana sees her
 morning; a landlord in another time zone sees theirs.
 
-- **The seasons follow the real date** (Joshua): snow down on the low ridges in winter, wildflowers
-  in spring, full green in summer, golden larches in autumn. Northern hemisphere, as the app is.
-- **Gentle motion:** mist drifting between the ridges, stars twinkling, now and then a shooting
-  star, the pine swaying a little. All of it off when the device asks for reduced motion.
+- **The seasons follow the real date** (Joshua): snow down on the low ridges, the trees and the
+  meadow in winter, wildflowers in spring, full green in summer, golden larches and dry grass in
+  autumn. Northern hemisphere, as the app is. The pine stays cyan in every season: it is the person.
+- **No motion** (Joshua, 2026-10-24): nothing drifts or twinkles. The card changes with the clock
+  and the date, and is still in between.
+
+![One card through the year](art/seasons-2026-10-24.png)
 - **What never moves:** the landscape, the pine, the constellation's shape and the lit star (the
   fingerprint). Only the sky, the light and the season change, so a card is always checkable.
 - **Saved or printed, it freezes at its birth sky** (Joshua): the sky, light and season at the
