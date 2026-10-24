@@ -4427,3 +4427,15 @@ change; must-fail: a wrong passphrase making one, a typo, another vault's key, t
 another id, a replaced key, a removed key, books without one, a weak new passphrase, a broken slot;
 accounts: reset, only the account the key opens, one message and nothing changed on failure; a key
 made mid-session with a stale tab). The forgot-passphrase form checked in a browser at phone width.
+
+## 2026-10-24 — Hewn art: the design, for review (docs only)
+
+`docs/HEWN_ART.md` and concept sketches (`docs/art/concepts-2026-10-24.png`), from Joshua's calls
+today: credential cards become a Northwest scene drawn from the credential's hash; the logo's cyan
+pine grows with the person's time on Hewn; a small constellation in the sky (never over the
+mountains or the sun) is a fingerprint, its shape from the record's commitment and one brighter
+star, the person's own, from their `name.hewn`, in the same place in every constellation; paystubs
+become a log's cross-section, one ring per paycheck this year, this one cyan, with the
+constellation in the corner. Inputs are hashes, the name and counts, never pay or hours. Build
+order: an SVG renderer (`packages/art`), paystub rings (app only), then credential cards (a new
+credential program, Fable), then a verify page. The cyan roots of the first sketch were dropped.
