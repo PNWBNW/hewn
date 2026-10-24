@@ -68,7 +68,8 @@ programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its ow
   `CryptoKey`, kept in IndexedDB for at most 24 hours from login, forgotten on Log out
   (`@pnw/vault` `remember` / `resumeSession` / `forgetSession`). There is no
   server account: nothing is sent anywhere, nothing is verified remotely, and a lost passphrase is
-  unrecoverable until the planned recovery key exists. Scheme (`@pnw/vault`): a random AES-256-GCM
+  replaced only with the account's recovery key (2026-10-24, Settings; `@pnw/vault` `addRecovery`,
+  `resetWithRecovery`), if one was made. Scheme (`@pnw/vault`): a random AES-256-GCM
   data key encrypts the books; the unlock secret (PBKDF2-SHA256, 600k rounds) only wraps that key,
   so a recovery key, a wallet unlock or per-member access later just adds another wrapped copy.
 - localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault.

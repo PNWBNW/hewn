@@ -4,13 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { Briefcase, HardHat, Sparkles } from "lucide-react";
 import { TEMPLATES, type TemplateId } from "@pnw/ledger";
-import { MIN_NEW_PASSPHRASE, type Strength, checkNewPassphrase, suggestPassphrase } from "@pnw/vault";
+import { MIN_NEW_PASSPHRASE, checkNewPassphrase, suggestPassphrase } from "@pnw/vault";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { AuthCard, Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
 import { MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH, isUsername } from "./account";
 import { BRAND } from "@/brand";
 import { useBooks } from "./BooksProvider";
+import { StrengthMeter } from "./NewPassphrase";
 import type { Role } from "./work";
 
 const MONTHS = [
@@ -279,7 +280,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
               {suggested > 0 && <span className="text-xs text-muted-foreground">Write it down now, then type it below.</span>}
             </div>
           </div>
-          <p className="-mt-3 text-sm">There is no password reset. If you lose your passphrase, you lose the books, so keep a backup.</p>
+          <p className="-mt-3 text-sm">There is no password reset. Once you&apos;re in, make a recovery key in Settings and keep a backup: without either, a lost passphrase means lost books.</p>
           <Field label="Type it again">
             <input
               className={cn(inputClass, mismatch && "border-destructive")}
@@ -299,7 +300,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
               className="mt-0.5 accent-[var(--pnw-forest-500)]"
             />
             <span>
-              I understand my passphrase can&apos;t be recovered, and that {BRAND.name} is testnet software provided as is: not tax, legal or accounting
+              I understand my passphrase can&apos;t be recovered without a recovery key, and that {BRAND.name} is testnet software provided as is: not tax, legal or accounting
               advice.{" "}
               <Link href="/terms" target="_blank" className="underline underline-offset-4">
                 Terms
@@ -345,25 +346,3 @@ function RoleCard({ icon: Icon, title, description, onClick }: { icon: typeof Br
   );
 }
 
-const STRENGTH_STEPS: Record<Strength, { filled: number; tone: string; label: string }> = {
-  "too weak": { filled: 1, tone: "bg-destructive", label: "Too weak" },
-  weak: { filled: 2, tone: "bg-destructive", label: "Weak" },
-  fair: { filled: 3, tone: "bg-warning", label: "Fair: another word or two would help" },
-  strong: { filled: 4, tone: "bg-[var(--hewn-green)]", label: "Strong" },
-  "very strong": { filled: 5, tone: "bg-[var(--hewn-green)]", label: "Very strong" },
-};
-
-/** Five bars and a word: how hard the passphrase looks to guess offline. */
-function StrengthMeter({ strength }: { strength: Strength }) {
-  const step = STRENGTH_STEPS[strength];
-  return (
-    <div className="flex items-center gap-3" role="status" aria-live="polite">
-      <div className="flex flex-1 gap-1" aria-hidden>
-        {Array.from({ length: 5 }, (_, i) => (
-          <span key={i} className={cn("h-1.5 flex-1 rounded-full", i < step.filled ? step.tone : "bg-muted")} />
-        ))}
-      </div>
-      <span className="shrink-0 text-xs text-muted-foreground">{step.label}</span>
-    </div>
-  );
-}

@@ -4395,3 +4395,35 @@ timecard.
 Tests: +6 (20 minutes late, the grace, early and late at both ends, a night shift across the
 November clock change, not on the schedule and on an on-call day, nothing without a confirmed week
 or for a callout, which week counts as confirmed).
+
+## 2026-10-24 — The recovery key
+
+A forgotten passphrase no longer has to mean lost books, if the account made a recovery key.
+- **`@pnw/vault`:** `addRecovery(record, passphrase)` makes 16 random bytes, shown once as 28
+  characters of Crockford base32 in groups of four with a check byte (`recovery_code.ts`: forgives
+  case, spaces, dashes and I/L/O for 1/1/0; the check byte catches almost every typo before any
+  key work). HKDF-SHA256 over it (random salt, the vault id in the info) wraps a second copy of the
+  data key in the record's optional `recovery` slot, with its own AES-GCM associated data role. It
+  takes the passphrase; one slot, so a new key replaces the old. `resetWithRecovery(record, code,
+  next)` unwraps from the slot and wraps under a new passphrase; the books are never re-encrypted
+  and the key keeps working. `removeRecovery` takes the passphrase. Older versions of the app
+  ignore the slot; a broken slot makes the record not a vault. `changePassphrase` now shares the
+  unwrap and re-wrap helpers.
+- **Accounts (`books/account.ts` `recoverAccounts`):** username, key and a new passphrase (setup's
+  rules); resets whichever of the username's accounts the key opens, saves it, opens it. One
+  message for every failure, and every failure takes one slow key derivation, so the wait doesn't
+  say whether the username exists or has a key.
+- **The app:** Log in → "Forgot your passphrase? Use your recovery key"; Restore → "Forgot that
+  passphrase?" (the key sets a new passphrase on the backup as it restores); Settings → Recovery
+  key (make, make a new one, remove; the code shown once with Copy and "I've written it down", and
+  a reminder to download a new backup). Making one writes the books again, so another open tab
+  stops instead of saving over the new slot. Setup now says to make one once in.
+- Docs: `THREAT_MODEL.md` (T2, T8), `CLAUDE.md`, `README.md`, `dev_testing_guide.md` ACC-8.
+- Not covered: conversation backups on chain are sealed from the passphrase, so after a reset the
+  older ones still need the old passphrase (the books already hold those conversations).
+
+Tests: +12 (the code's format and typos; reset, travelling in backups and through a passphrase
+change; must-fail: a wrong passphrase making one, a typo, another vault's key, the same key under
+another id, a replaced key, a removed key, books without one, a weak new passphrase, a broken slot;
+accounts: reset, only the account the key opens, one message and nothing changed on failure; a key
+made mid-session with a stale tab). The forgot-passphrase form checked in a browser at phone width.

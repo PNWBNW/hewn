@@ -7,9 +7,15 @@ import { AuthCard, Field, FormError, PassphraseInput, errorMessage, inputClass }
 import { BRAND } from "@/brand";
 import { LEGACY_VAULT_ID } from "./account";
 import { useBooks } from "./BooksProvider";
+import { NewPassphraseFields, newPassphraseReady } from "./NewPassphrase";
 
 export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; replacing: boolean }) {
-  const { restore } = useBooks();
+  const { restore, restoreWithRecovery } = useBooks();
+  // Forgot the backup's passphrase: the recovery key sets a new one as it restores.
+  const [recovering, setRecovering] = useState(false);
+  const [code, setCode] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [text, setText] = useState<string | null>(null);
   const [legacy, setLegacy] = useState(false);
   const [username, setUsername] = useState("");
@@ -32,7 +38,10 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
     }
   }
 
-  const ready = text !== null && passphrase !== "" && (legacy || username.trim() !== "");
+  const withKey = recovering && !legacy;
+  const ready =
+    text !== null &&
+    (withKey ? username.trim() !== "" && code.trim() !== "" && newPassphraseReady(next, confirm, username.trim().toLowerCase()) : passphrase !== "" && (legacy || username.trim() !== ""));
 
   return (
     <AuthCard
@@ -47,7 +56,8 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
           setBusy(true);
           setError(null);
           try {
-            await restore(text, legacy ? null : username, passphrase);
+            if (withKey) await restoreWithRecovery(text, username, code, next);
+            else await restore(text, legacy ? null : username, passphrase);
           } catch (err) {
             setError(errorMessage(err));
             setBusy(false);
@@ -82,9 +92,41 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
             />
           </Field>
         )}
-        <Field label="Passphrase for that backup">
-          <PassphraseInput value={passphrase} onChange={setPassphrase} />
-        </Field>
+        {withKey ? (
+          <>
+            <Field label="Recovery key" hint="The one made for this account before the backup was downloaded.">
+              <input
+                className={`${inputClass} font-mono text-sm uppercase`}
+                type="text"
+                name="recovery-key"
+                autoComplete="off"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={40}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+              />
+            </Field>
+            <NewPassphraseFields username={username.trim().toLowerCase()} passphrase={next} onPassphrase={setNext} confirm={confirm} onConfirm={setConfirm} />
+          </>
+        ) : (
+          <Field label="Passphrase for that backup">
+            <PassphraseInput value={passphrase} onChange={setPassphrase} />
+          </Field>
+        )}
+        {!legacy && (
+          <button
+            type="button"
+            className="-mt-2 inline-flex min-h-11 items-center self-start text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            onClick={() => {
+              setRecovering((r) => !r);
+              setError(null);
+            }}
+          >
+            {recovering ? "Use the passphrase instead" : "Forgot that passphrase? Use your recovery key"}
+          </button>
+        )}
         {replacing && (
           <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
             If this account already has books on this device, restoring replaces them. Download a backup of them

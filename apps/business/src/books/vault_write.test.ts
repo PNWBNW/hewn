@@ -40,3 +40,37 @@ describe("two tabs on the same books", () => {
     expect(held).toEqual([`hewn-vault-${first.id}`]);
   }, 60_000);
 });
+
+describe("a recovery key made while the books are open", () => {
+  it("is written with the books, so a stale tab can't save over it, and it then sets a new passphrase", async () => {
+    const { addRecovery } = await import("@pnw/vault");
+    const { accountSecret, findAccounts, recoverAccounts, vaultIdFor } = await import("./account");
+    const FAST = { iterations: 1_000 };
+    const store = new MemoryStore();
+    const secret = accountSecret("ana", PASS);
+    const id = await vaultIdFor("ana", "business");
+    await store.save((await createVault(secret, '{"n":0}', { id, ...FAST })).record);
+    const tab = async () => {
+      const session = await unlockVault((await store.load(id))!, secret);
+      return { session, last: session.record.payload.iv as string | null };
+    };
+    const a = await tab();
+    const b = await tab();
+
+    // What the app does on Settings → Make a recovery key (BooksProvider `replaceSlots`).
+    const { record, code } = await addRecovery(a.session.record, secret);
+    const next = await unlockVault(record, secret);
+    a.last = await saveOver(store, next, '{"n":0}', a.last, undefined);
+    expect((await store.load(id))!.recovery).toBeDefined();
+    // The other tab, still holding the record without the key, can't write it back.
+    await expect(saveOver(store, b.session, '{"n":1}', b.last, undefined)).rejects.toThrow(CHANGED_ELSEWHERE);
+    // The tab that made it keeps the key on every later write.
+    a.last = await saveOver(store, next, '{"n":2}', a.last, undefined);
+    expect((await store.load(id))!.recovery?.createdAt).toBe(record.recovery!.createdAt);
+
+    // Then the passphrase is forgotten.
+    const found = await recoverAccounts(store, "ana", code, "a whole new phrase!", FAST);
+    expect(await found[0]!.session.read()).toBe('{"n":2}');
+    await expect(findAccounts(store, "ana", PASS, FAST)).rejects.toThrow();
+  }, 60_000);
+});

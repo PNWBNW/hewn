@@ -39,6 +39,7 @@ import {
   hasLegacyVault,
   legacyOpen,
   normalizeUsername,
+  recoverAccounts,
   vaultIdFor,
 } from "./account";
 import { saveOver } from "./vault_write";
@@ -56,11 +57,14 @@ import {
   type VaultSession,
   IndexedDbStore,
   VaultError,
+  addRecovery,
   createVault,
   exportBackup,
   forgetSession,
   parseBackup,
   REMEMBER_MS,
+  removeRecovery,
+  resetWithRecovery,
   resumeSession,
   sha256Hex,
   unlockVault,
@@ -162,6 +166,19 @@ type BooksContextValue = {
    * these books first, so a typo can't make a backup nobody can restore.
    */
   backupKey: (passphrase: string, account: string, check: boolean) => Promise<string>;
+  /**
+   * A forgotten passphrase: the username and the recovery key set a new one, then the books open
+   * (books/account.ts `recoverAccounts`). Throws one message whatever was wrong.
+   */
+  recover: (username: string, code: string, nextPassphrase: string, stay?: boolean) => Promise<UnlockOutcome>;
+  /** The same from a backup file: the recovery key sets a new passphrase on the backup, then it restores. */
+  restoreWithRecovery: (fileText: string, username: string, code: string, nextPassphrase: string, stay?: boolean) => Promise<void>;
+  /** When the open books' recovery key was made, or null when they have none. */
+  recoveryMadeAt: string | null;
+  /** Makes a recovery key (replacing any earlier one) and returns its code, shown once. Takes the passphrase. */
+  makeRecoveryKey: (passphrase: string) => Promise<string>;
+  /** Takes the recovery key away. Takes the passphrase. */
+  removeRecoveryKey: (passphrase: string) => Promise<void>;
   /** Seals a photo or PDF into the vault and returns the reference a bill keeps. */
   addAttachment: (file: File) => Promise<AttachmentRef>;
   /** Opens a sealed file, checking it against the fingerprint the bill holds. */
@@ -234,6 +251,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const [company, setCompany] = useState<Company | null>(null);
   const [vaultId, setVaultId] = useState<string | null>(null);
   const [stayUntil, setStayUntil] = useState<Date | null>(null);
+  const [recoveryMadeAt, setRecoveryMadeAt] = useState<string | null>(null);
   const stayChoice = useRef(true);
 
   const show = useCallback(async (s: VaultSession) => {
@@ -242,6 +260,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     session.current = s;
     savedIv.current = s.record.payload.iv;
     companyRef.current = loaded;
+    setRecoveryMadeAt(s.record.recovery?.createdAt ?? null);
     setVaultId(s.id);
     setCompany(loaded);
     setStatus("open");
@@ -368,6 +387,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     pending.current = [];
     companyRef.current = null;
     setVaultId(null);
+    setRecoveryMadeAt(null);
     setCompany(null);
     setStatus((s) => (s === "open" ? "locked" : s));
   }, [store]);
@@ -436,6 +456,81 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       await open(s, stay);
     },
     [store, open],
+  );
+
+  const recover = useCallback(
+    async (username: string, code: string, nextPassphrase: string, stay = true): Promise<UnlockOutcome> => {
+      const found = await recoverAccounts(store, username, code, nextPassphrase); // throws the one generic message
+      writeAccountFlag();
+      stayChoice.current = stay;
+      if (found.length === 1) {
+        await open(found[0]!.session, stay);
+        return { opened: true };
+      }
+      pending.current.forEach((p) => p.session.lock());
+      pending.current = found;
+      return { opened: false, choices: found.map((f) => f.role) };
+    },
+    [store, open],
+  );
+
+  const restoreWithRecovery = useCallback(
+    async (fileText: string, rawUsername: string, code: string, nextPassphrase: string, stay = true) => {
+      const backup = parseBackup(fileText);
+      const username = normalizeUsername(rawUsername);
+      checkAccountPassphrase(nextPassphrase, username);
+      const ids = await Promise.all(ROLES.map((role) => vaultIdFor(username, role)));
+      if (backup.record.id === LEGACY_VAULT_ID || !ids.includes(backup.record.id)) throw new AccountError("This backup belongs to a different account");
+      const secret = accountSecret(username, nextPassphrase);
+      const record = await resetWithRecovery(backup.record, code, secret).catch((e: unknown) => {
+        throw e instanceof VaultError && e.code === "WRONG_RECOVERY_KEY" ? new AccountError("That recovery key doesn't open this backup") : e;
+      });
+      const s = await unlockVault(record, secret);
+      companyFromJson(await s.read()); // the books inside are intact
+      for (const a of backup.attachments) await s.openAttachment(a); // and every file
+      await store.replace(s.record, backup.attachments);
+      writeAccountFlag();
+      await open(s, stay);
+    },
+    [store, open],
+  );
+
+  /**
+   * Swaps in a record whose key slots changed (a recovery key made or taken away), in the queue
+   * with every other write. The books are written again with it, so another tab sees a change and
+   * stops instead of saving over it without the new slot.
+   */
+  const replaceSlots = useCallback(
+    (change: (record: VaultSession["record"], secret: string) => Promise<{ record: VaultSession["record"]; code?: string }>, passphrase: string) => {
+      const run = queue.current.then(async () => {
+        const s = session.current;
+        const current = companyRef.current;
+        if (!s || !current) throw new Error("Books are locked");
+        const secret = current.username ? accountSecret(current.username, passphrase) : passphrase;
+        const { record, code } = await change(s.record, secret).catch(rethrowWrong("That isn't the passphrase for these books"));
+        const next = await unlockVault(record, secret);
+        savedIv.current = await saveOver(store, next, companyToJson(current), savedIv.current);
+        session.current = next;
+        s.lock();
+        setRecoveryMadeAt(next.record.recovery?.createdAt ?? null);
+        return code;
+      });
+      queue.current = run.catch(() => {});
+      return run;
+    },
+    [store],
+  );
+
+  const makeRecoveryKey = useCallback(
+    async (passphrase: string) => (await replaceSlots((record, secret) => addRecovery(record, secret), passphrase))!,
+    [replaceSlots],
+  );
+
+  const removeRecoveryKey = useCallback(
+    async (passphrase: string) => {
+      await replaceSlots(async (record, secret) => ({ record: await removeRecovery(record, secret) }), passphrase);
+    },
+    [replaceSlots],
   );
 
   const addAttachment = useCallback(
@@ -548,11 +643,41 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       downloadBackup,
       restore,
       backupKey,
+      recover,
+      restoreWithRecovery,
+      recoveryMadeAt,
+      makeRecoveryKey,
+      removeRecoveryKey,
       addAttachment,
       readAttachment,
       discardAttachment,
     }),
-    [status, legacyAvailable, vaultId, company, create, unlock, chooseAccount, cancelChoice, unlockLegacy, lock, stayUntil, update, updateCompany, downloadBackup, restore, backupKey, addAttachment, readAttachment, discardAttachment],
+    [
+      status,
+      legacyAvailable,
+      vaultId,
+      company,
+      create,
+      unlock,
+      chooseAccount,
+      cancelChoice,
+      unlockLegacy,
+      lock,
+      stayUntil,
+      update,
+      updateCompany,
+      downloadBackup,
+      restore,
+      backupKey,
+      recover,
+      restoreWithRecovery,
+      recoveryMadeAt,
+      makeRecoveryKey,
+      removeRecoveryKey,
+      addAttachment,
+      readAttachment,
+      discardAttachment,
+    ],
   );
   return <BooksContext.Provider value={value}>{children}</BooksContext.Provider>;
 }
