@@ -56,6 +56,28 @@ morning; a landlord in another time zone sees theirs.
 - Nothing is sent anywhere: the device's clock and date only; the moon's phase is worked out on
   the device.
 
+## A business's card: its land as a map (Joshua, 2026-10-24)
+
+![Business cards](art/business-2026-10-24.png)
+
+Joshua's original topographic idea, in Hewn's colours instead of the dark blueprint. A business's
+card says only who it is and how long it has been on Hewn.
+
+- **The map** is the business's own land: green-ink contours on cream paper, every fourth one
+  heavier, a faint survey grid, a north arrow and a scale bar. The terrain comes from its
+  `name.hewn`, so its land is always the same.
+- **The cross-section** below, from the original, is cut through the summit and hatched.
+- **Time on Hewn is the climbing contour:** one contour is cyan, one level higher for each year on
+  Hewn, from the foothills toward the summit, and the same level runs across the cross-section in
+  cyan ("4 yr"). No pine on a business's card (Joshua).
+- **Its constellation** sits in the map's top corner, from its name, as a person's does.
+- **Live, the map's way:** the slopes are shaded from where the sun really is on the viewer's clock
+  (east in the morning, west in the evening); at night the map turns to dark paper with cream
+  lines. The seasons tint the land: green in spring and summer, ochre in autumn, snow on the high
+  ground in winter. No motion. Saved or printed, it freezes at its birth sky like every card.
+- **To settle:** past about nine years the cyan contour nears the summit; it could then start a
+  second ring low on the mountain, like a second lap.
+
 ## The paystub
 
 A hewn log's cross-section: one ring per paycheck this year, the rings still to come faint, this
@@ -102,6 +124,5 @@ to show it at all.
 
 ## Open questions
 
-1. Whether a business gets a card of its own (its pine, its constellation).
-2. Time on Hewn: from the name's registration on chain if the registry keeps the height,
+1. Time on Hewn: from the name's registration on chain if the registry keeps the height,
    otherwise from the first agreement.

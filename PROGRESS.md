@@ -4461,3 +4461,11 @@ never moves. The time-of-day question is settled. Docs only.
 `docs/HEWN_ART.md` (Joshua): no motion; the card changes with the clock and the date and is still
 in between. Concept image of one card through the year (`docs/art/seasons-2026-10-24.png`: winter
 morning, spring afternoon, autumn evening, summer night). Docs only.
+
+## 2026-10-24 — Hewn art: a business's card is its land as a map
+
+`docs/HEWN_ART.md` (Joshua): a business's card is his original topographic idea in Hewn's colours,
+a contour map of its land from its `name.hewn` with the hatched cross-section below; its time on
+Hewn is one cyan contour climbing a level a year (no pine on a business's card); its constellation
+in the map's corner; the slopes shaded from the real sun, dark paper with cream lines at night,
+seasonal tints. A valley scene was tried and dropped. Concept image added. Docs only.
