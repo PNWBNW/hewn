@@ -4530,3 +4530,18 @@ behind another, in the water or behind a rise all cost), trees keep clear in fro
 the cairn is larger. Joshua asked for the river to enter from the left, the middle or the right
 (now 32/36/32 of 100); bare steep slopes are fine. All 100 pass. Sheet in
 `docs/art/landmarks-check-2026-10-24.jpg`. Docs only (the prototype is not in the app).
+
+## 2026-10-24 — Locked savings: a split-key escrow account, for outside review
+
+`docs/LOCKED_SAVINGS.md` (Joshua's idea, written up to send to Aleo developers before anything is
+built): savings and an employer match offered in the agreement (1, 3, 5 or 10-year terms, a match
+such as $1 for $1 up to 3% of gross), one unlock date per enrollment, opt out any time with the
+money staying locked, opt back in at open enrollment, early exit (own money back, the match to the
+business), a beneficiary, no interest in v1. Why not a vault program: snarkVM 4.12.0 requires a
+record's owner to sign (`console/program/src/request/verify.rs:113`, and in the circuit), so a
+program holds only a public balance. The idea: one ordinary Aleo account per enrollment whose key
+is split between the worker's and the business's apps, deposits as ordinary private transfers, a
+payout signed jointly (a two-party version of `Request::sign`, proved with `Process::execute`),
+and the business's half time-locked to the unlock date with drand. tlock was checked end to end
+against quicknet (refused early, opened at the round). Trade-offs, a proof-of-concept plan and
+seven questions for reviewers. Docs only.
