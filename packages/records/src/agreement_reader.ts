@@ -156,9 +156,9 @@ export async function scanAgreementRecords(
  */
 async function queryAgreementStatusInternal(
   agreementIdHex: string,
+  programId: string,
 ): Promise<AgreementStatus | null> {
   const endpoint = ENV.ALEO_ENDPOINT;
-  const programId = PROGRAMS.layer1.employer_agreement;
 
   try {
     const key = bytesToAleoU8Array(agreementIdHex);
@@ -183,8 +183,9 @@ async function queryAgreementStatusInternal(
  */
 export async function checkAgreementStatus(
   agreementId: Bytes32,
+  programId: string = PROGRAMS.layer1.employer_agreement,
 ): Promise<AgreementStatus | null> {
-  return queryAgreementStatusInternal(agreementId);
+  return queryAgreementStatusInternal(agreementId, programId);
 }
 
 // ---------------------------------------------------------------------------

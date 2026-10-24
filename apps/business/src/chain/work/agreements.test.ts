@@ -2,7 +2,7 @@ import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
 import { describe, expect, it } from "vitest";
 import { ACCEPT, acceptCall, acceptInputs, acceptTimeHash, parseAgreementRecord, parseAgreementRecords, readAgreementRecords } from "./agreements";
-import { AGREEMENT_V4, AGREEMENT_V5, halfToInput } from "../agreement_programs";
+import { AGREEMENT_PROGRAMS, AGREEMENT_V4, AGREEMENT_V5, halfToInput } from "../agreement_programs";
 
 const WORKER = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px";
 const EMPLOYER = "aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n";
@@ -74,7 +74,7 @@ describe("agreement records", () => {
   it("asks the wallet for the agreement program's records, spent ones included", async () => {
     const asked: [string, boolean | undefined][] = [];
     const list = await readAgreementRecords(async (p, all) => (asked.push([p, all]), [pending]), WORKER);
-    expect(asked).toEqual([["employer_agreement_v4.aleo", true]]);
+    expect(asked).toEqual(AGREEMENT_PROGRAMS.map((p) => [p, true]));
     expect(list).toHaveLength(1);
   });
 });

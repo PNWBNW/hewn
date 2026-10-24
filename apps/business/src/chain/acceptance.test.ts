@@ -5,7 +5,7 @@ import { hireByOffer } from "../books/hiring";
 import { type Rail, type RailLink, linkStatus } from "../books/rail";
 import { checkAcceptances } from "./acceptance";
 import { bytesToAleoU8Array } from "./offer";
-import { AGREEMENT_V5, halfToInput } from "./agreement_programs";
+import { AGREEMENT_PROGRAMS, AGREEMENT_V5, halfToInput } from "./agreement_programs";
 import { newHalf } from "./key_ring";
 import { isTwinSealed } from "../books/key_ring";
 
@@ -50,8 +50,8 @@ describe("checkAcceptances", () => {
     const requestRecords = vi.fn(async () => [record("FinalAgreement", AGREEMENT), record("FinalAgreement", OTHER), null]);
     const r = await checkAcceptances({ rail: company.rail, payroll: company.payroll, requestRecords, updateCompany: v.updateCompany, now: () => AT });
     expect(r).toEqual({ accepted: ["Ana Ruiz"] });
-    expect(requestRecords).toHaveBeenCalledTimes(1);
-    expect(requestRecords).toHaveBeenCalledWith("employer_agreement_v4.aleo", true);
+    // Every agreement program the app reads (v4, and v5 once offers go there).
+    expect(requestRecords.mock.calls).toEqual(AGREEMENT_PROGRAMS.map((p) => [p, true]));
     expect(linkStatus(v.get().rail, "worker", workerId)).toBe("linked");
     expect(v.get().rail!.links[0]!.linkedAt).toBe(AT);
     expect(v.get().payroll.workers.find((w) => w.id === workerId)!.active).toBe(true);

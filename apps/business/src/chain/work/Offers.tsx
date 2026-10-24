@@ -127,7 +127,8 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
         for (const record of records) {
           const previous = agreementFor(work, record.agreementId);
           let status: AgreementStatus = record.kind === "pending" ? "pending" : "active";
-          const onChain = await checkAgreementStatus(record.agreementId).catch(() => null);
+          // Each program keeps its own statuses: a v5 offer's is in v5 (chain/agreement_programs.ts).
+          const onChain = await checkAgreementStatus(record.agreementId, record.program).catch(() => null);
           if (record.kind === "final") status = STATUS_OF[onChain ?? "active"] ?? "active";
           else if (onChain === "terminated") status = "terminated"; // withdrawn before it was accepted
           // A name kept from before names were checked is used only if it still checks out against the hash.

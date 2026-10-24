@@ -4352,3 +4352,22 @@ packed into `[u128; N]` instead of about 320 one-byte slots, the way Provable's
 `hyperlane-aleo` stores message bodies: a cheaper deploy (v5 38.86 credits, about
 25–30 estimated) and faster proofs on phones, with the record's encryption and the twin-curve
 handshake unchanged. v5 deploys on testnet as it is. Docs only.
+
+## 2026-10-24 — Agreements: ready for the v5 flip
+
+Getting the v5 flip ready while testnet is down turned up two things that would have broken once
+new offers went to v5 (nothing changes today: offers still go to v4):
+- **Withdrawing an older offer** called whatever program new offers go to, with v4's function and
+  inputs. It now names v4 (`chain/offer.ts`): a link without a program is a v4 offer.
+- **The worker's Offers page** read every offer's status from v4's mapping, so a withdrawn v5
+  offer would still have looked open. `checkAgreementStatus` takes the program
+  (`@pnw/records/agreement_reader`, v4 when none is given) and Offers passes the record's.
+The tests that check v4's inputs now name v4, and the record-reading tests follow
+`AGREEMENT_PROGRAMS`, so the flip itself is the two constants, v5 in Shield's program list
+(`packages/wallet/src/wallet-provider.tsx`: Shield won't run or read a program it wasn't given,
+and isn't given one before it is deployed) and one assertion. With the flip applied, every test
+passes (1102); it lands with pnw_mvp_v2's manifest once the deploy's transaction ids are in. v4
+stays in `src/layer1` there, not the archive: four live programs import it.
+
+Tests: +2 (an offer without a program withdraws from v4; the status is read from the program
+given, v4 by default). 1102 pass; the build passes.
