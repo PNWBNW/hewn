@@ -80,10 +80,28 @@ card says only who it is and how long it has been on Hewn.
 
 ## The paystub
 
+![The paystub card](art/paystub-2026-10-24.png)
+
 A hewn log's cross-section: one ring per paycheck this year, the rings still to come faint, this
 paycheck's ring cyan (no crack: Joshua, 2026-10-24). The person's constellation sits in the top
-corner, with this paystub's star lit. At year end the log is whole: a year-end card. Ring widths come from the paystub's
-hash, never from the pay or the hours.
+corner, with this paystub's star lit. Ring widths come from the paystub's hash, never from the pay
+or the hours.
+
+- **Entirely private** (Joshua, 2026-10-24): the face as much as the back. Only the person sees it,
+  in their own app, and the business holds its copy. It is never shared or shown publicly. To prove
+  income to a landlord or a lender, the person shares a proof (a yes or no, "over $3,000 a month for
+  six months"), never the card. Saving or printing gives them a private file of their own, and the
+  app says so first.
+- **The face:** the log, the constellation, the pay period ("18 of 26 · 2026"), the employer, the
+  dates and the pay date, and a check line ("Issued by dayco.hewn · paid on Aleo") shown only once
+  the app has checked the record came from that employer through the paystub program.
+- **The back** (flip the card): the paystub itself, every pay line, the withholdings, the net paid
+  in USDCx, the year to date, and a way to make a proof of income from it.
+- **The year-end log:** every ring complete, no cyan ring; "2026 · 26 paychecks" and the employer on
+  the face, the year's totals on the back. One log per employer per year.
+- **To settle:** the net pay on the face or every amount on the back; a corrected or reversed
+  paycheck's ring dashed rather than removed; the season on the bark (snow for a January paycheck),
+  fixed at the pay date.
 
 ## The constellation and the fingerprint (Joshua, 2026-10-24)
 
@@ -95,19 +113,25 @@ hash, never from the pay or the hours.
   hash, which both sides hold (so the business's copy and hers light the same star).
 - **The rest of the record's fingerprint is the landscape:** the ridgelines, the snow, the forest and
   where her pine stands all come from the same commitment.
-- **Checking it:** anyone can redraw a credential's card from the chain and the name. A card whose
-  constellation isn't the name's, or whose landscape or lit star doesn't match the commitment, is
-  not genuine.
+- **Checking it:** the app redraws a card only from a record it has checked (the right program,
+  the right issuer), so a card in the app is genuine by being there. A drawing whose constellation
+  isn't the name's, or whose landscape or lit star doesn't match the record, is not one of ours.
 - **It never changes:** the drawing is a pure function of its inputs (a seeded generator, fixed
   layout, no clock, no `Math.random`), and the renderer is versioned. A change to the art ships as
   `art v2`; a card issued under v1 is always drawn with v1.
 
-## Privacy
+## Privacy (Joshua, 2026-10-24)
 
-What goes in: hashes, the `name.hewn` (public already), the kind of credential, its dates, the
-paycheck's number in the year and the time on Hewn. Never a wage, an amount, hours, an address or
-an account. Showing a card shows what's written on it and nothing more; the person decides whether
-to show it at all.
+- **Every card is private:** credential cards and paystubs alike. Each is a private record on
+  Aleo; its card shows only in its owner's app (and, for a paystub, the business's copy). Nothing
+  about a person is ever shown publicly through their cards. When someone needs to prove something
+  (a job, a licence, an income), they share a proof of that one fact, not a card.
+- **The one exception: a business's card may be public**, if the business chooses. It shows only
+  the business's name and its time on Hewn, both public already, so anyone can see it (on its job
+  postings, say) and redraw it from its name.
+- What goes into any card: hashes, the `name.hewn`, the kind of credential, its dates, the
+  paycheck's number in the year and the time on Hewn. Never a wage, an amount, hours, an address or
+  an account in the art itself.
 
 ## Building it
 
@@ -119,8 +143,9 @@ to show it at all.
 3. **Credential cards**, which need a credential program: the deployed `credential_nft_v3` and
    `v4` check agreements in `employer_agreement_v4`, so a v5 agreement can't mint one. A new
    program (new Leo, Fable 5.1 at high effort, must-fail tests), then the cards.
-4. **A verify page:** paste a card's fingerprint or open its link; the page redraws the
-   constellation from the chain and shows whether it matches.
+4. **Proofs instead of showing:** a person proves one fact from their private records (employed by,
+   licensed as, earned over) without showing a card. And a business that makes its card public
+   gets a page anyone can open, drawn from its name.
 
 ## Open questions
 
