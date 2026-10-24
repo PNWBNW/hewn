@@ -120,20 +120,13 @@ Hewn uses Aleo's primitives directly:
   day job built this much, carefully.
 - GitHub: [PNWBNW](https://github.com/PNWBNW) · Email: hewnsupport@gmail.com
 
-**Kufre-abasi Bassey: planned part-time contractor (with the grant)**
-- A freelance software developer focused on front-end work in TypeScript and JavaScript, who has
-  worked on [aleomail](https://github.com/Minimask-labs/aleomail), a zero-knowledge email service
-  on Aleo.
-- Not part of the build so far, but a trusted ally in the Aleo community: a developer Joshua
-  turns to for a second opinion, and who tests a feature now and then.
-- With the grant: the customer side's screens, testing on real phones and wallets, and helping
-  the first businesses get set up. Paid as a contractor in USDCx **through Hewn itself**: private
-  pay from the company's wallet, paystubs as sealed records, making him Hewn's first real paid
-  worker.
-- GitHub: [kufre-abasi](https://github.com/kufre-abasi)
+**With thanks to** Kufre-abasi Bassey, a developer in the Aleo community, for occasional testing
+and for being an early brainstorming ally.
 
-**What the grant adds:** paid time for Kufre as a contractor, room for a second part-time developer if the budget
-allows, and an LLC to own the project, hold its funds and sign with partners.
+**What the grant adds:** one or two part-time contractors (front end, Leo and testing), paid in
+USDCx through Hewn itself: private pay from the company's wallet, paystubs as sealed records,
+making them Hewn's first real paid workers. And an LLC to own the project, hold its funds and
+sign with partners.
 
 ---
 
@@ -270,7 +263,7 @@ building, bring on help, and set up a proper company to take Hewn to mainnet.
 | Line | What it pays for | Amount |
 |---|---|---|
 | Founder development time | Twelve months of building, moving from nights and weekends toward more hours | $24,000 |
-| Part-time contractor: Kufre-abasi Bassey | Front end for the customer side, testing on real phones and wallets, onboarding the first businesses; paid in USDCx through Hewn; a second part-timer if it stretches | $18,000 |
+| One or two part-time contractors | Front end for the customer side, testing on real phones and wallets, onboarding the first businesses; paid in USDCx through Hewn | $18,000 |
 | LLC and legal | Forming the company, an operating agreement, terms of service and privacy policy, and a lawyer's review of the payments model (Hewn never holds funds) | $6,000 |
 | Security review | An independent review of the programs that move money, before mainnet | $9,000 |
 | Infrastructure and mainnet deploy | Hosting, domain, and the network fees to deploy the programs on mainnet | $3,000 |
