@@ -4334,12 +4334,12 @@ app's prompt. The program moves money, so a third-party audit before mainnet. Do
 
 `docs/grants/SCALE_GRANT_PROPOSAL_HEWN.md` (and a PDF beside it), on Aleo's template, after a pass
 over the whole project: what changed since the PNW proposal, the problem and why it needs Aleo,
-the team (Joshua, building with Claude Code; thanks to Kufre-abasi Bassey for testing and the
-early idea board), market, the architecture and the 16 testnet programs, what's next and its
+the team (Joshua, building with Claude Code), market, the architecture and the 16 testnet programs, what's next and its
 risks, and a modest ask ($60,000 over 12 months: founder time, one or two part-time developers,
 an LLC and legal review, a security review of the programs that move money, mainnet deploy) in
 four milestones ending with 10 businesses and 50 workers on mainnet. Placeholders for Joshua:
 LinkedIn, current traction numbers, contact email. Docs only.
-Then: Kufre-abasi Bassey named as the planned part-time front-end developer and tester (his
-GitHub, his work on aleomail), paid from the developer line; his OK to be named is Joshua's to
-confirm.
+Then: Kufre-abasi Bassey named as a planned part-time contractor, paid from the developer line in
+USDCx through Hewn itself; described as an ally Joshua asks for a second opinion or a test, not
+part of the build so far (Joshua built Hewn). No LinkedIn; contact hewnsupport@gmail.com. Kufre's
+OK to be named is pending.

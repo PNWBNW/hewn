@@ -108,8 +108,8 @@ Hewn uses Aleo's primitives directly:
 ## Team Background
 
 **Joshua Daniel Day: founder and developer, building with Claude Code**
-- Designed and built Hewn and its 16 testnet programs, on nights and weekends alongside a
-  full-time job: learning Aleo from late 2023, building PNW from February 2025, Hewn from
+- Designed and built Hewn, the app and its 16 testnet programs, on his own, on nights and
+  weekends alongside a full-time job: learning Aleo from late 2023, building PNW from February 2025, Hewn from
   October 2026.
 - Ran an end-to-end private payroll on Aleo testnet from a browser, during the Aleo Buildathon
   (April 10, 2026; transactions below).
@@ -118,17 +118,21 @@ Hewn uses Aleo's primitives directly:
   every program, and a dated log of every change. The rules and the whole history are public in
   the repository (`CLAUDE.md`, `BUILD_PLAN.md`, `PROGRESS.md`). That is how one person with a
   day job built this much, carefully.
-- GitHub: [PNWBNW](https://github.com/PNWBNW) · LinkedIn: _[add]_
+- GitHub: [PNWBNW](https://github.com/PNWBNW) · Email: hewnsupport@gmail.com
 
-**Kufre-abasi Bassey: front-end developer and tester (part-time, with the grant)**
-- A software developer focused on front-end work in TypeScript and JavaScript, who has worked on
-  [aleomail](https://github.com/Minimask-labs/aleomail), a zero-knowledge email service on Aleo.
-- Has tested Hewn and helped shape it since the earliest idea-board stages.
-- With the grant: the customer side's screens, testing on real phones and wallets, and
-  helping the first businesses get set up.
+**Kufre-abasi Bassey: planned part-time contractor (with the grant)**
+- A freelance software developer focused on front-end work in TypeScript and JavaScript, who has
+  worked on [aleomail](https://github.com/Minimask-labs/aleomail), a zero-knowledge email service
+  on Aleo.
+- Not part of the build so far, but a trusted ally in the Aleo community: a developer Joshua
+  turns to for a second opinion, and who tests a feature now and then.
+- With the grant: the customer side's screens, testing on real phones and wallets, and helping
+  the first businesses get set up. Paid as a contractor in USDCx **through Hewn itself**: private
+  pay from the company's wallet, paystubs as sealed records, making him Hewn's first real paid
+  worker.
 - GitHub: [kufre-abasi](https://github.com/kufre-abasi)
 
-**What the grant adds:** paid time for Kufre, room for a second part-time developer if the budget
+**What the grant adds:** paid time for Kufre as a contractor, room for a second part-time developer if the budget
 allows, and an LLC to own the project, hold its funds and sign with partners.
 
 ---
@@ -264,7 +268,7 @@ building, bring on help, and set up a proper company to take Hewn to mainnet.
 | Line | What it pays for | Amount |
 |---|---|---|
 | Founder development time | Twelve months of building, moving from nights and weekends toward more hours | $24,000 |
-| Part-time developer: Kufre-abasi Bassey | Front end for the customer side, testing on real phones and wallets, onboarding the first businesses; a second part-timer if it stretches | $18,000 |
+| Part-time contractor: Kufre-abasi Bassey | Front end for the customer side, testing on real phones and wallets, onboarding the first businesses; paid in USDCx through Hewn; a second part-timer if it stretches | $18,000 |
 | LLC and legal | Forming the company, an operating agreement, terms of service and privacy policy, and a lawyer's review of the payments model (Hewn never holds funds) | $6,000 |
 | Security review | An independent review of the programs that move money, before mainnet | $9,000 |
 | Infrastructure and mainnet deploy | Hosting, domain, and the network fees to deploy the programs on mainnet | $3,000 |
@@ -363,4 +367,4 @@ board: [/board](https://www.hewnaccounting.com/board) · traction map:
 - `hewn_letters_v2`: `at177xpwtt9kdlffahrrnzdwv335g9lys63auye7zw3gtju09ghxu8q9jlauk`.
 - `hewn_jobs_v1`, the job board: `at1354m4j9wxc9st3ukwcl2082s6429ddgx27kfekz500rpzcne4qqse80q4n`.
 
-**Contact:** grants correspondence to _[your email]_.
+**Contact:** hewnsupport@gmail.com
