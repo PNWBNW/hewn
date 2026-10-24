@@ -4497,3 +4497,12 @@ its own; it moves only with the name in a two-sided handover, marked publicly "u
 since". Handing over a wallet's key was weighed and ruled out (the old holder could never be shown to
 have lost access). Agreements stay tied to the business's wallet in v5; a business sale isn't
 designed further for now. Docs only.
+
+## 2026-10-24 — Hewn art: a worker's tenure card, public or hidden at their choice
+
+`docs/HEWN_ART.md` (Joshua): workers get a tenure card at setup too, bound to their name: the
+mountain scene with the cyan pine for their time on Hewn and their constellation, showing only
+their name and time on Hewn. They choose at setup whether it's public and can switch it either way
+in Settings; on chain the card is a private record they hold, and being public is a public entry
+(name hash, issue height) added or removed. Hiding can't erase that it was public before, and the
+app says so. A business's card is always public. Docs only.
