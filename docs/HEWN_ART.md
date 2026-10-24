@@ -59,9 +59,10 @@ same, and no two names get the same place. Above: eight random names under the s
 season, so only the names differ.
 
 - **What the name decides:** how high, sharp and far off the range is, and whether a second range
-  stands behind it; the foothills; the river's course, width and wander; whether the river comes
-  out of a lake at the foot of the range (about one name in four) or bends out of sight (the
-  rest); how wide each side of the valley opens; how much forest, in groves with open meadow
+  stands behind it; the foothills; where the river enters the card (the left, the middle or the
+  right, about a third each: Joshua) and its course, width and wander; whether the river comes
+  out of a lake at the foot of the range (now and then, about one name in five) or bends out of
+  sight (the rest); how wide each side of the valley opens; how much forest, in groves with open meadow
   between (a few thousand trees, never a wall of them); the mix of spruce, fir and leafy trees
   (which turn gold and red in autumn and stand bare of leaves in winter); the boulders.
 - **The river shapes the land** (Joshua): the hills and the range part into a valley along its
@@ -69,9 +70,24 @@ season, so only the names differ.
 - **Rules that hold for every name**, found by drawing random names, not by luck:
   - the range is scaled down until the top third of the card is open sky, so the constellation
     always has room;
-  - every landmark and the pine are placed in view and apart;
+  - every landmark and the pine are placed in view, apart, out of the water and in sight of the
+    viewer: a spot loses points for being off the card, behind another landmark (allowing for how
+    wide each is; standing in front of a faded one is fine), in the water or behind a rise in the
+    ground, and each keeps the best spot it found; trees don't grow in front of a landmark;
   - the water shows: grass, trees and banks follow the water line, and the river doesn't thin to
     nothing in the distance.
+- **Bare slopes are fine** (Joshua): grass and trees don't take on steep ground, so a steep valley
+  side can be bare rock and soil.
+- **The check:** a script draws 100 random names, each with all four landmarks and about a third
+  with a second job and the first one revoked, and measures every card: how much of each landmark
+  and the pine is on the card and in sight (from flat-colour renders of each alone and all
+  together), how much of the card is water, and whether the constellation found its room. The
+  first run passed 47 of 50 (a cabin and a cairn off the card, a cairn behind the pine); after the
+  fixes above all 100 pass, the river entering left 32, middle 36, right 32, with 17 lakes. It runs
+  again whenever the generator changes, and ships with the renderer.
+
+![The check: 50 names, all passing](art/landmarks-check-2026-10-24.jpg)
+
 - **The constellation** is the person's, as everywhere: small, in the open sky, faint teal by day,
   glowing at dusk and night.
 - **The words:** the `name.hewn` and "year N" on the band; the time on Hewn and the credentials
