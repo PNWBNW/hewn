@@ -4439,3 +4439,11 @@ become a log's cross-section, one ring per paycheck this year, this one cyan, wi
 constellation in the corner. Inputs are hashes, the name and counts, never pay or hours. Build
 order: an SVG renderer (`packages/art`), paystub rings (app only), then credential cards (a new
 credential program, Fable), then a verify page. The cyan roots of the first sketch were dropped.
+
+## 2026-10-24 — Hewn art: one constellation per person
+
+`docs/HEWN_ART.md` (Joshua): a person's constellation is drawn wholly from their `name.hewn`, so it
+is the same shape on every card and paystub of theirs; the record lights one of its stars and draws
+the landscape, which together are the record's fingerprint. The constellation keeps its shape and
+only moves or shrinks to stay in the sky. No crack in the paystub's log. Concept image redrawn.
+Docs only.

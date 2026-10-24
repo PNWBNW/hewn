@@ -17,7 +17,7 @@ Cyan is used for three things only, each one meaningful:
 | Cyan | Where | What it means |
 |---|---|---|
 | **The pine** | Credential cards | The logo's pine, standing in the forest. It grows with the person's **time on Hewn** (Joshua, 2026-10-24). Where it stands comes from the hash. |
-| **The constellation** | Credential cards and paystubs | A **fingerprint** (Joshua, 2026-10-24): its shape is drawn from the record, so anyone can redraw it and compare; one brighter star is the person's own and sits in the same place in every constellation they have. |
+| **The constellation** | Credential cards and paystubs | The person's **own constellation** (Joshua, 2026-10-24): the same shape on every card and paystub of theirs, drawn from their `name.hewn`. The record lights one of its stars, so the lit star is the record's **fingerprint**. |
 | **This ring** | Paystubs | The paycheck in hand, among the year's rings. |
 
 ## The credential card
@@ -27,34 +27,35 @@ Cyan is used for three things only, each one meaningful:
   credential's hash, so no two cards share a skyline.
 - **The pine:** taller for each year since the person's `name.hewn` was registered. The sketches
   show 1 and 6 years.
-- **The constellation:** small, five to eight stars, always in the sky: above the mountains with
-  a gap, clear of the sun or moon, on the far side of the sky from it. Faint teal by day, glowing
-  cyan at dusk and night.
+- **The constellation:** small, six to eight stars, always in the sky: above the mountains with a
+  gap and clear of the sun or moon. Only its place and size change from card to card, never its
+  shape. Faint teal by day, glowing cyan at dusk and night.
 - **The words:** the `name.hewn`, the kind of credential, the title, the business, the dates, a
   short fingerprint, and "hewn · proven on Aleo".
 
 ## The paystub
 
 A hewn log's cross-section: one ring per paycheck this year, the rings still to come faint, this
-paycheck's ring cyan, a check (a crack) where the wood dried. The person's constellation sits in
-the top corner. At year end the log is whole: a year-end card. Ring widths come from the paystub's
+paycheck's ring cyan (no crack: Joshua, 2026-10-24). The person's constellation sits in the top
+corner, with this paystub's star lit. At year end the log is whole: a year-end card. Ring widths come from the paystub's
 hash, never from the pay or the hours.
 
-## The fingerprint
+## The constellation and the fingerprint (Joshua, 2026-10-24)
 
-- **The shape** comes from the record: for a credential, its public commitment on Aleo; for a
-  paystub, the paystub document's hash, which both sides hold (so the business's copy and the
-  person's show the same stars).
-- **The person's star** comes from their `name.hewn`: the same place inside every constellation of
-  theirs, brighter, with a glint, and the lines always pass through it. Their cards look like
-  theirs; the rest of the pattern still says which card.
-- **Checking it:** anyone can redraw a credential's constellation from the chain and the name. A
-  forged or edited card won't match, and a matching pattern can't be made without the real
-  commitment.
+- **The shape is the person's.** All of it comes from their `name.hewn`, so `ana_w.hewn` has
+  exactly the same constellation on every credential and every paystub she will ever have. People
+  come to know it as hers.
+- **The lit star is the record's.** Which of her stars is lit, brighter with a glint, comes from the
+  record: for a credential, its public commitment on Aleo; for a paystub, the paystub document's
+  hash, which both sides hold (so the business's copy and hers light the same star).
+- **The rest of the record's fingerprint is the landscape:** the ridgelines, the snow, the forest and
+  where her pine stands all come from the same commitment.
+- **Checking it:** anyone can redraw a credential's card from the chain and the name. A card whose
+  constellation isn't the name's, or whose landscape or lit star doesn't match the commitment, is
+  not genuine.
 - **It never changes:** the drawing is a pure function of its inputs (a seeded generator, fixed
   layout, no clock, no `Math.random`), and the renderer is versioned. A change to the art ships as
-  `art v2`; a card issued under v1 is always drawn with v1, so a fingerprint never shifts under
-  anyone.
+  `art v2`; a card issued under v1 is always drawn with v1.
 
 ## Privacy
 
