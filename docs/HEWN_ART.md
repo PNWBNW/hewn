@@ -92,8 +92,11 @@ minted in the same setup that registers its `name.hewn`.
 - **Mainnet:** a business's `name.hewn` will itself be an NFT under the Aleo Name Service (ARC-721),
   so the card can be that NFT's picture: one NFT, not two, shown in every ANS-aware wallet and
   explorer.
-- **To settle:** whether the card stays with the wallet that registered the name (soulbound) or
-  moves with the name if the name ever moves.
+- **Bound to the name** (Joshua, 2026-10-24): the card can never be sold or traded on its own. If a
+  business ever changes hands, it moves only with its name, through a handover both sides sign,
+  and carries a public "under new ownership since" mark. A business sale isn't designed beyond
+  this yet: agreements stay tied to the business's wallet (v5), and a new owner would offer each
+  worker their terms again.
 
 ## The paystub
 
