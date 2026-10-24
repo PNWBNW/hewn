@@ -123,10 +123,10 @@ Hewn uses Aleo's primitives directly:
 **With thanks to** Kufre-abasi Bassey, a developer in the Aleo community, for occasional testing
 and for being an early brainstorming ally.
 
-**What the grant adds:** one or two part-time contractors (front end, Leo and testing), paid in
-USDCx through Hewn itself: private pay from the company's wallet, paystubs as sealed records,
-making them Hewn's first real paid workers. And an LLC to own the project, hold its funds and
-sign with partners.
+**What the grant adds:** one or two part-time contractors (front end, Leo and testing), and an
+LLC to own the project, hold its funds and sign with partners. Once Hewn is on mainnet, the
+contractors' pay moves onto Hewn itself (private USDCx from the company's wallet, paystubs as
+sealed records), making them its first real paid workers.
 
 ---
 
@@ -263,7 +263,7 @@ building, bring on help, and set up a proper company to take Hewn to mainnet.
 | Line | What it pays for | Amount |
 |---|---|---|
 | Founder development time | Twelve months of building, moving from nights and weekends toward more hours | $24,000 |
-| One or two part-time contractors | Front end for the customer side, testing on real phones and wallets, onboarding the first businesses; paid in USDCx through Hewn | $18,000 |
+| One or two part-time contractors | Front end for the customer side, testing on real phones and wallets, onboarding the first businesses; paid through Hewn itself once it's on mainnet | $18,000 |
 | LLC and legal | Forming the company, an operating agreement, terms of service and privacy policy, and a lawyer's review of the payments model (Hewn never holds funds) | $6,000 |
 | Security review | An independent review of the programs that move money, before mainnet | $9,000 |
 | Infrastructure and mainnet deploy | Hosting, domain, and the network fees to deploy the programs on mainnet | $3,000 |
@@ -298,7 +298,7 @@ program costs more; we'd welcome an introduction to Aleo's audit partners for it
 
 **Milestone 4, Months 9–12: Mainnet ($15,000)**
 - Programs deployed on mainnet; the app switched over.
-- First businesses paying real people in USDCx.
+- First businesses paying real people in USDCx, Hewn's own contractors among them.
 - Guides for businesses, workers and developers.
 - **Done when:** 10 businesses and 50 workers active on mainnet.
 

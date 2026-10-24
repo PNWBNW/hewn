@@ -4341,5 +4341,6 @@ four milestones ending with 10 businesses and 50 workers on mainnet. Placeholder
 LinkedIn, current traction numbers, contact email. Docs only.
 Traction filled in (19 visitors, 9 countries, 35 visits since 2026-10-19). Then (Joshua): Kufre-abasi Bassey thanked for occasional testing and early brainstorming, not
 named as a hire (an offer is Joshua's to make if the grant comes through); the developer line is
-one or two part-time contractors paid in USDCx through Hewn itself. No LinkedIn; contact
+one or two part-time contractors, paid through Hewn itself once it's on mainnet (it can't pay
+real money before). No LinkedIn; contact
 hewnsupport@gmail.com.
