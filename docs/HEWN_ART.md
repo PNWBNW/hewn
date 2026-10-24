@@ -33,6 +33,26 @@ Cyan is used for three things only, each one meaningful:
 - **The words:** the `name.hewn`, the kind of credential, the title, the business, the dates, a
   short fingerprint, and "hewn · proven on Aleo".
 
+## A live sky (Joshua, 2026-10-24)
+
+![One card through a day](art/live-sky-2026-10-24.png)
+
+The card is alive: its sky follows the **viewer's own clock**. The sun crosses from east to west
+and sets behind the person's ridgeline; at night the moon rises in its real phase for the date and
+the stars come out, with the person's constellation glowing among them (faint by day). Ana sees her
+morning; a landlord in another time zone sees theirs.
+
+- **The seasons follow the real date** (Joshua): snow down on the low ridges in winter, wildflowers
+  in spring, full green in summer, golden larches in autumn. Northern hemisphere, as the app is.
+- **Gentle motion:** mist drifting between the ridges, stars twinkling, now and then a shooting
+  star, the pine swaying a little. All of it off when the device asks for reduced motion.
+- **What never moves:** the landscape, the pine, the constellation's shape and the lit star (the
+  fingerprint). Only the sky, the light and the season change, so a card is always checkable.
+- **Saved or printed, it freezes at its birth sky** (Joshua): the sky, light and season at the
+  moment the credential was issued, so a PDF or an image always looks the same.
+- Nothing is sent anywhere: the device's clock and date only; the moon's phase is worked out on
+  the device.
+
 ## The paystub
 
 A hewn log's cross-section: one ring per paycheck this year, the rings still to come faint, this
@@ -79,9 +99,6 @@ to show it at all.
 
 ## Open questions
 
-1. What the time of day, the season or the weather in the scene stand for: the kind of credential
-   (the sketches use dawn for employment, day for a certification, night for years of service),
-   or nothing at all.
-2. Whether a business gets a card of its own (its pine, its constellation).
-3. Time on Hewn: from the name's registration on chain if the registry keeps the height,
+1. Whether a business gets a card of its own (its pine, its constellation).
+2. Time on Hewn: from the name's registration on chain if the registry keeps the height,
    otherwise from the first agreement.

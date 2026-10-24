@@ -4447,3 +4447,11 @@ is the same shape on every card and paystub of theirs; the record lights one of 
 the landscape, which together are the record's fingerprint. The constellation keeps its shape and
 only moves or shrinks to stay in the sky. No crack in the paystub's log. Concept image redrawn.
 Docs only.
+
+## 2026-10-24 — Hewn art: a live sky
+
+`docs/HEWN_ART.md` (Joshua): a card's sky follows the viewer's clock (the sun across the day, the
+moon in its real phase, the stars and the person's constellation at night), the season follows the
+real date, with gentle motion off under reduced motion; saved or printed, a card freezes at its
+birth sky (the moment it was issued). The fingerprint (landscape, pine, constellation, lit star)
+never moves. The time-of-day question is settled. Docs only.
