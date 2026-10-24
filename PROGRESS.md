@@ -4339,7 +4339,7 @@ risks, and a modest ask ($60,000 over 12 months: founder time, one or two part-t
 an LLC and legal review, a security review of the programs that move money, mainnet deploy) in
 four milestones ending with 10 businesses and 50 workers on mainnet. Placeholders for Joshua:
 LinkedIn, current traction numbers, contact email. Docs only.
-Then: Kufre-abasi Bassey named as a planned part-time contractor, paid from the developer line in
+Traction filled in (19 visitors, 9 countries, 35 visits since 2026-10-19). Then: Kufre-abasi Bassey named as a planned part-time contractor, paid from the developer line in
 USDCx through Hewn itself; described as an ally Joshua asks for a second opinion or a test, not
 part of the build so far (Joshua built Hewn). No LinkedIn; contact hewnsupport@gmail.com. Kufre's
 OK to be named is pending.

@@ -165,8 +165,10 @@ allows, and an LLC to own the project, hold its funds and sign with partners.
 - Privacy law keeps expanding (GDPR, CCPA and many new US state privacy laws), raising every
   employer's liability for the worker data it holds. Hewn's answer is to hold none.
 - Stablecoin payments are moving into the mainstream, and USDCx gives Aleo a private one.
-- Hewn's public **traction map** (www.hewnaccounting.com/traction) counts visits by country with
-  no personal data. _[Add current numbers before submitting.]_
+- Hewn's public **traction map** ([/traction](https://www.hewnaccounting.com/traction)) counts
+  visits by country with no personal data. In its first days of counting (since October 19,
+  2026), on testnet and with no marketing at all: **19 visitors from 9 countries, 35 visits**.
+  Small, and honest: the grant's milestones are about turning visitors into businesses.
 
 ### How Hewn compares
 
