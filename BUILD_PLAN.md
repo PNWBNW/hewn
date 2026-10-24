@@ -280,7 +280,7 @@ each person is tagged by a one-way value from the key they share with the busine
 - [x] A confirmed on-call week and one callout pay the agreed on-call amount and the callout minimum at the overtime rate on the next run (2026-10-20)
 - [x] A week published to the team shows the same shifts and on-call days on every member's calendar, and a republish that leaves a person's days alone keeps their confirmation (2026-10-20)
 - [x] A shift questioned by the business changes only after the person agrees, and both sides then show the agreed times (2026-10-20)
-- [ ] A shift clocked in 20 minutes late shows as late on the business's timecard
+- [x] A shift clocked in 20 minutes late shows as late on the business's timecard (2026-10-24)
 - [x] A personal event (timed, past midnight, or all day) is kept in the encrypted books, reads back when they reopen, shows on the days it touches on that account's calendar, and is never sent (2026-10-22)
 - [x] An event sent to guests reaches each of them in one approval per eight, each guest's answer reaches the organizer, and a change sealed by a guest instead of the organizer isn't believed (2026-10-22, end to end in tests; not yet tried on testnet)
 

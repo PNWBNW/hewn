@@ -8,7 +8,9 @@
 // Changing hours takes both sides (books/hours_change.ts): the business can
 // question a shift (nothing changes until the person agrees), and answers the
 // person's requests for a revision. A shift the person edited before sending
-// says so, and what it was.
+// says so, and what it was. Each shift is laid against the week the person
+// confirmed (books/schedule_check.ts): started late or early, left early,
+// stayed late, or not on the schedule.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -22,6 +24,9 @@ import { type HoursChange as Change, type Stretch, changeFor, hoursChanges, whol
 import { markHoursRead, threadFor, unreadCount } from "@/books/mailbox";
 import { type HoursItem, hoursFeed, mailboxLinks } from "@/books/mailbox_feed";
 import { linkFor } from "@/books/rail";
+import { blockLabel } from "@/books/schedule";
+import { type ShiftCheck, checkLabels, checkShift, confirmedWeekFrom } from "@/books/schedule_check";
+import { businessSources } from "@/books/team_sources";
 import { payRulesFor } from "@/books/timecard_pay";
 import { clock, dayLabel, when } from "../work/shared";
 
@@ -102,13 +107,20 @@ export function Hours() {
 }
 
 function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem["hours"]) => void }) {
-  const { rail } = useOpenBooks();
+  const { rail, mailbox, schedule } = useOpenBooks();
   const h = item.hours;
   // Overtime under the work week in their offer's terms: the same split their own Hours page shows.
   // Overtime under their offer's work week (time and a half after 40 a week without one): the same split payroll pays.
   const rules = payRulesFor(rail, item.workerId);
   const split = overtimeSplit(h.entries, rules);
   const longShifts = h.entries.filter((e) => e.long).length;
+  // Each whole shift against the week the person confirmed, in the workplace's zone.
+  const link = rail ? linkFor(rail, item.workerId) : undefined;
+  const shifts = useMemo(() => {
+    const confirmed = confirmedWeekFrom(businessSources(mailbox, schedule, link?.status === "linked" ? link.partiesKey : undefined));
+    return wholeShifts(h.entries).map((shift) => ({ shift, check: checkShift({ ...shift, callout: shift.entries[0]!.callout === true }, confirmed, rules.timeZone) }));
+  }, [h.entries, mailbox, schedule, link, rules.timeZone]);
+  const offSchedule = shifts.filter((s) => checkLabels(s.check).some((l) => l.warn)).length;
   return (
     <details
       onToggle={(e) => {
@@ -125,14 +137,15 @@ function WeekRow({ item, onRead }: { item: HoursItem; onRead: (hours: HoursItem[
             {h.sends && ` · ${h.sends} sends combined`}
             {h.entries.some((e) => e.paid) && (h.entries.every((e) => e.paid) ? " · Paid" : ` · ${h.entries.filter((e) => e.paid).length} of ${h.entries.length} stretches paid`)}
             {longShifts > 0 && <span className="text-warning"> · {longShifts === 1 ? "1 long shift" : `${longShifts} long shifts`} to review</span>}
+            {offSchedule > 0 && <span className="text-warning"> · {offSchedule === 1 ? "1 shift" : `${offSchedule} shifts`} off the schedule</span>}
             {!h.read && " · New"}
           </span>
         </span>
         <span className="shrink-0 text-xs text-muted-foreground">Details</span>
       </summary>
       <ul className="mt-2 flex flex-col divide-y rounded-md bg-muted/40 px-3 text-xs">
-        {wholeShifts(h.entries).map((shift) => (
-          <ShiftRow key={shift.in} item={item} shift={shift} />
+        {shifts.map(({ shift, check }) => (
+          <ShiftRow key={shift.in} item={item} shift={shift} check={check} />
         ))}
       </ul>
     </details>
@@ -147,8 +160,8 @@ function useChanges(workerId: string) {
   return { partiesKey, changes: partiesKey ? hoursChanges(threadFor(mailbox, partiesKey)) : [] };
 }
 
-/** One shift on a card: its times, what it was if it moved, where a change to it stands, and Question. */
-function ShiftRow({ item, shift }: { item: HoursItem; shift: { in: string; out: string; entries: HoursItem["hours"]["entries"] } }) {
+/** One shift on a card: its times, against the schedule, what it was if it moved, where a change to it stands, and Question. */
+function ShiftRow({ item, shift, check }: { item: HoursItem; shift: { in: string; out: string; entries: HoursItem["hours"]["entries"] }; check: ShiftCheck }) {
   const { rail } = useOpenBooks();
   const { partiesKey, changes } = useChanges(item.workerId);
   const [asking, setAsking] = useState(false);
@@ -175,6 +188,16 @@ function ShiftRow({ item, shift }: { item: HoursItem; shift: { in: string; out: 
         </span>
         <span className="tabular-nums">{formatMinutes(minutes)}</span>
       </div>
+      {checkLabels(check).length > 0 && (
+        <p className="flex flex-wrap gap-1.5">
+          {checkLabels(check).map((l) => (
+            <span key={l.text} className={cn("rounded-sm px-1.5 py-0.5", l.warn ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground")}>
+              {l.text}
+            </span>
+          ))}
+          {check.kind === "scheduled" && <span className="py-0.5 text-muted-foreground">Scheduled {blockLabel(check.block)}</span>}
+        </p>
+      )}
       {first.was && first.change && (
         // "Agreed" only when the conversation shows the business accepting these very times; otherwise it's their edit.
         <p className={vouched ? "text-muted-foreground" : "text-warning"}>
