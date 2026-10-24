@@ -7,9 +7,17 @@
 //   unlock key — derived from the passphrase with PBKDF2-SHA256 (600k rounds,
 //               random 16-byte salt). It only wraps the data key.
 //
-// Changing the passphrase, adding a wallet signature as a second unlock, or
-// (Phase 6) giving each team member their own wrapped copy all re-wrap the
-// small data key, never re-encrypt the books. Every ciphertext is bound to
+// Changing the passphrase, a recovery key (below), adding a wallet signature
+// as a second unlock, or (Phase 6) giving each team member their own wrapped
+// copy all re-wrap the small data key, never re-encrypt the books.
+//
+// Recovery key: 16 random bytes shown once as a code to write down
+// (recovery_code.ts). HKDF-SHA256 over it (random salt, the vault id in the
+// info) gives a key that wraps a second copy of the data key, in the
+// record's `recovery` slot. The code is random, so it needs no slow key
+// stretching. With it a forgotten passphrase is replaced: the data key is
+// unwrapped from the slot and wrapped again under the new one. Making one
+// takes the passphrase; there is one slot, so a new code replaces the old. Every ciphertext is bound to
 // the vault id and its role with AES-GCM associated data, so pieces can't be
 // swapped between vaults or between the key and payload slots.
 //
@@ -22,6 +30,7 @@
 // All crypto is the browser's own WebCrypto; nothing here implements a cipher.
 // ---------------------------------------------------------------------------
 
+import { RECOVERY_SECRET_BYTES, formatRecoveryCode, parseRecoveryCode } from "./recovery_code";
 import type { VaultStore } from "./store";
 
 export const VAULT_FORMAT = "pnw-vault";
@@ -44,6 +53,9 @@ export const BACKUP_FORMAT = "pnw-vault-backup";
 /** What a backup file holds: the sealed record and every sealed attachment. */
 export type Backup = { record: VaultRecord; attachments: SealedAttachment[] };
 
+/** A second wrapped copy of the data key, under a key from the recovery code. */
+export type RecoverySlot = { kdf: "HKDF-SHA256"; salt: string; wrappedKey: Sealed; createdAt: string };
+
 export type VaultRecord = {
   format: typeof VAULT_FORMAT;
   version: 1;
@@ -52,9 +64,11 @@ export type VaultRecord = {
   wrappedKey: Sealed;
   payload: Sealed;
   updatedAt: string;
+  /** Present once a recovery key was made. Older versions of the app ignore it. */
+  recovery?: RecoverySlot;
 };
 
-export type VaultErrorCode = "WEAK_PASSPHRASE" | "WRONG_PASSPHRASE" | "CORRUPT" | "NOT_A_VAULT";
+export type VaultErrorCode = "WEAK_PASSPHRASE" | "WRONG_PASSPHRASE" | "WRONG_RECOVERY_KEY" | "CORRUPT" | "NOT_A_VAULT";
 
 export class VaultError extends Error {
   readonly code: VaultErrorCode;
@@ -87,7 +101,7 @@ function unb64(text: string): Uint8Array<ArrayBuffer> {
 
 const random = (n: number) => globalThis.crypto.getRandomValues(new Uint8Array(n));
 const ATTACHMENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
-type Role = "key" | "data" | `attachment:${string}`;
+type Role = "key" | "recovery" | "data" | `attachment:${string}`;
 const aad = (id: string, role: Role) => enc.encode(`${VAULT_FORMAT}:v1:${role}:${id}`);
 
 function attachmentRole(attachmentId: string): Role {
@@ -146,21 +160,45 @@ async function open(key: CryptoKey, sealed: Sealed, ad: Uint8Array<ArrayBuffer>)
 }
 
 async function unwrapDataKey(kek: CryptoKey, record: VaultRecord): Promise<CryptoKey> {
+  return unwrapSlot(kek, record.wrappedKey, record.id, "key", false); // the open data key can never be exported
+}
+
+/** Unwraps a copy of the data key; `extractable` only to wrap it again straight away. */
+async function unwrapSlot(kek: CryptoKey, sealed: Sealed, id: string, role: "key" | "recovery", extractable: boolean): Promise<CryptoKey> {
   return subtle().unwrapKey(
     "raw",
-    unb64(record.wrappedKey.data),
+    unb64(sealed.data),
     kek,
-    { name: "AES-GCM", iv: unb64(record.wrappedKey.iv), additionalData: aad(record.id, "key") },
+    { name: "AES-GCM", iv: unb64(sealed.iv), additionalData: aad(id, role) },
     { name: "AES-GCM", length: 256 },
-    false, // the open data key can never be exported
+    extractable,
     ["encrypt", "decrypt"],
   );
 }
 
-async function wrapDataKey(kek: CryptoKey, dataKey: CryptoKey, id: string): Promise<Sealed> {
+async function wrapDataKey(kek: CryptoKey, dataKey: CryptoKey, id: string, role: "key" | "recovery" = "key"): Promise<Sealed> {
   const iv = random(12);
-  const data = await subtle().wrapKey("raw", dataKey, kek, { name: "AES-GCM", iv, additionalData: aad(id, "key") });
+  const data = await subtle().wrapKey("raw", dataKey, kek, { name: "AES-GCM", iv, additionalData: aad(id, role) });
   return { iv: b64(iv), data: b64(new Uint8Array(data)) };
+}
+
+/** The key a recovery code wraps the data key with: HKDF-SHA256, bound to this vault. */
+async function recoveryKey(secret: Uint8Array<ArrayBuffer>, salt: Uint8Array<ArrayBuffer>, id: string): Promise<CryptoKey> {
+  const material = await subtle().importKey("raw", secret, "HKDF", false, ["deriveKey"]);
+  return subtle().deriveKey({ name: "HKDF", hash: "SHA-256", salt, info: enc.encode(`${VAULT_FORMAT}:v1:recovery:${id}`) }, material, { name: "AES-GCM", length: 256 }, false, [
+    "wrapKey",
+    "unwrapKey",
+  ]);
+}
+
+/** The data key, extractable, from the passphrase's slot; WRONG_PASSPHRASE when it doesn't open. */
+async function dataKeyFromPassphrase(record: VaultRecord, passphrase: string): Promise<CryptoKey> {
+  const kek = await unlockKey(passphrase.normalize("NFKC"), unb64(record.kdf.salt), record.kdf.iterations);
+  try {
+    return await unwrapSlot(kek, record.wrappedKey, record.id, "key", true);
+  } catch {
+    throw new VaultError("WRONG_PASSPHRASE", "That passphrase doesn't open these books");
+  }
 }
 
 // ---- session ---------------------------------------------------------------
@@ -327,30 +365,69 @@ export async function changePassphrase(
 ): Promise<VaultRecord> {
   assertRecord(record);
   const normalized = checkPassphrase(next);
-  const oldKek = await unlockKey(current.normalize("NFKC"), unb64(record.kdf.salt), record.kdf.iterations);
-  // Unwrap extractable just long enough to re-wrap it.
-  let raw: CryptoKey;
-  try {
-    raw = await subtle().unwrapKey(
-      "raw",
-      unb64(record.wrappedKey.data),
-      oldKek,
-      { name: "AES-GCM", iv: unb64(record.wrappedKey.iv), additionalData: aad(record.id, "key") },
-      { name: "AES-GCM", length: 256 },
-      true,
-      ["encrypt", "decrypt"],
-    );
-  } catch {
-    throw new VaultError("WRONG_PASSPHRASE", "That passphrase doesn't open these books");
-  }
+  // Unwrapped extractable just long enough to re-wrap it.
+  const raw = await dataKeyFromPassphrase(record, current);
+  return rewrapUnderPassphrase(record, raw, normalized, options.iterations);
+}
+
+async function rewrapUnderPassphrase(record: VaultRecord, raw: CryptoKey, normalized: string, iterations?: number): Promise<VaultRecord> {
   const salt = random(16);
-  const iterations = options.iterations ?? Math.max(record.kdf.iterations, KDF_ITERATIONS);
-  const kek = await unlockKey(normalized, salt, iterations);
+  const rounds = iterations ?? Math.max(record.kdf.iterations, KDF_ITERATIONS);
+  const kek = await unlockKey(normalized, salt, rounds);
   return {
     ...record,
-    kdf: { name: "PBKDF2-SHA256", iterations, salt: b64(salt) },
+    kdf: { name: "PBKDF2-SHA256", iterations: rounds, salt: b64(salt) },
     wrappedKey: await wrapDataKey(kek, raw, record.id),
   };
+}
+
+// ---- recovery key ----------------------------------------------------------
+
+/**
+ * Makes a recovery key for these books: a new code, and the record with a copy of the data key
+ * wrapped under it (replacing any earlier one, which stops working). Takes the passphrase, so a
+ * session left open can't make one. The code is returned once, to show; it is never stored.
+ */
+export async function addRecovery(record: VaultRecord, passphrase: string, now: string = new Date().toISOString()): Promise<{ record: VaultRecord; code: string }> {
+  assertRecord(record);
+  const raw = await dataKeyFromPassphrase(record, passphrase);
+  const secret = random(RECOVERY_SECRET_BYTES);
+  const salt = random(16);
+  const wrappedKey = await wrapDataKey(await recoveryKey(secret, salt, record.id), raw, record.id, "recovery");
+  const code = await formatRecoveryCode(secret);
+  secret.fill(0);
+  return { record: { ...record, recovery: { kdf: "HKDF-SHA256", salt: b64(salt), wrappedKey, createdAt: now } }, code };
+}
+
+/** Takes the recovery key away (the passphrase proves it's the owner). Its code stops working. */
+export async function removeRecovery(record: VaultRecord, passphrase: string): Promise<VaultRecord> {
+  assertRecord(record);
+  await dataKeyFromPassphrase(record, passphrase);
+  const { recovery: _gone, ...rest } = record;
+  return rest;
+}
+
+/**
+ * A forgotten passphrase replaced with the recovery key: the data key comes out of the recovery
+ * slot and is wrapped under `nextPassphrase`. The books aren't re-encrypted, and the recovery key
+ * keeps working until a new one replaces it. WRONG_RECOVERY_KEY when the code is mistyped or
+ * belongs to other books (or these have none).
+ */
+export async function resetWithRecovery(record: VaultRecord, code: string, nextPassphrase: string, options: { iterations?: number } = {}): Promise<VaultRecord> {
+  assertRecord(record);
+  const normalized = checkPassphrase(nextPassphrase);
+  const wrong = new VaultError("WRONG_RECOVERY_KEY", "That recovery key doesn't open these books");
+  const secret = await parseRecoveryCode(code);
+  if (!secret || !record.recovery) throw wrong;
+  let raw: CryptoKey;
+  try {
+    raw = await unwrapSlot(await recoveryKey(secret, unb64(record.recovery.salt), record.id), record.recovery.wrappedKey, record.id, "recovery", true);
+  } catch {
+    throw wrong;
+  } finally {
+    secret.fill(0);
+  }
+  return rewrapUnderPassphrase(record, raw, normalized, options.iterations);
 }
 
 // ---- backup files ----------------------------------------------------------
@@ -405,7 +482,9 @@ function assertRecord(value: unknown): asserts value is VaultRecord {
     r.kdf.iterations > MAX_KDF_ITERATIONS ||
     typeof r.kdf.salt !== "string" ||
     !sealedOk(r.wrappedKey) ||
-    !sealedOk(r.payload)
+    !sealedOk(r.payload) ||
+    (r.recovery !== undefined &&
+      (r.recovery?.kdf !== "HKDF-SHA256" || typeof r.recovery.salt !== "string" || !sealedOk(r.recovery.wrappedKey) || typeof r.recovery.createdAt !== "string"))
   ) {
     throw new VaultError("NOT_A_VAULT", "That file isn't a books backup from this app");
   }

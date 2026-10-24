@@ -72,8 +72,8 @@ No server, no database. ✅ Structural, from the architecture.
   a wrong passphrase or an empty device, and a failed lookup spends one key derivation so the wait
   tells the same story. ✅
 - There are no server accounts, so there is no credential-stuffing surface, no reset email to
-  hijack and no password reset. A lost passphrase is unrecoverable. 🔜 The recovery key (a second
-  wrapped copy of the data key, held by the user) is the planned recovery mechanism.
+  hijack and no password reset. A forgotten passphrase is replaced only with the account's
+  recovery key (below, T8), if one was made. ✅ (2026-10-24)
 
 ### T3 — Malicious code in the page (XSS, compromised dependency, compromised host)
 The highest risk for a browser app.
@@ -183,8 +183,20 @@ The highest risk for a browser app.
   auto-lock and short key lifetime. With "stay logged in", a remembered key (24 hours at most,
   non-extractable) lets anyone holding the unlocked device open the books until it expires or
   Log out; untick it on a shared device.
-- ⚠️ A forgotten passphrase means unrecoverable books. 🔜 P1: optional recovery key, nudges to
-  keep an encrypted backup.
+- ✅ **The recovery key** (2026-10-24, `@pnw/vault` `addRecovery` / `resetWithRecovery`). Made in
+  Settings with the passphrase; 16 random bytes shown once as 28 characters with a check byte,
+  never stored. HKDF-SHA256 over it (random salt, the vault id in the info) wraps a second copy of
+  the data key in the record's `recovery` slot, bound to the vault by AES-GCM associated data. With
+  the username and the code, a forgotten passphrase is replaced (login, or restoring a backup); the
+  books are never re-encrypted, and the key keeps working until a new one replaces it or it is
+  removed (both take the passphrase). Failed recoveries give one message and take one slow key
+  derivation, whether the username, the key or both were wrong. What it costs: whoever has the code,
+  the username and the books (the device or a backup) can open them, so the code belongs on paper,
+  away from both. Making one writes the books again, so another open tab stops rather than saving
+  over the new slot. Backups downloaded before a key was made don't carry it. Conversation backups
+  on chain are sealed from the passphrase: after a reset, older ones still need the old passphrase
+  (the books themselves already hold those conversations).
+- ⚠️ No recovery key and no backup still means lost books. Setup and Settings say so.
 
 ## The review list (Transactions → For review)
 - Built on the device from Shield's own history and records plus the read-only explorer; kept in

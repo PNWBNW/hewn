@@ -6,7 +6,7 @@ import { Check, Copy, LogOut } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
-import { FormError, errorMessage } from "@/books/AuthCard";
+import { Field, FormError, PassphraseInput, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
@@ -79,8 +79,131 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <RecoveryKey />
+
       <PrivatePayments />
     </div>
+  );
+}
+
+/**
+ * The recovery key (@pnw/vault `addRecovery`): a code that sets a new passphrase if this one is
+ * forgotten. Making or removing one takes the passphrase. The code shows once, here, and is never
+ * stored; it lives in backups downloaded after it was made.
+ */
+function RecoveryKey() {
+  const { recoveryMadeAt, makeRecoveryKey, removeRecoveryKey } = useOpenBooks();
+  const [action, setAction] = useState<"make" | "remove" | null>(null);
+  const [passphrase, setPassphrase] = useState("");
+  const [code, setCode] = useState<string | null>(null);
+  const [kept, setKept] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const close = () => {
+    setAction(null);
+    setPassphrase("");
+    setError(null);
+    setBusy(false);
+  };
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (action === "make") {
+        setCode(await makeRecoveryKey(passphrase));
+        setKept(false);
+        setCopied(false);
+      } else await removeRecoveryKey(passphrase);
+      close();
+    } catch (e) {
+      setError(errorMessage(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Recovery key</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 text-sm">
+        {code ? (
+          <>
+            <p>Write this down now, on paper. It won&apos;t be shown again.</p>
+            <p className="select-all break-all rounded-md border bg-muted px-3 py-3 text-center font-mono text-base tracking-wider sm:text-lg">{code}</p>
+            <Button
+              variant="outline"
+              className="min-h-11 self-start sm:min-h-9"
+              onClick={async () => {
+                await navigator.clipboard.writeText(code).then(
+                  () => setCopied(true),
+                  () => setCopied(false),
+                );
+              }}
+            >
+              {copied ? <Check aria-hidden className="text-money-positive" /> : <Copy aria-hidden />}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+            <p className="text-muted-foreground">
+              With it and your username, you can set a new passphrase on this device or on a backup downloaded from now on. Anyone who has it, your
+              username and these books (this device or a backup) can open them, so keep it away from both. Download a new backup now: older ones
+              don&apos;t have this key.
+            </p>
+            <label className="flex min-h-11 items-center gap-3">
+              <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={kept} onChange={(e) => setKept(e.target.checked)} />
+              <span>I&apos;ve written it down somewhere safe</span>
+            </label>
+            <Button className="min-h-11 self-start sm:min-h-9" disabled={!kept} onClick={() => setCode(null)}>
+              Done
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className={recoveryMadeAt ? "" : "text-warning"}>
+              {recoveryMadeAt
+                ? `Made ${new Date(recoveryMadeAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}. If you forget your passphrase, it sets a new one: Log in → Forgot your passphrase?`
+                : "None yet. There is no password reset: without a recovery key, a forgotten passphrase means these books can't be opened."}
+            </p>
+            {action ? (
+              <form
+                className="flex flex-col gap-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!busy && passphrase) void confirm();
+                }}
+              >
+                <Field label="Your passphrase" hint={action === "make" && recoveryMadeAt ? "A new key replaces the old one, which stops working." : undefined}>
+                  <PassphraseInput value={passphrase} onChange={setPassphrase} />
+                </Field>
+                <FormError message={error} />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" variant={action === "remove" ? "destructive" : "default"} className="min-h-11 sm:min-h-9" disabled={busy || !passphrase}>
+                    {busy ? "Working…" : action === "make" ? "Make the recovery key" : "Remove the recovery key"}
+                  </Button>
+                  <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={close}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button className="min-h-11 sm:min-h-9" variant={recoveryMadeAt ? "outline" : "default"} onClick={() => setAction("make")}>
+                  {recoveryMadeAt ? "Make a new one" : "Make a recovery key"}
+                </Button>
+                {recoveryMadeAt && (
+                  <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={() => setAction("remove")}>
+                    Remove it
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -21,7 +21,7 @@
 // tests run on a `MemoryStore` with small PBKDF2 rounds.
 // ---------------------------------------------------------------------------
 
-import { type VaultSession, type VaultStore, KDF_ITERATIONS, VaultError, checkNewPassphrase, sha256Hex, unlockVault } from "@pnw/vault";
+import { type VaultSession, type VaultStore, KDF_ITERATIONS, VaultError, checkNewPassphrase, resetWithRecovery, sha256Hex, unlockVault } from "@pnw/vault";
 import type { Role } from "./work";
 
 /** The two kinds of account a username can hold. */
@@ -168,6 +168,49 @@ export async function findAccounts(
   if (found.length === 0) {
     if (tried === 0) await decoy(iterations);
     throw new AccountError(NO_MATCH_MESSAGE);
+  }
+  return found;
+}
+
+/** The one message a failed recovery shows, whichever of the username or the key was wrong. */
+export const NO_RECOVERY_MATCH_MESSAGE = "That username and recovery key don't match an account on this device";
+
+/**
+ * A forgotten passphrase, replaced with the recovery key: every account on this device under this
+ * username that the key opens gets `nextPassphrase` (a business and a worker account each have
+ * their own key, so usually one). Saved before it returns, opened with the new passphrase. Throws
+ * the one generic message when none opens; a weak new passphrase is refused first.
+ */
+export async function recoverAccounts(
+  store: VaultStore,
+  rawUsername: string,
+  code: string,
+  nextPassphrase: string,
+  { iterations = KDF_ITERATIONS }: Options = {},
+): Promise<FoundAccount[]> {
+  const username = normalizeUsername(rawUsername);
+  checkAccountPassphrase(nextPassphrase, username);
+  const secret = accountSecret(username, nextPassphrase);
+  const found: FoundAccount[] = [];
+  for (const role of ROLES) {
+    const record = await store.load(await vaultIdFor(username, role));
+    if (!record?.recovery) continue;
+    let next;
+    try {
+      next = await resetWithRecovery(record, code, secret, { iterations });
+    } catch (e) {
+      if (e instanceof VaultError && e.code === "WRONG_RECOVERY_KEY") continue;
+      throw e;
+    }
+    const session = await unlockVault(next, secret); // proves it before it is saved
+    await store.save(next);
+    found.push({ role, session });
+  }
+  if (found.length === 0) {
+    // A wrong key costs almost nothing to check, so every failure takes one slow derivation:
+    // no account, no recovery key and a wrong key all take as long.
+    await decoy(iterations);
+    throw new AccountError(NO_RECOVERY_MATCH_MESSAGE);
   }
   return found;
 }

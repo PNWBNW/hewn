@@ -81,6 +81,12 @@ Results: [#150](https://github.com/PNWBNW/hewn/issues/150)
   books open without the passphrase. After 24 hours, or after Log out: the passphrase again.
 - **ACC-7 Idle lock.** Without "stay logged in", leave the books open 15 minutes, or reload.
   *Expect:* locked.
+- **ACC-8 Recovery key.** In Settings, make a recovery key (it asks for the passphrase) and write
+  it down. Log out, then Log in → "Forgot your passphrase?": the username, the key and a new
+  passphrase. *Expect:* the books open, the new passphrase works and the old one doesn't. Then
+  download a backup, and on another browser restore it with "Forgot that passphrase?" and the key.
+  Also try: the key with a typo, another account's key, a key replaced by a newer one (all refused
+  with one message), and making one with the wrong passphrase (refused).
 - **Break it:** a passphrase under 10 characters; the same passphrase typed with look-alike
   Unicode; a very long username; an email as the username; Log out and close the tab at once,
   then reopen (known gap: it may still be logged in, see the end).

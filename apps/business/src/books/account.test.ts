@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { MemoryStore, createVault, exportBackup, parseBackup, sha256Hex, unlockVault } from "@pnw/vault";
+import { MemoryStore, addRecovery, createVault, exportBackup, parseBackup, sha256Hex, unlockVault } from "@pnw/vault";
 import {
   LEGACY_VAULT_ID,
   NO_MATCH_MESSAGE,
+  NO_RECOVERY_MATCH_MESSAGE,
   AccountError,
   accountSecret,
   checkAccountPassphrase,
@@ -10,6 +11,7 @@ import {
   hasLegacyVault,
   legacyOpen,
   normalizeUsername,
+  recoverAccounts,
   vaultIdFor,
 } from "./account";
 
@@ -259,5 +261,48 @@ describe("books from before accounts", () => {
     const legacy = await createVault(PASS, "old books", { id: LEGACY_VAULT_ID, ...FAST });
     expect(parseBackup(exportBackup(acct.record)).record.id).toBe(await vaultIdFor("ana@example.com", "business"));
     expect(parseBackup(exportBackup(legacy.record)).record.id).toBe(LEGACY_VAULT_ID);
+  });
+});
+
+describe("recoverAccounts (a forgotten passphrase)", () => {
+  const NEXT = "a new phrase, written down";
+  async function withRecovery(store: MemoryStore, username: string, role: "business" | "worker") {
+    const s = await makeAccount(store, username, role);
+    const { record, code } = await addRecovery(s.record, accountSecret(normalizeUsername(username), PASS));
+    await store.save(record);
+    return code;
+  }
+
+  it("sets a new passphrase with the username and recovery key, saves it, and the old one stops working", async () => {
+    const store = new MemoryStore();
+    const code = await withRecovery(store, "ana", "business");
+    const found = await recoverAccounts(store, " Ana ", code, NEXT, FAST);
+    expect(found.map((f) => f.role)).toEqual(["business"]);
+    expect(await found[0]!.session.read()).toBe("business books");
+    expect((await findAccounts(store, "ana", NEXT, FAST)).map((f) => f.role)).toEqual(["business"]);
+    await expect(findAccounts(store, "ana", PASS, FAST)).rejects.toThrow(NO_MATCH_MESSAGE);
+    // The key keeps working for the next time.
+    expect((await recoverAccounts(store, "ana", code, "and another new phrase!", FAST)).length).toBe(1);
+  });
+
+  it("resets only the account the key belongs to when a username holds both kinds", async () => {
+    const store = new MemoryStore();
+    const workerCode = await withRecovery(store, "ana", "worker");
+    await withRecovery(store, "ana", "business");
+    const found = await recoverAccounts(store, "ana", workerCode, NEXT, FAST);
+    expect(found.map((f) => f.role)).toEqual(["worker"]);
+    expect((await findAccounts(store, "ana", PASS, FAST)).map((f) => f.role)).toEqual(["business"]);
+  });
+
+  it("must fail with one message whatever was wrong, and changes nothing", async () => {
+    const store = new MemoryStore();
+    const code = await withRecovery(store, "ana", "business");
+    await makeAccount(store, "bob", "business"); // no recovery key
+    const before = JSON.stringify(await store.load(await vaultIdFor("ana", "business")));
+    await expect(recoverAccounts(store, "nobody", code, NEXT, FAST)).rejects.toThrow(NO_RECOVERY_MATCH_MESSAGE);
+    await expect(recoverAccounts(store, "bob", code, NEXT, FAST)).rejects.toThrow(NO_RECOVERY_MATCH_MESSAGE);
+    await expect(recoverAccounts(store, "ana", code.replace(/^./, (c) => (c === "A" ? "B" : "A")), NEXT, FAST)).rejects.toThrow(NO_RECOVERY_MATCH_MESSAGE);
+    await expect(recoverAccounts(store, "ana", code, "short", FAST)).rejects.toMatchObject({ code: "WEAK_PASSPHRASE" });
+    expect(JSON.stringify(await store.load(await vaultIdFor("ana", "business")))).toBe(before);
   });
 });
