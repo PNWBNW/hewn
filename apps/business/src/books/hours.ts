@@ -102,7 +102,7 @@ function formatFor(timeZone: string): Intl.DateTimeFormat {
 }
 
 /** The wall clock in a zone at an instant, as the UTC milliseconds of that same wall time. */
-function wallAsUtc(d: Date, timeZone: string): number {
+export function wallAsUtc(d: Date, timeZone: string): number {
   const p: Record<string, number> = {};
   for (const part of formatFor(timeZone).formatToParts(d)) if (part.type !== "literal") p[part.type] = Number(part.value);
   return Date.UTC(p.year!, p.month! - 1, p.day!, p.hour! % 24, p.minute!, p.second!);

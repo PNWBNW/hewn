@@ -215,6 +215,11 @@ Results: [#158](https://github.com/PNWBNW/hewn/issues/158)
 - **WORK-2 Paystub.** After a pay run, Worker 1 gets a paystub. *Expect:* its figures match the
   run, and only Worker 1 and Business A can see it. Try it both before and after the two have
   exchanged a message each (MSG-3): it arrives either way.
+- **WORK-3 Against the schedule.** Business A publishes a week with a 7:00–15:30 shift; Worker 1
+  confirms it, clocks in at 7:20 and sends the week. *Expect:* on Payroll → Hours, Business A sees
+  "Started 20 min late" on that shift, and the week says "1 shift off the schedule". Also try: a
+  shift on a day with nothing scheduled ("Not on the schedule"), a week published but not yet
+  confirmed (nothing flagged), and a callout (never flagged).
 - **Break it:** clocking across midnight, a time-zone change, daylight saving, a shift over 24
   hours.
 

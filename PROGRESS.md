@@ -4371,3 +4371,27 @@ stays in `src/layer1` there, not the archive: four live programs import it.
 
 Tests: +2 (an offer without a program withdraws from v4; the status is read from the program
 given, v4 by default). 1102 pass; the build passes.
+
+## 2026-10-24 — Phase 9 done: shifts laid against the schedule
+
+The last Phase 9 exit criterion: a shift clocked in 20 minutes late shows as late on the business's
+timecard.
+- **`books/schedule_check.ts`:** each whole shift on a received week is laid against the week the
+  person **confirmed** (the same rule as on-call pay: a published but unconfirmed week, or one
+  republished with their days changed, counts for nothing). It matches the scheduled shift it
+  overlaps most, looking at the day before and after too (night shifts, clocking in just before
+  midnight), and gives minutes after the scheduled start and end. Both sides are wall clocks at the
+  workplace (the work week's zone), so a clock change moves nothing. Up to 5 minutes either way is
+  on time (`GRACE_MINUTES`). A shift on a confirmed week with no scheduled shift under it is "Not on
+  the schedule" (and says so when it was an on-call day not clocked as a callout); a callout is never
+  compared.
+- **Payroll → Hours:** each shift shows "Started 20 min late", "Left 30 min early" (both amber),
+  "Started 20 min early" or "Stayed 45 min late" (grey, since they're about overtime rather than
+  attendance), with the scheduled times; each week's line counts the shifts off the schedule. Only
+  the business sees it; nothing is sent.
+- `dev_testing_guide.md` WORK-3. Phase 9's exit criteria are all ticked; its "later" items (shift
+  swaps, availability, open shifts) stay later.
+
+Tests: +6 (20 minutes late, the grace, early and late at both ends, a night shift across the
+November clock change, not on the schedule and on an on-call day, nothing without a confirmed week
+or for a callout, which week counts as confirmed).
