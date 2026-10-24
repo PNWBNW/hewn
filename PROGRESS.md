@@ -4455,3 +4455,9 @@ moon in its real phase, the stars and the person's constellation at night), the 
 real date, with gentle motion off under reduced motion; saved or printed, a card freezes at its
 birth sky (the moment it was issued). The fingerprint (landscape, pine, constellation, lit star)
 never moves. The time-of-day question is settled. Docs only.
+
+## 2026-10-24 — Hewn art: no motion; the seasons drawn
+
+`docs/HEWN_ART.md` (Joshua): no motion; the card changes with the clock and the date and is still
+in between. Concept image of one card through the year (`docs/art/seasons-2026-10-24.png`: winter
+morning, spring afternoon, autumn evening, summer night). Docs only.
