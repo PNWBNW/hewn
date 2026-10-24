@@ -4519,3 +4519,14 @@ valley so the water never climbs a hill. Drawing random names found four failure
 landmarks off-frame, one gorge for all, water hidden), each now a rule: open sky for the
 constellation, landmarks in view and apart, water always shown. Renders in
 `docs/art/landmarks-*.jpg` (three.js prototype, not in the app). Docs only.
+
+## 2026-10-24 — Hewn art: the land checked across 100 names; the river enters left, middle or right
+
+`docs/HEWN_ART.md`: a checker draws 100 random names (all four landmarks each, a third with a
+revoked first job and a second one) and measures every card: each landmark and the pine on the card
+and in sight, the water's share, the constellation's room. First run 47/50 (a cabin and a cairn off
+the card, a cairn behind the pine). Fixed: each landmark keeps its best-scoring spot (off the card,
+behind another, in the water or behind a rise all cost), trees keep clear in front of landmarks,
+the cairn is larger. Joshua asked for the river to enter from the left, the middle or the right
+(now 32/36/32 of 100); bare steep slopes are fine. All 100 pass. Sheet in
+`docs/art/landmarks-check-2026-10-24.jpg`. Docs only (the prototype is not in the app).
