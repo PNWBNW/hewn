@@ -4506,3 +4506,16 @@ their name and time on Hewn. They choose at setup whether it's public and can sw
 in Settings; on chain the card is a private record they hold, and being public is a public entry
 (name hash, issue height) added or removed. Hiding can't erase that it was public before, and the
 app says so. A business's card is always public. Docs only.
+
+## 2026-10-24 — Hewn art: a worker's land and its landmarks, in 3D, for every name
+
+`docs/HEWN_ART.md` (Joshua): a worker's credentials become landmarks in one land of their own,
+drawn in 3D: a cabin for employment (cyan windows), a bridge for skills (cyan lanterns), a fire
+lookout on the ridge for clearance (cyan cab), a cairn for custom (cyan top stone). Pending is a
+bare frame, revoked a faded ghost; landmarks show only in the worker's private view, and the public
+tenure card is the same land, bare. The land comes from the `name.hewn`: range, river, lake (about
+one name in four) or bend, valley, forest in groves, tree mix, boulders. The river shapes the
+valley so the water never climbs a hill. Drawing random names found four failures (sky filled,
+landmarks off-frame, one gorge for all, water hidden), each now a rule: open sky for the
+constellation, landmarks in view and apart, water always shown. Renders in
+`docs/art/landmarks-*.jpg` (three.js prototype, not in the app). Docs only.

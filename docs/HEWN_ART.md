@@ -1,7 +1,8 @@
 # Hewn art: credential cards and paystub rings
 
-**Status:** design, for review (Joshua, 2026-10-24). Concept sketches only
-(`docs/art/concepts-2026-10-24.png`); nothing is in the app yet.
+**Status:** design, for review (Joshua, 2026-10-24). Concept sketches and 3D renders only
+(`docs/art/`); nothing is in the app yet. The worker's land and its landmarks are settled
+(below); the first sketch here is kept for the constellation and the paystub.
 
 ![Three credential cards and a paystub](art/concepts-2026-10-24.png)
 
@@ -16,22 +17,65 @@ Cyan is used for three things only, each one meaningful:
 
 | Cyan | Where | What it means |
 |---|---|---|
-| **The pine** | Credential cards | The logo's pine, standing in the forest. It grows with the person's **time on Hewn** (Joshua, 2026-10-24). Where it stands comes from the hash. |
-| **The constellation** | Credential cards and paystubs | The person's **own constellation** (Joshua, 2026-10-24): the same shape on every card and paystub of theirs, drawn from their `name.hewn`. The record lights one of its stars, so the lit star is the record's **fingerprint**. |
+| **The pine** | A worker's land | The logo's pine, standing in the meadow. It grows with the person's **time on Hewn** (Joshua, 2026-10-24). Where it stands comes from the hash. |
+| **The constellation** | Every card and paystub | The person's **own constellation** (Joshua, 2026-10-24): the same shape on every card and paystub of theirs, drawn from their `name.hewn`. The record lights one of its stars, so the lit star is the record's **fingerprint**. |
 | **This ring** | Paystubs | The paycheck in hand, among the year's rings. |
+| **The lights** | A worker's landmarks | One small cyan light on each live credential's landmark: the cabin's windows, the bridge's lanterns, the lookout's cab, the cairn's top stone. |
 
-## The credential card
+## A worker's land and its landmarks (Joshua, 2026-10-24)
 
-- **The scene:** four ridgelines, far ones pale and blue, near ones deep green, with mist between;
-  snow on the highest; a forest along the front; the sun or the moon. Every shape comes from the
-  credential's hash, so no two cards share a skyline.
-- **The pine:** taller for each year since the person's `name.hewn` was registered. The sketches
-  show 1 and 6 years.
-- **The constellation:** small, six to eight stars, always in the sky: above the mountains with a
-  gap and clear of the sun or moon. Only its place and size change from card to card, never its
-  shape. Faint teal by day, glowing cyan at dusk and night.
-- **The words:** the `name.hewn`, the kind of credential, the title, the business, the dates, a
-  short fingerprint, and "hewn · proven on Aleo".
+![Ana's land at one, three and six years, and at night](art/landmarks-2026-10-24.jpg)
+
+A worker has one land, drawn in 3D: a meadow by a river, forest, foothills and a mountain range,
+under the live sky. Their credentials don't each get a separate scene; each one adds a
+**landmark** to their land, so the land fills in as their working life does.
+
+| Credential (`packages/records`) | Landmark | Its light |
+|---|---|---|
+| `employment_verified` | A log cabin in the meadow | Cyan windows |
+| `skills` | A bridge across the river | Cyan lanterns at both ends |
+| `clearance` | A fire lookout on the highest ridge in view | A cyan band round the cab |
+| `custom` | A cairn by the water | A cyan top stone |
+
+- **Status:** active is built and lit. Pending is the bare timber frame: walls and ridge pole
+  without logs or roof, the bridge's deck without its arches, the lookout's legs without its cab,
+  the cairn without its top stone. Revoked fades to a ghost that stays where it stood: Ana's first
+  job is still there, faint, beside the new one. A new credential of the same kind adds another
+  (two jobs, two cabins).
+- **At night** every live landmark lights the ground round it in cyan; that is when the land looks
+  most like the person's.
+- **Where each one stands** comes from its credential, so it stands in the same spot on every card,
+  every day. Each is placed in view, clear of the pine and the others, never hidden behind them.
+- **Private view only:** the landmarks show only to the worker in their own app ("hewn · private
+  view"). Their public tenure card, if they show one, is the same land, bare: the river, the
+  forest, the range and the pine, nothing about who they work for or what they hold.
+
+### Generated for every name (Joshua, 2026-10-24)
+
+![Eight names, the same sky](art/landmarks-names-2026-10-24.jpg)
+
+Everything about the land comes from the person's `name.hewn`, so it is theirs and always the
+same, and no two names get the same place. Above: eight random names under the same sky and
+season, so only the names differ.
+
+- **What the name decides:** how high, sharp and far off the range is, and whether a second range
+  stands behind it; the foothills; the river's course, width and wander; whether the river comes
+  out of a lake at the foot of the range (about one name in four) or bends out of sight (the
+  rest); how wide each side of the valley opens; how much forest, in groves with open meadow
+  between (a few thousand trees, never a wall of them); the mix of spruce, fir and leafy trees
+  (which turn gold and red in autumn and stand bare of leaves in winter); the boulders.
+- **The river shapes the land** (Joshua): the hills and the range part into a valley along its
+  course, and the water runs the whole way, so a river never climbs a hill or stops dry.
+- **Rules that hold for every name**, found by drawing random names, not by luck:
+  - the range is scaled down until the top third of the card is open sky, so the constellation
+    always has room;
+  - every landmark and the pine are placed in view and apart;
+  - the water shows: grass, trees and banks follow the water line, and the river doesn't thin to
+    nothing in the distance.
+- **The constellation** is the person's, as everywhere: small, in the open sky, faint teal by day,
+  glowing at dusk and night.
+- **The words:** the `name.hewn` and "year N" on the band; the time on Hewn and the credentials
+  below.
 
 ## A live sky (Joshua, 2026-10-24)
 
@@ -103,8 +147,8 @@ minted in the same setup that registers its `name.hewn`.
 Workers get a tenure card too, issued automatically at setup like a business's, bound to their
 `name.hewn` and never sold or traded.
 
-- **The look:** the mountain scene with the cyan pine growing with their time on Hewn, their
-  constellation in the sky, the live sky and the seasons. People look up at the mountains;
+- **The look:** their land, bare of landmarks (above), with the cyan pine growing with their time
+  on Hewn, their constellation in the sky, the live sky and the seasons. People look up at the mountains;
   businesses are the map of the land.
 - **What it shows:** their name and their time on Hewn. Never who they work for, their pay, their
   credentials or their jobs: those stay on their private cards.
@@ -153,8 +197,9 @@ or the hours.
 - **The lit star is the record's.** Which of her stars is lit, brighter with a glint, comes from the
   record: for a credential, its public commitment on Aleo; for a paystub, the paystub document's
   hash, which both sides hold (so the business's copy and hers light the same star).
-- **The rest of the record's fingerprint is the landscape:** the ridgelines, the snow, the forest and
-  where her pine stands all come from the same commitment.
+- **The land is the name's; the landmark's spot is the record's.** The mountains, the river and the
+  forest come from her `name.hewn`, like the constellation. Where a credential's landmark stands
+  comes from its commitment, so the lit star and the landmark's spot together are its fingerprint.
 - **Checking it:** the app redraws a card only from a record it has checked (the right program,
   the right issuer), so a card in the app is genuine by being there. A drawing whose constellation
   isn't the name's, or whose landscape or lit star doesn't match the record, is not one of ours.
@@ -178,9 +223,14 @@ or the hours.
 
 ## Building it
 
-1. **The renderer**, as SVG: deterministic text, testable byte for byte, crisp at any size and in
-   PDFs. A package of its own (`packages/art`), with tests that the same input always draws the
-   same picture and different inputs don't.
+1. **The renderer**, a package of its own (`packages/art`). The business's map and the paystub
+   rings are SVG: deterministic text, testable byte for byte, crisp at any size and in PDFs. A
+   worker's land is a 3D scene (three.js, pinned, loaded only on the pages that show it). Its
+   **scene** is deterministic and tested as data (the same name and records give the same terrain,
+   trees and landmark spots; different names don't); the pixels may differ slightly between
+   graphics chips, so a saved or printed card is rendered once and kept as an image. Drawing takes
+   a few seconds on a phone, so the app draws each card once and redraws it only when the hour or
+   the season moves on.
 2. **Paystub rings** on the person's Paystubs and the business's paystub view, and in the PDF.
    App only: no Leo.
 3. **Credential cards**, which need a credential program: the deployed `credential_nft_v3` and
@@ -194,3 +244,7 @@ or the hours.
 
 1. Time on Hewn: from the name's registration on chain if the registry keeps the height,
    otherwise from the first agreement.
+2. One credential opened on its own: the same land with that landmark brought forward and its
+   star lit, or a closer view of the landmark.
+3. Still rough in the renders: where the hills open round the river some valley sides are bare and
+   smooth, and the morning haze greys the range a little.
