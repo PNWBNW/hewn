@@ -36,3 +36,6 @@ node_modules/
 
 # The static bundle of the app (HEWN_STATIC=1)
 apps/business/out/
+# The art prototypes' generated check page and its output (docs/art/prototype/README.md)
+docs/art/prototype/check.html
+docs/art/prototype/out/

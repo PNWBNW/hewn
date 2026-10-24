@@ -4545,3 +4545,13 @@ payout signed jointly (a two-party version of `Request::sign`, proved with `Proc
 and the business's half time-locked to the unlock date with drand. tlock was checked end to end
 against quicknet (refused early, opened at the round). Trade-offs, a proof-of-concept plan and
 seven questions for reviewers. Docs only.
+
+## 2026-10-24 — The art prototypes saved to the repository
+
+`docs/art/prototype/`: the code behind `docs/HEWN_ART.md`'s renders, which until now lived only in a
+session's scratch folder: `art.html` (the 2D cards: the business's map, the paystub log, credential
+frames, the constellation, the seal, the sky), `land3d.html` (a worker's land in 3D from a
+`name.hewn`, three.js 0.169.0) and `checker/` (the 100-name check). About 3,200 lines formatted. A
+README says how to run each and the rules the app's renderer keeps; `packages/art` starts from
+these. The checker's script now finds its files from any folder; the generated check page and its
+output are ignored by git. Not built or tested by CI. Docs only.

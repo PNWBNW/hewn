@@ -1,0 +1,358 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#e9e4d6;display:flex;flex-wrap:wrap;gap:24px;padding:24px;font-family:Inter,Helvetica,Arial,sans-serif}
+canvas{border-radius:14px;box-shadow:0 6px 24px rgba(9,22,35,.25)}
+</style></head><body>
+<canvas id="a0" width="400" height="600"></canvas>
+<canvas id="a1" width="400" height="600"></canvas>
+<canvas id="a2" width="400" height="600"></canvas>
+<canvas id="a3" width="400" height="600"></canvas>
+<script>
+const C={green:"#113b31",cream:"#f5f0e3",ink:"#091623",gold:"#f8d084",cyan:"#18dccb"};
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function seedOf(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function mix(a,b,t){const p=x=>[1,3,5].map(i=>parseInt(x.slice(i,i+2),16));const A=p(a),B=p(b);return`rgb(${A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(",")})`}
+const SKIES={dawn:["#7fb7c4","#f8d084"],day:["#5aa6c2","#cfe7e6"],dusk:["#2b4a6b","#f3a86b"],night:["#091623","#1c3550"]};
+function ridge(rnd,peaks,w,base,amp){const pts=[];for(let x=0;x<=w;x+=4){let y=0;for(const p of peaks){const d=(x/w-p.x)/p.r;y=Math.max(y,p.h*Math.exp(-d*d))}y+=0.06*Math.sin(x*0.05+peaks[0].x*20)*(rnd()*0.3+0.85);pts.push([x,base-y*amp])}return pts}
+function tree(g,x,y,h,col){g.fillStyle=col;const w=h*0.42;for(let i=0;i<3;i++){const t=y-h*(0.28*i);g.beginPath();g.moveTo(x,t-h*0.45);g.lineTo(x-w*(1-i*0.22)/2,t);g.lineTo(x+w*(1-i*0.22)/2,t);g.closePath();g.fill()}g.fillRect(x-h*0.03,y,h*0.06,h*0.08)}
+function roots(g,rnd,x,y,len,ang,depth){if(depth<=0||len<4)return;const x2=x+Math.cos(ang)*len,y2=y+Math.sin(ang)*len;g.lineWidth=Math.max(0.7,depth*0.7);g.beginPath();g.moveTo(x,y);g.quadraticCurveTo((x+x2)/2+(rnd()-.5)*len*.5,(y+y2)/2,x2,y2);g.stroke();const n=rnd()<0.35?3:2;for(let i=0;i<n;i++)roots(g,rnd,x2,y2,len*(0.62+rnd()*0.2),ang+(rnd()-.5)*1.3,depth-1)}
+
+// The fingerprint: the stars' shape from the record (credential commitment or paystub hash), and
+// one brighter star, the person's own, at the same place in every constellation (from their name).
+// The person's constellation: its whole shape from their name.hewn, so it is the same on every
+// card and paystub of theirs. The record lights one of its stars (from the record's commitment):
+// that is what differs from card to card.
+function constellation(g,recordSeed,name,box,night){
+  const me=mulberry(seedOf("name:"+name)),rec=mulberry(seedOf(recordSeed));
+  const n=6+Math.floor(me()*3),pts=[];let guard=0;
+  while(pts.length<n&&guard++<600){const x=me(),y=me();if(pts.some(([a,b])=>Math.hypot(a-x,(b-y)*0.6)<0.16))continue;pts.push([x,y])}
+  const order=[pts[0]],left=pts.slice(1);while(left.length){const last=order.at(-1);let k=0;left.forEach((p,i)=>{if(Math.hypot(p[0]-last[0],p[1]-last[1])<Math.hypot(left[k][0]-last[0],left[k][1]-last[1]))k=i});order.push(left.splice(k,1)[0])}
+  const P=([x,y])=>[box.x+x*box.w,box.y+y*box.h];
+  g.strokeStyle=night?"rgba(24,220,203,.75)":"rgba(17,120,112,.6)";g.lineWidth=1;g.beginPath();order.map(P).forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.stroke();
+  const lit=Math.floor(rec()*order.length);
+  order.map(P).forEach(([x,y],i)=>{if(i===lit){g.fillStyle=night?"rgba(24,220,203,.28)":"rgba(26,143,133,.22)";g.beginPath();g.arc(x,y,7,0,7);g.fill();g.fillStyle=night?"#bffcf5":C.cyan;g.beginPath();g.arc(x,y,3,0,7);g.fill();g.strokeStyle=night?"#bffcf5":C.cyan;g.beginPath();g.moveTo(x-7,y);g.lineTo(x+7,y);g.moveTo(x,y-7);g.lineTo(x,y+7);g.stroke()}else{g.fillStyle=night?C.cyan:"#1a8f85";g.beginPath();g.arc(x,y,1.9,0,7);g.fill()}});
+}
+
+const KEYS=[[0,"#060f1a","#14273c"],[5,"#0b1a2b","#22395a"],[6.5,"#7fa4c0","#f6c886"],[8.5,"#5aa6c2","#cfe7e6"],[16,"#5aa6c2","#d6ece6"],[18.5,"#3a557a","#f2a46b"],[20,"#0e1e33","#2a4060"],[24,"#060f1a","#14273c"]];
+function skyAt(h){for(let i=0;i<KEYS.length-1;i++){const [a,a1,a2]=KEYS[i],[b,b1,b2]=KEYS[i+1];if(h>=a&&h<=b){const t=(h-a)/(b-a);return [mix(a1,b1,t),mix(a2,b2,t)]}}return [KEYS[0][1],KEYS[0][2]]}
+const toHex=c=>{const m=c.match(/\d+/g).map(Number);return "#"+m.map(v=>v.toString(16).padStart(2,"0")).join("")};
+
+// A business's card: the view from its own hill, down a valley. Its cyan pine stands on the crest and
+// grows with its time on Hewn; its constellation comes from its name. Same live sky and seasons.
+function businessCard(id,o){
+  const cv=document.getElementById(id),g=cv.getContext("2d"),W=400,H=600,rnd=mulberry(seedOf("biz:"+o.name));
+  g.fillStyle=C.cream;g.fillRect(0,0,W,H);g.fillStyle=C.green;g.fillRect(0,0,W,58);g.fillStyle=C.cream;g.font="600 18px Inter";g.fillText(o.name,20,36);
+  g.textAlign="right";g.fillStyle=C.cyan;g.font="500 11px Inter";g.fillText(o.kind.toUpperCase(),W-20,36);g.textAlign="left";
+  const top=58,bottom=480;g.save();g.beginPath();g.rect(14,top+14,W-28,bottom-top-14);g.clip();
+  const h=o.hour,isNight=h<5.8||h>19.6,[s1,s2]=skyAt(h).map(toHex);const horizon=250;
+  const sky=g.createLinearGradient(0,top,0,horizon);sky.addColorStop(0,s1);sky.addColorStop(1,s2);g.fillStyle=sky;g.fillRect(0,top,W,horizon-top+40);
+  let sx,sy;const arc=(t)=>[30+t*(W-60),horizon-10-Math.sin(Math.PI*t)*(horizon-top-60)];
+  if(!isNight){[sx,sy]=arc((h-5.8)/(19.6-5.8));const warm=h<8||h>17.5;g.fillStyle=warm?C.gold:"#fff6d8";g.beginPath();g.arc(sx,sy,warm?26:19,0,7);g.fill()}
+  else{const t=((h<12?h+24:h)-19.6)/(24+5.8-19.6);[sx,sy]=arc(t);const sr=mulberry(11);for(let i=0;i<70;i++){g.fillStyle=`rgba(245,240,227,${0.25+sr()*0.6})`;g.fillRect(sr()*W,top+sr()*(horizon-top-30),1.4,1.4)}
+    g.fillStyle=C.cream;g.beginPath();g.arc(sx,sy,13,0,7);g.fill();g.fillStyle=s1;g.beginPath();g.arc(sx+8,sy-3,12,0,7);g.fill()}
+  const FAR=isNight?"#2c4560":"#8fb3bd";
+  // the far side of the valley: low ranges fading into the distance
+  const sky_=new Array(W+1).fill(horizon);
+  for(let l=0;l<3;l++){const peaks=Array.from({length:2+Math.floor(rnd()*3)},()=>({x:rnd(),r:0.1+rnd()*0.2,h:0.3+rnd()*0.7}));const base=horizon+l*14,amp=70-l*18;const pts=ridge(rnd,peaks,W,base,amp);
+    for(const [x,y] of pts)for(let k=0;k<4&&x+k<=W;k++)sky_[x+k]=Math.min(sky_[x+k],y);
+    g.fillStyle=mix(FAR,isNight?"#1a3040":"#4f7d7a",l/2);g.beginPath();g.moveTo(0,H);for(const [x,y] of pts)g.lineTo(x,y);g.lineTo(W,H);g.fill();
+    if(o.season==="winter"&&l===0){g.save();g.clip();g.fillStyle="rgba(245,240,227,.85)";g.fillRect(0,0,W,Math.min(...pts.map(p=>p[1]))+amp*0.5);g.restore()}}
+  // the valley floor, a river winding away (cream water, never cyan), and fields
+  const floor=horizon+40;const valley={winter:"#d6dcd9",spring:"#3f6f4f",summer:"#2f5d43",autumn:"#7a6a3a"}[o.season];
+  // the floor recedes into haze toward the far side
+  const vg=g.createLinearGradient(0,floor,0,bottom);vg.addColorStop(0,mix(valley,isNight?"#1a3040":"#a9c4c6",0.55));vg.addColorStop(0.5,valley);vg.addColorStop(1,valley);g.fillStyle=vg;g.fillRect(0,floor-2,W,H);
+  const fr=mulberry(seedOf("fields:"+o.name));for(let i=0;i<16;i++){const fy=floor+8+fr()*120,d=(fy-floor)/120;g.fillStyle=`rgba(0,0,0,${0.03+fr()*0.05})`;g.beginPath();g.ellipse(fr()*W,fy,(14+fr()*30)*(0.5+d),(2+fr()*4)*(0.5+d),0,0,7);g.fill()}
+  // the river: a thread at the far side, widening as it winds toward the hill (water, never cyan)
+  const water=isNight?"#3a5570":mix(s2,"#9fc3cf",0.5);let rx=W*(0.3+rnd()*0.4),ry=floor+2;const side=[];
+  for(let i=0;i<=16;i++){const t=i/16;rx+=Math.sin(i*0.9+rnd()*0.6)*14*(0.4+t*1.6);ry=floor+2+t*t*170;side.push([rx,ry,0.8+t*t*18])}
+  g.fillStyle=water;g.beginPath();side.forEach(([x,y,w],i)=>i?g.lineTo(x-w,y):g.moveTo(x-w,y));side.slice().reverse().forEach(([x,y,w])=>g.lineTo(x+w,y));g.closePath();g.fill();
+  g.strokeStyle="rgba(245,240,227,.35)";g.lineWidth=1;g.beginPath();side.forEach(([x,y,w],i)=>i?g.lineTo(x-w*0.3,y):g.moveTo(x-w*0.3,y));g.stroke();
+  // trees scattered down the valley
+  for(let i=0;i<26;i++){const tx=rnd()*W,ty=floor+rnd()*150,th=6+((ty-floor)/150)*18;tree(g,tx,ty,th,o.season==="autumn"&&rnd()<0.3?"#c9922f":mix("#1f4a3f","#0e3329",rnd()))}
+  // the business's own hill in front, with its pine on the crest
+  const crestX=W*(0.25+rnd()*0.5),crestY=bottom-78;g.fillStyle={winter:"#e6eae8",spring:"#163f31",summer:"#123528",autumn:"#3a3a22"}[o.season];
+  g.beginPath();g.moveTo(-10,bottom);g.quadraticCurveTo(crestX*0.5,crestY+30,crestX,crestY);g.quadraticCurveTo(crestX+(W-crestX)*0.5,crestY+20,W+10,bottom-10);g.lineTo(W+10,bottom+10);g.lineTo(-10,bottom+10);g.fill();
+  if(o.season==="spring"){const fl=mulberry(seedOf("hill:"+o.name));for(let i=0;i<30;i++){g.fillStyle=["#f5f0e3","#f8d084","#c9a0dc"][Math.floor(fl()*3)];g.beginPath();g.arc(fl()*W,bottom-6-fl()*40,1.5,0,7);g.fill()}}
+  tree(g,crestX,crestY+4,60+o.tenure*12,C.cyan);
+  // its constellation, in the sky only
+  const night=isNight||h<8||h>17.5;const fits=(bx,by,bw,bh)=>{for(let x2=bx;x2<=bx+bw;x2+=4)if(by+bh>sky_[x2]-20)return false;return Math.hypot(Math.max(bx,Math.min(sx,bx+bw))-sx,Math.max(by,Math.min(sy,by+bh))-sy)>34};
+  let spot=null;for(const sc of [1,0.8,0.62])for(const by of [top+22,top+34])for(const f of [0,0.25,0.5,0.75,1]){const bw=140*sc,bh=70*sc,bx=Math.round(40+f*(W-80-bw));if(!spot&&fits(bx,by,bw,bh))spot={x:bx,y:by,w:bw,h:bh}}
+  if(spot)constellation(g,"biz-card:"+o.name,o.name,spot,night);
+  g.restore();g.strokeStyle=C.green;g.lineWidth=2;g.strokeRect(14,top+14,W-28,bottom-top-14);
+  g.fillStyle=C.ink;g.font="600 16px Inter";g.fillText(o.title,20,515);g.font="13px Inter";g.fillStyle="#43514c";g.fillText(o.line,20,538);
+  g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText(o.fp,20,575);g.textAlign="right";g.fillStyle=C.green;g.font="600 11px Inter";g.fillText("hewn · on Aleo since 2026",W-20,575);g.textAlign="left";
+}
+
+// A business's card: its land as a topographic map (Joshua's original idea, in Hewn's colours), the
+// cross-section below. The terrain comes from its name; its cyan pine marks the summit and grows with
+// its time on Hewn; its constellation sits in the map's corner. Live: the hillshade is lit from the
+// real sun; at night the map turns to dark paper with cream lines. Seasons tint the land.
+function topoCard(id,o){
+  const cv=document.getElementById(id),g=cv.getContext("2d"),W=400,H=600,rnd=mulberry(seedOf("topo:"+o.name));
+  const h=o.hour,night=h<5.8||h>19.6;
+  const paper=night?"#0e1b2a":C.cream,ink=night?"#e9e2cf":C.green;
+  g.fillStyle=C.cream;g.fillRect(0,0,W,H);g.fillStyle=C.green;g.fillRect(0,0,W,58);g.fillStyle=C.cream;g.font="600 18px Inter";g.fillText(o.name,20,36);
+  g.textAlign="right";g.fillStyle=C.cyan;g.font="500 11px Inter";g.fillText("BUSINESS",W-20,36);g.textAlign="left";
+  const MX=14,MY=72,MW=W-28,MH=290;g.fillStyle=paper;g.fillRect(MX,MY,MW,MH);
+  // heightmap: a few peaks plus soft noise
+  const GW=96,GH=70,peaks=Array.from({length:2+Math.floor(rnd()*3)},()=>({x:0.15+rnd()*0.7,y:0.15+rnd()*0.7,h:0.5+rnd()*0.5,r:0.12+rnd()*0.18}));
+  const nz=Array.from({length:6},()=>[rnd()*6.28,1+rnd()*3,1+rnd()*3,rnd()*0.06]);
+  const hm=[];let top=0,topAt=[0,0];
+  for(let j=0;j<=GH;j++){hm[j]=[];for(let i=0;i<=GW;i++){const u=i/GW,v=j/GH;let z=0;for(const p of peaks){const d=Math.hypot((u-p.x)/p.r,(v-p.y)/p.r);z+=p.h*Math.exp(-d*d)}
+    for(const [ph,fx,fy,a] of nz)z+=a*Math.sin(u*fx*6+ph)*Math.cos(v*fy*6-ph);hm[j][i]=z;if(z>top){top=z;topAt=[i,j]}}}
+  const X=i=>MX+i/GW*MW,Y=j=>MY+j/GH*MH;
+  // seasonal tint by elevation and the hillshade lit from where the sun really is, painted small then
+  // scaled up smooth, so no grid shows
+  const lay=document.createElement("canvas");lay.width=GW;lay.height=GH;const lg=lay.getContext("2d"),img=lg.createImageData(GW,GH);
+  const low={spring:[90,150,95,40],summer:[45,115,75,55],autumn:[200,150,70,55],winter:[120,150,170,30]}[o.season],high={spring:[245,240,227,0],summer:[140,160,90,30],autumn:[160,110,55,35],winter:[255,255,255,190]}[o.season];
+  const az=Math.PI*(1-(h-5.8)/(19.6-5.8)),lx=Math.cos(az),ly=-0.6;
+  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const z=hm[j][i]/top,t=Math.max(0,Math.min(1,(z-0.45)/0.25));let c=low.map((v,k)=>v+(high[k]-v)*t);
+    if(!night&&i&&j){const sh=((hm[j][i]-hm[j][i-1])*lx+(hm[j][i]-hm[j-1][i])*ly)*14;if(sh>0){const k=Math.min(0.5,sh);c=[c[0]*(1-k)+17*k,c[1]*(1-k)+59*k,c[2]*(1-k)+49*k,Math.max(c[3],k*120)]}}
+    const q=(j*GW+i)*4;img.data[q]=c[0];img.data[q+1]=c[1];img.data[q+2]=c[2];img.data[q+3]=night&&o.season!=="winter"?c[3]*0.4:c[3]}
+  lg.putImageData(img,0,0);g.imageSmoothingEnabled=true;g.imageSmoothingQuality="high";g.drawImage(lay,MX,MY,MW,MH);
+  // contours by marching squares; every fifth one heavier
+  const levels=12;for(let k=1;k<levels;k++){const t=top*k/levels;g.strokeStyle=ink;g.globalAlpha=k%4===0?0.9:0.5;g.lineWidth=k%4===0?1.4:0.8;g.beginPath();
+    for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const a=hm[j][i],b=hm[j][i+1],c=hm[j+1][i+1],d=hm[j+1][i];const e=(p,q,x1,y1,x2,y2)=>{const f=(t-p)/(q-p);return[x1+(x2-x1)*f,y1+(y2-y1)*f]};
+      const pts=[];if((a<t)!==(b<t))pts.push(e(a,b,X(i),Y(j),X(i+1),Y(j)));if((b<t)!==(c<t))pts.push(e(b,c,X(i+1),Y(j),X(i+1),Y(j+1)));if((c<t)!==(d<t))pts.push(e(c,d,X(i+1),Y(j+1),X(i),Y(j+1)));if((d<t)!==(a<t))pts.push(e(d,a,X(i),Y(j+1),X(i),Y(j)));
+      for(let q=0;q+1<pts.length;q+=2){g.moveTo(...pts[q]);g.lineTo(...pts[q+1])}}g.stroke()}
+  g.globalAlpha=1;
+  if(o.mark==="contour"){const t=top*Math.min(0.9,0.12+o.tenure*0.1);g.strokeStyle=C.cyan;g.lineWidth=2.4;g.beginPath();
+    for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const a=hm[j][i],b=hm[j][i+1],c=hm[j+1][i+1],d=hm[j+1][i];const e=(p,q,x1,y1,x2,y2)=>{const f=(t-p)/(q-p);return[x1+(x2-x1)*f,y1+(y2-y1)*f]};
+      const pts=[];if((a<t)!==(b<t))pts.push(e(a,b,X(i),Y(j),X(i+1),Y(j)));if((b<t)!==(c<t))pts.push(e(b,c,X(i+1),Y(j),X(i+1),Y(j+1)));if((c<t)!==(d<t))pts.push(e(c,d,X(i+1),Y(j+1),X(i),Y(j+1)));if((d<t)!==(a<t))pts.push(e(d,a,X(i),Y(j+1),X(i),Y(j)));
+      for(let q=0;q+1<pts.length;q+=2){g.moveTo(...pts[q]);g.lineTo(...pts[q+1])}}g.stroke()}
+  if(o.mark==="trail"){ // from the valley edge toward the summit, one waypoint per year
+    const [ti2,tj2]=topAt;let x=X(Math.round(GW*0.08)),y=Y(Math.round(GH*0.9));const ex=X(ti2),ey=Y(tj2);const steps=8;g.strokeStyle=C.cyan;g.lineWidth=2;g.setLineDash([5,4]);g.beginPath();g.moveTo(x,y);
+    const wp=[];for(let k=1;k<=steps;k++){const t=k/steps,nx=x+(ex-x)*t+Math.sin(k*1.7)*18*(1-t),ny=y+(ey-y)*t+Math.cos(k*1.3)*14*(1-t);if(k<=o.tenure)wp.push([nx,ny]);if(k<=o.tenure)g.lineTo(nx,ny)}g.stroke();g.setLineDash([]);
+    g.fillStyle=C.cyan;for(const [wx,wy] of wp){g.beginPath();g.arc(wx,wy,3,0,7);g.fill()}
+    g.strokeStyle=ink;g.lineWidth=1;g.beginPath();g.moveTo(ex-6,ey+5);g.lineTo(ex,ey-6);g.lineTo(ex+6,ey+5);g.closePath();g.stroke();}
+  // a grid, a north arrow and a scale, as on a survey map
+  g.strokeStyle=night?"rgba(233,226,207,.12)":"rgba(17,59,49,.10)";g.lineWidth=0.6;for(let x=MX;x<=MX+MW;x+=MW/6){g.beginPath();g.moveTo(x,MY);g.lineTo(x,MY+MH);g.stroke()}for(let y=MY;y<=MY+MH;y+=MH/5){g.beginPath();g.moveTo(MX,y);g.lineTo(MX+MW,y);g.stroke()}
+  g.fillStyle=ink;g.font="600 10px Inter";g.fillText("N",MX+12,MY+MH-30);g.beginPath();g.moveTo(MX+15,MY+MH-44);g.lineTo(MX+11,MY+MH-34);g.lineTo(MX+19,MY+MH-34);g.fill();
+  g.fillRect(MX+30,MY+MH-14,40,2);g.font="9px ui-monospace,Menlo";g.fillText("1 km",MX+74,MY+MH-10);
+  // the summit: the business's cyan pine, larger with each year on Hewn
+  const [ti,tj]=topAt;g.font="9px ui-monospace,Menlo,monospace";g.fillStyle=ink;g.fillText(`${Math.round(1200+top*800)} m`,X(ti)+12,Y(tj)+8);
+  // its constellation in the corner, from its name
+  constellation(g,"topo-card:"+o.name,o.name,{x:MX+MW-128,y:MY+12,w:112,h:56},night);
+  g.strokeStyle=C.green;g.lineWidth=2;g.strokeRect(MX,MY,MW,MH);
+  // the cross-section through the summit, hatched, the pine standing on it
+  const PY=372,PH=100;g.fillStyle=C.cream;g.fillRect(MX,PY,MW,PH);const row=hm[tj];const py=i=>PY+PH-8-(row[i]/top)*(PH-26);
+  g.fillStyle="rgba(17,59,49,.12)";g.beginPath();g.moveTo(X(0),PY+PH);for(let i=0;i<=GW;i++)g.lineTo(X(i),py(i));g.lineTo(X(GW),PY+PH);g.fill();
+  g.strokeStyle="rgba(17,59,49,.35)";g.lineWidth=0.7;for(let i=0;i<=GW;i+=2){g.beginPath();g.moveTo(X(i),py(i));g.lineTo(X(i),PY+PH);g.stroke()}
+  g.strokeStyle=C.green;g.lineWidth=1.6;g.beginPath();for(let i=0;i<=GW;i++)i?g.lineTo(X(i),py(i)):g.moveTo(X(i),py(i));g.stroke();
+  if(o.mark==="contour"){const lvl=Math.min(0.9,0.12+o.tenure*0.1);const yy=PY+PH-8-lvl*(PH-26);g.strokeStyle=C.cyan;g.lineWidth=2;g.beginPath();let on=false;for(let i=0;i<=GW;i++){if(row[i]/top>=lvl){if(!on){g.moveTo(X(i),yy);on=true}else g.lineTo(X(i),yy)}else on=false}g.stroke();
+    g.fillStyle=C.cyan;g.font="600 9px Inter";g.fillText(`${o.tenure} yr`,X(GW)-40,yy-4);}
+  g.strokeStyle=C.green;g.lineWidth=1;g.strokeRect(MX,PY,MW,PH);
+  g.fillStyle=C.ink;g.font="600 16px Inter";g.fillText(o.title,20,505);g.font="13px Inter";g.fillStyle="#43514c";g.fillText(o.line,20,528);
+  g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText(o.when,20,575);g.textAlign="right";g.fillStyle=C.green;g.font="600 11px Inter";g.fillText("hewn · on Aleo",W-20,575);g.textAlign="left";
+}
+
+// The paystub card. Face: the log for the year so far, this paycheck's ring cyan, her constellation
+// in the corner, and only what's safe to show. Back (Ana alone, in the app): the paystub itself.
+function log(g,cx,cy,R,seed,n,of,opts={}){
+  const rnd=mulberry(seedOf(seed));
+  g.fillStyle="#3b2a1e";g.beginPath();for(let a=0;a<=6.3;a+=0.05){const r=R+8+Math.sin(a*7+rnd())*3+rnd()*2;g.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r)}g.fill();
+  const wood=g.createRadialGradient(cx,cy,4,cx,cy,R);wood.addColorStop(0,"#b9773f");wood.addColorStop(0.5,"#e2b47a");wood.addColorStop(1,"#f1d3a0");g.fillStyle=wood;g.beginPath();g.arc(cx,cy,R,0,7);g.fill();
+  const widths=Array.from({length:of},()=>0.6+rnd()*0.8);const sum=widths.reduce((a,b)=>a+b);let r=8;const wob=[rnd()*6.28,rnd()*6.28];
+  for(let i=0;i<of;i++){r+=widths[i]/sum*(R-12);const cur=!opts.whole&&i===n-1,done=i<n;
+    g.beginPath();for(let a=0;a<=6.3;a+=0.04){const rr=r+1.4*Math.sin(a*3+wob[0])+1*Math.sin(a*5+wob[1]);g.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr)}g.closePath();
+    if(opts.reversed===i+1)g.setLineDash([3,3]);g.strokeStyle=cur?C.cyan:done?"rgba(92,54,28,.75)":"rgba(92,54,28,.16)";g.lineWidth=cur?3:done?1.2:0.7;g.stroke();g.setLineDash([])}
+}
+function stubFront(id,o){
+  const cv=document.getElementById(id),g=cv.getContext("2d"),W=400,H=600;g.fillStyle=C.cream;g.fillRect(0,0,W,H);
+  g.fillStyle=C.green;g.fillRect(0,0,W,58);g.fillStyle=C.cream;g.font="600 18px Inter";g.fillText(o.name,20,36);g.textAlign="right";g.fillStyle=C.cyan;g.font="500 11px Inter";g.fillText(o.whole?"YEAR":"PAYSTUB",W-20,36);g.textAlign="left";
+  constellation(g,o.seed,o.name,{x:W-150,y:72,w:130,h:58},false);
+  log(g,W/2,300,132,o.logSeed,o.n,o.of,{whole:o.whole,reversed:o.reversed});
+  g.fillStyle=C.ink;g.font="600 16px Inter";g.fillText(o.title,20,470);g.font="13px Inter";g.fillStyle="#43514c";g.fillText(o.l1,20,494);g.fillText(o.l2,20,516);
+  g.fillStyle=C.green;g.font="600 12px Inter";g.fillText("✓ "+o.check,20,546);
+  g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText(o.fp,20,575);g.textAlign="right";g.fillStyle=C.green;g.font="600 11px Inter";g.fillText("hewn · sealed on Aleo",W-20,575);g.textAlign="left";
+}
+function stubBack(id,o){
+  const cv=document.getElementById(id),g=cv.getContext("2d"),W=400,H=600;g.fillStyle=C.cream;g.fillRect(0,0,W,H);
+  g.fillStyle=C.green;g.fillRect(0,0,W,58);g.fillStyle=C.cream;g.font="600 18px Inter";g.fillText("Only you can see this side",20,36);
+  constellation(g,o.seed,o.name,{x:W-110,y:70,w:90,h:40},false);
+  let y=96;const row=(a,b,bold,col)=>{g.font=(bold?"600 ":"")+"13px Inter";g.fillStyle=col||C.ink;g.fillText(a,24,y);g.textAlign="right";g.fillText(b,W-24,y);g.textAlign="left";y+=22};
+  const rule=()=>{g.strokeStyle="rgba(17,59,49,.2)";g.beginPath();g.moveTo(24,y-14);g.lineTo(W-24,y-14);g.stroke();y+=6};
+  g.font="12px Inter";g.fillStyle="#43514c";g.fillText("Dayco Builders · Oct 5 – Oct 18, 2026 · paid Oct 23",24,y);y+=30;
+  row("Regular · 80h × $28.00","$2,240.00");row("Overtime · 6h × $42.00","$252.00");row("Callout · 3h minimum","$126.00");row("On call · 2 days","$80.00");rule();
+  row("Gross","$2,698.00",true);y+=4;row("Federal income tax","−$268.40");row("Social Security","−$167.28");row("Medicare","−$39.12");rule();
+  row("Net, paid in USDCx","$2,223.20",true,C.green);y+=10;g.font="12px Inter";g.fillStyle="#43514c";g.fillText("Year to date: gross $46,120.00 · net $38,004.55",24,y);y+=30;
+  g.fillStyle="rgba(24,220,203,.12)";g.fillRect(20,y-16,W-40,74);g.fillStyle=C.ink;g.font="600 12px Inter";g.fillText("Proof, without showing any of this:",30,y+2);
+  g.font="12px Inter";g.fillStyle="#43514c";g.fillText("· Issued by dayco.hewn, your employer on Hewn",30,y+22);g.fillText("· Paid: the net arrived in your Shield wallet",30,y+40);g.fillText("· Share a proof of income instead of the stub",30,y+58);
+  g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText("0x5c01de9b…a2",24,575);g.textAlign="right";g.fillStyle=C.green;g.font="600 11px Inter";g.fillText("Flip back",W-24,575);g.textAlign="left";
+}
+
+function credFrame(g,o,kind){const W=400;g.fillStyle=C.cream;g.fillRect(0,0,W,600);g.fillStyle=C.green;g.fillRect(0,0,W,58);g.fillStyle=C.cream;g.font="600 18px Inter";g.fillText(o.name,20,36);g.textAlign="right";g.fillStyle=C.cyan;g.font="500 11px Inter";g.fillText(kind,W-20,36);g.textAlign="left";}
+function credFoot(g,o){const W=400;g.fillStyle=C.ink;g.font="600 16px Inter";g.fillText(o.title,20,505);g.font="13px Inter";g.fillStyle="#43514c";g.fillText(o.line,20,528);g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText(o.fp,20,575);g.textAlign="right";g.fillStyle=C.green;g.font="600 11px Inter";g.fillText("hewn · private",W-20,575);g.textAlign="left";}
+// 1. Guilloche seal: layered rosettes (hypotrochoids) from the credential, a cyan heart, a lettered ring
+function seal(id,o){const cv=document.getElementById(id),g=cv.getContext("2d"),rnd=mulberry(seedOf(o.seed));credFrame(g,o,"CERTIFICATION");
+  const cx=200,cy=270,R=150;g.save();g.translate(cx,cy);
+  const ring=(Rout,Rin,petals,turns,col,lw,alpha)=>{g.strokeStyle=col;g.lineWidth=lw;g.globalAlpha=alpha;g.beginPath();const steps=2400;for(let k=0;k<=steps;k++){const t=k/steps*Math.PI*2*turns;const r=Rin+(Rout-Rin)*(0.5+0.5*Math.cos(petals*t/turns));const a=t+0.18*Math.sin(t*petals*0.5);const x=r*Math.cos(a),y=r*Math.sin(a);k?g.lineTo(x,y):g.moveTo(x,y)}g.stroke();g.globalAlpha=1};
+  const p1=12+Math.floor(rnd()*14),p2=18+Math.floor(rnd()*20),p3=8+Math.floor(rnd()*10);
+  for(let i=0;i<5;i++)ring(R-i*2.5,R-26-i*2,p2,7+i,C.green,0.6,0.55);
+  for(let i=0;i<6;i++)ring(R-34-i*2,R-78+i*1.5,p1,9+i,C.green,0.6,0.45);
+  for(let i=0;i<4;i++)ring(R-86-i*2,R-112,p3,5+i,"#1f6b5c",0.7,0.6);
+  // lettered band
+  g.font="600 9.5px Inter";g.fillStyle=C.green;const txt=(" CERTIFIED · "+o.title.toUpperCase()+" · "+o.issuer.toUpperCase()+" ·").repeat(2);const rr=R+12;for(let i=0;i<txt.length;i++){const a=-Math.PI/2+i/txt.length*Math.PI*2;g.save();g.rotate(a);g.translate(rr,0);g.rotate(Math.PI/2);g.fillText(txt[i],-3,0);g.restore()}
+  g.strokeStyle=C.green;g.lineWidth=1.2;g.beginPath();g.arc(0,0,R+4,0,7);g.stroke();g.beginPath();g.arc(0,0,R+22,0,7);g.stroke();
+  // cyan heart: a small rosette
+  ring(30,8,6+Math.floor(rnd()*5),4,C.cyan,1.4,1);g.fillStyle=C.cream;g.beginPath();g.arc(0,0,6,0,7);g.fill();g.fillStyle=C.cyan;g.beginPath();g.arc(0,0,3,0,7);g.fill();
+  g.restore();constellation(g,o.seed,o.name,{x:262,y:68,w:118,h:46},false);credFoot(g,o);}
+// 2. Hewn joinery: two timbers in a dovetail, adze marks, a cyan butterfly key across the seam
+function joinery(id,o){const cv=document.getElementById(id),g=cv.getContext("2d"),rnd=mulberry(seedOf(o.seed));credFrame(g,o,"CERTIFICATION");
+  const x0=40,y0=130,w=320,h=300,mid=x0+w*0.5;const tails=2+Math.floor(rnd()*3),slope=0.18+rnd()*0.12;
+  const woodA=g.createLinearGradient(x0,0,x0+w,0);woodA.addColorStop(0,"#c48a52");woodA.addColorStop(1,"#d9a76c");const woodB=g.createLinearGradient(0,y0,0,y0+h);woodB.addColorStop(0,"#e3b984");woodB.addColorStop(1,"#cf9a5e");
+  // the seam: a dovetail line down the middle
+  const seam=[];const seg=h/(tails*2);for(let i=0;i<=tails*2;i++){const y=y0+i*seg;const out=i%2?18:-18;seam.push([mid+out-(i%2?slope*seg:0),y])}
+  const path=()=>{g.moveTo(seam[0][0],seam[0][1]);for(let i=1;i<seam.length;i++){const [x,y]=seam[i],[px,py]=seam[i-1];g.lineTo(px+(x-px)*0.0,y-seg*0.15);g.lineTo(x,y-seg*0.15);g.lineTo(x,y)}};
+  g.fillStyle=woodA;g.beginPath();g.moveTo(x0,y0);g.lineTo(seam[0][0],y0);path();g.lineTo(x0,y0+h);g.closePath();g.fill();
+  g.fillStyle=woodB;g.beginPath();g.moveTo(x0+w,y0);g.lineTo(seam[0][0],y0);path();g.lineTo(x0+w,y0+h);g.closePath();g.fill();
+  // grain: left runs across, right runs down; adze scallops along the top
+  g.strokeStyle="rgba(92,54,28,.35)";g.lineWidth=0.8;for(let i=0;i<22;i++){const y=y0+8+i*13+rnd()*4;g.beginPath();g.moveTo(x0,y);for(let x=x0;x<mid-20;x+=10)g.lineTo(x,y+Math.sin(x*0.05+i)*2);g.stroke()}
+  for(let i=0;i<12;i++){const x=mid+30+i*11+rnd()*4;g.beginPath();g.moveTo(x,y0);for(let y=y0;y<y0+h;y+=10)g.lineTo(x+Math.sin(y*0.04+i)*2,y);g.stroke()}
+  g.strokeStyle="rgba(92,54,28,.45)";for(let i=0;i<14;i++){const ax=x0+8+i*22+rnd()*6,ay=y0+20+rnd()*(h-40);g.beginPath();g.arc(ax,ay,8+rnd()*6,Math.PI*1.1,Math.PI*1.9);g.stroke()}
+  g.strokeStyle="#5c361c";g.lineWidth=1.6;g.beginPath();g.moveTo(seam[0][0],y0);path();g.stroke();g.strokeRect(x0,y0,w,h);
+  // the cyan butterfly key, inlaid across the seam
+  const ky=y0+h*(0.3+rnd()*0.4),kx=mid;g.fillStyle=C.cyan;g.strokeStyle="#0e6f66";g.lineWidth=1.2;g.beginPath();g.moveTo(kx-46,ky-22);g.lineTo(kx-8,ky-8);g.lineTo(kx+8,ky-8);g.lineTo(kx+46,ky-22);g.lineTo(kx+46,ky+22);g.lineTo(kx+8,ky+8);g.lineTo(kx-8,ky+8);g.lineTo(kx-46,ky+22);g.closePath();g.fill();g.stroke();
+  constellation(g,o.seed,o.name,{x:262,y:66,w:118,h:50},false);credFoot(g,o);}
+// 3. A cairn: trail stones stacked, the top one cyan, on a ridge under the live sky
+function cairn(id,o){const cv=document.getElementById(id),g=cv.getContext("2d"),rnd=mulberry(seedOf(o.seed));credFrame(g,o,"CERTIFICATION");
+  const top=72,ground=380,W=400;const [s1,s2]=skyAt(o.hour).map(toHex);const sky=g.createLinearGradient(0,top,0,ground);sky.addColorStop(0,s1);sky.addColorStop(1,s2);g.fillStyle=sky;g.fillRect(14,top,W-28,ground-top);
+  g.fillStyle="#5f8a91";g.beginPath();g.moveTo(14,ground-60);for(let x=14;x<=W-14;x+=6)g.lineTo(x,ground-60-30*Math.exp(-(((x-280)/70)**2))-10*Math.sin(x*0.03));g.lineTo(W-14,ground);g.lineTo(14,ground);g.fill();
+  g.fillStyle="#1f4a3f";g.beginPath();g.moveTo(14,ground);g.quadraticCurveTo(200,ground-50,W-14,ground-8);g.lineTo(W-14,480);g.lineTo(14,480);g.fill();
+  let y=ground-26,n=4+Math.floor(rnd()*3);for(let i=0;i<n;i++){const w=70-i*9+rnd()*10,hh=20-i*1.5+rnd()*4,x=200+(rnd()-.5)*10;g.fillStyle=i===n-1?C.cyan:mix("#8c8577","#5b5a52",rnd());g.beginPath();g.ellipse(x,y,w/2,hh/2,(rnd()-.5)*0.15,0,7);g.fill();g.strokeStyle="rgba(0,0,0,.25)";g.lineWidth=1;g.stroke();y-=hh*0.85}
+  g.strokeStyle=C.green;g.lineWidth=2;g.strokeRect(14,top,W-28,480-top);constellation(g,o.seed,o.name,{x:250,y:86,w:118,h:46},o.hour>19||o.hour<6);credFoot(g,o);}
+
+// Generative joinery: the credential's hash picks the joint, its proportions and the woods. Drawn in
+// isometric from boxes; cyan only for the inlaid piece (peg, wedge, key).
+const WOODS={"Western red cedar":["#b8693d","#9a5531","#d08a5c"],"Douglas fir":["#d9a46c","#bf8a52","#ebc08f"],"Bigleaf maple":["#e6cfa2","#d2b886","#f3e3c0"],"Red alder":["#c98a5a","#b07447","#dda27a"],"Black walnut":["#5e3f2c","#4a3122","#7a5640"]};
+function isoBox(g,P,b,col,mark){const [x0,x1,y0,y1,z0,z1]=b;const pts=(arr)=>arr.map(([x,y,z])=>P(x,y,z));
+  const face=(arr,c)=>{const q=pts(arr);g.fillStyle=c;g.beginPath();q.forEach(([a,bb],i)=>i?g.lineTo(a,bb):g.moveTo(a,bb));g.closePath();g.fill();g.strokeStyle="rgba(40,22,10,.55)";g.lineWidth=0.8;g.stroke();return q};
+  const top=face([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],col[2]);
+  face([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]],col[0]);
+  face([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],col[1]);
+  if(mark){g.strokeStyle="rgba(60,30,12,.28)";g.lineWidth=0.6;const n=Math.max(2,Math.round((mark.along==="x"?x1-x0:y1-y0)/0.25));for(let k=1;k<6;k++){const t=k/6;const a=mark.along==="x"?P(x0,y0+(y1-y0)*t,z1):P(x0+(x1-x0)*t,y0,z1),bb=mark.along==="x"?P(x1,y0+(y1-y0)*t,z1):P(x0+(x1-x0)*t,y1,z1);g.beginPath();g.moveTo(...a);g.lineTo(...bb);g.stroke()}}}
+function joinery2(id,o){const cv=document.getElementById(id),g=cv.getContext("2d"),rnd=mulberry(seedOf(o.seed));credFrame(g,o,"CERTIFICATION");
+  const names=Object.keys(WOODS);const wa=names[Math.floor(rnd()*names.length)];let wb=names[Math.floor(rnd()*names.length)];if(wb===wa)wb=names[(names.indexOf(wa)+2)%names.length];const A=WOODS[wa],B=WOODS[wb];
+  const kinds=["Box joint","Through dovetail","Pegged mortise and tenon","Keyed scarf","Pegged cross-lap"];const kind=o.kind||kinds[Math.floor(rnd()*kinds.length)];
+  const S0=46,cx=200,cy=300,c=Math.cos(Math.PI/6),sn=Math.sin(Math.PI/6);const P=(x,y,z)=>[cx+(x-y)*c*S0,cy+(x+y)*sn*S0-z*S0];
+  const boxes=[];const add=(b,col,mark,cyan)=>boxes.push({b,col,mark,cyan});const CY=["#13b3a5","#0e8f84","#18dccb"];
+  if(kind==="Box joint"||kind==="Through dovetail"){const T=0.9,L=3.4,H=2.2,n=3+Math.floor(rnd()*4);const band=H/n;
+    add([T,L,0,T,0,H],A,{along:"y"});add([0,T,T,L,0,H],B,{along:"x"});
+    for(let k=0;k<n;k++){const z0=k*band,z1=(k+1)*band;const dv=kind==="Through dovetail"?(k%2?0.12:-0.12):0;add([0,T,0,T,z0+(k%2?dv:0),z1+(k%2?-dv:0)],k%2?B:A,null)}
+    if(rnd()<0.6){add([0.3,0.6,0.3,0.6,H,H+0.08],CY,null,true)}else{add([-0.06,0.02,0.2,0.7,H*0.35,H*0.65],CY,null,true)}}
+  else if(kind==="Pegged mortise and tenon"){const T=0.9,H=3.2;add([0,T,0,T,0,H],A,{along:"x"});const z0=0.9+rnd()*0.8,th=0.7+rnd()*0.3;add([T,3.4,0.15,T-0.15,z0,z0+th],B,{along:"y"});
+    const pegs=1+Math.floor(rnd()*2);for(let k=0;k<pegs;k++){const pz=z0+th*(k+1)/(pegs+1);add([T*0.35,T*0.65,T,T+0.05,pz-0.08,pz+0.08],CY,null,true)}}
+  else if(kind==="Keyed scarf"){const T=0.9,L=2.1,steps=2+Math.floor(rnd()*2);add([0,T,0,L,0,0.9],A,{along:"x"});add([0,T,L,L*2,0,0.9],B,{along:"x"});
+    for(let k=0;k<steps;k++){const y0=L-0.7+k*0.45;add([0,T,y0,y0+0.25,0.9,0.98],k%2?A:B,null)}add([-0.04,T+0.04,L-0.12,L+0.12,0.25,0.65],CY,null,true)}
+  else{const T=0.8,L=3.6;add([0,L,L/2-T/2,L/2+T/2,0,T*0.5],A,{along:"y"});add([L/2-T/2,L/2+T/2,0,L,T*0.5,T],B,{along:"x"});add([L/2-0.12,L/2+0.12,L/2-0.12,L/2+0.12,T,T+0.06],CY,null,true)}
+  // centre the drawing: shift so the boxes sit in the card
+  const all=boxes.flatMap(({b})=>[P(b[0],b[2],b[4]),P(b[1],b[3],b[5]),P(b[1],b[2],b[4]),P(b[0],b[3],b[5]),P(b[0],b[2],b[5]),P(b[1],b[3],b[4])]);
+  const minx=Math.min(...all.map(p=>p[0])),maxx=Math.max(...all.map(p=>p[0])),miny=Math.min(...all.map(p=>p[1])),maxy=Math.max(...all.map(p=>p[1]));
+  g.save();g.translate(200-(minx+maxx)/2,290-(miny+maxy)/2);
+  boxes.sort((u,v)=>(u.b[0]+u.b[2]+u.b[4])-(v.b[0]+v.b[2]+v.b[4]));for(const {b,col,mark} of boxes)isoBox(g,P,b,col,mark);g.restore();
+  g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText(`${kind} · ${wa} and ${wb}`,20,470);
+  constellation(g,o.seed,o.name,{x:262,y:68,w:118,h:46},false);credFoot(g,o);}
+
+// Landmarks: each credential adds one to the person's own scene. Its spot and shape come from the
+// credential; its kind from the credential's type; active ones are lit cyan, pending ones are a bare
+// timber frame, revoked ones fade.
+function landmarks(g,o,ground,bottom){
+  const W=400,near=window._near||[];
+  // a river across the meadow, for the bridges
+  const rr=mulberry(seedOf("river:"+o.name));let rx=60+rr()*80;const river=[];for(let y=ground;y<=bottom;y+=6){rx+=Math.sin(y*0.05)*3+(rr()-.5)*2;river.push([rx+ (y-ground)*0.9,y,4+(y-ground)*0.12])}
+  g.fillStyle=o.time==="night"?"#2a4560":"#8fb6c2";g.beginPath();river.forEach(([x,y,w],i)=>i?g.lineTo(x-w,y):g.moveTo(x-w,y));river.slice().reverse().forEach(([x,y,w])=>g.lineTo(x+w,y));g.fill();
+  const lit=(st)=>st==="active"?C.cyan:st==="pending"?"rgba(0,0,0,0)":"rgba(160,170,170,.4)";
+  const wood=(st)=>st==="revoked"?"rgba(120,110,95,.35)":"#5b3d26";const roof=(st)=>st==="revoked"?"rgba(60,60,55,.3)":"#2c1f16";
+  for(const c of o.landmarks){const r=mulberry(seedOf(c.seed)),st=c.status;
+    if(c.type==="employment"){const x=150+r()*200,y=ground+40+r()*40,w=34+r()*14,h=20+r()*6,pitch=12+r()*8;
+      if(st==="pending"){g.strokeStyle="#7a5534";g.lineWidth=1.5;g.strokeRect(x-w/2,y-h,w,h);g.beginPath();g.moveTo(x-w/2-3,y-h);g.lineTo(x,y-h-pitch);g.lineTo(x+w/2+3,y-h);g.moveTo(x-w/4,y-h);g.lineTo(x-w/4,y);g.moveTo(x+w/4,y-h);g.lineTo(x+w/4,y);g.stroke();continue}
+      g.fillStyle=wood(st);g.fillRect(x-w/2,y-h,w,h);g.fillStyle=roof(st);g.beginPath();g.moveTo(x-w/2-4,y-h);g.lineTo(x,y-h-pitch);g.lineTo(x+w/2+4,y-h);g.fill();
+      g.fillStyle=lit(st);g.fillRect(x-w/4-4,y-h+6,8,7);if(st==="active"){g.fillStyle="rgba(24,220,203,.25)";g.beginPath();g.arc(x-w/4,y-h+9,10,0,7);g.fill()}
+      g.fillStyle=roof(st);g.fillRect(x+w/6,y-h-pitch*0.6-6,5,10)}
+    if(c.type==="skills"){const k=Math.min(river.length-3,Math.floor(4+r()*(river.length-8))),[bx,by,bw]=river[k],span=bw*2+26,arch=8+r()*6;
+      if(st==="pending"){g.strokeStyle="#7a5534";g.lineWidth=1.5;g.beginPath();g.moveTo(bx-span/2,by);g.lineTo(bx+span/2,by);g.stroke();for(let i=0;i<=4;i++){g.beginPath();g.moveTo(bx-span/2+i*span/4,by);g.lineTo(bx-span/2+i*span/4,by+8);g.stroke()}continue}
+      g.strokeStyle=wood(st);g.lineWidth=4;g.beginPath();g.moveTo(bx-span/2,by);g.quadraticCurveTo(bx,by-arch*2,bx+span/2,by);g.stroke();g.lineWidth=2;g.beginPath();g.moveTo(bx-span/2,by-arch*0.9);g.lineTo(bx+span/2,by-arch*0.9);g.stroke();
+      for(let i=1;i<6;i++){const t=i/6,x=bx-span/2+t*span,ya=by-arch*2*4*t*(1-t)/2;g.beginPath();g.moveTo(x,ya);g.lineTo(x,by-arch*0.9);g.stroke()}
+      g.fillStyle=lit(st);g.beginPath();g.arc(bx-span/2,by-arch*0.9-4,2.6,0,7);g.arc(bx+span/2,by-arch*0.9-4,2.6,0,7);g.fill()}
+    if(c.type==="clearance"&&near.length){let best=near[0];for(const q of near)if(q[1]<best[1]&&q[0]>40&&q[0]<W-40)best=q;const [tx,ty]=best,h=26+r()*10;
+      g.strokeStyle=st==="revoked"?"rgba(40,40,40,.3)":"#1b1410";g.lineWidth=1.4;g.beginPath();g.moveTo(tx-6,ty);g.lineTo(tx-3,ty-h);g.moveTo(tx+6,ty);g.lineTo(tx+3,ty-h);for(let i=1;i<4;i++){g.moveTo(tx-6+i*1,ty-i*h/4);g.lineTo(tx+6-i*1,ty-i*h/4)}g.stroke();
+      if(st!=="pending"){g.fillStyle=roof(st);g.fillRect(tx-7,ty-h-8,14,8);g.beginPath();g.moveTo(tx-9,ty-h-8);g.lineTo(tx,ty-h-14);g.lineTo(tx+9,ty-h-8);g.fill();g.fillStyle=lit(st);g.fillRect(tx-5,ty-h-6,10,4);if(st==="active"){g.fillStyle="rgba(24,220,203,.25)";g.beginPath();g.arc(tx,ty-h-4,11,0,7);g.fill()}}}
+    if(c.type==="custom"){const x=260+r()*110,y=ground+20+r()*30;let yy=y;const n=3+Math.floor(r()*2);for(let i=0;i<n;i++){const w=16-i*3,hh=6-i*0.6;g.fillStyle=i===n-1?lit(st):(st==="revoked"?"rgba(120,120,110,.35)":mix("#8c8577","#5b5a52",r()));g.beginPath();g.ellipse(x,yy,w/2,hh/2,0,0,7);g.fill();yy-=hh*0.85}}
+  }
+}
+function card(id,o){
+  const cv=document.getElementById(id),g=cv.getContext("2d"),W=400,H=600,rnd=mulberry(seedOf(o.seed));
+  g.fillStyle=C.cream;g.fillRect(0,0,W,H);
+  // header
+  g.fillStyle=C.green;g.fillRect(0,0,W,58);g.fillStyle=C.cream;g.font="600 18px Inter,Helvetica";g.fillText(o.name,20,36);
+  g.font="500 11px Inter,Helvetica";g.textAlign="right";g.fillStyle=C.cyan;g.fillText(o.kind.toUpperCase(),W-20,36);g.textAlign="left";
+  // scene clip
+  const top=58,ground=380,bottom=480;g.save();g.beginPath();g.rect(14,top+14,W-28,bottom-top-14);g.clip();
+  const h=o.hour,isNight=h<5.8||h>19.6;o.time=isNight?"night":(h<8||h>17.5?"dusk":"day");
+  const [s1,s2]=skyAt(h).map(toHex);const sky=g.createLinearGradient(0,top,0,ground);sky.addColorStop(0,s1);sky.addColorStop(1,s2);g.fillStyle=sky;g.fillRect(0,top,W,ground-top);
+  // the sun crosses from east (left) to west (right) between 6:00 and 19:30; the moon at night, in its real phase
+  let sx,sy;const arc=(t)=>[30+t*(W-60),ground-40-Math.sin(Math.PI*t)*(ground-top-90)];
+  if(!isNight){[sx,sy]=arc((h-5.8)/(19.6-5.8));const warm=h<8||h>17.5;g.fillStyle=warm?C.gold:"#fff6d8";g.globalAlpha=0.95;g.beginPath();g.arc(sx,sy,warm?30:22,0,7);g.fill();g.globalAlpha=1}
+  else{const t=((h<12?h+24:h)-19.6)/(24+5.8-19.6);[sx,sy]=arc(t);
+    const starR=mulberry(7);for(let i=0;i<80;i++){g.fillStyle=`rgba(245,240,227,${0.25+starR()*0.6})`;g.fillRect(starR()*W,top+starR()*(ground-top-80),1.4,1.4)}
+    g.fillStyle=C.cream;g.beginPath();g.arc(sx,sy,15,0,7);g.fill();const ph=o.moon;g.fillStyle=s1;g.beginPath();g.arc(sx+30*(ph-0.5)*1.4,sy,15,0,7);g.fill()}
+  // ridges back to front: far ones blue and pale (atmosphere), near ones deep green, like the hero
+  const FAR={dawn:"#8fb3bd",day:"#7fa9b8",dusk:"#6f6f86",night:"#2c4560"}[o.time],NEAR={dawn:"#1f4a3f",day:"#1f4a3f",dusk:"#243b3a",night:"#0f2621"}[o.time];
+  const sky_=new Array(W+1).fill(ground);
+  const layers=4;for(let l=0;l<layers;l++){const n=1+Math.floor(rnd()*4);const peaks=Array.from({length:n},()=>({x:rnd(),r:0.07+rnd()*0.2,h:0.45+rnd()*0.55}));
+    const base=ground-60+l*16,amp=170-l*34;const pts=ridge(rnd,peaks,W,base,amp);if(l===layers-1)window._near=pts;for(const [x,y] of pts)for(let k=0;k<4&&x+k<=W;k++)sky_[x+k]=Math.min(sky_[x+k],y);
+    g.fillStyle=mix(FAR,NEAR,l/(layers-1));g.beginPath();g.moveTo(0,ground);for(const [x,y] of pts)g.lineTo(x,y);g.lineTo(W,ground);g.closePath();g.fill();
+    if((l===0&&o.snow)||(o.season==="winter"&&l<=2)){g.save();g.clip();g.fillStyle="rgba(245,240,227,.92)";const line=Math.min(...pts.map(p=>p[1]))+amp*(o.season==='winter'?(l===0?0.55:0.35):0.22);g.beginPath();g.moveTo(0,line);for(const [x] of pts)g.lineTo(x,line+6*Math.sin(x*0.13)+4*Math.sin(x*0.31));g.lineTo(W,top);g.lineTo(0,top);g.fill();g.restore()}
+    // mist between layers
+    g.fillStyle=`rgba(255,255,255,${o.time==="night"?0.03:0.10})`;g.fillRect(0,base-10,W,ground-base+10)}
+  // treeline: evergreens, and in autumn some golden larches among them
+  for(let i=0;i<o.trees;i++){const x=14+rnd()*(W-28),h=26+rnd()*44,golden=o.season==="autumn"&&rnd()<0.3;
+    tree(g,x,ground+4,h,golden?mix("#d9a441","#b77a2a",rnd()):mix(C.green,"#0b2a22",rnd()));
+    if(o.season==="winter"){g.fillStyle="rgba(245,240,227,.75)";g.beginPath();g.moveTo(x,ground+4-h*0.95);g.lineTo(x-h*0.1,ground+4-h*0.72);g.lineTo(x+h*0.1,ground+4-h*0.72);g.fill()}}
+  // foreground meadow by season: snow in winter, wildflowers in spring, deep green in summer, gold in autumn
+  const meadow={winter:"#dfe4e2",spring:"#123a2e",summer:"#0f3227",autumn:"#2b3a22"}[o.season]||"#0b2a22";
+  g.fillStyle=meadow;g.fillRect(0,ground,W,bottom-ground);
+  if(o.season==="spring"){const fr=mulberry(seedOf(o.seed+"flowers"));for(let i=0;i<70;i++){g.fillStyle=["#f5f0e3","#f8d084","#c9a0dc","#f2a6a0"][Math.floor(fr()*4)];g.beginPath();g.arc(fr()*W,ground+6+fr()*(bottom-ground-10),1.6,0,7);g.fill()}}
+  if(o.season==="autumn"){const fr=mulberry(seedOf(o.seed+"grass"));for(let i=0;i<60;i++){g.fillStyle=`rgba(217,164,65,${0.3+fr()*0.4})`;g.fillRect(fr()*W,ground+4+fr()*(bottom-ground-8),2,4)}}
+  if(o.landmarks)landmarks(g,o,ground,bottom);
+  if(o.accent==="pine"){ // one tree in the forest is yours: the logo's cyan pine, placed and sized by the hash
+    const px=40+rnd()*(W-80),ph=70+o.tenure*14;tree(g,px,ground+20,ph,C.cyan);}
+  if(o.accent==="river"){ // a river from the far hills down to the front, its bends from the hash
+    g.strokeStyle=C.cyan;g.lineCap="round";let x=W*(0.3+rnd()*0.4),y=ground-40;const segs=18;for(let i=0;i<segs;i++){const t=i/segs,nx=x+(rnd()-.5)*60*(t+0.3),ny=y+ (bottom-ground+40)/segs+ i*0.6;g.lineWidth=1+t*14;g.beginPath();g.moveTo(x,y);g.lineTo(nx,ny);g.stroke();x=nx;y=ny}}
+  if(o.accent==="trail"){ // a switchback trail up to the summit, one leg per year on the job
+    let best=null;g.strokeStyle=C.cyan;g.setLineDash([5,5]);g.lineWidth=2.2;const sx2=W*(0.35+rnd()*0.3),sy2=ground-110-rnd()*40;let x=W*0.5,y=bottom-14;g.beginPath();g.moveTo(x,y);const legs=3+o.tenure;for(let i=1;i<=legs;i++){const t=i/legs;y=bottom-14-(bottom-14-sy2)*t;x=(i%2?sx2-60*(1-t)-rnd()*20:sx2+60*(1-t)+rnd()*20);if(i===legs)x=sx2;g.lineTo(x,y)}g.stroke();g.setLineDash([]);g.fillStyle=C.cyan;g.beginPath();g.moveTo(sx2,sy2-16);g.lineTo(sx2+12,sy2-11);g.lineTo(sx2,sy2-6);g.fill();g.fillRect(sx2-1,sy2-16,2,16);}
+  if(o.stars){ const night=o.time==="night"||o.time==="dusk";
+    // the same shape everywhere: only its place and size in the sky change, never over the mountains or the sun
+    const fits=(bx,by,bw,bh)=>{for(let x=bx;x<=bx+bw;x+=4)if(by+bh>sky_[x]-20)return false;return Math.hypot(Math.max(bx,Math.min(sx,bx+bw))-sx,Math.max(by,Math.min(sy,by+bh))-sy)>34};
+    let spot=null;for(const sc of [1,0.8,0.62])for(const by of [top+22,top+34])for(const f of [0,0.25,0.5,0.75,1]){const bw=140*sc,bh=70*sc,bx=Math.round(40+f*(W-80-bw));if(!spot&&fits(bx,by,bw,bh))spot={x:bx,y:by,w:bw,h:bh}}
+    if(spot)constellation(g,o.seed,o.name,spot,night);}
+  if(o.accent==="lake"){ // an alpine lake: the ridgeline mirrored in glacier cyan
+    const ly=ground-24;const grad=g.createLinearGradient(0,ly,0,ground);grad.addColorStop(0,"rgba(24,220,203,.85)");grad.addColorStop(1,"rgba(24,220,203,.35)");g.fillStyle=grad;g.beginPath();g.ellipse(W*(0.3+rnd()*0.4),ly+10,120+rnd()*40,14,0,0,7);g.fill();g.strokeStyle="rgba(245,240,227,.6)";g.lineWidth=1;for(let i=0;i<5;i++){const y=ly+4+i*4;g.beginPath();g.moveTo(W*0.3+rnd()*60,y);g.lineTo(W*0.3+rnd()*60+40,y);g.stroke()}}
+  g.restore();
+  // frame
+  g.strokeStyle=C.green;g.lineWidth=2;g.strokeRect(14,top+14,W-28,bottom-top-14);
+  // info band
+  g.fillStyle=C.ink;g.font="600 16px Inter,Helvetica";g.fillText(o.title,20,515);g.font="13px Inter,Helvetica";g.fillStyle="#43514c";g.fillText(o.line,20,538);
+  g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText(o.fp,20,575);g.textAlign="right";g.fillStyle=C.green;g.font="600 11px Inter";g.fillText("hewn · proven on Aleo",W-20,575);g.textAlign="left";
+}
+function rings(id,o){
+  const cv=document.getElementById(id),g=cv.getContext("2d"),W=400,H=600,rnd=mulberry(seedOf(o.seed));
+  g.fillStyle=C.cream;g.fillRect(0,0,W,H);g.fillStyle=C.green;g.fillRect(0,0,W,58);g.fillStyle=C.cream;g.font="600 18px Inter";g.fillText(o.name,20,36);
+  g.textAlign="right";g.fillStyle=C.cyan;g.font="500 11px Inter";g.fillText("PAYSTUB",W-20,36);g.textAlign="left";
+  const cx=W/2,cy=300,R=132;
+  // bark
+  g.fillStyle="#3b2a1e";g.beginPath();for(let a=0;a<=6.3;a+=0.05){const r=R+8+Math.sin(a*7+rnd())*3+rnd()*2;g.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r)}g.fill();
+  const wood=g.createRadialGradient(cx,cy,4,cx,cy,R);wood.addColorStop(0,"#b9773f");wood.addColorStop(0.5,"#e2b47a");wood.addColorStop(1,"#f1d3a0");g.fillStyle=wood;g.beginPath();g.arc(cx,cy,R,0,7);g.fill();
+  // one ring per pay period this year
+  const widths=Array.from({length:o.of},()=>0.6+rnd()*0.8);const sum=widths.reduce((a,b)=>a+b);let r=10;const wobble=Array.from({length:6},()=>rnd()*6.28);
+  for(let i=0;i<o.of;i++){r+=widths[i]/sum*(R-14);const cur=i===o.n-1,done=i<o.n;
+    g.beginPath();for(let a=0;a<=6.3;a+=0.04){const rr=r+1.6*Math.sin(a*3+wobble[0])+1.1*Math.sin(a*5+wobble[1]);g.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr)}g.closePath();
+    g.strokeStyle=cur?C.cyan:done?"rgba(92,54,28,.75)":"rgba(92,54,28,.18)";g.lineWidth=cur?3:done?1.3:0.8;g.stroke()}
+  constellation(g,o.seed,o.name,{x:W-150,y:70,w:130,h:58},false);
+  g.fillStyle=C.ink;g.font="600 16px Inter";g.fillText(`Pay period ${o.n} of ${o.of} · ${o.year}`,20,470);g.font="13px Inter";g.fillStyle="#43514c";g.fillText(o.employer,20,494);g.fillText("One ring per paycheck this year; the cyan one is this one.",20,518);
+  g.font="11px ui-monospace,Menlo,monospace";g.fillStyle="#6b7a74";g.fillText(o.fp,20,575);g.textAlign="right";g.fillStyle=C.green;g.font="600 11px Inter";g.fillText("hewn · sealed on Aleo",W-20,575);
+}
+card("a0",{seed:"ana-tenure",name:"ana_w.hewn",moon:0.3,snow:true,trees:12,accent:"pine",stars:1,fp:"0x7f3a91c2…e4",kind:"Year 1",hour:9,season:"spring",tenure:1,title:"ana_w.hewn · 1 year on Hewn",line:"Employment verified · Dayco Builders",landmarks:[{type:"employment",seed:"emp-dayco",status:"active"}]});
+card("a1",{seed:"ana-tenure",name:"ana_w.hewn",moon:0.3,snow:true,trees:12,accent:"pine",stars:1,fp:"0x7f3a91c2…e4",kind:"Year 3",hour:15,season:"summer",tenure:3,title:"ana_w.hewn · 3 years on Hewn",line:"Employment · Skills (pending) · Custom",landmarks:[{type:"employment",seed:"emp-dayco",status:"active"},{type:"skills",seed:"skill-forklift",status:"pending"},{type:"custom",seed:"custom-firstaid",status:"active"}]});
+card("a2",{seed:"ana-tenure",name:"ana_w.hewn",moon:0.3,snow:true,trees:12,accent:"pine",stars:1,fp:"0x7f3a91c2…e4",kind:"Year 6",hour:18.6,season:"autumn",tenure:6,title:"ana_w.hewn · 6 years on Hewn",line:"Employment · Skills · Clearance · Custom",landmarks:[{type:"employment",seed:"emp-dayco",status:"active"},{type:"skills",seed:"skill-forklift",status:"active"},{type:"clearance",seed:"clear-site",status:"active"},{type:"custom",seed:"custom-firstaid",status:"active"}]});
+card("a3",{seed:"ana-tenure",name:"ana_w.hewn",moon:0.3,snow:true,trees:12,accent:"pine",stars:1,fp:"0x7f3a91c2…e4",kind:"Year 6 · night",hour:22,season:"autumn",tenure:6,title:"The same, at night",line:"An old job's cabin revoked: it fades",landmarks:[{type:"employment",seed:"emp-dayco",status:"revoked"},{type:"employment",seed:"emp-riverside",status:"active"},{type:"skills",seed:"skill-forklift",status:"active"},{type:"clearance",seed:"clear-site",status:"active"},{type:"custom",seed:"custom-firstaid",status:"active"}]});
+</script></body></html>
