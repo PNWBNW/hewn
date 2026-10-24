@@ -537,6 +537,16 @@ Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`he
   `employer_agreement_v5` authorises without a public ownership check. **Written and staged**
   (2026-10-23, pnw_mvp_v2 PR #210, with the halves and the two-party change); ticked once deployed
   and the app switched.
+- [ ] Maybe, for mainnet: the agreement program packs its byte fields (Joshua, 2026-10-24). v5's
+  records hold two key halves and six hashes as about 320 one-byte slots (`[u8; 64]`, `[u8; 32]`),
+  each one encrypted and proven on its own; packed as `[u128; 4]` and `[u128; 2]` (about 20 slots,
+  the way Provable's `hyperlane-aleo` stores message bodies and ids), deploys cost less (v5:
+  38.86 credits, estimated 25–30 packed) and proofs are faster in Shield on a phone. The same
+  bytes in a different box: the record's encryption and the twin-curve handshake are unchanged
+  (the halves still ride in the records; the app unpacks them). Ships with tests that pack and
+  unpack known halves both ways and reach the same key on both sides. v5 deploys on testnet as
+  it is; mainnet is a fresh deploy, so its agreement program is where packing goes, a Leo change
+  (Fable 5.1, high effort) with the app's readers to match.
 - [ ] No program can be upgraded on mainnet (Joshua, 2026-10-22, pinned until the build is nearly
   done): the registry, the registrar, agreements and worker profiles are `@admin` under one key
   today, so an upgrade could change who passes their checks. `@noupgrade`, or a multisig with a

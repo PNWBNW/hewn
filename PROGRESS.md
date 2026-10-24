@@ -4344,3 +4344,11 @@ named as a hire (an offer is Joshua's to make if the grant comes through); the d
 one or two part-time contractors, paid through Hewn itself once it's on mainnet (it can't pay
 real money before). No LinkedIn; contact
 hewnsupport@gmail.com.
+
+## 2026-10-24 — Plan: maybe pack the agreement records for mainnet
+
+`BUILD_PLAN.md` (decisions): the mainnet agreement program may store v5's key halves and hashes
+packed into `[u128; N]` instead of about 320 one-byte slots, the way Provable's
+`hyperlane-aleo` stores message bodies: a cheaper deploy (v5 38.86 credits, about
+25–30 estimated) and faster proofs on phones, with the record's encryption and the twin-curve
+handshake unchanged. v5 deploys on testnet as it is. Docs only.
