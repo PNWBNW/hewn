@@ -4555,3 +4555,16 @@ frames, the constellation, the seal, the sky), `land3d.html` (a worker's land in
 README says how to run each and the rules the app's renderer keeps; `packages/art` starts from
 these. The checker's script now finds its files from any folder; the generated check page and its
 output are ignored by git. Not built or tested by CI. Docs only.
+
+## 2026-10-24 — hewn_cards_v1 staged: a business's card and a worker's tenure card on chain
+
+`pnw_mvp_v2` PR (`src/layer1/hewn_cards_v1.aleo`, new Leo, Fable 5.1): the cards every account
+gets, issued once per `.hewn` name by its owner through the registry's `assert_employer_owner`
+(the industry code for a business, 0 for a worker, so each kind of card goes only to its kind of
+name). `issue_business_card`, `issue_worker_card(shown)`, `show_card`, `hide_card`. Public state
+`cards[name_hash] = { issued_at, shown }`; no fee of its own; no transfer (bound to the name);
+`@noupgrade`, 2.5 KB. 22 Leo tests, 18 refusals, in the plan gate. Decided (Joshua): time on Hewn
+counts from the card's issue; the registry check runs at issue, so issuing leaves a public trace
+and hiding is the app's permission to draw, not an erasure (`docs/HEWN_ART.md` updated, open
+question 1 closed). Next: deploy (deploy-new-program, broadcast off then on), the network checks
+in the program's README, then the app: cards at setup, the switch in Settings, the public page.
