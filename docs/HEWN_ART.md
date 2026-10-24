@@ -98,6 +98,28 @@ minted in the same setup that registers its `name.hewn`.
   this yet: agreements stay tied to the business's wallet (v5), and a new owner would offer each
   worker their terms again.
 
+## A worker's tenure card (Joshua, 2026-10-24)
+
+Workers get a tenure card too, issued automatically at setup like a business's, bound to their
+`name.hewn` and never sold or traded.
+
+- **The look:** the mountain scene with the cyan pine growing with their time on Hewn, their
+  constellation in the sky, the live sky and the seasons. People look up at the mountains;
+  businesses are the map of the land.
+- **What it shows:** their name and their time on Hewn. Never who they work for, their pay, their
+  credentials or their jobs: those stay on their private cards.
+- **Public or hidden, theirs to switch** (Joshua): a worker chooses at setup whether their card is
+  public, and can switch it either way in Settings whenever they like. Public, anyone can see it and
+  draw it from their name; hidden, it shows only in their own app. A business's card is always
+  public.
+- **How hiding works on chain:** the card itself is a private record the worker always holds;
+  making it public adds a public entry (the name's hash and the height it was issued at) that
+  anyone can read, and hiding it removes that entry. Honest limit, which the app says when they
+  switch: the chain keeps its history, so hiding stops the card showing from then on but can't
+  erase that it was public before.
+- **What being public adds:** only when they joined Hewn. Their name and its account are already
+  public on the registry (and on mainnet under the Aleo Name Service).
+
 ## The paystub
 
 ![The paystub card](art/paystub-2026-10-24.png)
@@ -146,7 +168,8 @@ or the hours.
   Aleo; its card shows only in its owner's app (and, for a paystub, the business's copy). Nothing
   about a person is ever shown publicly through their cards. When someone needs to prove something
   (a job, a licence, an income), they share a proof of that one fact, not a card.
-- **The one exception: a business's card is public** (Joshua, 2026-10-24). It shows only the
+- **The exceptions: a business's card is public** (Joshua, 2026-10-24), **and a worker's tenure
+  card is public if they choose** (below). It shows only the
   business's name and its time on Hewn, both public already, so anyone can see it (on its job
   postings and its directory listing, say) and redraw it from its name.
 - What goes into any card: hashes, the `name.hewn`, the kind of credential, its dates, the
