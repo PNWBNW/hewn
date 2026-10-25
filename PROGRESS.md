@@ -4847,3 +4847,27 @@ step proposed, one PR: number the later threats, `docs/INVARIANTS.md` with a rul
 rule, enforced in, check path or none, threat) and a public-state table (every mapping in the
 live programs), ids on CLAUDE.md's bullets, links instead of restatements, two stale lines fixed.
 Waiting on Joshua's go.
+
+## 2026-10-25 — Session start lands on the right phase (ICM Step 1); feed, reconcile, seal replaces `gl_core.aleo`
+
+Step 1 of the audit-ready plan (Joshua's go, 2026-10-25). `BUILD_PLAN.md` opens with a **Now**
+block (phase, in flight, next criterion, what is blocked on Joshua) and CLAUDE.md's Session start
+reads it, instead of "the first phase with an unchecked criterion", which landed on Phase 0's
+stale lines. Joshua's decision on `gl_core.aleo`: retired as designed and replaced by **feed,
+reconcile, seal**. The chain is the bank feed (every Shield movement comes in for review and is
+categorized in the vault), the books stay in the vault, reconciliation of cash against the wallet
+is automatic, and closing a month anchors its root through `payroll_audit_log`; a small
+period-status program (open, closed, locked; no postings) comes later as new Leo. Phase 1's exit
+criteria are rewritten to match (two new open lines: a month fed, reconciled and sealed on
+testnet; reconciliation flagged on the Dashboard; and the period-status program), the replaced
+lines are struck with dated notes in Phases 0 to 3, a Deferred row and a Decisions line record
+it, and `docs/AUDIT_DESIGN.md` step 5 names the period-status program. Two drifted lines fixed:
+the ground rules' "kept in `coordinator`" and the fiat-boundary test's "Fiat first" header (a
+comment; its 2 tests pass). The old portal repository isn't archived on GitHub yet (checked); that
+Phase 0 line stays open, on Joshua.
+
+Walk test: a fresh agent with no memory ran Session start on this tree and reported Phase 1, the
+reconciliation criterion as next, and both blockers, from about 35 KB of reading; it proposed the
+reconciliation check as a pure function first, the Dashboard flag later with a screen greenlight.
+It also noted that `tail -n 120` of this file starts mid-entry, which Step 6 (one file per day)
+fixes.

@@ -5,6 +5,19 @@ Oct 13, 2026 · Joshua Day
 > Source of truth for what gets built and in what order. Mirrors the Claude Doc
 > "PNW Ledger — Build Plan" (the product is now named Hewn). When an exit criterion is met, tick it here and log it in PROGRESS.md.
 
+## Now
+
+Updated 2026-10-25. Session start reads this block; keep it to these four lines and change it
+whenever the work moves.
+
+- **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
+- **In flight:** audit readiness (the invariants table, numbered threats and the public-state map;
+  PROGRESS.md, 2026-10-25) and the manual tests (issues #150–#164).
+- **Next criterion:** Phase 1, reconciliation: the books' cash accounts checked against the Shield
+  balance, with any difference flagged.
+- **Blocked on Joshua:** archiving the old portal repository on GitHub (Phase 0); two phones with
+  Shield for the wallet scenarios in the manual tests and Phase 2's three-worker run.
+
 ## Scope
 
 Target: functional parity with QuickBooks Advanced (small-business tier), minus Intuit Intelligence and support, built clean-room on the existing PNW stack. Same mental model bookkeepers already know; our own screens, our own code.
@@ -28,7 +41,7 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 **Reused as-is from `pnw_mvp_v2` and `pnw_employment_portal_v1`**
 
 - Privacy architecture: records for identifying data, mappings hold only hashes and block heights, commitment-based authorization (`parties_key` commitments).
-- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. The CLI adapter / private-key path is legacy: kept in `coordinator` for its tests, unused by new code, removed later (removed 2026-10-14). The app never calls `snarkos` directly. Extensions hang off this seam.
+- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. The CLI adapter / private-key path is legacy and gone: the `coordinator` package that carried it was removed on 2026-10-14, and the pay queue in `rail` is the wallet path. The app never calls `snarkos` directly. Extensions hang off this seam.
 - `paystub_receipts` + `payroll_audit_log` as the pattern for all ledger postings (dual records + hash anchor).
 - `.pnw` name registry, credential NFTs, employer license gate, wallet-signature session model.
 - TypeScript tax engine (`src/lib/tax-engine.ts`, IRS annualization method).
@@ -67,13 +80,24 @@ The portal is rebuilt as a QuickBooks-shaped shell; its libraries are kept. Noth
 **Exit criteria**
 
 - [x] Every salvaged package builds and its existing vitest suite passes inside the monorepo (2026-10-13)
-- [ ] A full payroll run (agreement check → USDCx transfer → receipts → audit anchor → cycle NFT) completes end-to-end from `apps/business` on testnet, tx hashes recorded
-- [ ] A worker sees that paystub in `apps/worker` with the credential badge rendered
+- ~~A full payroll run (agreement check → USDCx transfer → receipts → audit anchor → cycle NFT) completes end-to-end from `apps/business` on testnet, tx hashes recorded~~ Replaced 2026-10-14: Hewn pays with one private USDCx transfer per worker and sends the paystub as a letter (`docs/AUDIT_DESIGN.md`); the run on testnet is Phase 2's three-worker criterion.
+- ~~A worker sees that paystub in `apps/worker` with the credential badge rendered~~ Replaced: the worker side lives inside `apps/business` (Decisions, repo layout), and credentials are drawn as landmarks on the worker's card (`docs/HEWN_ART.md`, 2026-10-25).
 - [ ] The old portal repo is archived on GitHub with a pointer to the monorepo
 
 ## Phase 1 — Core ledger
 
-The frozen core. Everything else imports it; nothing else may alter it. Fiat-first: the vault and ledger logic come first; `gl_core.aleo` lands right behind them.
+The frozen core. Everything else imports it; nothing else may alter it.
+
+**Redesigned 2026-10-25 (Joshua): feed, reconcile, seal.** `gl_core.aleo` is retired as designed.
+With nearly all money moving on chain, the chain doesn't need to hold the books: it already holds
+the cash side, as a bank statement does. The chain is the feed (every movement in the Shield
+account comes in for review and is categorized in the vault), the books stay in the vault
+(`@pnw/ledger` refuses unbalanced entries), reconciliation is automatic (the books' cash against
+the wallet), and closing a month seals it (one root anchored, `docs/AUDIT_DESIGN.md`). A small
+period-status program (open, closed, locked; no postings) comes later as new Leo. The deliverables
+below are the original design, kept for the record; later phases that name `gl_core` transitions
+read against this. The original line: "Fiat-first: the vault and ledger logic come first;
+`gl_core.aleo` lands right behind them."
 
 **Deliverables**
 
@@ -93,13 +117,16 @@ The frozen core. Everything else imports it; nothing else may alter it. Fiat-fir
 
 **Exit criteria**
 
-- [ ] `leo build` and `leo test` green for `gl_core.aleo`, including negative tests (unbalanced entry, closed period, unknown account) that fail as expected
-- [ ] Deployed to testnet; program ID in `testnet.manifest.json`
-- [ ] A 20-entry sample ledger posted, period closed, root anchored, with tx hashes recorded in PROGRESS.md
+- ~~`leo build` and `leo test` green for `gl_core.aleo`, including negative tests (unbalanced entry, closed period, unknown account) that fail as expected~~ Replaced 2026-10-25 (feed, reconcile, seal)
+- ~~Deployed to testnet; program ID in `testnet.manifest.json`~~ Replaced 2026-10-25 (feed, reconcile, seal)
+- ~~A 20-entry sample ledger posted, period closed, root anchored, with tx hashes recorded in PROGRESS.md~~ Replaced by the next line
+- [ ] A month of a sample business's Shield movements comes in through For review, is categorized, reconciles, and the month is sealed: its root anchored through `payroll_audit_log`, with the tx hash recorded in PROGRESS.md
+- [ ] Reconciliation: the books' cash accounts are checked against the Shield balance (private records and public), and any difference is flagged on the Dashboard
 - [x] Vault survives browser clear-site-data via export/import round trip, and opens in a second browser with the same passphrase, no wallet required (2026-10-13)
 - [ ] Once a Shield wallet is linked, the vault opens with either the passphrase or the wallet; the passphrase keeps working so a lost wallet never locks the books
-- [ ] Trial balance from the vault matches the trial balance recomputed from on-chain records in settled mode
-- [ ] `LEDGER_INTERFACE.md` reviewed and frozen
+- ~~Trial balance from the vault matches the trial balance recomputed from on-chain records in settled mode~~ Replaced 2026-10-25: there are no on-chain postings to recompute from; reconciliation (above) checks the cash side
+- ~~`LEDGER_INTERFACE.md` reviewed and frozen~~ Replaced 2026-10-25: no `gl_core` transitions to freeze; the ledger's interface is `@pnw/ledger`'s exports and its README
+- [ ] Period status on chain (open, closed, locked; no postings): a small program, new Leo on Fable, with negative tests
 
 ## Phase 2 — Payroll bridge
 
@@ -114,7 +141,7 @@ Payroll stops being the product and becomes the first module posting into the le
 
 **Exit criteria**
 
-- [ ] A 3-worker testnet payroll run produces three balanced journal entries, each linked to its receipt anchor
+- [ ] A 3-worker testnet payroll run produces three balanced journal entries, each linked to its transfer transaction (receipt anchors replaced 2026-10-14 by one private transfer per worker and the paystub as a letter)
 - [x] Running the same payroll in fiat mode produces identical entries in the vault, minus the chain transfer (fiat mode, offline, 2026-10-14)
 - [x] P&L for the period shows the wage expense; balance sheet shows the tax liability (fiat mode, 2026-10-13)
 - [x] Existing payroll tests (`vitest`) still green; no change to worker-facing paystub flow (2026-10-13)
@@ -138,7 +165,7 @@ This is where it starts to feel like QuickBooks.
 - [x] Bill → payment, with AP balance correct
 - [x] Sales tax liability report ties to invoices for the period (fiat mode, 2026-10-13)
 - [x] Project profitability report for a job with labor (from Phase 2), materials and an invoice (fiat mode, 2026-10-13)
-- [ ] A public-flagged invoice is readable from a public mapping; a private one is not; a worker-linked entry refuses the flag at the circuit level
+- ~~A public-flagged invoice is readable from a public mapping; a private one is not; a worker-linked entry refuses the flag at the circuit level~~ Replaced 2026-10-25: it rested on `gl_core` postings; with feed, reconcile, seal nothing about an invoice is on chain. A public invoice, if wanted, is a later design
 
 ## Phase 4 — Reports and budgets
 
@@ -458,11 +485,13 @@ Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`he
 | Priority support, training | Operational | Docs and READMEs |
 | Intuit Intelligence block | Out of scope by decision | Revisit later; a local model over the vault |
 | Open-source licence | Decided 2026-10-15 | AGPL-3.0-only for Hewn and the Leo programs; Hewn name and logo not licensed |
+| `gl_core.aleo`: the books posted on chain | Replaced 2026-10-25 (Joshua) by feed, reconcile, seal (Phase 1) | The books stay in the vault; the chain is the feed; a monthly root is anchored through `payroll_audit_log`; a period-status program later, with no postings |
 | Wallet-free ("fiat first") accounts | Replaced 2026-10-15 | Every account links Shield and registers a name.hewn at setup; people are added only by registered name |
 | ETH stablecoin + wallet rails | Back burner until the Aleo rails are much further along (2026-10-13) | Aleo/USDCx settled mode only |
 
 ## Decisions
 
+- [x] Feed, reconcile, seal replaces `gl_core.aleo` (Joshua, 2026-10-25): the chain is the bank feed, the vault is the books, a monthly root seals each closed period; on chain later only a period's status, never postings.
 - [x] Default mode on first launch: fiat (2026-10-13). Anchored and settled are opt-in upgrades.
 - [x] Repo layout: monorepo — `apps/business`, `apps/worker`, `packages/`, `programs/` (2026-10-13).
   As built: the worker side lives inside `apps/business` (one app, two kinds of account), and the
