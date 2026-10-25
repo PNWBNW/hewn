@@ -84,6 +84,8 @@ export type BooksStatus = "loading" | "new" | "locked" | "open";
 export type SetupInput = Settings & { template: TemplateId | "blank"; username: string; passphrase: string; role: Role; stay?: boolean };
 
 /** What a login came to: the books are open, or one username and passphrase opened both kinds and the person picks. */
+export type BackupOutcome = "shared" | "downloaded" | "cancelled";
+
 export type UnlockOutcome = { opened: true } | { opened: false; choices: Role[] };
 
 // Only records that an account exists on this device (to tell the front page which button to
@@ -160,7 +162,14 @@ type BooksContextValue = {
   update: (op: (books: Books) => Books) => Promise<Books>;
   /** Same, for operations that change the books with payroll or sales (a pay run, an invoice). */
   updateCompany: (op: (company: Company) => Company) => Promise<Company>;
-  downloadBackup: () => Promise<void>;
+  /**
+   * Saves a backup file: through the share sheet on a phone ("shared", recorded as a backup), else as a
+   * download ("downloaded": a page can't tell whether it landed, so it isn't recorded until the person
+   * confirms with `confirmBackupSaved`), or "cancelled" when the share sheet was closed.
+   */
+  downloadBackup: () => Promise<BackupOutcome>;
+  /** Records that the backup just downloaded was saved (the person said so). */
+  confirmBackupSaved: () => Promise<void>;
   /**
    * Restore a backup file onto this device, then open it. The backup must belong to this username; a
    * backup from before accounts needs only the passphrase (pass null for the username).
@@ -426,7 +435,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
 
   const downloadBackup = useCallback(async () => {
     const s = session.current;
-    if (!s) return;
+    if (!s) return "cancelled";
     // Every sealed file goes in too, still encrypted: a restore brings the receipts back.
     const attachments = await store.listAttachments(s.id);
     const text = exportBackup(s.record, attachments);
@@ -441,19 +450,25 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       try {
         await nav.share({ files: [file], title: fileName });
       } catch (e) {
-        if (e instanceof DOMException && e.name === "AbortError") return; // closed without saving: not backed up
+        if (e instanceof DOMException && e.name === "AbortError") return "cancelled"; // closed without saving: not backed up
         throw e;
       }
-    } else {
-      const url = URL.createObjectURL(file);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await updateCompany((c) => markBackedUp(c));
+      return "shared";
     }
-    await updateCompany((c) => markBackedUp(c));
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // Not recorded: an app's own browser can drop a download without a word (Shield's did, 2026-10-26).
+    return "downloaded";
   }, [company, store, updateCompany]);
+
+  const confirmBackupSaved = useCallback(async () => {
+    await updateCompany((c) => markBackedUp(c));
+  }, [updateCompany]);
 
   const restore = useCallback(
     async (fileText: string, rawUsername: string | null, passphrase: string, stay = true) => {
@@ -664,6 +679,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       update,
       updateCompany,
       downloadBackup,
+      confirmBackupSaved,
       restore,
       backupKey,
       recover,
@@ -690,6 +706,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       update,
       updateCompany,
       downloadBackup,
+      confirmBackupSaved,
       restore,
       backupKey,
       recover,

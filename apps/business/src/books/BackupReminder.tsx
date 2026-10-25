@@ -7,6 +7,11 @@
 // whether this browser has agreed to keep the books (@pnw/vault persistence).
 // The books live only in this browser, so a backup file is the way back if
 // it loses them.
+//
+// A backup saved through the share sheet counts at once. A plain download
+// counts only once the person says the file saved: a page can't see whether a
+// download landed, and an app's own browser can drop it without a word
+// (Shield's did, 2026-10-26).
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
@@ -19,27 +24,70 @@ import { useOpenBooks } from "./BooksProvider";
 import { backupDue } from "./backup_reminder";
 
 function useSaveBackup() {
-  const { downloadBackup } = useOpenBooks();
+  const { downloadBackup, confirmBackupSaved } = useOpenBooks();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** After a download: waiting for the person to say whether the file saved, or told it didn't. */
+  const [asking, setAsking] = useState<"saved?" | "not_saved" | null>(null);
   async function save() {
     setBusy(true);
     setError(null);
+    setAsking(null);
     try {
-      await downloadBackup();
+      if ((await downloadBackup()) === "downloaded") setAsking("saved?");
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
   }
-  return { save, busy, error };
+  async function answer(saved: boolean) {
+    if (!saved) return setAsking("not_saved");
+    setBusy(true);
+    try {
+      await confirmBackupSaved();
+      setAsking(null);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return { save, answer, asking, busy, error };
+}
+
+/** The question after a download, and what to do when the file didn't save. */
+function DidItSave({ asking, busy, answer }: { asking: "saved?" | "not_saved" | null; busy: boolean; answer: (saved: boolean) => Promise<void> }) {
+  if (asking === "saved?") {
+    return (
+      <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
+        <p className="text-sm">Did the file save? Check your downloads or files for it.</p>
+        <div className="flex flex-wrap gap-3">
+          <Button className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void answer(true)}>
+            Yes, it saved
+          </Button>
+          <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void answer(false)}>
+            No, I can&apos;t find it
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (asking === "not_saved") {
+    return (
+      <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+        This browser didn&apos;t save it, so your books still have no backup. An app&apos;s own browser often can&apos;t save files. A backup
+        kept with your account rather than this browser, which works here, is on its way. Until then, keep using these books with care.
+      </p>
+    );
+  }
+  return null;
 }
 
 /** The reminder: shown only when a backup is due. */
 export function BackupReminder() {
   const { backedUpAt } = useOpenBooks();
-  const { save, busy, error } = useSaveBackup();
+  const { save, answer, asking, busy, error } = useSaveBackup();
   const due = backupDue({ backedUpAt: backedUpAt ?? undefined });
   if (!due.due) return null;
   return (
@@ -54,6 +102,7 @@ export function BackupReminder() {
         <Download aria-hidden className="size-4" />
         {busy ? "Saving…" : "Save a backup"}
       </Button>
+      <DidItSave asking={asking} busy={busy} answer={answer} />
     </section>
   );
 }
@@ -67,7 +116,7 @@ const KEEPS: Record<Persistence, string> = {
 /** Settings: the last backup, whether this browser keeps the books, and a button to save one. */
 export function BackupCard() {
   const { backedUpAt } = useOpenBooks();
-  const { save, busy, error } = useSaveBackup();
+  const { save, answer, asking, busy, error } = useSaveBackup();
   const [keeps, setKeeps] = useState<Persistence | null>(null);
   useEffect(() => {
     let live = true;
@@ -77,7 +126,7 @@ export function BackupCard() {
     };
   }, []);
   return (
-    <Card>
+    <Card id="backups" className="scroll-mt-20">
       <CardHeader>
         <CardTitle className="text-base">Backups</CardTitle>
       </CardHeader>
@@ -93,6 +142,7 @@ export function BackupCard() {
           <Download aria-hidden className="size-4" />
           {busy ? "Saving…" : "Save a backup"}
         </Button>
+        <DidItSave asking={asking} busy={busy} answer={answer} />
       </CardContent>
     </Card>
   );
