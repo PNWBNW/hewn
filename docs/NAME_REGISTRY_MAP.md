@@ -5,8 +5,7 @@ Oct 15, 2026 · planning, no code changed
 Where the app and the Leo programs depend on the name registry today, and how to build the
 mainnet names so the same code works with either backend:
 
-- **ANS:** `.hewn` as a top-level domain in the Aleo Name Service (the plan, `BUILD_PLAN.md`
-  "Mainnet names").
+- **ANS:** `.hewn` as a top-level domain in the Aleo Name Service (the plan, `docs/MAINNET_NAMES.md`).
 - **Our own registry:** the fallback if the ANS team won't register `hewn` as a TLD (Joshua,
   2026-10-15). Names then work fully inside the app and its programs, but other wallets and
   explorers won't show them.

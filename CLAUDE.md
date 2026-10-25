@@ -92,7 +92,7 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   registers a `name.hewn` (a worker also creates the profile behind it); the app shell keeps an
   unfinished account on `/settings/setup` (`books/setup.ts`). Team members, customers and vendors are
   added only by finding their registered name (on mainnet, by Aleo address too: free-tier names are
-  random, though public, `BUILD_PLAN.md` "Mainnet names"). **One kind of account per Shield account** (Joshua,
+  random, though public, `docs/MAINNET_NAMES.md`). **One kind of account per Shield account** (Joshua,
   2026-10-15): a wallet holding a business's name can't link to or register a worker account, and
   the reverse (business and personal money never share a wallet); the same email may hold both
   kinds, each with its own Shield account (`chain/account_kind.ts`; the mainnet registrar will
