@@ -53,7 +53,7 @@ function Payments() {
     try {
       // What came into this account, from its own records: how a payment is confirmed without waiting on For review.
       const records = receivedRecords(await wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[]));
-      setArrived(new Map(records.map((r) => [r.id, { date: r.when.toISOString().slice(0, 10), minor: r.minor.toString() }])));
+      setArrived(new Map(records.map((r) => [r.id, { id: r.id, date: r.when.toISOString().slice(0, 10), minor: r.minor.toString(), from: r.from }])));
       const r = await checkConnections({
         conns: currentCompany()?.clients,
         reader: "business",
@@ -117,6 +117,7 @@ function Payments() {
             <li key={p.transactionId} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center">
               <span className="min-w-0 flex-1 text-sm">
                 {names.get(p.customerId) ?? "A customer"} paid {p.number} · ${formatCents(p.cents)}
+                <span className="block break-all font-mono text-xs text-muted-foreground">{p.transactionId}</span>
                 {p.problem && <span className="block text-xs text-muted-foreground">{p.problem}</span>}
               </span>
               {p.seen ? (

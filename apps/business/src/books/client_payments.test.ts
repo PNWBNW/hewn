@@ -88,8 +88,8 @@ describe("confirming a payment from the account's own records (Joshua's test, 20
   it("records it when For review hasn't listed it, and adds it there as recorded so it's never counted again", () => {
     const { company, invoice, customerId } = business();
     let c = withPayment(company, customerId, paid(invoice.id, invoice.number, "3144"));
-    const arrived = new Map([[TX, { date: "2026-10-25", minor: "31440000" }]]);
-    expect(paymentsToRecord(c, arrived)[0]!.seen).toEqual({ date: "2026-10-25", minor: "31440000", inReview: false });
+    const arrived = new Map([[TX, { id: TX, date: "2026-10-25", minor: "31440000" }]]);
+    expect(paymentsToRecord(c, arrived)[0]!.seen).toEqual({ txId: TX, date: "2026-10-25", minor: "31440000", inReview: false });
     // The invoice is $154.90; $31.44 applies to it and the rest stays owed.
     c = recordClientPayment(c, TX, arrived);
     expect(c.sales.payments[0]).toMatchObject({ amount: 3144n, reference: TX, date: "2026-10-25" });
@@ -99,12 +99,27 @@ describe("confirming a payment from the account's own records (Joshua's test, 20
     expect(arrived_again(c).review!.items.filter((i) => i.id === TX)).toHaveLength(1);
   });
 
+  it("finds the transfer from this customer for exactly this amount when Shield files it under another id", () => {
+    const { company, invoice, customerId } = business();
+    const c = withPayment(company, customerId, paid(invoice.id, invoice.number, "3144"));
+    const other = "at1" + "z".repeat(58);
+    const arrived = new Map([[other, { id: other, date: "2026-10-25", minor: "31440000", from: CUST }]]);
+    expect(paymentsToRecord(c, arrived)[0]!.seen?.txId).toBe(other);
+    const done = recordClientPayment(c, TX, arrived);
+    expect(done.review!.items.map((i) => [i.id, i.status])).toEqual([[other, "recorded"]]);
+    expect(done.sales.payments[0]!.reference).toBe(TX);
+    // Not from someone else, and not when two transfers could be it.
+    expect(paymentsToRecord(c, new Map([[other, { id: other, date: "2026-10-25", minor: "31440000", from: BIZ }]]))[0]!.seen).toBeUndefined();
+    const twin = "at1" + "y".repeat(58);
+    expect(paymentsToRecord(c, new Map([...arrived, [twin, { id: twin, date: "2026-10-25", minor: "31440000", from: CUST }]]))[0]!.seen).toBeUndefined();
+  });
+
   it("refuses a different amount, and one that came in before the books started from Shield", () => {
     const { company, invoice, customerId } = business();
     const c = withPayment(company, customerId, paid(invoice.id, invoice.number, "3144"));
-    expect(paymentsToRecord(c, new Map([[TX, { date: "2026-10-25", minor: "100000000" }]]))[0]!.problem).toMatch(/different amount/);
+    expect(paymentsToRecord(c, new Map([[TX, { id: TX, date: "2026-10-25", minor: "100000000" }]]))[0]!.problem).toMatch(/different amount/);
     const started = { ...c, rail: { ...c.rail!, start: { date: "2026-10-26" } } };
-    expect(paymentsToRecord(started, new Map([[TX, { date: "2026-10-25", minor: "31440000" }]]))[0]!.problem).toMatch(/opening balance/);
+    expect(paymentsToRecord(started, new Map([[TX, { id: TX, date: "2026-10-25", minor: "31440000" }]]))[0]!.problem).toMatch(/opening balance/);
   });
 });
 
