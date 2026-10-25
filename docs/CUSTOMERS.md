@@ -4,6 +4,23 @@
 programs (Fable 5.1 at high effort, with must-fail tests) and new screens (only with Joshua's
 greenlight). The decisions below are his, from the conversation on 2026-10-23.
 
+## The checklist
+
+Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
+
+- [ ] A personal account can also be a customer.
+- [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
+- [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
+  up later; business posts, public or sealed. Free for now; $1 later in a new version.
+- [ ] Service agreements with a specified end: complete (both confirm), warranty, closed; change
+  orders, cancel, terminate, dispute.
+- [ ] Invoices paid through the agreement: one transaction moves the private USDCx straight from
+  the customer's wallet to the business's and issues receipts and a one-use review ticket; the
+  customer brings their own USDCx. A probe on testnet first (Shield's prover and a private call
+  into USDCx).
+- [ ] Reviews at each payment, private to the business until the job is complete, in warranty or
+  closed, then public with the job's average.
+
 ## What it is
 
 Customers come into Hewn the way team members did: through the chain, by registered name, with

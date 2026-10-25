@@ -27,8 +27,9 @@ per day in `progress/`; `PROGRESS.md` is its generated index.
 
 ## Session start
 
-1. Read the **Now** block at the top of `BUILD_PLAN.md`, the phase it names, and the newest day's
-   file in `progress/` (the top row of `PROGRESS.md`; within a day, entries run oldest to newest).
+1. Read the **Now** block at the top of `BUILD_PLAN.md`, the phase it names, and the last few
+   entries of the newest day's file in `progress/` (the top row of `PROGRESS.md`; within a day,
+   entries run oldest to newest, so the newest are at the end). About 5k tokens in all.
 2. The current phase is the one the Now block names (not the first phase with an open box: older
    phases keep leftovers that wait on other things). Report to Joshua in 10 lines or fewer: current
    phase, what's done, what's next, any blocker. Then propose **one** task aimed at **one** exit
@@ -92,7 +93,7 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   registers a `name.hewn` (a worker also creates the profile behind it); the app shell keeps an
   unfinished account on `/settings/setup` (`books/setup.ts`). Team members, customers and vendors are
   added only by finding their registered name (on mainnet, by Aleo address too: free-tier names are
-  random, though public, `BUILD_PLAN.md` "Mainnet names"). **One kind of account per Shield account** (Joshua,
+  random, though public, `docs/MAINNET_NAMES.md`). **One kind of account per Shield account** (Joshua,
   2026-10-15): a wallet holding a business's name can't link to or register a worker account, and
   the reverse (business and personal money never share a wallet); the same email may hold both
   kinds, each with its own Shield account (`chain/account_kind.ts`; the mainnet registrar will

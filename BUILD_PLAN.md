@@ -316,166 +316,15 @@ each person is tagged by a one-way value from the key they share with the busine
 
 ---
 
-## Mainnet names: `.hewn` under the Aleo Name Service (design, Joshua 2026-10-15)
+## Designs kept in docs/
 
-Mainnet names move onto the **Aleo Name Service** (ANS, [ARC-137](https://github.com/ProvableHQ/ARCs/discussions/45),
-built on ARC-721) instead of our own registry. ANS is one shared registry program
-(`aleo_name_service_registry.aleo`) with `primary_names: address => field` (reverse resolution)
-and `names: field => NameStruct` (the readable name). Wallets and explorers that support ANS read
-it through the open-source indexer ([aleo-name-service-api](https://github.com/S-T-Soft/aleo-name-service-api)),
-which follows the registry's `tlds` mapping, so once `hewn` is a TLD, `john.hewn` shows wherever
-those apps show an address, and people can send to it, with no change on their side. Our current
-`pnw_name_registry` stays on testnet only.
+Larger designs live beside the others in `docs/`, each with its own checklist; the open questions
+they raise stay in Decisions below.
 
-How it works
-1. **`hewn` becomes a TLD.** `register_tld(registrar, "hewn")` in the ANS registry is admin-only, so
-   the ANS team (S-T-Soft, authors of ARC-137) runs it with our registrar program as the TLD's
-   owner. After that only our registrar can mint under `hewn` (the registry checks
-   `caller == nft_owners[parent]`). Ask them before mainnet; it is a conversation, not code.
-2. **Our registrar program** (new Leo, Fable 5.1 at high effort, negative tests) mints under `hewn`:
-   - **Free tier:** a random public name (ANS `register`), assigned at setup, no fee beyond the
-     network's. Nothing to choose, nothing to squat. It is public like a paid name (Joshua,
-     2026-10-15): it resolves to the address, can be the wallet's primary name, and shows in every
-     ANS-aware wallet and explorer. People find each other by that name or by Aleo address. The
-     only difference from the paid tier is that the name isn't chosen.
-   - **Paid tier:** a chosen public name, a one-time purchase priced by length (proposed: 1–3
-     characters $100+, 4 characters about $20, 5+ characters 1 USDCx; final numbers Joshua's
-     call), paid in USDCx. Reverse resolution (`set_primary_name`) and the name on every
-     ANS-aware wallet and explorer. Reserved names (brand names, offensive terms, `admin`,
-     `support`, `hewn`, …) refused; the DAO can release them.
-   - **No renewal and no expiry** (Joshua, 2026-10-15): ANS names are permanent NFTs, like `.ans`
-     names, and the registry has no expiry. Squatting is limited by price alone. (A usage credit
-     toward renewal was considered and dropped with it.)
-   - **One kind per wallet:** refuses a business name for a wallet holding a worker name, and the
-     reverse (the app checks this today, `chain/account_kind.ts`).
-3. **Our programs** (agreements, receipts, payroll anchoring, the double-pay guard) key on ANS's
-   name hash (`Poseidon2` → `BHP256`, see the ARC) instead of `computeNameHash`. Mainnet is a
-   fresh deploy, so nothing migrates.
-4. **The app** resolves names by reading the registry's mappings from the explorer, as it reads our
-   registry now, or by running the open-source indexer; it never depends on ANS's hosted API.
-
-**If ANS says no** (Joshua, 2026-10-15): the same plan runs on our own registry. Everything is
-built so either backend works with the same programs and app code
-([`docs/NAME_REGISTRY_MAP.md`](docs/NAME_REGISTRY_MAP.md)):
-
-- Other programs only ask our `hewn_names` program, never a registry directly.
-- The app only asks one name service.
-- A name's id is ANS's name hash in both cases, so records never change if we switch later.
-
-What's lost without ANS: other wallets and explorers won't show `.hewn` names.
-
-Exit criteria
-- [ ] The app reaches names only through one name service (today's registry behind it), with a
-  test that nothing else reads the registry
-- [ ] `hewn_names` built in both modes (ANS and our own registry) from one source, both deployed
-  on testnet, with negative tests; its name id matches the app's `nameId` on a shared test vector
-- [ ] `hewn` registered as an ANS TLD on testnet, with our registrar as its owner (or, if ANS says
-  no, the own-registry build chosen for mainnet)
-- [ ] Registrar deployed on testnet with both tiers, length pricing, reserved names and one kind
-  per wallet; negative tests: a short name underpaid, a reserved name, a second kind on one
-  wallet, a name already taken, a mint not from the registrar
-- [ ] A `.hewn` name set as primary shows on AleoScan (or another ANS-aware explorer) with no
-  change on their side
-- [ ] The app registers both tiers through Shield, finds people by address or name, and shows a
-  linked party's `name.hewn` read from the ANS registry
-- [ ] Mainnet deploy, with `config/mainnet.manifest.json` as its source of truth
-- [ ] Maybe: turn off the testnet page counts (Vercel Web Analytics, hewn #100) before mainnet, or keep
-  them; decide at launch (Joshua, 2026-10-19)
-
-## Operating costs, fees and hosting (plan, Joshua 2026-10-16)
-
-The goal: Hewn scales without a monthly subscription. Bookkeeping stays free; what costs us money
-to run (the mailbox and its storage, the site) is paid for by a small fee on what moves money,
-plus name sales. Nothing here is built yet; the numbers are planning estimates to check against
-real traffic before mainnet.
-
-**What it costs to run** (estimates, 2026-10-16)
-- Mailbox storage: Cloudflare R2 (replacing Pinata, see "Scaling the mailbox" below). The free
-  tier (10 GB-month, 1M writes, 10M reads a month, no egress fees) carries roughly 150–200
-  businesses of about 10 people. Past it: about $0.36 per million reads, $4.50 per million writes.
-- Hosting: Vercel. The Hobby plan is for personal, non-commercial use, so plan on Pro ($20 a
-  month) before mainnet.
-- At about 20,000 active workers (about 2,000 businesses): roughly $120 a month in all.
-
-**The fee: flat, per paycheck paid on the rail, paid by the business**
-- About 44,000 paychecks a month at that size (most people paid every two weeks), so break-even
-  is about $0.003 a paycheck. Candidates: $0.03 (running costs with a wide margin) to $0.10 (also
-  saving toward the external security audit and development), with a monthly cap per business
-  (say $10) so larger teams aren't penalised.
-- **Flat, never a percentage**: a percentage would tie the fee to wages.
-- **Collected once per pay run**, as one private USDCx transfer of (fee × paychecks) to Hewn's
-  operating wallet, so it reveals neither headcount nor wages. One more Shield approval per run.
-- Businesses that pay through their bank (fiat and anchored modes) move no money on the rail,
-  so no fee applies; they contribute through names or the premium tier.
-- **Names**: 50% of each paid `.hewn` name's price goes to working capital (Joshua, 2026-10-16).
-
-**Two ways to run it, offered as a feature** (Joshua, 2026-10-16), possible because the code is AGPL:
-- **Run your own** (lowest cost): a business hosts its own copy of the app and its own mailbox
-  (its own R2 bucket and copy of the mailbox function). It pays only its own hosting and the
-  network's per-transaction fees, and owes Hewn nothing.
-- **Join the Hewn network** (the default): we host it. The small flat fee per paycheck covers
-  the heavy data movement (carrying and storing sealed documents) and being part of a larger
-  network of businesses and workers.
-- The design must let the two meet: a person can work for a self-hosted business and a hosted
-  one at the same time. So the mailbox address travels with each agreement (the business names
-  it in the offer) rather than being one global setting; the person's app reads each agreement's
-  mailbox where the business keeps it. Built with "Scaling the mailbox".
-
-**Scaling the mailbox** (next PR)
-- Today every mailbox read searches Pinata's pin list by name, and that call is limited (about 30
-  a minute on the free plan) for the whole app: the first thing that breaks.
-- Move envelopes to object storage named by their lookup hash (Cloudflare R2: a private bucket
-  only our function can read, one direct read per lookup, refused overwrites of a taken slot),
-  behind the same mailbox interface, with Pinata kept as an option.
-- A batch endpoint: one request checks many lookups (a Messages check is one call, not dozens).
-- Rate limits on the mailbox endpoints (Vercel firewall) so nobody can flood the bucket.
-- Keep-until days and the daily sweep carry over to R2.
-
-## Premium tier candidates (mainnet, not decided)
-
-Features that could sit behind a paid tier once Hewn is on mainnet (Joshua, 2026-10-16). Nothing
-here is gated today, and the tier itself (what's in it, its price) is an open decision below. The
-free product never loses what it has: books, payroll, paystubs, agreements and the mailbox stay free.
-
-**Scheduling** (Phase 9; Joshua, 2026-10-20): included for now, a possible premium feature; where
-the line falls is decided before mainnet.
-
-**Private messaging within an organization.** An organization is a business plus everyone with an
-accepted agreement with it, so the circle is already defined on chain and nobody outside it can be
-reached. Built on the mailbox (sealed envelopes, lookup hashes, keep-until days, receipts):
-- **Business ↔ team member:** one-to-one threads over the agreement's existing parties key. Unopened
-  messages are swept after 30 days (`MESSAGE_KEEP_DAYS`); the sender sees Received / Expired unread.
-- **Group messages and announcements:** the business makes a group key and sends it to each
-  member through their own mailbox; a message is sealed once under it and read by everyone. When
-  someone leaves, a new key goes out, so they can't read what comes after.
-- **Team member ↔ team member:** private from the business too. Coworkers have a legal right to
-  discuss pay and conditions with each other (NLRA in the US), so the business must not hold
-  these keys. Each person makes a key pair in their own vault; the business only relays the
-  public halves. Each coworker's registered name is confirmed on chain for the account their
-  letters go to (2026-10-23), and a short safety code is a second check in person.
-- **Opt-in directory:** team members appear to each other only if they choose to; the business
-  shares the list, never an address someone didn't agree to show.
-
-Needs its own design doc and Joshua's greenlight before any code (a new screen and new key
-handling); likely a Fable session for the key agreement.
-
-## Customers (design, Joshua 2026-10-23)
-
-Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`hewn_market_v1`,
-`hewn_service_v1`) and new screens.
-
-- [ ] A personal account can also be a customer.
-- [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
-- [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
-  up later; business posts, public or sealed. Free for now; $1 later in a new version.
-- [ ] Service agreements with a specified end: complete (both confirm), warranty, closed; change
-  orders, cancel, terminate, dispute.
-- [ ] Invoices paid through the agreement: one transaction moves the private USDCx straight from
-  the customer's wallet to the business's and issues receipts and a one-use review ticket; the
-  customer brings their own USDCx. A probe on testnet first (Shield's prover and a private call
-  into USDCx).
-- [ ] Reviews at each payment, private to the business until the job is complete, in warranty or
-  closed, then public with the job's average.
+- **Mainnet names**, `.hewn` under the Aleo Name Service: [`docs/MAINNET_NAMES.md`](docs/MAINNET_NAMES.md)
+- **Operating costs, fees and hosting**: [`docs/OPERATING_COSTS.md`](docs/OPERATING_COSTS.md)
+- **Premium tier candidates**: [`docs/PREMIUM_TIER.md`](docs/PREMIUM_TIER.md)
+- **Customers**: [`docs/CUSTOMERS.md`](docs/CUSTOMERS.md) (not greenlit)
 
 ## Deferred
 
@@ -521,14 +370,14 @@ Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`he
 - [x] Product name for the bookkeeping surface: **Hewn** (hewnaccounting.com; app at www.hewnaccounting.com for now, since app.hewnaccounting.com doesn't resolve yet, 2026-10-21) (2026-10-14). The name, tagline, colours and asset paths live in `packages/brand/src/index.ts`; art in `brand/source/`.
 - [ ] Phase 6 before Phase 3, if multi-user is wanted before anything ships to a second person.
 - [ ] Greenlight for Phase 1.
-- [x] One kind of account per Shield account (business or worker); the same username may hold both (2026-10-15). App check now, registrar on mainnet.
-- [x] Mainnet names live under the Aleo Name Service as the `hewn` TLD; free tier a random public name (changed from private the same day), paid tier a chosen public name priced by length, bought once, no renewal (2026-10-15). See "Mainnet names".
+- [x] One kind of account per Shield account (business or worker); the same username may hold both (2026-10-15). App check now, registrar on mainnet. Confirmed 2026-10-25 (Joshua): a wallet with a worker name never holds a business name, and the reverse; a worker's account can still be a business's customer. Testnet's `pnw_name_registrar_v5` doesn't enforce it (its tests record that, PNWBNW/pnw_mvp_v2#225), so the mainnet registrar must, with a must-fail test each way.
+- [x] Mainnet names live under the Aleo Name Service as the `hewn` TLD; free tier a random public name (changed from private the same day), paid tier a chosen public name priced by length, bought once, no renewal (2026-10-15). See `docs/MAINNET_NAMES.md`.
 - [ ] Final prices for the short-name tiers.
 - [ ] Agreement with the ANS team to register `hewn` as a TLD.
 - [ ] Premium tier for mainnet: whether to have one, what's in it (first candidate: private
-  messaging within an organization) and its price. See "Premium tier candidates".
+  messaging within an organization) and its price. See `docs/PREMIUM_TIER.md`.
 - [ ] The per-paycheck fee: amount ($0.03–$0.10 proposed), the monthly cap per business, and when
-  it starts (with real traffic, before mainnet). See "Operating costs, fees and hosting".
+  it starts (with real traffic, before mainnet). See `docs/OPERATING_COSTS.md`.
 - [ ] Hewn's operating wallet: the original PNW rule was "no protocol treasury" (no pooled
   custody). A fee wallet holds only fees, never anyone's pay; confirm it as an exception.
 - [ ] Where the other 50% of each paid `.hewn` name goes (50% is working capital).

@@ -14,6 +14,9 @@ day, indexed by `PROGRESS.md`) are at the repository root; this folder holds the
 | [`HEWN_ART.md`](HEWN_ART.md) | Design, for review | The art drawn for every credential and paystub: a Northwest scene, the pine that grows with time on Hewn, a constellation that fingerprints the record and carries the person's own star, a log's rings for the year's paychecks. |
 | [`JOB_BOARD.md`](JOB_BOARD.md) | Living | The public job board: what is public on purpose, how applications stay sealed, fees. |
 | [`AUDIT_DESIGN.md`](AUDIT_DESIGN.md) | Plan, approved | How a paycheck, a run or a period is provable to an auditor without the chain ever showing a wage. |
+| [`MAINNET_NAMES.md`](MAINNET_NAMES.md) | Design, with its checklist | `.hewn` names under the Aleo Name Service on mainnet: the two tiers, pricing, reserved names, one kind of name per wallet, and the steps to get there. |
+| [`OPERATING_COSTS.md`](OPERATING_COSTS.md) | Plan, estimates | Running Hewn without a monthly subscription: what costs money, the small fee on what moves money, name sales, hosting. |
+| [`PREMIUM_TIER.md`](PREMIUM_TIER.md) | Candidates, not decided | What could sit behind a paid tier on mainnet, and what the free product never loses. |
 | [`NAME_REGISTRY_MAP.md`](NAME_REGISTRY_MAP.md) | Plan | Where the app depends on the name registry, and how mainnet names under the Aleo Name Service slot in. |
 | [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | Reference | Who the app is for and the principles its screens follow. Clean-room: from what bookkeepers do, not from any other product. |
 | [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | Report, 2026-10-14 | The network's limits checked against the settlement design before it was built. |
