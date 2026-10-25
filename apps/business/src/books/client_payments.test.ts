@@ -44,11 +44,11 @@ describe("a business recording a customer's payment from Shield", () => {
   it("waits until its own account shows the transfer, then records it against the invoice", () => {
     const { company, invoice, customerId } = business();
     let c = withPayment(company, customerId, paid(invoice.id, invoice.number, "15490"));
-    expect(paymentsToRecord(c)[0]).toMatchObject({ number: invoice.number, problem: expect.stringMatching(/Not in your Shield account yet/) });
-    expect(() => recordClientPayment(c, TX)).toThrow(/Not in your Shield account yet/);
+    expect(paymentsToRecord(c)[0]).toMatchObject({ number: invoice.number, problem: expect.stringMatching(/Not found in your Shield account yet/) });
+    expect(() => recordClientPayment(c, TX)).toThrow(/Not found in your Shield account yet/);
 
     c = arrived(c, "154900000"); // $154.90 in six-decimal units
-    expect(paymentsToRecord(c)[0]!.seen?.id).toBe(TX);
+    expect(paymentsToRecord(c)[0]!.seen?.inReview).toBe(true);
     c = recordClientPayment(c, TX);
     const inv = c.sales.invoices.find((i) => i.id === invoice.id)!;
     expect(invoiceBalance(c.sales, inv)).toBe(0n);
@@ -83,6 +83,32 @@ describe("a business recording a customer's payment from Shield", () => {
     expect(() => validateMessage({ ...raw, body: { ...raw.body, transactionId: "not-a-tx" } }, "worker")).toThrow(/transaction/);
   });
 });
+
+describe("confirming a payment from the account's own records (Joshua's test, 2026-10-26)", () => {
+  it("records it when For review hasn't listed it, and adds it there as recorded so it's never counted again", () => {
+    const { company, invoice, customerId } = business();
+    let c = withPayment(company, customerId, paid(invoice.id, invoice.number, "3144"));
+    const arrived = new Map([[TX, { date: "2026-10-25", minor: "31440000" }]]);
+    expect(paymentsToRecord(c, arrived)[0]!.seen).toEqual({ date: "2026-10-25", minor: "31440000", inReview: false });
+    // The invoice is $154.90; $31.44 applies to it and the rest stays owed.
+    c = recordClientPayment(c, TX, arrived);
+    expect(c.sales.payments[0]).toMatchObject({ amount: 3144n, reference: TX, date: "2026-10-25" });
+    expect(c.review!.items).toEqual([expect.objectContaining({ id: TX, status: "recorded", direction: "in", minor: "31440000", entryId: c.sales.payments[0]!.entryId })]);
+    expect(paymentsToRecord(c, arrived)).toEqual([]);
+    // A later For review check finds the same transfer and leaves it alone.
+    expect(arrived_again(c).review!.items.filter((i) => i.id === TX)).toHaveLength(1);
+  });
+
+  it("refuses a different amount, and one that came in before the books started from Shield", () => {
+    const { company, invoice, customerId } = business();
+    const c = withPayment(company, customerId, paid(invoice.id, invoice.number, "3144"));
+    expect(paymentsToRecord(c, new Map([[TX, { date: "2026-10-25", minor: "100000000" }]]))[0]!.problem).toMatch(/different amount/);
+    const started = { ...c, rail: { ...c.rail!, start: { date: "2026-10-26" } } };
+    expect(paymentsToRecord(started, new Map([[TX, { date: "2026-10-25", minor: "31440000" }]]))[0]!.problem).toMatch(/opening balance/);
+  });
+});
+
+const arrived_again = (c: Company) => addReviewItems(c, [{ id: TX, date: "2026-10-25", direction: "in", minor: "31440000", counterparty: CUST, kind: "transfer_private", status: "new" }]);
 
 describe("a customer's payment of a bill", () => {
   const start = { address: BIZ, invoiceId: "inv-1", number: "INV-0001", cents: "15490" };

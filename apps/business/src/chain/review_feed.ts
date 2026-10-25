@@ -170,20 +170,31 @@ export async function findMovements(args: { me: string; start: RailStart; known:
   }
 
   // 2. Records: a private payment received (its transaction isn't one this account signed).
-  const records = (await deps.wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[])).filter(isObj);
-  for (const r of records) {
-    if (r.recordName !== undefined && r.recordName !== "Token") continue;
-    const id = transactionIdOf(r, ["transactionId", "transaction_id", "txId"]);
-    const when = timeOf(r.blockTimestamp);
-    if (!id || seen.has(id) || !when || !afterStart(when, start)) continue;
-    const m = typeof r.recordPlaintext === "string" ? /\bamount:\s*(\d+)u128\b/.exec(r.recordPlaintext) : null;
-    if (!m?.[1]) continue;
-    seen.add(id);
-    const from = typeof r.sender === "string" && new RegExp(`^${ADDRESS.source}$`).test(r.sender) ? r.sender : null;
-    const fn = typeof r.functionName === "string" && r.functionName ? r.functionName : "transfer_private";
-    const item = classify({ me, id, when, fn, to: me, from, minor: BigInt(m[1]) });
+  for (const r of receivedRecords(await deps.wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[]))) {
+    if (seen.has(r.id) || !afterStart(r.when, start)) continue;
+    seen.add(r.id);
+    const item = classify({ me, id: r.id, when: r.when, fn: r.fn, to: me, from: r.from, minor: r.minor });
     if (item) items.push(item);
   }
 
   return { items, unread };
+}
+
+/** A USDCx record this account holds: the transaction that made it, when, how much, and who sent it when Shield says. */
+export type ReceivedRecord = { id: string; when: Date; minor: bigint; from: string | null; fn: string };
+
+/** The account's USDCx token records as Shield lists them, each with what made it; anything unreadable is left out. */
+export function receivedRecords(raw: readonly unknown[]): ReceivedRecord[] {
+  const out: ReceivedRecord[] = [];
+  for (const r of raw.filter(isObj)) {
+    if (r.recordName !== undefined && r.recordName !== "Token") continue;
+    const id = transactionIdOf(r, ["transactionId", "transaction_id", "txId"]);
+    const when = timeOf(r.blockTimestamp);
+    const m = typeof r.recordPlaintext === "string" ? /\bamount:\s*(\d+)u128\b/.exec(r.recordPlaintext) : null;
+    if (!id || !when || !m?.[1]) continue;
+    const from = typeof r.sender === "string" && new RegExp(`^${ADDRESS.source}$`).test(r.sender) ? r.sender : null;
+    const fn = typeof r.functionName === "string" && r.functionName ? r.functionName : "transfer_private";
+    out.push({ id, when, minor: BigInt(m[1]), from, fn });
+  }
+  return out;
 }

@@ -28,6 +28,7 @@ index is out of date.
 - [Customers: agreements for a job, and disconnecting](progress/2026-10-26.md#2026-10-26--customers-agreements-for-a-job-and-disconnecting)
 - [Customers: an invoice names its agreed job](progress/2026-10-26.md#2026-10-26--customers-an-invoice-names-its-agreed-job)
 - [Customers: no cards for clients (decision)](progress/2026-10-26.md#2026-10-26--customers-no-cards-for-clients-decision)
+- [Customers: a payment is confirmed from the business's own Shield records](progress/2026-10-26.md#2026-10-26--customers-a-payment-is-confirmed-from-the-businesss-own-shield-records)
 
 ## [2026-10-25](progress/2026-10-25.md)
 
