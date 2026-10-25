@@ -208,7 +208,11 @@ export function mapSvg(input: MapInput): string {
     }
   }
   if (runs.length) parts.push(el("path", { d: segments(runs), stroke: cyan, "stroke-width": 2, fill: "none" }));
-  parts.push(text(X(GRID.w) - 40, yy - 4, input.yearsLabel, { fill: cyan, "font-family": SANS, "font-weight": 600, "font-size": 9 }));
+  // The label sits at whichever edge the hill leaves clear of hatching: the right, unless the land is high there.
+  const rightClear = row[GRID.w]! / t.top < lvl;
+  const leftClear = row[0]! / t.top < lvl;
+  const labelX = rightClear || !leftClear ? X(GRID.w) - 40 : X(0) + 6;
+  parts.push(text(labelX, yy - 4, input.yearsLabel, { fill: cyan, "font-family": SANS, "font-weight": 600, "font-size": 9 }));
   parts.push(el("rect", { x: SECTION.x, y: SECTION.y, width: SECTION.w, height: SECTION.h, fill: "none", stroke: green, "stroke-width": 1 }));
 
   return el("g", { class: "map" }, parts.join(""));

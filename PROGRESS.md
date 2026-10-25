@@ -4586,3 +4586,18 @@ Settings ("on Hewn since", the switch, "Claim your card"). `docs/THREAT_MODEL.md
 section. Tests: 23 new (inputs, parsing, the explorer read, the wait, block time, the vault's
 card, the setup step and its date rule). Not yet: the renderer (B) and the public page (C), and
 the network checks in the program's README (test credits arrived; next).
+
+## 2026-10-25 — The renderer begun: a business's card drawn in Settings; hewn_cards_v1 checked on the network
+
+`packages/art` (`@pnw/art`): the cards' renderer as deterministic SVG text, ported from
+`docs/art/prototype/art.html`: a seeded generator (art v1), stable SVG building, a PNG writer by
+hand (stored deflate, CRC-32, Adler-32, base64) for the map's one raster, the sky by the hour, the
+person's constellation with the record's lit star, the business's topographic map (terrain from
+its name, tint and hillshade lit from the sun's hour, contours by marching squares, the cyan
+contour that climbs a level a year, the cross-section through the summit), the paystub's log
+(one ring a paycheck, this one cyan, a reversed one dashed), and the two cards. `@pnw/brand`
+gains cyan and gold. Settings draws a business's card from its name and its card's date
+(`cards/BusinessCardArt.tsx`); a worker's land in 3D is next. 15 tests in the package, 2 in the
+app. The network checks of `hewn_cards_v1` ran with two funded test accounts: 13 of 13 as the
+program's README lists (every refusal rejected on chain, every pass accepted, the mapping ending
+exactly right); recorded in `pnw_mvp_v2`.

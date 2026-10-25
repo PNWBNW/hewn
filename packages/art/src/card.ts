@@ -29,7 +29,10 @@ export type CardText = {
   footer: string;
 };
 
-function frame(t: CardText, inner: string, defs = ""): string {
+type Rows = { title: number; line: number };
+const ROWS: Rows = { title: 505, line: 528 };
+
+function frame(t: CardText, inner: string, defs = "", rows: Rows = ROWS): string {
   const { green, cream, ink, cyan } = BRAND.colors;
   const body =
     (defs ? el("defs", {}, defs) : "") +
@@ -38,8 +41,8 @@ function frame(t: CardText, inner: string, defs = ""): string {
     text(20, 36, t.name, { fill: cream, "font-family": SANS, "font-weight": 600, "font-size": 18 }) +
     text(CARD.w - 20, 36, t.kind, { fill: cyan, "font-family": SANS, "font-weight": 500, "font-size": 11, "text-anchor": "end" }) +
     inner +
-    text(20, 505, t.title, { fill: ink, "font-family": SANS, "font-weight": 600, "font-size": 16 }) +
-    text(20, 528, t.line, { fill: "#43514c", "font-family": SANS, "font-size": 13 }) +
+    text(20, rows.title, t.title, { fill: ink, "font-family": SANS, "font-weight": 600, "font-size": 16 }) +
+    text(20, rows.line, t.line, { fill: "#43514c", "font-family": SANS, "font-size": 13 }) +
     text(20, 575, t.mark, { fill: "#6b7a74", "font-family": MONO, "font-size": 11 }) +
     text(CARD.w - 20, 575, t.footer, { fill: green, "font-family": SANS, "font-weight": 600, "font-size": 11, "text-anchor": "end" });
   return svgDocument(CARD.w, CARD.h, body, { role: "img", "aria-label": `${t.name}: ${t.title}` });
@@ -63,14 +66,14 @@ export type PaystubCardInput = {
   check?: string;
 };
 
-/** The paystub's face: the log and the constellation, with only what is safe to show. */
-export function paystubCardSvg(p: PaystubCardInput, t: Omit<CardText, "title"> & { title: string; line2?: string }): string {
+/** The paystub's face: the log and the constellation, with only what is safe to show. The log sits higher than a map, so the words do too. */
+export function paystubCardSvg(p: PaystubCardInput, t: CardText & { line2?: string }): string {
   const { green } = BRAND.colors;
   const log = { cx: CARD.w / 2, cy: 300, r: 132, seed: p.recordSeed, n: p.n, of: p.of, whole: p.whole, reversed: p.reversed };
   const inner =
     constellationSvg({ name: p.name, recordSeed: p.recordSeed, box: { x: CARD.w - 150, y: 72, w: 130, h: 58 }, night: false }) +
     logSvg(log) +
-    (t.line2 ? text(20, 548, t.line2, { fill: "#43514c", "font-family": SANS, "font-size": 13 }) : "") +
-    (p.check ? text(20, p.line ? 556 : 546, `✓ ${p.check}`, { fill: green, "font-family": SANS, "font-weight": 600, "font-size": 12 }) : "");
-  return frame({ ...t, title: t.title, line: t.line }, inner, logDefs(log));
+    (t.line2 ? text(20, 516, t.line2, { fill: "#43514c", "font-family": SANS, "font-size": 13 }) : "") +
+    (p.check ? text(20, 546, `✓ ${p.check}`, { fill: green, "font-family": SANS, "font-weight": 600, "font-size": 12 }) : "");
+  return frame(t, inner, logDefs(log), { title: 470, line: 494 });
 }
