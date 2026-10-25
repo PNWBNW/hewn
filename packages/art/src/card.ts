@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------------------
 
 import { BRAND } from "@pnw/brand";
-import { constellationSvg } from "./constellation";
+import { type Box, constellationSvg } from "./constellation";
 import { type MapInput, mapSvg } from "./map";
 import { logDefs, logSvg } from "./rings";
 import { el, svgDocument, text } from "./svg";
@@ -77,3 +77,48 @@ export function paystubCardSvg(p: PaystubCardInput, t: CardText & { line2?: stri
     (p.check ? text(20, 546, `✓ ${p.check}`, { fill: green, "font-family": SANS, "font-weight": 600, "font-size": 12 }) : "");
   return frame(t, inner, logDefs(log), { title: 470, line: 494 });
 }
+
+/** The art window a land is drawn into, on the card. */
+export const LAND_WINDOW = { x: 14, y: 72, w: 372, h: 408 } as const;
+
+export type WorkerCardInput = {
+  /** The bare name, for the constellation. */
+  name: string;
+  /** The record's label: lights one star. */
+  recordSeed: string;
+  /** The rendered land, a PNG data URI (land3d.ts). */
+  image: string;
+  /** The lowest sky pixel per card column, so the constellation stays in the sky. */
+  skyline: readonly number[];
+  /** Night or dusk: the constellation in cyan. */
+  dark: boolean;
+};
+
+/** Where the constellation fits in the sky: the first box, largest first, with sky under all of it. Null when none. */
+export function constellationSpot(skyline: readonly number[]): Box | null {
+  for (const sc of [1, 0.8, 0.62, 0.5]) {
+    for (const by of [86, 100]) {
+      for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+        const bw = 140 * sc;
+        const bh = 70 * sc;
+        const bx = Math.round(36 + f * (328 - bw));
+        let ok = true;
+        for (let x = bx; x <= bx + bw; x += 3) if (by + bh > (skyline[x] ?? 480) - 22) ok = false;
+        if (ok) return { x: bx, y: by, w: bw, h: bh };
+      }
+    }
+  }
+  return null;
+}
+
+/** A worker's card: their land, rendered, with their constellation in its sky. */
+export function workerCardSvg(w: WorkerCardInput, t: CardText): string {
+  const { green } = BRAND.colors;
+  const spot = constellationSpot(w.skyline);
+  const inner =
+    el("image", { x: LAND_WINDOW.x, y: LAND_WINDOW.y, width: LAND_WINDOW.w, height: LAND_WINDOW.h, preserveAspectRatio: "none", href: w.image }) +
+    (spot ? constellationSvg({ name: w.name, recordSeed: w.recordSeed, box: spot, night: w.dark }) : "") +
+    el("rect", { x: LAND_WINDOW.x, y: LAND_WINDOW.y, width: LAND_WINDOW.w, height: LAND_WINDOW.h, fill: "none", stroke: green, "stroke-width": 2 });
+  return frame(t, inner, "", { title: 510, line: 533 });
+}
+

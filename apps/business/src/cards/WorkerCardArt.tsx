@@ -1,0 +1,68 @@
+"use client";
+
+// ---------------------------------------------------------------------------
+// A worker's card, drawn (docs/HEWN_ART.md): their land from their name,
+// the cyan pine grown with their years on Hewn, their constellation in the
+// sky, the live sky by the hour and the season. The land is a 3D scene
+// (three.js) rendered once in the browser; the renderer loads only when a
+// card is shown, so nobody else downloads it. The tenure card is the bare
+// land: no landmarks until credentials exist. Nothing here is logged.
+// ---------------------------------------------------------------------------
+
+import { useEffect, useState } from "react";
+import { ART_VERSION, hourOf, seasonOf, workerCardSvg } from "@pnw/art";
+import type { Card } from "@/books/card";
+import { BRAND } from "@/brand";
+import { yearsLabel, yearsOn } from "./BusinessCardArt";
+
+export type WorkerCardArtProps = {
+  /** The bare registered name. */
+  name: string;
+  card: Card;
+  className?: string;
+};
+
+type State = { kind: "drawing" } | { kind: "drawn"; markup: string } | { kind: "failed"; message: string };
+
+/** The card's words, apart from the land. */
+export function workerCardText(name: string, card: Card, now: Date) {
+  const years = yearsOn(card, now);
+  const since = card.since ? new Date(card.since).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : `block ${card.issuedAt.toLocaleString()}`;
+  return {
+    years,
+    text: {
+      name: `${name}.${BRAND.nameSuffix}`,
+      kind: years < 1 ? "NEW" : `YEAR ${years}`,
+      title: `${name}.${BRAND.nameSuffix} · ${years < 1 ? "new on" : `${years} ${years === 1 ? "year" : "years"} on`} ${BRAND.name}`,
+      line: `On ${BRAND.name} since ${since}`,
+      mark: `art v${ART_VERSION} · ${yearsLabel(years)}`,
+      footer: `${BRAND.name} · private view`,
+    },
+  };
+}
+
+export default function WorkerCardArt({ name, card, className }: WorkerCardArtProps) {
+  const [state, setState] = useState<State>({ kind: "drawing" });
+  useEffect(() => {
+    let gone = false;
+    (async () => {
+      try {
+        const now = new Date();
+        const { years, text } = workerCardText(name, card, now);
+        const { renderLand } = await import("@pnw/art/land3d");
+        const land = renderLand({ name, hour: hourOf(now), season: seasonOf(now), years, landmarks: [] });
+        const markup = workerCardSvg({ name, recordSeed: `tenure:${name}:${card.issuedAt}`, image: land.dataUrl, skyline: land.skyline, dark: land.night || land.dusk }, text);
+        if (!gone) setState({ kind: "drawn", markup });
+      } catch {
+        if (!gone) setState({ kind: "failed", message: "Your land couldn't be drawn on this device." });
+      }
+    })();
+    return () => {
+      gone = true;
+    };
+  }, [name, card.issuedAt, card.since]);
+  if (state.kind === "drawing") return <p className={className ? `${className} text-sm text-muted-foreground` : "text-sm text-muted-foreground"}>Drawing your land…</p>;
+  if (state.kind === "failed") return <p className="text-sm text-muted-foreground">{state.message}</p>;
+  // Our own SVG text, every word escaped by the renderer; the land is a picture this device drew.
+  return <div className={className} dangerouslySetInnerHTML={{ __html: state.markup }} />;
+}

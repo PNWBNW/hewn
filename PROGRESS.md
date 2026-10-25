@@ -4601,3 +4601,19 @@ gains cyan and gold. Settings draws a business's card from its name and its card
 app. The network checks of `hewn_cards_v1` ran with two funded test accounts: 13 of 13 as the
 program's README lists (every refusal rejected on chain, every pass accepted, the mapping ending
 exactly right); recorded in `pnw_mvp_v2`.
+
+## 2026-10-25 — The worker's land in 3D, drawn in Settings
+
+`packages/art` grows `land.ts` (a worker's land as data, ported from `docs/art/prototype/land3d.html`:
+the genome a name gives, seeded gradient noise, the terrain the river carves with a lake or a
+bend at its head and an entry left, middle or right, the range scaled to leave the top third of
+the card to the sky, each landmark's best spot by the same penalties as the prototype, the forest
+in groves clear of the landmarks' sight lines, the rocks, the grass, the ground's colour by
+season) and `land3d.ts` (the three.js scene: sky dome with the sun or the moon, stars, the water,
+the models for the cabin, bridge, fire lookout, cairn and the pine, the shadows and the bloom;
+one render for a card and a mask render for the skyline). `card.ts` wraps the picture in the
+card with the constellation found a spot in the sky. three.js 0.169.0 is pinned and loaded only
+by `cards/WorkerCardArt.tsx`, which Settings shows a worker; the tenure card is the bare land
+with the pine. 12 land tests (the genome's ranges and the river's three entries, the water below
+its banks, the sky kept, the landmarks on the card and dry, the forest clear of them), 1 in the
+app; rendered in headless Chromium and looked at.
