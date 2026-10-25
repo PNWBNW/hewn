@@ -11,6 +11,7 @@
 
 import { type Invoice, type Sales, invoiceTotals } from "@pnw/sales";
 import type { Connections } from "./connections";
+import { type BillPayment, billKey } from "./customer";
 import type { ThreadItem } from "./thread";
 
 export type BillLine = { description: string; quantity: string; unitPrice: string; taxable?: true };
@@ -122,13 +123,20 @@ export function invoicesToDeliver(sales: Pick<Sales, "invoices">, conns: Connect
 
 // ---- The customer's side ------------------------------------------------------
 
-export type BillStatus = "open" | "void";
+export type BillStatus = "open" | "paying" | "paid" | "void";
 
-/** A bill as the customer's portal shows it: from which business, and where it stands. */
-export type BillView = { address: string; business: string; bill: Bill; receivedAt?: string; status: BillStatus };
+/** A bill as the customer's portal shows it: from which business, where it stands, and its payment from Shield, if any. */
+export type BillView = { address: string; business: string; bill: Bill; receivedAt?: string; status: BillStatus; payment?: BillPayment };
 
-/** Every bill from every connected business: the latest copy of each, voided when the business said so. Newest first. */
-export function billsIn(conns: Connections | undefined): BillView[] {
+/** Where a bill stands once its payment is taken into account: paid once the transfer settled, paying while it's on its way or unknown. */
+function withPayment(view: BillView, payment: BillPayment | undefined): BillView {
+  if (!payment) return view;
+  const status: BillStatus = payment.settlement.status === "settled" ? "paid" : payment.settlement.status === "pending" ? "paying" : view.status;
+  return { ...view, payment, status: view.status === "void" && status !== "paid" ? "void" : status };
+}
+
+/** Every bill from every connected business: the latest copy of each, voided when the business said so, paid when it was. Newest first. */
+export function billsIn(conns: Connections | undefined, payments?: Record<string, BillPayment>): BillView[] {
   const out: BillView[] = [];
   for (const c of Object.values(conns ?? {})) {
     const bills = new Map<string, BillView>();
@@ -143,7 +151,7 @@ export function billsIn(conns: Connections | undefined): BillView[] {
         if (before) bills.set(i.body.id, { ...before, status: "void" });
       }
     }
-    out.push(...bills.values());
+    out.push(...[...bills.values()].map((v) => withPayment(v, payments?.[billKey(v.address, v.bill.id)])));
   }
   return out.sort((a, b) => b.bill.date.localeCompare(a.bill.date) || b.bill.number.localeCompare(a.bill.number));
 }

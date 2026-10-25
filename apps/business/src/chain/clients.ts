@@ -13,7 +13,7 @@
 //   pair key:  ECDH of the two keys, HKDF-SHA256 with salt "PNW::CLIENT::v1"
 //              (chain/coworkers.ts `pairKey`), the mailbox key for the two
 //   sides:     the business writes `cl_b`, the customer `cl_c` (the thread's
-//              "business" and "worker" sides); messages, invoices and voids
+//              "business" and "worker" sides); messages, invoices, voids, payments
 //
 // Nothing here logs a key, an account or a letter.
 // ---------------------------------------------------------------------------
@@ -29,8 +29,8 @@ import type { ThreadKinds } from "./thread";
 
 export const CLIENT_KINDS: ThreadKinds = { business: "cl_b", worker: "cl_c" };
 
-/** What passes between a business and a customer: plain messages, and invoices and their voids. */
-export const CLIENT_TYPES: readonly ThreadBody["type"][] = ["text", "invoice", "invoice_void"];
+/** What passes between a business and a customer: plain messages, invoices and their voids, and payments. */
+export const CLIENT_TYPES: readonly ThreadBody["type"][] = ["text", "invoice", "invoice_void", "payment"];
 export const clientAccepts = (body: ThreadBody): boolean => CLIENT_TYPES.includes(body.type);
 
 /** How many hellos one account may send another (each a fresh place); a reader stops at the first empty one. */

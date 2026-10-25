@@ -234,7 +234,8 @@ says hello first. Nothing new is deployed:
   can't make it.
 - **The conversation.** It is sealed under that key in the usual conversation slots: the business
   writes `cl_b`, the customer `cl_c`: plain messages, and the business's invoices (`invoice`,
-  `books/bill.ts`) and voids (`invoice_void`). Payments come next.
+  `books/bill.ts`) and voids (`invoice_void`), and the customer's `payment` (which invoice, which
+  transfer), which the business records only once its own account shows the transfer.
   A new hello with a new key starts the conversation afresh.
 - **Either side starts.** A business connects a customer it added by registered name; a customer
   finds a business by its name. The other answers by sending its own hello, or turns the request

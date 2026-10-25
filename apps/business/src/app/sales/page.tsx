@@ -38,6 +38,7 @@ import { PageHeader } from "@/shell/SectionView";
 import { LinkBadge } from "@/books/LinkBadge";
 import { linkStatus } from "@/books/rail";
 import { invoicesToDeliver } from "@/books/bill";
+import { connectedIn } from "@/books/connections";
 import { PartyForm, partyLinkView, withRegistered } from "./PartyForm";
 import { ReceivePaymentForm } from "./ReceivePaymentForm";
 import { AgingCard, EstimateBadge, StatusBadge, voidWithFallback } from "./parts";
@@ -46,6 +47,8 @@ import { AgingCard, EstimateBadge, StatusBadge, voidWithFallback } from "./parts
 const BusinessClients = dynamic(() => import("@/chain/clients/BusinessClients"), { ssr: false });
 // Sent invoices a connected customer hasn't had yet: loaded only when there are some.
 const DeliverInvoices = dynamic(() => import("@/chain/clients/DeliverInvoices"), { ssr: false });
+// Customers' payments from Shield, to record: loaded only once a customer is connected.
+const ClientPayments = dynamic(() => import("@/chain/clients/ClientPayments"), { ssr: false });
 
 type Receiving = { customerId?: string; invoiceId?: string } | null;
 
@@ -125,6 +128,7 @@ function Sales() {
 function Invoices({ onReceive }: { onReceive: (r: Receiving) => void }) {
   const { sales, clients, rail, updateCompany } = useOpenBooks();
   const toDeliver = rail ? invoicesToDeliver(sales, clients ?? undefined).length : 0;
+  const anyConnected = rail ? connectedIn(clients ?? undefined).length > 0 : false;
   const [error, setError] = useState<string | null>(null);
   const today = todayIso();
   const names = new Map(sales.customers.map((c) => [c.id, c.name]));
@@ -167,6 +171,7 @@ function Invoices({ onReceive }: { onReceive: (r: Receiving) => void }) {
   return (
     <div className="flex flex-col gap-4">
       {toDeliver > 0 && <DeliverInvoices />}
+      {anyConnected && <ClientPayments />}
       <AgingCard title="Owed to you, by age" aging={arAging(sales, today)} />
       <FormError message={error} />
       <div className="relative overflow-x-auto rounded-lg border bg-card">

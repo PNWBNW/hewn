@@ -18,8 +18,10 @@ Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
   Businesses and their customers).
 - [x] Invoices sent to a connected customer and shown under Bills (Step 1, no new Leo). Built
   2026-10-26.
-- [ ] Bills paid from the customer's Shield account, with a receipt, matched on the business's
-  side (Step 1, no new Leo).
+- [x] Bills paid from the customer's Shield account, the business told, and recorded on the
+  business's side once its own account shows the transfer (Step 1, no new Leo). Built 2026-10-26.
+- [ ] A printable invoice, for a customer who isn't on the app (PC browsers and phone browsers'
+  share sheet; not inside Shield's browser).
 - [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
 - [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
   up later; business posts, public or sealed. Free for now; $1 later in a new version.
@@ -144,14 +146,17 @@ stablecoin's own private transfer, the registry):
 3. **The customer sees it under Bills** (built 2026-10-26): every invoice from each connected
    business, the latest copy, voided when the business said so; opened in full, and the open total
    on Home. Bills checks each conversation for what's new.
-4. **The customer pays it:** **Pay** sends exactly the invoice's amount as a private USDCx
-   transfer from their Shield account to the business's, then a receipt letter to the business
-   naming the invoice and the transaction. Two approvals: the payment, then the receipt. The
-   customer's vault records it as paid.
-5. **The business's books match it:** the payment already arrives in For review (the Shield
-   account is read today); the receipt letter lets the app match it to the invoice and offer
-   **Record payment for INV-0012** (receivable to the Shield account). Without the letter, it
-   matches by amount, as now.
+4. **The customer pays it** (built 2026-10-26): **Pay** sends exactly the bill's amount as a
+   private USDCx transfer from their Shield account to the business's, through payroll's own pay
+   queue (`@pnw/rail`), so a reload resumes and a payment whose outcome isn't known is never sent
+   again on its own. Once it settles, a `payment` message tells the business which invoice and
+   which transfer. Two approvals: the payment, then the message. The bill shows Paid.
+5. **The business's books take it** (built 2026-10-26): Sales → Invoices reads its customers'
+   conversations and lists each payment. It offers **Record payment for INV-0012** only once the
+   business's own Shield account shows that transfer coming in for that amount (For review); the
+   customer's word alone records nothing. Recording posts a payment against the invoice
+   (receivable to the Shield account) and marks the review item recorded, so it isn't counted
+   twice.
 6. **Messages** between the two are letters, a conversation like a team member's.
 
 **What's public:** the same as any letter and private transfer: that the letters program and the

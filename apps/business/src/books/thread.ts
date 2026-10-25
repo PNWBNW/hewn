@@ -83,6 +83,8 @@ export type ThreadBody =
   | { type: "invoice"; bill: Bill }
   /** A business voids an invoice it sent: the customer no longer owes it. */
   | { type: "invoice_void"; id: string; number: string }
+  /** A customer paid an invoice from Shield: which one, how much (cents), and the transfer. The business checks it against its own account. */
+  | { type: "payment"; invoiceId: string; number: string; amount: string; transactionId: string }
   /** The business publishes the person's week (books/schedule.ts): shift blocks and on-call days, and an optional note. */
   | { type: "schedule"; week: ScheduleWeek; note: string }
   /** The person confirms the week published in message `scheduleId`, or asks for a change, with a note. */
@@ -172,6 +174,7 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   application_status: "business",
   invoice: "business",
   invoice_void: "business",
+  payment: "worker",
   schedule: "business",
   schedule_answer: "worker",
   hours_change: "either",
@@ -375,6 +378,13 @@ function validateBody(raw: unknown): ThreadBody {
       if (typeof raw.id !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(raw.id)) throw new ThreadError("A void needs the invoice's id");
       if (typeof raw.number !== "string" || !raw.number.trim() || [...raw.number].length > 40) throw new ThreadError("A void needs the invoice's number");
       return { type: "invoice_void", id: raw.id, number: raw.number };
+    }
+    case "payment": {
+      if (typeof raw.invoiceId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(raw.invoiceId)) throw new ThreadError("A payment needs the invoice's id");
+      if (typeof raw.number !== "string" || !raw.number.trim() || [...raw.number].length > 40) throw new ThreadError("A payment needs the invoice's number");
+      if (typeof raw.amount !== "string" || !/^[1-9]\d{0,14}$/.test(raw.amount)) throw new ThreadError("A payment needs its amount");
+      if (typeof raw.transactionId !== "string" || !/^at1[02-9ac-hj-np-z]{58}$/.test(raw.transactionId)) throw new ThreadError("A payment needs its transaction");
+      return { type: "payment", invoiceId: raw.invoiceId, number: raw.number, amount: raw.amount, transactionId: raw.transactionId };
     }
     case "text": {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
@@ -645,6 +655,7 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "sealed") return "A sealed message";
   if (b.type === "invoice") return item.mine ? `You sent invoice ${b.bill.number}` : `Sent you invoice ${b.bill.number}`;
   if (b.type === "invoice_void") return item.mine ? `You voided invoice ${b.number}` : `Voided invoice ${b.number}`;
+  if (b.type === "payment") return item.mine ? `You paid invoice ${b.number}` : `Paid invoice ${b.number}`;
   if (b.type === "report_notice") return item.mine ? `You reported their message as ${REPORT_AS[b.category]}` : `Reported your message as ${REPORT_AS[b.category]}`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";

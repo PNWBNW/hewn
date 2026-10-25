@@ -1,7 +1,7 @@
 "use client";
 
 // A customer's home: who they are to businesses, what's owed, and the backup
-// reminder. Paying from Shield comes next (docs/CUSTOMERS.md, Step 1).
+// reminder (docs/CUSTOMERS.md, Step 1).
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -19,7 +19,7 @@ const ChainBackup = dynamic(() => import("@/chain/ChainBackup"), { ssr: false })
 export default function CustomerHome() {
   const { books, customer, rail } = useCustomer();
   const greeting = books.settings.businessName.split(" ")[0] || books.settings.businessName;
-  const open = billsIn(customer.businesses).filter((b) => b.status === "open");
+  const open = billsIn(customer.businesses, customer.payments).filter((b) => b.status === "open");
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={`Hi, ${greeting}`} summary="The businesses you hire, their invoices, and every receipt, kept on this device." />
