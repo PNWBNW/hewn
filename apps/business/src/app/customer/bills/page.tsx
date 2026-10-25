@@ -1,8 +1,8 @@
 "use client";
 
 // A customer's bills: every invoice their connected businesses sent them, and
-// one opened in full. They come from the vault; checking for new ones loads
-// its Shield code only here. Paying from Shield comes next.
+// one opened in full, paid from Shield there. They come from the vault;
+// checking for new ones and paying load their Shield code only here.
 
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
@@ -20,6 +20,7 @@ import { BRAND } from "@/brand";
 import { PageHeader } from "@/shell/SectionView";
 
 const BillsCheck = dynamic(() => import("@/chain/customer/BillsCheck"), { ssr: false });
+const PayBill = dynamic(() => import("@/chain/customer/PayBill"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 
 export default function BillsPage() {
   return (
@@ -29,13 +30,15 @@ export default function BillsPage() {
   );
 }
 
+const STATUS_LINE: Partial<Record<BillView["status"], string>> = { void: "Voided by the business", paid: "Paid from Shield", paying: "Payment on its way" };
 const dollars = (cents: string) => `$${formatCents(BigInt(cents))}`;
+const openLine = (owed: bigint, n: number) => (n === 0 ? "Nothing open." : `${dollars(owed.toString())} open across ${n} ${n === 1 ? "bill" : "bills"}.`);
 const billKey = (b: BillView) => `${b.address}:${b.bill.id}`;
 
 function Bills() {
   const { customer } = useCustomer();
   const selected = useSearchParams().get("bill");
-  const bills = billsIn(customer.businesses);
+  const bills = billsIn(customer.businesses, customer.payments);
   const open = bills.find((b) => billKey(b) === selected);
   const today = todayIso();
 
@@ -44,7 +47,7 @@ function Bills() {
   const owed = bills.filter((b) => b.status === "open").reduce((n, b) => n + BigInt(b.bill.total), 0n);
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Bills" summary={bills.length === 0 ? "Invoices from the businesses you're connected with." : `${dollars(owed.toString())} open across ${bills.filter((b) => b.status === "open").length} bills.`} />
+      <PageHeader title="Bills" summary={bills.length === 0 ? "Invoices from the businesses you're connected with." : openLine(owed, bills.filter((b) => b.status === "open").length)} />
       <BillsCheck />
       <Card>
         <CardContent className="pt-6">
@@ -68,7 +71,7 @@ function Bills() {
                           {b.business}.{BRAND.nameSuffix} · {b.bill.number}
                         </span>
                         <span className={cn("block truncate text-xs", late ? "text-destructive" : "text-muted-foreground")}>
-                          {b.status === "void" ? "Voided by the business" : late ? `Overdue since ${b.bill.dueDate}` : `Due ${b.bill.dueDate}`}
+                          {STATUS_LINE[b.status] ?? (late ? `Overdue since ${b.bill.dueDate}` : `Due ${b.bill.dueDate}`)}
                         </span>
                       </span>
                       <span className="text-sm font-medium tabular-nums">{dollars(b.bill.total)}</span>
@@ -99,6 +102,7 @@ function BillDetail({ view }: { view: BillView }) {
           <p className="text-sm text-muted-foreground">
             Dated {bill.date} · due {bill.dueDate}
             {view.status === "void" && " · voided by the business: nothing is owed"}
+            {view.status === "paid" && " · paid"}
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -129,7 +133,7 @@ function BillDetail({ view }: { view: BillView }) {
             <dd className="text-right font-medium tabular-nums">{dollars(bill.total)}</dd>
           </dl>
           {bill.memo && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{bill.memo}</p>}
-          {view.status === "open" && <p className="text-xs text-muted-foreground">Paying from Shield is coming next. Until then, pay the business the way you agreed.</p>}
+          {view.status !== "void" && <PayBill view={view} />}
           <Link href={`/customer/messages?with=${encodeURIComponent(view.address)}`} className="text-sm underline underline-offset-4">
             Message {view.business}
           </Link>

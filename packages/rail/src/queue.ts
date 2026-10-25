@@ -80,10 +80,13 @@ export type PayQueueEvent =
   /** It may have gone through: never sent again on its own. `failure` says what to check. */
   | { kind: "unconfirmed"; workerId: string; failure: string; reference?: string; attempt?: string };
 
+/** What the queue reads of each payment: who it's to, how much, and where it stands. A paycheck, or a customer paying a bill. */
+export type QueuedPayment = Pick<Paycheck, "workerId" | "net" | "settlement">;
+
 export type PayQueueContext = {
   wallet: RailWallet;
   network: RailNetwork;
-  run: Pick<PayRun, "id" | "mode" | "paychecks">;
+  run: Pick<PayRun, "id" | "mode"> & { paychecks: readonly QueuedPayment[] };
   /** workerId → account on the rail. Every payee in the run must be here. */
   links: ReadonlyMap<string, string>;
   onProgress?: (event: PayQueueEvent) => void;
@@ -128,7 +131,7 @@ const REJECTED = new Set(["rejected", "failed"]);
 export const isOnChainId = (id: string | undefined): id is string => typeof id === "string" && id.startsWith("at1");
 
 /** The paychecks a run still owes: pending (sent or not) and failed, with something to pay. */
-export function outstanding(run: Pick<PayRun, "paychecks">): Paycheck[] {
+export function outstanding<P extends QueuedPayment>(run: { paychecks: readonly P[] }): P[] {
   return run.paychecks.filter((p) => p.settlement.status !== "settled" && p.net > 0n);
 }
 
@@ -227,8 +230,8 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
   const byTag = new Map<string, TokenRecord>();
   for (const r of records) byTag.set(await recordTag(r.plaintext), r);
   const pinned: Transfer[] = [];
-  const spent: Paycheck[] = [];
-  const toSend: Paycheck[] = [];
+  const spent: QueuedPayment[] = [];
+  const toSend: QueuedPayment[] = [];
   for (const p of due) {
     if (inFlight.includes(p)) continue;
     const tag = p.settlement.attempt;
@@ -357,7 +360,7 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
       outcome(t.workerId, e, { reference: transactionId, attempt });
     }
   };
-  const resumeOne = async (p: Paycheck) => {
+  const resumeOne = async (p: QueuedPayment) => {
     const reference = p.settlement.reference!;
     const attempt = p.settlement.attempt;
     try {
