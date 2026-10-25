@@ -4765,3 +4765,58 @@ commitment; the moves name only the commitment; each copy opens only with its ow
 In the app, the two "staged" comments (`chain/credentials.ts`, `packages/config`) and the
 HEWN_ART step-3 text now say deployed; no code change, tests as before (768). Not yet: the
 credential card (open question 1), and the screens tried end to end in Shield.
+
+## 2026-10-25 — The issues tab: 16 of the manual-test scenarios run headless, results posted and ticked
+
+Joshua's ask: as the manual-test issues (#150–#164) get worked, tick the scenarios that are
+complete and leave clear notes of what was done. The fifteen issue bodies now carry the full
+scenario list from `dev_testing_guide.md` as checkboxes (the bodies had drifted: ACC-8, MSG-3 to
+MSG-5, WORK-3 and OFFER-4 were missing), with one comment per scenario tried, in the guide's
+format. The runs: headless Chromium (Playwright) against this commit's website build (`next
+start`) and the installable bundle (`out/`, plain files), no Shield; the chain parts from the
+test harness with the two funded test accounts; the browser's explorer reads answered through
+the proxy-aware fetch. Two finished-setup accounts (a business bound to `hewncards_b1`, a person
+to `hewncards_w1`) were built with the app's own vault code and restored from backup, so every
+screen behind setup was reachable without a wallet.
+
+**As expected, ticked:** ACC-4 (one username, two kinds: the chooser), ACC-5 (wrong passphrase,
+and a Cyrillic look-alike; fullwidth letters open because passphrases are NFKC-normalised, by
+design), ACC-6 (stay logged in: back within 24 hours opens, 25 hours later asks, Log out forgets;
+the session slot holds a non-extractable key), ACC-7 (reload locks; 15 idle minutes lock, 14
+don't), ACC-8 (the recovery key end to end: wrong passphrase refused, typo, replaced key and
+another account's key all refused with one message, a post-key backup restored with the key on
+another browser), VAULT-1 to VAULT-4 (backup and restore in under 200 ms, wrong passphrase, four
+doctored files refused at once, the two-tab message word for word), NAME-1 with its break-it
+lines (exact names only; upper case, `@` and `.pnw` normalised; Cyrillic, 2 and 17 characters
+refused; a business refused as a team member), BOOKS-2, DEV-4, DEV-5, PRIV-2 (hosts: itself and
+the explorer; `/api/count` carries `{"first":true}` only; no query strings; nothing personal),
+PRIV-3 (two flags in localStorage, ciphertext in IndexedDB), WEB-2 (the website refuses the
+frame; the bundle can't, as documented), WEB-3 (empty, 25 MB, a renamed PNG, broken JSON: all
+refused in under half a second).
+
+**Different:** VAULT-5. Offline, the page already open keeps working and saving (a project added
+offline is there when the network returns), but moving to another page fails on both builds: the
+website lands on the browser's network-error page (a hard navigation) and Back doesn't recover;
+the bundle shows its own "This page couldn't load" and Back works. Left unticked with the note;
+the fix is caching the app's own files on the device (a service worker on the website, the
+installed bundle's own cache).
+
+**Partial, unticked with notes:** ACC-1/ACC-2 (the setup screens up to the Shield link), BOOKS-1
+(journal entries: balanced saves, unbalanced and half cents disabled, receivable without a
+customer refused, 99,999,999.99 saves, 2028-02-29 accepted; the reports tie out, trial balance
+100,001,234.55 both sides; invoices and bills end to end need a wallet), PRIV-1 (35 transactions
+read back: v5 and credentials show only tags and commitments; the registry and the cards'
+registry check put the owner's account beside the name hash, the registry's job; no amount,
+memo or plaintext name anywhere; the private-fee clause needs the app's switch), WEB-1 (names,
+username, memo, project, `/card`: text, never run; the letter-borne boxes need a wallet),
+PRIV-4 (the site isn't reachable from the build machine: Joshua opens `/traction`).
+
+**Needs Shield on two phones:** ACC-3, NAME-2, OFFER-1 to OFFER-3 and the app half of OFFER-4,
+MSG, CW, ANN, EVT, WORK, PAY, JOB, DEV-1 to DEV-3.
+
+Two gotchas for whoever runs this again: `build:static` overwrites `.next`, so `next start` after
+it serves a prerendered page whose script nonces no longer match the per-request policy (every
+script refused; rebuild the website first), and the agent proxy refuses plain HTTP, so the
+headless browser runs without a proxy and the explorer is reached through node's fetch. The
+scripts live in the session's scratchpad for now (`issues/*.mjs`); nothing in the repo changed
+but this entry. Tests as before (768).
