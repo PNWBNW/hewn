@@ -287,8 +287,9 @@ or the hours.
 3. **Credential cards**, which need a credential program. The deployed `credential_nft_v3` and
    `v4` check agreements through `employer_agreement_v4` (gone in v5) and the licence registry,
    with both names' hashes and both accounts as public finalize inputs, so a v5 agreement can't
-   mint one and the pair would show. **`hewn_credentials_v1.aleo`**, staged 2026-10-25 in
-   `pnw_mvp_v2` (Joshua's go, Fable 5.1), `@noupgrade`, importing only `employer_agreement_v5`:
+   mint one and the pair would show. **`hewn_credentials_v1.aleo`**, staged and deployed 2026-10-25
+   from `pnw_mvp_v2` (Joshua's go, Fable 5.1; block 20806575, 9.08 credits), `@noupgrade`,
+   importing only `employer_agreement_v5`:
    - A credential is a private record in two copies (the business's and the person's) with the
      kind (1 employment, 2 skills, 3 clearance, 4 custom), the issuer, the subject, a scope hash
      (what it says stays in the two vaults) and a random nonce. Its commitment, one hash over

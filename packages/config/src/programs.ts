@@ -50,7 +50,7 @@ export const PROGRAMS = {
   cards: {
     hewn_cards: "hewn_cards_v1.aleo",
   },
-  // A worker's credentials (docs/HEWN_ART.md; staged 2026-10-25 in pnw_mvp_v2, not deployed yet):
+  // A worker's credentials (docs/HEWN_ART.md; deployed 2026-10-25 from pnw_mvp_v2, block 20806575):
   // two private copies per credential, a public commitment with its status and its issue block.
   credentials: {
     hewn_credentials: "hewn_credentials_v1.aleo",
