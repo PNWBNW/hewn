@@ -83,6 +83,13 @@ describe("work file", () => {
     expect(w.mailboxSeq[AID]).toEqual({ timesheet: 1, paystub: 1 });
   });
 
+  it("keeps the person's card on the profile, and refuses one that isn't a card", () => {
+    const card = { issuedAt: 20801930, shown: false, since: "2026-10-25T00:08:18.000Z" };
+    const w = setProfile(emptyWork("Ana"), { nameHash: "777", name: "ana_ruiz", profileAnchored: true, registeredAt: "2026-10-25T01:00:00.000Z", card });
+    expect(workFromJson(workToJson(w)).profile?.card).toEqual(card);
+    expect(() => setProfile(emptyWork("Ana"), { nameHash: "777", name: "ana", profileAnchored: true, registeredAt: "2026-10-25T01:00:00.000Z", card: { issuedAt: 1 } as never })).toThrow(/shown/);
+  });
+
   it("starts empty with a name", () => {
     expect(emptyWork("Ana")).toEqual({ version: 1, displayName: "Ana", agreements: [], punches: [], timesheets: [], paystubs: [], mailboxSeq: {} });
     expect(workFromJson(workToJson(emptyWork("Ana")))).toEqual(emptyWork("Ana"));

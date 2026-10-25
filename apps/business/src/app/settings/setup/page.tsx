@@ -1,9 +1,10 @@
 "use client";
 
 // Finishing setup: every account links its Shield account and registers its
-// name.hewn before it can use the app, and a worker also creates the private
-// profile behind the name. The app shell keeps an unfinished account here.
-// Each step loads its Shield-backed panel only when it is the current one.
+// name.hewn before it can use the app, a worker also creates the private
+// profile behind the name, and a new account ends by issuing its card
+// (docs/HEWN_ART.md). The app shell keeps an unfinished account here. Each
+// step loads its Shield-backed panel only when it is the current one.
 
 import { useState } from "react";
 import Link from "next/link";
@@ -12,13 +13,14 @@ import { CircleCheck, Circle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { SETUP_STEPS, type SetupStep, setupStep } from "@/books/setup";
+import { type SetupStep, setupStep, setupSteps } from "@/books/setup";
 import { BRAND } from "@/brand";
 import { PageHeader } from "@/shell/SectionView";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
 const RailPanel = dynamic(() => import("@/chain/RailPanel"), { ssr: false, loading });
 const ProfilePanel = dynamic(() => import("@/chain/work/Profile"), { ssr: false, loading });
+const CardPanel = dynamic(() => import("@/chain/CardPanel"), { ssr: false, loading });
 
 export default function SetupPage() {
   const { role, rail, work } = useOpenBooks();
@@ -32,8 +34,9 @@ export default function SetupPage() {
     link: "Link your Shield account",
     name: worker ? `Register your name (yourname.${BRAND.nameSuffix})` : `Register your business name (yourbusiness.${BRAND.nameSuffix})`,
     profile: "Create your profile",
+    card: worker ? "Your card" : "Your business's card",
   };
-  const steps = SETUP_STEPS[role];
+  const steps = setupSteps(role, rail);
   const current = step === "done" ? steps.length : steps.indexOf(step);
   const name = worker ? work?.profile?.name : rail?.businessName;
 
@@ -80,6 +83,16 @@ export default function SetupPage() {
           )}
           {step === "name" && !worker && <RailPanel key={`name-${attempt}`} mode="register" onClose={restart} />}
           {(step === "name" || step === "profile") && worker && <ProfilePanel key={`work-${attempt}`} onClose={restart} />}
+          {step === "card" && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                {worker
+                  ? "Your land, drawn from your name, with a pine that grows with your time here. You choose whether it is shown publicly, and can change that in Settings."
+                  : "Your land as a map, drawn from your name, with your time here counting from today. It is public, like your name."}
+              </p>
+              <CardPanel key={`card-${attempt}`} onClose={restart} />
+            </>
+          )}
           {step === "done" && (
             <Link
               href={worker ? "/work" : "/"}

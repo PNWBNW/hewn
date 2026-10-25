@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AttachmentRef } from "@pnw/sales";
+import { type Card, validateCard } from "./card";
 import { type Half, validateHalf } from "./key_ring";
 import { LetterError, validateFileRefs } from "./offer_letter";
 import { type Terms, validateTerms } from "./work";
@@ -127,6 +128,8 @@ export type Rail = {
   partyLinks?: PartyLink[];
   /** When the books started following this account: the start date, and the opening entry (none when it held nothing). */
   start?: RailStart;
+  /** The business's card (books/card.ts), once issued or claimed. */
+  card?: Card;
 };
 
 /** The day the books began following the linked account, and the entry that opened its balance. */
@@ -323,6 +326,7 @@ export function validateRail(raw: unknown, options: ValidateOptions = {}): Rail 
   if (linkProof) rail.linkProof = linkProof;
   if (byParty.size > 0) rail.partyLinks = [...byParty.values()];
   if (r.start !== undefined) rail.start = validateStart(r.start);
+  if (r.card !== undefined) rail.card = validateCard(r.card);
   return rail;
 }
 

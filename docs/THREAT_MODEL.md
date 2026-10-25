@@ -468,3 +468,24 @@ public. Now every reader also checks the letter's sender, which only the record'
   look-alike characters); an application's name likewise; an account's primary name only while
   the account still owns it. Otherwise the account is shown. ✅
 
+## Cards (2026-10-25)
+
+Every account gets a card (`docs/HEWN_ART.md`; `hewn_cards_v1` on chain). What the chain holds
+per name is one public entry: the block the card was issued at and whether it is shown. Nothing
+else: no picture, no amounts, nothing about a person the registry doesn't show already (a name's
+hash and its account are public there by design).
+
+- **Issuing is a public transaction.** It runs the registry's ownership check, which names the
+  name's hash and the account, like every registry check does. So a worker who issues a hidden
+  card has still said, publicly, that the name has a card and when. The app says so before the
+  choice.
+- **Hiding is a permission, not an erasure.** `shown: false` tells every app not to draw the
+  card. It can't remove the issue, or that the card was shown before; the chain keeps its history.
+  The app says so before the switch (`chain/CardPanel.tsx`, `HIDE_NOTE`). ✅
+- **Time on Hewn is the issue block**, which anyone can check against the chain; the app reads
+  the block's date once and keeps it in the vault beside the card. An account from before the
+  cards starts counting when it claims its card, not from its registration (the registry doesn't
+  record when a name was registered).
+- **Bound to the name.** The program has no transfer; the registry decides who may call, so a
+  card follows its name if the name ever changes hands.
+

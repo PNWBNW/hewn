@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import type { AttachmentRef } from "@pnw/sales";
+import { type Card, validateCard } from "./card";
 import { type ApplicationStatus, type Thread, emptyThread, validateThread } from "./thread";
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
 import { agreedChanges, hoursChanges } from "./hours_change";
@@ -118,7 +119,14 @@ export type ReceivedPaystub = {
   paystubHash: string;
 };
 
-export type WorkProfile = { nameHash: string; name: string; profileAnchored: boolean; registeredAt: string };
+export type WorkProfile = {
+  nameHash: string;
+  name: string;
+  profileAnchored: boolean;
+  registeredAt: string;
+  /** The person's card (books/card.ts), once issued or claimed. */
+  card?: Card;
+};
 
 export type MailboxSeq = { paystub?: number; timesheet?: number };
 
@@ -364,12 +372,14 @@ export function validatePaystub(raw: unknown): ReceivedPaystub {
 function validateProfile(raw: unknown): WorkProfile {
   if (!isObject(raw)) throw new WorkError("Profile must be an object");
   if (typeof raw.profileAnchored !== "boolean") throw new WorkError("Profile needs to say whether it was created");
-  return {
+  const profile: WorkProfile = {
     nameHash: text(raw.nameHash, "Name hash"),
     name: text(raw.name, "Registered name"),
     profileAnchored: raw.profileAnchored,
     registeredAt: isoDate(raw.registeredAt, "Registered at"),
   };
+  if (raw.card !== undefined) profile.card = validateCard(raw.card);
+  return profile;
 }
 
 function validateSeq(raw: unknown): Record<string, MailboxSeq> {

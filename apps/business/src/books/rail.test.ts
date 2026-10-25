@@ -50,6 +50,16 @@ describe("rail", () => {
     expect(railFromJson(railToJson(rail))).toEqual(rail);
   });
 
+  it("keeps the business's card, and refuses one that isn't a card", () => {
+    const withCard: Rail = { ...rail, card: { issuedAt: 20801930, shown: true, since: "2026-10-25T00:08:18.000Z" } };
+    expect(railFromJson(railToJson(withCard))).toEqual(withCard);
+    expect(railFromJson(railToJson({ ...rail, card: { issuedAt: 5, shown: true } }))).toEqual({ ...rail, card: { issuedAt: 5, shown: true } });
+    expect(() => validateRail({ ...rail, card: { issuedAt: -1, shown: true } })).toThrow(/block/);
+    expect(() => validateRail({ ...rail, card: { issuedAt: 5 } })).toThrow(/shown/);
+    expect(() => validateRail({ ...rail, card: { issuedAt: 5, shown: false, since: "soon" } })).toThrow(/date/);
+    expect(railToJson(rail)).not.toContain("card");
+  });
+
   it("round-trips without the optional parts", () => {
     const bare: Rail = { version: 1, network: "testnet", address: ADDR, linkedAt: rail.linkedAt, links: [] };
     expect(railFromJson(railToJson(bare))).toEqual(bare);
