@@ -1,18 +1,22 @@
 "use client";
 
-// One paycheck's paystub, in plain words. Rebuilt from the vault (the run,
-// the paycheck and the person as saved), the same document the journal
+// One paycheck's paystub, in plain words, with its card above the figures
+// (docs/HEWN_ART.md: the business's copy of the person's card, the same log
+// of rings since both hold the paystub's hash). Rebuilt from the vault (the
+// run, the paycheck and the person as saved), the same document the journal
 // entry committed to when the run posted. Nothing here leaves the device.
 
 import dynamic from "next/dynamic";
 import { X } from "lucide-react";
-import { type Paycheck, type PayRun, paystubDocument, yearToDate } from "@pnw/payroll";
+import { type Paycheck, type PayRun, paystubDocument, paystubHash, yearToDate } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, formatCredits } from "@/books/display";
 import { payLines } from "@/books/paystub_document";
-import { shortAddress } from "@/books/rail";
+import { runPlace } from "@/books/paystub_rings";
+import { partyLinkFor, shortAddress } from "@/books/rail";
+import PaystubCardArt from "@/cards/PaystubCardArt";
 import { FiguresNote } from "@/legal/LegalNotes";
 
 // Only a paystub paid on the rail is sent to the person from here; nobody else downloads that code.
@@ -32,7 +36,7 @@ function paidLine(run: PayRun, p: Paycheck): string {
 }
 
 export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Paycheck; onClose: () => void }) {
-  const { books, payroll } = useOpenBooks();
+  const { books, payroll, rail } = useOpenBooks();
   const worker = payroll.workers.find((w) => w.id === paycheck.workerId);
   if (!worker) {
     return (
@@ -43,6 +47,8 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
   }
   const doc = paystubDocument(run, paycheck, worker, books.settings, yearToDate(payroll, worker.id, run.payDate, run.id));
   const fee = paycheck.settlement.feeMicrocredits;
+  const registered = rail ? partyLinkFor(rail, "worker", worker.id)?.name : undefined;
+  const settledOnRail = run.mode === "rail" && paycheck.settlement.status === "settled";
 
   return (
     <section aria-label={`Paystub for ${doc.workerName}`} className="rounded-lg border bg-card">
@@ -56,6 +62,20 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
         <Button type="button" variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={onClose} aria-label="Close paystub">
           <X aria-hidden className="size-4" />
         </Button>
+      </div>
+      <div className="px-4 pt-3">
+        <PaystubCardArt
+          name={registered || doc.workerName}
+          registered={!!registered}
+          paystubHash={paycheck.paystubHash ?? paystubHash(doc)}
+          businessName={doc.businessName}
+          payDate={doc.payDate}
+          periodStart={doc.periodStart}
+          periodEnd={doc.periodEnd}
+          place={runPlace(payroll, worker.id, run, worker.frequency)}
+          check={settledOnRail ? "Paid on the rail" : undefined}
+          className="w-full max-w-[220px]"
+        />
       </div>
       <dl className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm sm:grid-cols-2">
         <Row label="Pay period" value={`${doc.periodStart} to ${doc.periodEnd}`} />

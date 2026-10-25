@@ -4617,3 +4617,23 @@ by `cards/WorkerCardArt.tsx`, which Settings shows a worker; the tenure card is 
 with the pine. 12 land tests (the genome's ranges and the river's three entries, the water below
 its banks, the sky kept, the landmarks on the card and dry, the forest clear of them), 1 in the
 app; rendered in headless Chromium and looked at.
+
+## 2026-10-25 — Paystub rings: the card above the figures, on both sides
+
+The cards design's step 2 (`docs/HEWN_ART.md`): a paystub's card, the hewn log with one ring a
+paycheck this year, this one cyan, the rings still to come faint, the person's constellation with
+this paystub's star lit. `cards/PaystubCardArt.tsx` draws it from the renderer; the person's
+Paystubs (`app/work/PaystubView.tsx`) and the business's paystub view (`app/payroll/Paystub.tsx`)
+show it above the figures. `books/paystub_rings.ts` finds the paycheck's place in its year from
+the pay dates each side holds (the person's from the paystubs that arrived from the same
+agreement, the business's from its own runs) and the paychecks a year from the person's schedule
+(business) or the period's length (person: weekly to 10 days, two-week to 14, half-month to 20
+and a February 16th to the 28th, longer a month). Both sides hold the paystub's hash, so both
+light the same star and cut the same rings; the business's copy shows the person's registered
+name when the team member was found on the registry, else what the books call them. The check
+line reads "Sealed by … · paid on the rail" on the person's copy and "Paid on the rail" on the
+business's once the transfer settled. No amount, no hours on the face. `src/cards/` gets its
+README. 10 new tests (the period lengths, the number in the year, a received paystub's place
+with an unreadable one beside it, the business's runs and the clamp, the card's words with no
+amount and the check line); the app's 733 pass. There is no paystub PDF yet; when one exists the
+card goes in it.
