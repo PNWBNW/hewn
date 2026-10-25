@@ -13,7 +13,8 @@ export const BRAND = {
   nameSuffix: "hewn",
   /** Prefix of the message Shield signs to link an account. A protocol tag: it stays put if the name changes. */
   railLinkDomain: "hewn:link:v1",
-  colors: { green: "#113b31", cream: "#f5f0e3", ink: "#091623", canvas: "#f7f5ef" },
+  /** The one accent is cyan (the pine, a lit star); gold is the sun and the dawn. Both also live in packages/ui/src/tokens.css. */
+  colors: { green: "#113b31", cream: "#f5f0e3", ink: "#091623", canvas: "#f7f5ef", cyan: "#18dccb", gold: "#f8d084" },
   assets: {
     markDark: "/brand/hewn-mark.png",
     wordmarkOnLight: "/brand/hewn-wordmark-green.png",

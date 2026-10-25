@@ -13,6 +13,7 @@
     "build:static": "HEWN_STATIC=1 next build && node scripts/static_csp.mjs"
   },
   "dependencies": {
+    "@pnw/art": "workspace:*",
     "@pnw/brand": "workspace:*",
     "@pnw/commitments": "workspace:*",
     "@pnw/config": "workspace:*",

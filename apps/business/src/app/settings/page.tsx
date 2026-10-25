@@ -10,6 +10,7 @@ import { Field, FormError, PassphraseInput, errorMessage } from "@/books/AuthCar
 import { useOpenBooks } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
+import BusinessCardArt from "@/cards/BusinessCardArt";
 import { PageHeader } from "@/shell/SectionView";
 
 // Fetched only when the user taps Connect or Import: nobody else downloads the rail code.
@@ -100,7 +101,7 @@ export default function SettingsPage() {
  * shown and hidden here. A business's card is always shown.
  */
 function YourCard() {
-  const { role, rail, work } = useOpenBooks();
+  const { books, role, rail, work } = useOpenBooks();
   const worker = role === "worker";
   const name = worker ? work?.profile?.name : rail?.businessName;
   const card = worker ? work?.profile?.card : rail?.card;
@@ -118,6 +119,7 @@ function YourCard() {
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {card && !worker && <BusinessCardArt name={name} displayName={books.settings.businessName} card={card} className="w-full max-w-[280px]" />}
         {card && (
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
             <dt className="text-muted-foreground">Name</dt>
