@@ -4971,3 +4971,31 @@ With these, 21 of 24 rules have a check (also from today: the secrets scan, the 
 program names, browser storage). The three left are rules for things not built yet: aggregates
 with a minimum group size (INV-04), extension modules (INV-18) and mode upgrades (INV-19); each
 gets its check with the feature.
+
+## 2026-10-25 — Every deployed program Hewn calls is under test (ICM Step 5; INV-22)
+
+Leo tests, in `pnw_mvp_v2`'s plan gate, for the four deployed programs the app calls that had
+none: `pnw_name_registry_v2` (30 tests, 20 refusals; PNWBNW/pnw_mvp_v2#224),
+`pnw_name_registrar_v5` (24, 15; #225), `pnw_worker_profiles_v2` (19, 14; #226) and
+`employer_agreement_v4` (31, 23; #227): 104 tests, 72 of them inputs that must fail. With the
+five programs already tested, 9 of the 19 live programs are covered, every one Hewn calls
+(Joshua's scope, 2026-10-25). Test files only: no deployed program changed. Each gate step tests
+a copy with the substitutions a test needs, asserted before `leo test`: `@noupgrade` for `@admin`
+(the local ledger refuses an `@admin` program whose deployer isn't the admin), the registry's
+`ADMIN` set to the test program's or the registrar's own address where a write is gated on the
+caller, and network dependencies pointed at the stubs (a new `employer_license_registry` stub
+joins them). Each program's README says what its tests show and what they can't.
+
+**Two things recorded as they are, not as the rules read.** The chain lets one wallet hold a
+worker name and an employer name (the registry counts the two kinds apart); only the app refuses
+it (`chain/account_kind.ts`), and the mainnet registrar should. Nothing on chain limits a worker
+name to one profile. Both are tests that pass today and flip to refusals when a program enforces
+them. **Two paths a test can't reach:** `update_worker_profile` and v4's `accept_job_offer` consume
+a record minted to the caller, and inside a test the caller is the test program, whose records no
+signer can spend; tests of those paths went green for the wrong reason and were removed rather
+than kept. v5's full lifecycle is under test; v4 is shown refusing from pending.
+
+Also fixed on the way: the worker-profiles README still named the program `worker_profiles.aleo`,
+said PROPRIETARY and listed a function that doesn't exist; the registrar README claimed "never
+both" for the two name kinds. INV-22 (negative tests for every program) now holds for every
+program Hewn calls, not only the ones written since October.

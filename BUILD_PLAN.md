@@ -11,8 +11,11 @@ Updated 2026-10-25. Session start reads this block; keep it to these four lines 
 whenever the work moves.
 
 - **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
-- **In flight:** audit readiness (the invariants table, numbered threats and the public-state map;
-  PROGRESS.md, 2026-10-25) and the manual tests (issues #150–#164).
+- **In flight:** audit readiness, Steps 6 and 7 of the ICM plan (a lighter session start: the
+  progress log split by day with an index, the chain facts moved to the chain README; a link
+  checker in CI), and the manual tests (issues #150–#164). Steps 1–5 are done (PROGRESS.md,
+  2026-10-25: invariants with checks, numbered threats, the public-state map, Leo tests for every
+  program Hewn calls).
 - **Next criterion:** Phase 1, reconciliation: the books' cash accounts checked against the Shield
   balance, with any difference flagged.
 - **Blocked on Joshua:** archiving the old portal repository on GitHub (Phase 0); two phones with
