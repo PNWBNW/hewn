@@ -66,7 +66,10 @@ function ProfileFlow({ address, onClose }: { address: string; onClose: () => voi
   }, [address, work.profile, updateWork]);
 
   if (!checked) return <p className="text-sm text-muted-foreground">Checking the registry…</p>;
-  if (!work.profile) return <RegisterName address={address} onClose={onClose} />;
+  if (!work.profile) {
+    const save = (nameHash: string, name: string) => updateWork((w) => setProfile(w, { nameHash, name, profileAnchored: false, registeredAt: new Date().toISOString() }));
+    return <RegisterName address={address} role="worker" save={save} onClose={onClose} />;
+  }
   if (!work.profile.profileAnchored) return <CreateProfile address={address} onClose={onClose} />;
   return (
     <>
@@ -85,8 +88,21 @@ function ProfileFlow({ address, onClose }: { address: string; onClose: () => voi
 
 type Availability = { kind: "idle" } | { kind: "checking" } | { kind: "available"; nameHash: string; yours: boolean } | { kind: "taken" };
 
-function RegisterName({ address, onClose }: { address: string; onClose: () => void }) {
-  const { updateWork } = useWork();
+/**
+ * Registers a person's name (a worker's or a customer's: the registry keeps one kind of personal
+ * name), or takes one this account already owns. `save` keeps it in the vault.
+ */
+export function RegisterName({
+  address,
+  role,
+  save,
+  onClose,
+}: {
+  address: string;
+  role: "worker" | "customer";
+  save: (nameHash: string, name: string) => Promise<unknown>;
+  onClose: () => void;
+}) {
   const { wallet } = useWorkShield();
   const [name, setName] = useState("");
   const [availability, setAvailability] = useState<Availability>({ kind: "idle" });
@@ -114,10 +130,10 @@ function RegisterName({ address, onClose }: { address: string; onClose: () => vo
     setError(null);
     try {
       const { nameHash, inputs } = registerNameInputs(name);
-      // One kind of account per Shield account: a wallet holding a business's name can't take a worker's.
-      if (address) await assertKindFree("worker", address);
+      // One kind of account per Shield account: a wallet holding a business's name can't take a person's.
+      if (address) await assertKindFree(role, address);
       if (!availability.yours) await executeAndWait(wallet, { ...REGISTER, inputs });
-      await updateWork((w) => setProfile(w, { nameHash, name, profileAnchored: false, registeredAt: new Date().toISOString() }));
+      await save(nameHash, name);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -127,7 +143,10 @@ function RegisterName({ address, onClose }: { address: string; onClose: () => vo
 
   return (
     <>
-      <p className="text-sm">Pick the name employers will know you by. It is public, one per account, and can&apos;t be changed later.</p>
+      <p className="text-sm">
+        Pick the name {role === "customer" ? "businesses" : "employers"} will know you by. It is public, one per account, and can&apos;t be changed
+        later.
+      </p>
       <Field label="Your name on the registry" hint={NAME_RULE}>
         <div className="flex items-center gap-2">
           <input

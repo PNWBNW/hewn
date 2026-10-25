@@ -12,6 +12,7 @@ import {
   legacyOpen,
   normalizeUsername,
   recoverAccounts,
+  usernameConflict,
   vaultIdFor,
 } from "./account";
 
@@ -20,7 +21,7 @@ const FAST = { iterations: 1_000 };
 const PASS = "correct horse battery";
 
 /** Makes an account the way the app does: vault id from the username, secret from username + passphrase. */
-async function makeAccount(store: MemoryStore, email: string, role: "business" | "worker", passphrase = PASS, contents = `${role} books`) {
+async function makeAccount(store: MemoryStore, email: string, role: "business" | "worker" | "customer", passphrase = PASS, contents = `${role} books`) {
   const e = normalizeUsername(email);
   const s = await createVault(accountSecret(e, passphrase), contents, { id: await vaultIdFor(e, role), ...FAST });
   await store.save(s.record);
@@ -304,5 +305,37 @@ describe("recoverAccounts (a forgotten passphrase)", () => {
     await expect(recoverAccounts(store, "ana", code.replace(/^./, (c) => (c === "A" ? "B" : "A")), NEXT, FAST)).rejects.toThrow(NO_RECOVERY_MATCH_MESSAGE);
     await expect(recoverAccounts(store, "ana", code, "short", FAST)).rejects.toMatchObject({ code: "WEAK_PASSPHRASE" });
     expect(JSON.stringify(await store.load(await vaultIdFor("ana", "business")))).toBe(before);
+  });
+});
+
+describe("what a username can hold (Joshua, 2026-10-26)", () => {
+  it("holds a person's worker and customer accounts together, each opening with the one login", async () => {
+    const store = new MemoryStore();
+    await makeAccount(store, "rowan", "worker");
+    expect(await usernameConflict(store, "rowan", "customer")).toBeNull();
+    await makeAccount(store, "rowan", "customer");
+    const found = await findAccounts(store, "rowan", PASS, FAST);
+    expect(found.map((f) => f.role).sort()).toEqual(["customer", "worker"]);
+  });
+
+  it("refuses a business on a person's username, and a person's account on a business's", async () => {
+    const store = new MemoryStore();
+    await makeAccount(store, "rowan", "customer");
+    expect(await usernameConflict(store, "rowan", "business")).toMatch(/A business needs a username of its own/);
+    await makeAccount(store, "cedar_co", "business");
+    expect(await usernameConflict(store, "cedar_co", "worker")).toMatch(/belongs to a business/);
+    expect(await usernameConflict(store, "cedar_co", "customer")).toMatch(/belongs to a business/);
+    expect(await usernameConflict(store, "fresh", "business")).toBeNull();
+  });
+
+  it("keeps opening a business and a worker made on one username under the old rule", async () => {
+    const store = new MemoryStore();
+    await makeAccount(store, "old_pair", "business");
+    await makeAccount(store, "old_pair", "worker");
+    expect((await findAccounts(store, "old_pair", PASS, FAST)).map((f) => f.role).sort()).toEqual(["business", "worker"]);
+  });
+
+  it("gives a customer account its own vault, apart from the worker's", async () => {
+    expect(await vaultIdFor("rowan", "customer")).not.toBe(await vaultIdFor("rowan", "worker"));
   });
 });

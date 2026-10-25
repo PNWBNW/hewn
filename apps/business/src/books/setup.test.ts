@@ -57,6 +57,18 @@ describe("setup steps", () => {
     expect(cardStepApplies(null)).toBe(true);
   });
 
+  it("asks a customer only for Shield and a name: no profile, no card yet", () => {
+    const name = { name: "rowan", nameHash: "42", registeredAt: "2026-10-26T00:00:00.000Z" };
+    const fresh = rail({ linkedAt: "2026-10-26T01:00:00.000Z" });
+    expect(setupStep({ role: "customer", rail: null, work: null, customer: { version: 1 } })).toBe("link");
+    expect(setupStep({ role: "customer", rail: fresh, work: null, customer: { version: 1 } })).toBe("name");
+    expect(setupStep({ role: "customer", rail: fresh, work: null, customer: null })).toBe("name");
+    expect(setupStep({ role: "customer", rail: fresh, work: null, customer: { version: 1, name } })).toBe("done");
+    // A worker's profile or a business's name on the same vault doesn't count for a customer.
+    expect(setupStep({ role: "customer", rail: { ...fresh, businessNameHash: "1" }, work: work(PROFILE), customer: { version: 1 } })).toBe("name");
+    expect(setupSteps("customer", fresh)).toEqual(["link", "name"]);
+  });
+
   it("lists the steps each role goes through", () => {
     expect(SETUP_STEPS.business).toEqual(["link", "name", "card"]);
     expect(SETUP_STEPS.worker).toEqual(["link", "name", "profile", "card"]);

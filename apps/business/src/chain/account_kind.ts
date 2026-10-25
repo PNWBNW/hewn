@@ -1,9 +1,11 @@
 // ---------------------------------------------------------------------------
 // One kind of account per Shield account (Joshua, 2026-10-15): a wallet that
-// holds a business's books can't also hold a worker's, and the other way
+// holds a business's books can't also hold a person's, and the other way
 // round. Money in one wallet is one pot; a business's books and a person's pay
-// sharing it would mix business and personal money. The same username can hold
-// both kinds; each needs its own Shield account.
+// sharing it would mix business and personal money. A person's two accounts,
+// a worker and a customer, are both personal money: they may share a Shield
+// account and its name (2026-10-26, docs/CUSTOMERS.md). A business runs its
+// own Shield account and its own username.
 //
 // The registry is where a wallet's kind shows: every account registers a
 // name, and the registry keeps a business's and a worker's primary name in
@@ -51,10 +53,14 @@ export function registryRead(endpoint: string = ENV.ALEO_ENDPOINT, fetchImpl: ty
   };
 }
 
+// A customer's name is a person's name on the registry, like a worker's: the chain doesn't say which.
 const OTHER: Record<Role, { mapping: string; kind: string }> = {
-  business: { mapping: "worker_primary_name_of", kind: "a worker's" },
+  business: { mapping: "worker_primary_name_of", kind: "a person's" },
   worker: { mapping: "employer_primary_name_of", kind: "a business's" },
+  customer: { mapping: "employer_primary_name_of", kind: "a business's" },
 };
+
+const FOR: Record<Role, string> = { business: "your business", worker: "your work as a worker", customer: "your account as a customer" };
 
 /** Why this wallet can't hold a `role` account (it already holds the other kind), or null when it can. Throws when the registry can't be read. */
 export async function kindConflict(role: Role, address: string, read: MappingRead = registryRead()): Promise<string | null> {
@@ -62,8 +68,7 @@ export async function kindConflict(role: Role, address: string, read: MappingRea
   if (!(await read(other.mapping, address))) return null;
   return (
     `This Shield account already holds ${other.kind} name, and one Shield account holds one kind of account. ` +
-    `Add another account in Shield (or use another wallet) for your ${role === "business" ? "business" : "work as a worker"}, and link that one. ` +
-    `You can keep the same username.`
+    `Add another account in Shield (or use another wallet) for ${FOR[role]}, and link that one.`
   );
 }
 

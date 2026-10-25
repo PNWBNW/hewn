@@ -15,30 +15,33 @@ import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { type SetupStep, setupStep, setupSteps } from "@/books/setup";
 import { BRAND } from "@/brand";
+import { HOME } from "@/shell/AppShell";
 import { PageHeader } from "@/shell/SectionView";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
 const RailPanel = dynamic(() => import("@/chain/RailPanel"), { ssr: false, loading });
 const ProfilePanel = dynamic(() => import("@/chain/work/Profile"), { ssr: false, loading });
 const CardPanel = dynamic(() => import("@/chain/CardPanel"), { ssr: false, loading });
+const CustomerNamePanel = dynamic(() => import("@/chain/customer/NamePanel"), { ssr: false, loading });
 
 export default function SetupPage() {
-  const { role, rail, work } = useOpenBooks();
+  const { role, rail, work, customer } = useOpenBooks();
   const worker = role === "worker";
-  const step = setupStep({ role, rail, work });
+  const person = role !== "business";
+  const step = setupStep({ role, rail, work, customer });
   // There's nowhere to go back to, so a panel's Cancel starts its step over.
   const [attempt, setAttempt] = useState(0);
   const restart = () => setAttempt((n) => n + 1);
 
   const label: Record<Exclude<SetupStep, "done">, string> = {
     link: "Link your Shield account",
-    name: worker ? `Register your name (yourname.${BRAND.nameSuffix})` : `Register your business name (yourbusiness.${BRAND.nameSuffix})`,
+    name: person ? `Register your name (yourname.${BRAND.nameSuffix})` : `Register your business name (yourbusiness.${BRAND.nameSuffix})`,
     profile: "Create your profile",
     card: worker ? "Your card" : "Your business's card",
   };
   const steps = setupSteps(role, rail);
   const current = step === "done" ? steps.length : steps.indexOf(step);
-  const name = worker ? work?.profile?.name : rail?.businessName;
+  const name = worker ? work?.profile?.name : role === "customer" ? customer?.name?.name : rail?.businessName;
 
   return (
     <div className="flex flex-col gap-6">
@@ -49,6 +52,8 @@ export default function SetupPage() {
             ? `Registered as ${name ? `${name}.${BRAND.nameSuffix}` : "your name"}.`
             : worker
               ? "Businesses find you by your registered name, and offers, hours and pay go between your Shield account and theirs."
+              : role === "customer"
+                ? "Businesses find you by your registered name, and invoices and payments go between your Shield account and theirs. If you already have a name as a worker, this account uses it."
               : "Workers and other businesses find you by your registered name, and offers and payments go between your Shield accounts."
         }
       />
@@ -75,13 +80,14 @@ export default function SetupPage() {
           {step === "link" && (
             <>
               <p className="text-xs text-muted-foreground">
-                Shield is the account your pay, offers and documents move through. Use the Shield app or browser extension; linking only asks it to
+                {role === "customer" ? "Shield is the account your payments and documents move through." : "Shield is the account your pay, offers and documents move through."} Use the Shield app or browser extension; linking only asks it to
                 sign a short message, nothing is paid.
               </p>
               <RailPanel key={`link-${attempt}`} mode="connect" onClose={restart} />
             </>
           )}
-          {step === "name" && !worker && <RailPanel key={`name-${attempt}`} mode="register" onClose={restart} />}
+          {step === "name" && role === "customer" && <CustomerNamePanel key={`customer-${attempt}`} onClose={restart} />}
+          {step === "name" && role === "business" && <RailPanel key={`name-${attempt}`} mode="register" onClose={restart} />}
           {(step === "name" || step === "profile") && worker && <ProfilePanel key={`work-${attempt}`} onClose={restart} />}
           {step === "card" && (
             <>
@@ -95,10 +101,10 @@ export default function SetupPage() {
           )}
           {step === "done" && (
             <Link
-              href={worker ? "/work" : "/"}
+              href={HOME[role]}
               className="inline-flex min-h-11 items-center self-start rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground sm:min-h-9"
             >
-              {worker ? "Go to your home page" : "Go to the dashboard"}
+              {person ? "Go to your home page" : "Go to the dashboard"}
             </Link>
           )}
         </CardContent>

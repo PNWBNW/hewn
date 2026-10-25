@@ -59,19 +59,20 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 export default function SettingsPage() {
   const { books, role, username, lock, stayUntil, rail } = useOpenBooks();
   const worker = role === "worker";
+  const business = role === "business";
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Settings" summary={worker ? "You, and how you get paid." : "Your business, and how it pays."} />
+      <PageHeader title="Settings" summary={worker ? "You, and how you get paid." : business ? "Your business, and how it pays." : "You, and how you pay."} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{worker ? "You" : "Business"}</CardTitle>
+          <CardTitle className="text-base">{business ? "Business" : "You"}</CardTitle>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
             <dt className="text-muted-foreground">Name</dt>
             <dd className="font-medium">{books.settings.businessName}</dd>
-            {!worker && (
+            {business && (
               <>
                 <dt className="text-muted-foreground">Fiscal year starts</dt>
                 <dd className="font-medium">{MONTHS[books.settings.fiscalYearStartMonth - 1] ?? "January"}</dd>
@@ -81,7 +82,9 @@ export default function SettingsPage() {
             <dd className="break-all font-medium">{username ?? <span className="text-muted-foreground">Created before accounts</span>}</dd>
           </dl>
           <p className="mt-4 text-xs text-muted-foreground">
-            You can add the other kind later from the front page: New here? → choose the other one.
+            {business
+              ? "A business has its own username. A worker or customer account needs a different username: New here? on the front page."
+              : `You can add a ${worker ? "customer" : "worker"} account under the same username from the front page: New here? → choose it.`}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
             <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={lock}>
@@ -116,6 +119,7 @@ export default function SettingsPage() {
 function YourCard() {
   const { books, role, rail, work } = useOpenBooks();
   const worker = role === "worker";
+  const business = role === "business";
   const name = worker ? work?.profile?.name : rail?.businessName;
   const card = worker ? work?.profile?.card : rail?.card;
   const [open, setOpen] = useState(false);
@@ -132,7 +136,7 @@ function YourCard() {
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {card && !worker && <BusinessCardArt name={name} displayName={books.settings.businessName} card={card} className="w-full max-w-[280px]" />}
+        {card && business && <BusinessCardArt name={name} displayName={books.settings.businessName} card={card} className="w-full max-w-[280px]" />}
         {card && worker && <WorkerCardArt name={name} card={card} landmarks={landmarksOf(work?.credentials ?? [])} className="w-full max-w-[280px]" />}
         {card && (
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
@@ -297,6 +301,7 @@ function RecoveryKey() {
 function PrivatePayments() {
   const { rail, payroll, role, updateCompany } = useOpenBooks();
   const worker = role === "worker";
+  const business = role === "business";
   const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | "letter" | "reports" | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -306,7 +311,11 @@ function PrivatePayments() {
       <CardHeader>
         <CardTitle className="text-base">Private payments</CardTitle>
         <p className="text-sm text-muted-foreground">
-          {worker
+          {role === "customer"
+            ? rail
+              ? "Shield is linked. Invoices reach this account and you pay from it directly."
+              : "Connect Shield to get invoices and pay businesses directly. Your bills and receipts stay on this device either way."
+            : worker
             ? rail
               ? "Shield is linked. Offers and pay reach this account directly."
               : "Connect Shield to receive offers and get paid directly, with no bank in the middle. Your hours and paystubs stay on this device either way."
@@ -328,17 +337,17 @@ function PrivatePayments() {
           <RailPanel mode={panel} onClose={() => setPanel(null)} />
         ) : rail ? (
           <div className="flex flex-wrap gap-3">
-            {!worker && (
+            {business && (
               <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("import")}>
                 Import team
               </Button>
             )}
-            {!worker && !rail.businessNameHash && (
+            {business && !rail.businessNameHash && (
               <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("register")}>
                 Register business name
               </Button>
             )}
-            {!worker && (
+            {business && (
               <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setPanel("history")}>
                 Check Shield history
               </Button>
@@ -368,7 +377,9 @@ function PrivatePayments() {
             <DialogHeader>
               <DialogTitle>Unlink this account?</DialogTitle>
               <DialogDescription>
-                {worker
+                {role === "customer"
+                  ? "The account comes off this device. Your bills and receipts stay, and you can connect it again later."
+                  : worker
                   ? "The account comes off this device. Your agreements, hours and paystubs stay, and you can connect it again later."
                   : `The account and the ${payroll.workers.length === 1 ? "link" : "links"} to your team come off your books. Nothing happens to the account itself, and you can connect it again later.`}
               </DialogDescription>
@@ -401,15 +412,16 @@ function PrivatePayments() {
 }
 
 function LinkedAccount() {
-  const { rail, payroll, role, work } = useOpenBooks();
+  const { rail, payroll, role, work, customer } = useOpenBooks();
   const [copied, setCopied] = useState(false);
   if (!rail) return null;
   const worker = role === "worker";
+  const business = role === "business";
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
   const linked = rail.links.filter((l) => names.has(l.workerId) && l.status === "linked").length;
   const offered = rail.links.filter((l) => names.has(l.workerId) && l.status === "offered").length;
   const linkedOn = new Date(rail.linkedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  const registered = worker ? work?.profile?.name : rail.businessName;
+  const registered = worker ? work?.profile?.name : role === "customer" ? customer?.name?.name : rail.businessName;
 
   return (
     <dl className="grid gap-x-6 gap-y-3 rounded-md border border-dashed p-3 text-sm sm:grid-cols-[auto_1fr]">
@@ -437,7 +449,7 @@ function LinkedAccount() {
       <dd className="font-medium">{registered ? `${registered}.${BRAND.nameSuffix}` : <span className="text-muted-foreground">None yet</span>}</dd>
       <dt className="text-muted-foreground">Linked</dt>
       <dd className="font-medium">{linkedOn}</dd>
-      {!worker && (
+      {business && (
         <>
           <dt className="text-muted-foreground">Team</dt>
           <dd className="font-medium">

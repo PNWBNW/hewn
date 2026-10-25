@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Briefcase, HardHat, Sparkles } from "lucide-react";
+import { Briefcase, Handshake, HardHat, Sparkles } from "lucide-react";
 import { TEMPLATES, type TemplateId } from "@pnw/ledger";
 import { MIN_NEW_PASSPHRASE, checkNewPassphrase, suggestPassphrase } from "@pnw/vault";
 import { Button } from "@pnw/ui/button";
@@ -43,13 +43,14 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
   const mismatch = confirm.length > 0 && confirm !== passphrase;
   const usernameOk = isUsername(username);
   const usernameBad = usernameTouched && username.trim() !== "" && !usernameOk;
-  const worker = role === "worker";
+  // A worker and a customer are a person's accounts: a name, then the passphrase.
+  const person = role !== "business";
 
   async function finish() {
     setError(null);
     setBusy(true);
     try {
-      if (worker) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", username, passphrase, role });
+      if (person) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", username, passphrase, role });
       else await create({ businessName: businessName.trim(), fiscalYearStartMonth, template, username, passphrase, role });
     } catch (e) {
       setError(errorMessage(e));
@@ -58,10 +59,10 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
   }
 
   // A business: who, which accounts, passphrase. A person: who, passphrase.
-  const steps: Step[] = worker ? ["role", "person", "protect"] : ["role", "business", "accounts", "protect"];
+  const steps: Step[] = person ? ["role", "person", "protect"] : ["role", "business", "accounts", "protect"];
   const stepNo = steps.indexOf(step) + 1;
   const back = () => setStep(steps[Math.max(0, steps.indexOf(step) - 1)] ?? "role");
-  const title = step === "role" ? "Welcome" : worker ? "Set up your space" : "Set up your books";
+  const title = step === "role" ? "Welcome" : person ? "Set up your space" : "Set up your books";
 
   return (
     <AuthCard
@@ -92,10 +93,19 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
                 setStep("person");
               }}
             />
+            <RoleCard
+              icon={Handshake}
+              title="I'm a client or customer"
+              description="Find businesses, get invoices, pay them, and keep every receipt."
+              onClick={() => {
+                setRole("customer");
+                setStep("person");
+              }}
+            />
           </div>
           <p className="text-xs text-muted-foreground">
-            You can have both. Make one now and add the other later, with the same username. Each needs its own Shield account and its own
-            registered name.
+            A worker and a customer account can share a username and a Shield account. A business needs a username and a Shield account of its
+            own.
           </p>
           <button type="button" onClick={onRestore} className="min-h-11 self-start text-sm text-muted-foreground underline underline-offset-4">
             I have a backup file to restore
@@ -111,7 +121,10 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
             if (businessName.trim()) setStep("protect");
           }}
         >
-          <Field label="Your name" hint="How you'd like to be greeted. Employers see the name you register later, not this one.">
+          <Field
+            label="Your name"
+            hint={`How you'd like to be greeted. ${role === "customer" ? "Businesses" : "Employers"} see the name you register later, not this one.`}
+          >
             <input
               className={inputClass}
               value={businessName}
@@ -224,7 +237,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
           }}
         >
           <p className="text-sm text-muted-foreground">
-            {worker ? "Your agreements, hours and paystubs are" : "Your books are"} encrypted on this device. Your username and a passphrase only you
+            {role === "worker" ? "Your agreements, hours and paystubs are" : role === "customer" ? "Your bills and receipts are" : "Your books are"} encrypted on this device. Your username and a passphrase only you
             know open them together. Pick something long and memorable, like a short sentence. Next, you&apos;ll link your Shield account and
             register your name.
           </p>
@@ -321,7 +334,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
               className="h-11 flex-1"
               disabled={busy || !usernameOk || !check.ok || mismatch || confirm !== passphrase || !understood}
             >
-              {busy ? "Encrypting…" : worker ? "Create my space" : "Create my books"}
+              {busy ? "Encrypting…" : person ? "Create my space" : "Create my books"}
             </Button>
           </div>
         </form>

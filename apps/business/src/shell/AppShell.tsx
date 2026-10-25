@@ -37,6 +37,13 @@ type NavItem = { href: string; label: string; icon: LucideIcon; art?: NavArt };
 
 const hasArt = (id: string): id is NavArt => id in BRAND.assets.nav;
 
+/** What stays on the device, in each kind of account's words. */
+const PRIVATE_NOTE: Record<Role, string> = {
+  business: "Your books stay on this device, encrypted.",
+  worker: "Your hours and paystubs stay on this device, encrypted.",
+  customer: "Your bills and receipts stay on this device, encrypted.",
+};
+
 const BUSINESS_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, art: "dashboard" },
   ...SECTIONS.map((s) => ({ href: `/${s.id}`, label: s.label, icon: ICONS[s.id] ?? FileText, ...(hasArt(s.id) ? { art: s.id } : {}) })),
@@ -57,10 +64,18 @@ export const WORK_NAV: NavItem[] = [
   { href: "/work/profile", label: "Profile", icon: IdCard },
 ];
 
+/** A business's client: only what they do with the businesses they hire (docs/CUSTOMERS.md). Bills, payments and messages come next. */
+export const CUSTOMER_NAV: NavItem[] = [{ href: "/customer", label: "Home", icon: Home, art: "dashboard" }];
+
 /** The pathname without a trailing slash: the static bundle's pages are folders (next.config.ts), the website's are not. */
 export const canonicalPath = (pathname: string) => (pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname);
 
 export const isWorkPath = (pathname: string) => pathname === "/work" || pathname.startsWith("/work/");
+
+export const isCustomerPath = (pathname: string) => pathname === "/customer" || pathname.startsWith("/customer/");
+
+/** Each kind of account's home: a business's dashboard, a worker's and a customer's own portals. */
+export const HOME: Record<Role, string> = { business: "/", worker: "/work", customer: "/customer" };
 
 /** Pages anyone can read without an account: the job board, traction, a card, the terms and the privacy page. */
 export const isPublicPath = (pathname: string) =>
@@ -70,11 +85,12 @@ export const isPublicPath = (pathname: string) =>
 export function redirectFor(role: Role, pathname: string): string | null {
   if (pathname === "/settings" || pathname.startsWith("/settings/") || isPublicPath(pathname)) return null;
   if (role === "worker") return isWorkPath(pathname) ? null : "/work";
-  return isWorkPath(pathname) ? "/" : null;
+  if (role === "customer") return isCustomerPath(pathname) ? null : "/customer";
+  return isWorkPath(pathname) || isCustomerPath(pathname) ? "/" : null;
 }
 
 function isActive(pathname: string, href: string): boolean {
-  const home = href === "/" || href === "/work";
+  const home = Object.values(HOME).includes(href);
   return home ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -136,12 +152,12 @@ function Rail({
     (role === "worker" ? (work?.channels ?? []).reduce((n, c) => n + unreadPosts(c), 0) + Object.values(work?.coworkers ?? {}).reduce((n, t) => n + unreadIn(t), 0) : 0);
   const waiting = waitingCount(review);
   const worker = role === "worker";
-  const nav = !setupDone ? [{ href: SETUP_PATH, label: "Finish setup", icon: Settings }] : worker ? WORK_NAV : BUSINESS_NAV;
-  const home = worker ? "/work" : "/";
+  const nav = !setupDone ? [{ href: SETUP_PATH, label: "Finish setup", icon: Settings }] : worker ? WORK_NAV : role === "customer" ? CUSTOMER_NAV : BUSINESS_NAV;
+  const home = HOME[role];
   return (
     // Scrolls when the menu is taller than the screen (a phone with the Shield browser's bars), so Log out is never out of reach.
     <nav aria-label="Main" className="flex h-full flex-col gap-1 overflow-y-auto overscroll-contain bg-rail px-3 py-4 text-rail-foreground">
-      <Link href={home} onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label={`${BRAND.name}, ${worker ? "home" : "dashboard"}`}>
+      <Link href={home} onClick={onNavigate} className="mb-4 flex min-h-11 items-center px-2" aria-label={`${BRAND.name}, ${role === "business" ? "dashboard" : "home"}`}>
         <BrandLogo tone="onDark" height={30} />
       </Link>
       {nav.map(({ href, label, icon, art }) => {
@@ -207,7 +223,7 @@ function Rail({
         <RailButton icon={Download} label="Save a backup" onClick={onBackup} />
         <RailButton icon={LogOut} label="Log out" onClick={onLock} />
         <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
-          {worker ? "Your hours and paystubs stay on this device, encrypted." : "Your books stay on this device, encrypted."} They are never sent
+          {PRIVATE_NOTE[role]} They are never sent
           to a server.{" "}
           <a href={BRAND.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-rail-active-foreground">
             Source code
@@ -251,13 +267,13 @@ function PublicShell({ children }: { children: ReactNode }) {
 function OpenShell({ children }: { children: ReactNode }) {
   const pathname = canonicalPath(usePathname());
   const router = useRouter();
-  const { books, role, rail, work, lock, downloadBackup } = useOpenBooks();
+  const { books, role, rail, work, customer, lock, downloadBackup } = useOpenBooks();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // A worker's vault lives under /work and a business's everywhere else;
+  // A worker's vault lives under /work, a customer's under /customer, and a business's everywhere else;
   // landing on the other side (a stale link, a typed URL) goes home.
   // Every account links Shield and registers its name before anything else.
-  const step = setupStep({ role, rail, work });
+  const step = setupStep({ role, rail, work, customer });
   const setupDone = step === "done";
   const redirect = setupRedirect(step, pathname) ?? redirectFor(role, pathname);
   // The menu's backup goes to Settings' Backups card, where a download is confirmed before it counts.
@@ -310,9 +326,9 @@ function OpenShell({ children }: { children: ReactNode }) {
           <span
             className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-2.5 py-1 text-xs text-muted-foreground"
             title={
-              role === "worker"
-                ? "Your hours and paystubs are kept only on this device, encrypted."
-                : "Your books are kept only on this device, encrypted. Money moves through your bank as usual."
+              role === "business"
+                ? "Your books are kept only on this device, encrypted. Money moves through your bank as usual."
+                : PRIVATE_NOTE[role].replace("stay", "are kept only")
             }
           >
             <Lock aria-hidden className="size-3" />

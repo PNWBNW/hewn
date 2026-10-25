@@ -12,14 +12,27 @@
 
 import { CARDS_SINCE } from "./card";
 import type { Rail } from "./rail";
+import type { CustomerSide } from "./customer";
 import type { Role, Work } from "./work";
 
 export type SetupStep = "link" | "name" | "profile" | "card" | "done";
 
 export const SETUP_PATH = "/settings/setup";
 
-export function setupStep({ role, rail, work }: { role: Role; rail: Rail | null | undefined; work: Work | null | undefined }): SetupStep {
+export function setupStep({
+  role,
+  rail,
+  work,
+  customer,
+}: {
+  role: Role;
+  rail: Rail | null | undefined;
+  work: Work | null | undefined;
+  customer?: CustomerSide | null;
+}): SetupStep {
   if (!rail) return "link";
+  // A customer has a name and nothing else on chain: no profile, and no card yet.
+  if (role === "customer") return customer?.name ? "done" : "name";
   const card = cardStepApplies(rail);
   if (role === "worker") {
     if (!work?.profile) return "name";
@@ -43,6 +56,7 @@ export function cardStepApplies(rail: Pick<Rail, "linkedAt"> | null | undefined)
 export const SETUP_STEPS: Record<Role, Exclude<SetupStep, "done">[]> = {
   business: ["link", "name", "card"],
   worker: ["link", "name", "profile", "card"],
+  customer: ["link", "name"],
 };
 
 /** The steps this account goes through, for the progress list. */

@@ -8,12 +8,17 @@ describe("one kind of account per Shield account", () => {
   it("lets a business link a wallet with no worker name, and refuses one that has it", async () => {
     expect(await kindConflict("business", ADDR, holding({}))).toBeNull();
     expect(await kindConflict("business", ADDR, holding({ employer_primary_name_of: "1field" }))).toBeNull(); // its own kind is fine
-    expect(await kindConflict("business", ADDR, holding({ worker_primary_name_of: "7field" }))).toMatch(/already holds a worker's name.*same username/);
+    expect(await kindConflict("business", ADDR, holding({ worker_primary_name_of: "7field" }))).toMatch(/already holds a person's name.*for your business/);
   });
 
   it("does the same for a worker and a business's name", async () => {
     expect(await kindConflict("worker", ADDR, holding({ worker_primary_name_of: "7field" }))).toBeNull();
     await expect(assertKindFree("worker", ADDR, holding({ employer_primary_name_of: "1field" }))).rejects.toThrow(/already holds a business's name/);
+  });
+
+  it("lets a customer share a person's wallet and name, never a business's (2026-10-26)", async () => {
+    expect(await kindConflict("customer", ADDR, holding({ worker_primary_name_of: "7field" }))).toBeNull();
+    expect(await kindConflict("customer", ADDR, holding({ employer_primary_name_of: "1field" }))).toMatch(/already holds a business's name.*as a customer/);
   });
 
   it("refuses when the registry can't be read, rather than letting it through", async () => {

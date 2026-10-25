@@ -68,8 +68,9 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 - Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs. (INV-06)
 - The vault key is derived from the user's unlock secret: **username + passphrase** together in
   fiat mode (no wallet needed; `apps/business/src/books/account.ts`: the secret is the normalised
-  username and the passphrase, the vault id a hash of role + username, so one username can hold a
-  business and a worker account; usernames replaced emails on 2026-10-21 (Joshua), and an email is
+  username and the passphrase, the vault id a hash of role + username; one username holds a
+  business, or a person's worker and customer accounts, never a business with either (Joshua,
+  2026-10-26; older business + worker pairs keep opening); usernames replaced emails on 2026-10-21 (Joshua), and an email is
   still a valid username, so accounts made with one open unchanged), and, later, a Shield wallet
   signature over a domain-separated message once a wallet is linked. It is never stored in plaintext and never leaves the vault module; the one
   exception is "stay logged in" (Joshua, 2026-10-15): the open data key, as a non-extractable
@@ -91,14 +92,16 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   path), and no new code or screen may use `pnw-adapter`'s CLI adapter. Nothing calls `snarkos` or the SDK execute path directly.
   (INV-11, INV-12)
 - **Every account is on the registry (Joshua, 2026-10-15).** Setup links a Shield account and
-  registers a `name.hewn` (a worker also creates the profile behind it); the app shell keeps an
+  registers a `name.hewn` (a worker also creates the profile behind it; a customer uses the
+  person's name if the wallet has one); the app shell keeps an
   unfinished account on `/settings/setup` (`books/setup.ts`). Team members, customers and vendors are
   added only by finding their registered name (on mainnet, by Aleo address too: free-tier names are
   random, though public, `docs/MAINNET_NAMES.md`). **One kind of account per Shield account** (Joshua,
-  2026-10-15): a wallet holding a business's name can't link to or register a worker account, and
-  the reverse (business and personal money never share a wallet); the same email may hold both
-  kinds, each with its own Shield account (`chain/account_kind.ts`; the mainnet registrar will
-  enforce it on chain). This replaces "fiat first": a wallet is now required
+  2026-10-15): a wallet holding a business's name can't link to or register a person's account
+  (worker or customer), and the reverse (business and personal money never share a wallet); a
+  person's worker and customer accounts may share one (2026-10-26; `chain/account_kind.ts`; the
+  mainnet registrar will enforce it on chain). Customers have their own login and portal
+  (`/customer`, `docs/CUSTOMERS.md`). This replaces "fiat first": a wallet is now required
   to get in. What stays: the ledger core, vault, reports and payroll never import `wallet`,
   `pnw-adapter`, `rail` or `records`; chain code lives in `src/chain` and loads only on the pages
   that need it (`fiat_boundary.test.ts`; the CSP is one policy for the whole app since 2026-10-15,

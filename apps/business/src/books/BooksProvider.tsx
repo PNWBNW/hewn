@@ -40,6 +40,7 @@ import {
   legacyOpen,
   normalizeUsername,
   recoverAccounts,
+  usernameConflict,
   vaultIdFor,
 } from "./account";
 import { saveOver } from "./vault_write";
@@ -53,6 +54,7 @@ import type { Review } from "./review";
 import type { Funds } from "./funds";
 import type { Rail } from "./rail";
 import { type Role, type Work, emptyWork } from "./work";
+import { type CustomerSide, emptyCustomer } from "./customer";
 import { markBackedUp } from "./backup_reminder";
 import { type AccountRestoreReport, type AccountUnlock, type FindBooks, restoreIntoVault } from "./account_restore";
 import {
@@ -146,6 +148,8 @@ type BooksContextValue = {
   role: Role;
   /** A person's own side (agreements, hours, paystubs), or null on a business's books. */
   work: Work | null;
+  /** A customer's own side (books/customer.ts); null on any other account. */
+  customer: CustomerSide | null;
   /** Personal events on this account's own calendar (books/events.ts); empty before the first. */
   events: readonly PersonalEvent[];
   /** Shared events: the ones this account organizes and its invitations (books/shared_events.ts); null before the first. */
@@ -244,6 +248,24 @@ export function useOpenBooks(): OpenBooks {
   const ctx = useBooks();
   if (!ctx.books || !ctx.payroll || !ctx.sales || !ctx.dimensions) throw new Error("Books are not open");
   return ctx as OpenBooks;
+}
+
+/** A customer's own side, for screens that only render on a customer's vault. */
+export function useCustomer(): OpenBooks & { customer: CustomerSide; updateCustomer: (op: (c: CustomerSide) => CustomerSide) => Promise<CustomerSide> } {
+  const ctx = useOpenBooks();
+  const { updateCompany, customer } = ctx;
+  const updateCustomer = useCallback(
+    async (op: (c: CustomerSide) => CustomerSide) => {
+      const next = await updateCompany((c) => {
+        if (!c.customer) throw new Error("These aren't a customer's books");
+        return { ...c, customer: op(c.customer) };
+      });
+      return next.customer!;
+    },
+    [updateCompany],
+  );
+  if (!customer) throw new Error("These aren't a customer's books");
+  return { ...ctx, customer, updateCustomer };
 }
 
 /** A person's own side of the app, for screens that only render on a worker's vault. */
@@ -365,13 +387,19 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       const id = await vaultIdFor(username, role);
       // Never overwrite: this screen is reachable on a device that already has accounts.
       if (await store.load(id)) {
-        throw new AccountError(
-          `There is already a ${role === "worker" ? "worker" : "business"} account with that username on this device. Log in, or pick a different username.`,
-        );
+        throw new AccountError(`There is already a ${role} account with that username on this device. Log in, or pick a different username.`);
       }
+      // A username holds a business, or a person's worker and customer accounts (docs/CUSTOMERS.md decision 18).
+      const conflict = await usernameConflict(store, username, role);
+      if (conflict) throw new AccountError(conflict);
       let fresh = createBooks(settings);
       if (template !== "blank") fresh = applyTemplate(fresh, template);
-      const base: Company = role === "worker" ? { ...emptyCompany(fresh), role, work: emptyWork(settings.businessName) } : emptyCompany(fresh);
+      const base: Company =
+        role === "worker"
+          ? { ...emptyCompany(fresh), role, work: emptyWork(settings.businessName) }
+          : role === "customer"
+            ? { ...emptyCompany(fresh), role, customer: emptyCustomer() }
+            : emptyCompany(fresh);
       const s = await createVault(accountSecret(username, passphrase), companyToJson({ ...base, username }), { id });
       await store.save(s.record);
       writeAccountFlag();
@@ -711,6 +739,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       schedule: company?.schedule ?? null,
       role: company ? roleOf(company) : "business",
       work: company?.work ?? null,
+      customer: company?.customer ?? null,
       events: company?.events ?? NO_EVENTS,
       calendar: company?.calendar ?? null,
       create,
