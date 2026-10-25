@@ -1,18 +1,31 @@
 "use client";
 
-// One paystub as it arrived, in plain words. Takes the document and the
-// payment line only; it never knows where either came from.
+// One paystub as it arrived, in plain words, with its card above the figures
+// (docs/HEWN_ART.md: the log of rings, this paycheck's cyan). Takes the
+// document, the payment line and the paystub's place in its year; it never
+// knows where any of them came from.
 
 import { X } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { Money, formatCredits } from "@/books/display";
 import { payLines, paystubFromCanonical } from "@/books/paystub_document";
+import type { RingPlace } from "@/books/paystub_rings";
 import { shortAddress } from "@/books/rail";
 import type { ReceivedPaystub } from "@/books/work";
+import PaystubCardArt from "@/cards/PaystubCardArt";
 import { FiguresNote } from "@/legal/LegalNotes";
 
-export function PaystubView({ paystub, onClose }: { paystub: ReceivedPaystub; onClose: () => void }) {
+export type PaystubViewProps = {
+  paystub: ReceivedPaystub;
+  /** Where this paycheck sits in its year, for the card; the card is left out without it. */
+  place?: RingPlace | null;
+  /** The person's registered name, for their constellation; the paystub's name otherwise. */
+  name?: string;
+  onClose: () => void;
+};
+
+export function PaystubView({ paystub, place, name, onClose }: PaystubViewProps) {
   let doc;
   try {
     doc = paystubFromCanonical(paystub.document);
@@ -38,6 +51,22 @@ export function PaystubView({ paystub, onClose }: { paystub: ReceivedPaystub; on
           <X aria-hidden className="size-4" />
         </Button>
       </div>
+      {place && (
+        <div className="px-4 pt-3">
+          <PaystubCardArt
+            name={name || doc.workerName}
+            registered={!!name}
+            paystubHash={paystub.paystubHash}
+            businessName={doc.businessName}
+            payDate={doc.payDate}
+            periodStart={doc.periodStart}
+            periodEnd={doc.periodEnd}
+            place={place}
+            check={`Sealed by ${doc.businessName} · paid on the rail`}
+            className="w-full max-w-[220px]"
+          />
+        </div>
+      )}
       <dl className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm sm:grid-cols-2">
         <Row label="Pay period" value={`${doc.periodStart} to ${doc.periodEnd}`} />
         {payLines(doc).map((l) => (

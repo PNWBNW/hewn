@@ -262,8 +262,16 @@ or the hours.
    graphics chips, so a saved or printed card is rendered once and kept as an image. Drawing takes
    a few seconds on a phone, so the app draws each card once and redraws it only when the hour or
    the season moves on.
-2. **Paystub rings** on the person's Paystubs and the business's paystub view, and in the PDF.
-   App only: no Leo.
+2. **Paystub rings** (2026-10-25): the person's Paystubs and the business's paystub view draw the
+   card above the figures (`cards/PaystubCardArt.tsx`). Its place in the year is counted from the
+   pay dates each side holds (`books/paystub_rings.ts`: the person's from the paystubs that
+   arrived from the same agreement, the business's from its own runs), the paychecks a year from
+   the person's schedule on the business's side and from the period's length on the person's.
+   Both sides hold the paystub's hash, so both light the same star and cut the same rings. The
+   check line says "sealed by … · paid on the rail" on the person's copy (a paystub arrives only
+   sealed from that business, and the hash is recomputed as it arrives) and "paid on the rail" on
+   the business's once the transfer settled. There is no paystub PDF yet; when one exists the
+   card goes in it. App only: no Leo.
    **The cards program**, `hewn_cards_v1`, deployed 2026-10-25, and the app's plumbing for it the
    same day: a new account ends setup by issuing its card (a business's after its name, a worker's
    after their profile, with the shown-or-hidden choice), an account from before the cards claims

@@ -11,6 +11,7 @@ import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
 import { useWork } from "@/books/BooksProvider";
 import { paystubFromCanonical } from "@/books/paystub_document";
+import { receivedPlace } from "@/books/paystub_rings";
 import type { ReceivedPaystub } from "@/books/work";
 import { PageHeader } from "@/shell/SectionView";
 import { PaystubView } from "../PaystubView";
@@ -54,7 +55,7 @@ export default function PaystubsPage() {
       />
 
       {checking && <InboxPanel onClose={() => setChecking(false)} />}
-      {shown && <PaystubView paystub={shown} onClose={() => setOpen(null)} />}
+      {shown && <PaystubView paystub={shown} place={receivedPlace(shown, work.paystubs)} name={work.profile?.name} onClose={() => setOpen(null)} />}
 
       <Card>
         <CardContent className="pt-6">
