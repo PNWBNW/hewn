@@ -237,6 +237,11 @@ function Invoices({ onReceive }: { onReceive: (r: Receiving) => void }) {
                         Receive payment
                       </Button>
                     )}
+                    {inv.state !== "draft" && (
+                      <Link href={`/sales/invoices/print?id=${encodeURIComponent(inv.id)}`} className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "min-h-11 sm:min-h-8")}>
+                        Print
+                      </Link>
+                    )}
                     {inv.state === "sent" && invoicePaid(sales, inv.id) === 0n && (
                       <Button variant="ghost" size="sm" className="min-h-11 text-muted-foreground sm:min-h-8" onClick={() => cancel(inv)}>
                         Void

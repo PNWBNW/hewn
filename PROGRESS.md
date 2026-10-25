@@ -24,6 +24,7 @@ index is out of date.
 - [Customers: businesses and customers connect, and message (Step 1, second part)](progress/2026-10-26.md#2026-10-26--customers-businesses-and-customers-connect-and-message-step-1-second-part)
 - [Customers: invoices reach the customer's Bills (Step 1, third part)](progress/2026-10-26.md#2026-10-26--customers-invoices-reach-the-customers-bills-step-1-third-part)
 - [Customers: paying a bill from Shield (Step 1, fourth part)](progress/2026-10-26.md#2026-10-26--customers-paying-a-bill-from-shield-step-1-fourth-part)
+- [Customers: a printable invoice (Step 1, fifth part)](progress/2026-10-26.md#2026-10-26--customers-a-printable-invoice-step-1-fifth-part)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

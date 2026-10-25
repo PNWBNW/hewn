@@ -20,8 +20,9 @@ Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
   2026-10-26.
 - [x] Bills paid from the customer's Shield account, the business told, and recorded on the
   business's side once its own account shows the transfer (Step 1, no new Leo). Built 2026-10-26.
-- [ ] A printable invoice, for a customer who isn't on the app (PC browsers and phone browsers'
-  share sheet; not inside Shield's browser).
+- [x] A printable invoice, for a customer who isn't on the app (Joshua, 2026-10-26): Sales →
+  Invoices → Print, then the browser's Print or Save as PDF (a phone's own browser can share it;
+  Shield's browser may not print). Built 2026-10-26.
 - [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
 - [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
   up later; business posts, public or sealed. Free for now; $1 later in a new version.
