@@ -53,6 +53,7 @@ import type { Review } from "./review";
 import type { Funds } from "./funds";
 import type { Rail } from "./rail";
 import { type Role, type Work, emptyWork } from "./work";
+import { markBackedUp } from "./backup_reminder";
 import {
   type VaultSession,
   IndexedDbStore,
@@ -64,6 +65,7 @@ import {
   parseBackup,
   REMEMBER_MS,
   removeRecovery,
+  requestPersistence,
   resetWithRecovery,
   resumeSession,
   sha256Hex,
@@ -102,6 +104,8 @@ function writeAccountFlag(): void {
   } catch {
     // Blocked storage: the front page just won't lean towards Log in.
   }
+  // An account now lives here: ask the browser not to clear it for space (@pnw/vault persistence.ts).
+  void requestPersistence();
 }
 
 type BooksContextValue = {
@@ -112,6 +116,8 @@ type BooksContextValue = {
   vaultId: string | null;
   /** The open account's username (an email on accounts made before usernames); null on books made before accounts, or while locked. */
   username: string | null;
+  /** When a backup was last saved from these books (books/backup_reminder.ts); null before the first, or while locked. */
+  backedUpAt: string | null;
   books: Books | null;
   payroll: Payroll | null;
   sales: Sales | null;
@@ -423,15 +429,31 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     if (!s) return;
     // Every sealed file goes in too, still encrypted: a restore brings the receipts back.
     const attachments = await store.listAttachments(s.id);
-    const blob = new Blob([exportBackup(s.record, attachments)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const text = exportBackup(s.record, attachments);
     const name = (company?.books.settings.businessName ?? "books").replace(/[^\w-]+/g, "-").toLowerCase();
-    a.href = url;
-    a.download = `${name}-${new Date().toISOString().slice(0, 10)}.${BRAND.backupExtension}`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [company, store]);
+    const fileName = `${name}-${new Date().toISOString().slice(0, 10)}.${BRAND.backupExtension}`;
+    // On a phone, the share sheet (save to Files, send to yourself): a plain download often goes
+    // nowhere inside an app's own browser. Elsewhere, and if sharing isn't offered, a download.
+    const file = new File([text], fileName, { type: "application/json" });
+    const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean };
+    const touch = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+    if (touch && nav.canShare?.({ files: [file] })) {
+      try {
+        await nav.share({ files: [file], title: fileName });
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return; // closed without saving: not backed up
+        throw e;
+      }
+    } else {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    await updateCompany((c) => markBackedUp(c));
+  }, [company, store, updateCompany]);
 
   const restore = useCallback(
     async (fileText: string, rawUsername: string | null, passphrase: string, stay = true) => {
@@ -617,6 +639,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       legacyAvailable,
       vaultId,
       username: company?.username ?? null,
+      backedUpAt: company?.backedUpAt ?? null,
       books: company?.books ?? null,
       payroll: company?.payroll ?? null,
       sales: company?.sales ?? null,

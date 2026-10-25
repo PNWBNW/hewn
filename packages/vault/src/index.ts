@@ -3,3 +3,4 @@ export * from "./vault";
 export { formatRecoveryCode, parseRecoveryCode } from "./recovery_code";
 export * from "./store";
 export * from "./passphrase";
+export * from "./persistence";

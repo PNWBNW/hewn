@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
+import { BackupReminder } from "@/books/BackupReminder";
 import { calendarOf, formatMinutes, localDate, longestMinutesOf, minutesOn, weekMinutes, weekStartOf } from "@/books/hours";
 import { paystubFromCanonical } from "@/books/paystub_document";
 import { dayOf, scheduleWeekOf } from "@/books/schedule";
@@ -62,6 +63,8 @@ export default function WorkHomePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={`Hi, ${work.displayName.split(" ")[0] || work.displayName}`} summary="Clock in, clock out, send your week, keep every paystub." />
+
+      <BackupReminder />
 
       <Card>
         <CardContent className="flex flex-col items-center gap-4 pt-6">

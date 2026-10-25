@@ -204,7 +204,7 @@ function Rail({
             Settings
           </Link>
         )}
-        <RailButton icon={Download} label="Download a backup" onClick={onBackup} />
+        <RailButton icon={Download} label="Save a backup" onClick={onBackup} />
         <RailButton icon={LogOut} label="Log out" onClick={onLock} />
         <p className="px-3 pt-2 text-xs leading-relaxed text-rail-muted">
           {worker ? "Your hours and paystubs stay on this device, encrypted." : "Your books stay on this device, encrypted."} They are never sent
