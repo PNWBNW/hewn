@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Briefcase, HardHat, X } from "lucide-react";
+import { Briefcase, Handshake, HardHat, X } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
 import { Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
@@ -114,7 +114,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
       <div className="flex flex-col gap-5">
         <DialogHeader className="pr-10 text-left">
           <DialogTitle id="login-title">Which would you like to open?</DialogTitle>
-          <DialogDescription>{recovering ? "That recovery key set the new passphrase on both." : "That username and passphrase open both."}</DialogDescription>
+          <DialogDescription>{recovering ? "That recovery key set the new passphrase on each." : "That username and passphrase open more than one account."}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           {choices.includes("business") && (
@@ -127,6 +127,12 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
             <Button className="h-12 justify-start gap-3 px-4" variant="outline" disabled={busy} onClick={() => void choose("worker")}>
               <HardHat aria-hidden />
               Open your worker account
+            </Button>
+          )}
+          {choices.includes("customer") && (
+            <Button className="h-12 justify-start gap-3 px-4" variant="outline" disabled={busy} onClick={() => void choose("customer")}>
+              <Handshake aria-hidden />
+              Open your customer account
             </Button>
           )}
         </div>

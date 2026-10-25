@@ -10,8 +10,9 @@ only with Joshua's greenlight. The decisions below are his.
 
 Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
 
-- [ ] Customer accounts: their own sign-up, login and portal; a person can be a worker and a
-  customer, as two accounts (Step 1, no new Leo).
+- [x] Customer accounts: their own sign-up, login and portal; a person can be a worker and a
+  customer, as two accounts (Step 1, no new Leo). Built 2026-10-26: the portal has Home and
+  Settings; bills, payments and messages come with the next items.
 - [ ] Invoices sent to a customer as letters, paid from the customer's Shield account, matched
   on the business's side (Step 1, no new Leo).
 - [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.

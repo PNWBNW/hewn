@@ -20,6 +20,7 @@ index is out of date.
 - [Backing up with the account: the button (part 2 of 4)](progress/2026-10-26.md#2026-10-26--backing-up-with-the-account-the-button-part-2-of-4)
 - [Customers: their own accounts (design)](progress/2026-10-26.md#2026-10-26--customers-their-own-accounts-design)
 - [Backing up with the account: finding and restoring (part 3 of 4)](progress/2026-10-26.md#2026-10-26--backing-up-with-the-account-finding-and-restoring-part-3-of-4)
+- [Customers: their own accounts (Step 1, first part)](progress/2026-10-26.md#2026-10-26--customers-their-own-accounts-step-1-first-part)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

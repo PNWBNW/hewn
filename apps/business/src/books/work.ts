@@ -26,7 +26,11 @@ import { type Letter, type OfferFile, LetterError, validateExpiry, validateFileR
 import { type JobFields, validateJobFields } from "./terms_words";
 import { type WorkWeek, validateWorkWeek } from "./work_week";
 
-export type Role = "business" | "worker";
+/** A business, a person who works for one, or a business's client (docs/CUSTOMERS.md). */
+export type Role = "business" | "worker" | "customer";
+
+/** A person's accounts: a worker and a customer may share a username and a Shield account; a business never does. */
+export const isPersonal = (role: Role): boolean => role !== "business";
 
 export type AgreementStatus = "pending" | "active" | "paused" | "terminated";
 

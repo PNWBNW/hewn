@@ -10,6 +10,13 @@
 // account, and a person can find "their" vault without the device keeping a
 // list of usernames.
 //
+// Since 2026-10-26 (Joshua, docs/CUSTOMERS.md decision 18) a username holds a
+// person's accounts, a worker and a customer, or a business, never a business
+// with either: a business runs its own username and its own Shield account.
+// Usernames live only on the device, so creating an account checks it there.
+// Accounts made under the old rule (a business and a worker on one username)
+// keep opening.
+//
 // Accounts made before usernames were made with an email. An email is still
 // a valid username and normalises exactly as it did, so those accounts open
 // as they always have: nothing in a vault changes.
@@ -24,8 +31,8 @@
 import { type VaultSession, type VaultStore, KDF_ITERATIONS, VaultError, checkNewPassphrase, resetWithRecovery, sha256Hex, unlockVault } from "@pnw/vault";
 import type { Role } from "./work";
 
-/** The two kinds of account a username can hold. */
-export const ROLES: readonly Role[] = ["business", "worker"];
+/** The kinds of account there are. A username holds a business, or a worker and a customer (`usernameConflict`). */
+export const ROLES: readonly Role[] = ["business", "worker", "customer"];
 
 /** The one vault id from before accounts existed. */
 export const LEGACY_VAULT_ID = "default";
@@ -94,6 +101,21 @@ export function checkAccountPassphrase(passphrase: string, username = ""): void 
 export async function vaultIdFor(username: string, role: Role): Promise<string> {
   const digest = await sha256Hex(new TextEncoder().encode(`hewn:acct:v1:${role}:${username}`));
   return `acct-${digest.slice(0, 32)}`;
+}
+
+/**
+ * Why `username` can't take a new `role` account on this device, or null when it can: a business
+ * needs a username of its own, and a person's username can't also hold a business.
+ */
+export async function usernameConflict(store: VaultStore, username: string, role: Role): Promise<string | null> {
+  const others = ROLES.filter((r) => (role === "business" ? r !== "business" : r === "business"));
+  for (const other of others) {
+    if (!(await store.load(await vaultIdFor(username, other)))) continue;
+    return role === "business"
+      ? "That username holds a person's account on this device. A business needs a username of its own."
+      : "That username belongs to a business on this device. Pick a different username for this account.";
+  }
+  return null;
 }
 
 /**

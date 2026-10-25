@@ -22,6 +22,7 @@ import { type Jobs, jobsFromJson, jobsToJson } from "./jobs";
 import { type Rail, railFromJson, railToJson } from "./rail";
 import { type Schedule, scheduleFromJson, scheduleToJson } from "./schedule";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
+import { type CustomerSide, validateCustomer } from "./customer";
 import { type PersonalEvent, validateEvents } from "./events";
 import { type SharedCalendar, calendarFromJson, calendarToJson } from "./shared_events";
 import { type ChainState, validateChainState } from "./books_backup";
@@ -46,6 +47,8 @@ export type Company = {
   role?: Role;
   /** A person's own side: agreements, hours, paystubs. Only on a worker's file. */
   work?: Work;
+  /** A client's side (books/customer.ts): their name, and later bills and payments. Only on a customer's file. */
+  customer?: CustomerSide;
   /** Personal events (books/events.ts): only on this account's own calendar. Absent before the first. */
   events?: PersonalEvent[];
   /** Shared events (books/shared_events.ts): ones this account organizes, its invitations, and the keys' reading places. Absent before the first. */
@@ -58,7 +61,7 @@ export type Company = {
   chainBackup?: ChainState;
 };
 
-const ROLES: Role[] = ["business", "worker"];
+const ROLES: Role[] = ["business", "worker", "customer"];
 
 const FORMAT = "pnw-company";
 
@@ -78,6 +81,7 @@ export function companyToJson(c: Company): string {
     ...(c.schedule ? { schedule: scheduleToJson(c.schedule) } : {}),
     ...(c.role ? { role: c.role } : {}),
     ...(c.work ? { work: workToJson(c.work) } : {}),
+    ...(c.customer ? { customer: JSON.stringify(validateCustomer(c.customer)) } : {}),
     ...(c.events && c.events.length > 0 ? { events: JSON.stringify(c.events) } : {}),
     ...(c.calendar ? { calendar: calendarToJson(c.calendar) } : {}),
     ...(c.username ? { username: c.username } : {}),
@@ -102,6 +106,7 @@ export function companyFromJson(text: string): Company {
     schedule?: string;
     role?: string;
     work?: string;
+    customer?: string;
     events?: string;
     calendar?: string;
     username?: string;
@@ -128,6 +133,7 @@ export function companyFromJson(text: string): Company {
       company.role = doc.role as Role;
     }
     if (typeof doc.work === "string") company.work = workFromJson(doc.work);
+    if (typeof doc.customer === "string") company.customer = validateCustomer(JSON.parse(doc.customer));
     if (typeof doc.events === "string") company.events = validateEvents(JSON.parse(doc.events));
     if (typeof doc.calendar === "string") company.calendar = calendarFromJson(doc.calendar);
     const username = typeof doc.username === "string" && doc.username ? doc.username : typeof doc.email === "string" && doc.email ? doc.email : null;
