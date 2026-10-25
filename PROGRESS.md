@@ -4909,3 +4909,18 @@ repository (241 and 596 commits) and no `.env` file but the examples. The threat
 **T18, a key leaked through a repository or a log**, the gap Step 2 found; it names what the scan
 doesn't cover (seed phrases, the history going forward, CI logs). INV-06 now has a check: 16 of
 24 rules checked, 8 none.
+
+## 2026-10-25 — Every write signed in Shield, checked (ICM Step 4; INV-11)
+
+`scripts/check_signing_path.py` (standard library, `python3 -I`, a CI step after the tests)
+holds the app's one door to the wallet: `useShield()` in `apps/business/src/chain/shield.ts`,
+which wraps the adapter's `executeTransaction` and applies the fee mode. Outside tests it fails
+when a file outside `packages/wallet` imports the wallet adapter, a file other than `shield.ts`
+takes `useWallet`, a transaction is sent outside `src/chain`, `rail` or `wallet`, a file that
+imports the SDK uses its execute path, anything imports `child_process`, or anything outside
+`pnw-adapter` imports the retired CLI adapter. It also fails if `shield.ts` moves, so the door
+can't vanish quietly. Shown failing on six planted bypasses, with a comment and a test file that
+name the calls left alone; the tree passes (390 source files). INV-11 has a check: 17 of 24.
+Noted for Joshua: CLAUDE.md says writes go through "the `wallet` package's executor"; in practice
+the one door is `useShield()` in the app's chain folder, built on the wallet package's provider.
+The rule holds; its wording could name the door.
