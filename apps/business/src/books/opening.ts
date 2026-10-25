@@ -47,6 +47,10 @@ export function startFromShield(company: Company, input: { date: IsoDate; minor:
   const rail = company.rail;
   if (!rail) throw new Error("Link Shield in Settings first");
   if (rail.start) throw new Error(`The books already follow this account from ${rail.start.date}`);
+  // Movements already taken into the books (For review, or a customer's payment) would be counted again.
+  if (company.review?.items.some((i) => i.status === "accepted" || (i.status === "recorded" && i.entryId))) {
+    throw new Error("Your Shield payments are already going into the books from For review, so the balance is built from them. Starting from the balance now would count them twice.");
+  }
   const cents = minorToCents(input.minor);
 
   const { books: withAccount, accountId } = shieldAccount(company.books);
