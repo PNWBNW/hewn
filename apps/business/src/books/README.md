@@ -20,6 +20,7 @@ Most files pair up that way. The ones worth knowing first:
 | `offer_letter.ts`, `terms_words.ts`, `review.ts`, `hiring.ts`, `jobs.ts`, `applications.ts`, `resume.ts` | Offers and their terms in words; hiring and the job board as the vault keeps them |
 | `channels.ts`, `directory.ts`, `groups.ts` | Announcement channels, the coworker directory, group chats |
 | `paystub_document.ts` | The paystub as a document: the canonical form whose hash the chain sees |
+| `card.ts`, `credential.ts`, `paystub_rings.ts` | The account's card as the vault remembers it; a credential (its document, whose hash the record carries, and the landmarks a person's land draws from theirs); a paystub's place in its year for the rings |
 | `rail.ts`, `funds.ts`, `opening.ts`, `tags.tsx`, `display.tsx` | Links to people on the rail; set-asides; opening balances; dimensions; formatting |
 
 Everything here is covered by tests; run them with `pnpm --filter @pnw/business test`.

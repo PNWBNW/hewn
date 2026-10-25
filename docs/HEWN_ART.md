@@ -306,10 +306,15 @@ or the hours.
    - 28 Leo tests, 20 refusals (a pending or withdrawn offer, no agreement, the worker issuing to
      themself, the wrong subject or key, a bad kind, a zero nonce, the same commitment twice, each
      move in the wrong state or with the wrong copy, `assert_active` off an active one).
-   Next: deploy and record it, check it on the network with the two test accounts (an offer and
-   acceptance on v5 first), then the app: `chain/credentials.ts`, the business's issue screen from
-   the team list, the person's inbox to accept or decline, the landmarks on the land from their
-   credential records (the spot from the commitment), and the credential card.
+   **The app's plumbing** (2026-10-25): `books/credential.ts` (the document a credential says,
+   hashed into the record's scope; the vault's copy on each side; the landmarks a person's land
+   draws from theirs: offered the frame, active lit, revoked the ghost, declined gone),
+   `chain/credentials.ts` (the packed inputs, the records, the public status and issue block),
+   and the worker's own card in Settings drawing their landmarks (the public card draws none).
+   Next: deploy and record the program, check it on the network with the two test accounts (the
+   B–W pair holds an active v5 agreement since the OFFER-4 run), then the screens: the business's
+   issue screen from the team list (the document as a sealed letter first, then the transaction),
+   the person's inbox to accept or decline, and the credential card.
 4. **Proofs instead of showing:** a person proves one fact from their private records (employed by,
    licensed as, earned over) without showing a card. (The page anyone can open, drawn from a
    name, exists since 2026-10-25: step 2.)
