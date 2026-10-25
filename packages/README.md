@@ -37,5 +37,9 @@ rows, and only `apps/business/src/chain` may.
 Four salvaged packages that nothing uses any more (`persistence`, `w4-crypto`, `pdf`, `nft-art`)
 are in [`../archive/packages/`](../archive/README.md), out of the workspace.
 
+Stablecoin note: every `transfer_private` in `rail` carries a Merkle exclusion proof that the
+sender isn't on USDCx's freeze list (Sealance, Poseidon4, depth 16), built on the device with the
+SDK's `SealanceMerkleTree` once per run (`rail/src/exclusion.ts`).
+
 Hashing note: `commitments` keeps the portal's `BLAKE3(domain || payload)` rule, which is what is
 live on testnet. `pnw_mvp_v2/portal/src/commitments` diverged and is not the source of truth.
