@@ -215,6 +215,30 @@ businesses come with business-to-business agreements, later. Nothing new is depl
   looks 256 slots past the last post it found, and 8 back in case the wallet listed a later letter
   first; keeping a post twice changes nothing.
 
+## Businesses and their customers
+
+A business and a customer connecting (Joshua, 2026-10-26; `docs/CUSTOMERS.md`,
+`books/connections.ts`, `chain/clients.ts`). Neither has a key the other knows until then, so each
+says hello first. Nothing new is deployed:
+
+- **The hello.** A letter to the other side's account, under SHA-256(`PNW::HELLO::v1` ‖ their
+  account ‖ n), where n is the sender's first unused one, so a hello can be sent again. It holds
+  whether the sender is a business or a customer, their registered name, and a fresh P-256 public
+  key. Nothing in it is secret, and only its owner can read the record.
+- **Who it's from.** A hello counts only when the letter's sender, which only the reader sees, is
+  an account the registry gives the right kind of name: a business's, or a person's for a customer.
+  The name shown is the registry's, never the one the hello claims.
+- **The key.** Once both hellos are in, each side computes the same key: ECDH of its private key
+  and the other's public one, then HKDF-SHA256 with salt `PNW::CLIENT::v1` (the coworkers'
+  exchange, with its own salt). Neither side sends it, and a view key that reads both hellos
+  can't make it.
+- **The conversation.** It is sealed under that key in the usual conversation slots: the business
+  writes `cl_b`, the customer `cl_c`. Only plain messages for now; invoices and payments come next.
+  A new hello with a new key starts the conversation afresh.
+- **Either side starts.** A business connects a customer it added by registered name; a customer
+  finds a business by its name. The other answers by sending its own hello, or turns the request
+  down, which is kept so the same hello doesn't ask again.
+
 ## What doesn't fit, and the open questions
 
 - **A Shield approval per send.** Fine for offers, counter-offers, announcements; heavier for

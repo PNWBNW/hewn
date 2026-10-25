@@ -49,8 +49,8 @@ export function mySide(mine: string, theirs: string): Side {
   return mine < theirs ? "business" : "worker";
 }
 
-/** The key only the two of us can make: 64 hex characters. */
-export async function pairKey(me: Identity, theirs: string): Promise<string> {
+/** The key only the two of us can make: 64 hex characters. `salt` keeps one use's keys apart from another's (a business and its customer use their own). */
+export async function pairKey(me: Pick<Identity, "publicKey" | "privateKey">, theirs: string, salt = "PNW::COWORKER::v1"): Promise<string> {
   checkKey(theirs);
   const priv = await subtle().importKey("jwk", { ...me.privateKey, ext: true }, ECDH, false, ["deriveBits"]);
   const pub = await subtle().importKey("raw", hexToBytes(theirs), ECDH, false, []);
@@ -58,7 +58,7 @@ export async function pairKey(me: Identity, theirs: string): Promise<string> {
   const [lo, hi] = [me.publicKey, theirs].sort();
   const material = await subtle().importKey("raw", shared, "HKDF", false, ["deriveBits"]);
   const info = new Uint8Array([...hexToBytes(lo!), ...hexToBytes(hi!)]);
-  const bits = await subtle().deriveBits({ name: "HKDF", hash: "SHA-256", salt: new TextEncoder().encode("PNW::COWORKER::v1"), info }, material, 256);
+  const bits = await subtle().deriveBits({ name: "HKDF", hash: "SHA-256", salt: new TextEncoder().encode(salt), info }, material, 256);
   return hex(bits);
 }
 

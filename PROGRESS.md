@@ -21,6 +21,7 @@ index is out of date.
 - [Customers: their own accounts (design)](progress/2026-10-26.md#2026-10-26--customers-their-own-accounts-design)
 - [Backing up with the account: finding and restoring (part 3 of 4)](progress/2026-10-26.md#2026-10-26--backing-up-with-the-account-finding-and-restoring-part-3-of-4)
 - [Customers: their own accounts (Step 1, first part)](progress/2026-10-26.md#2026-10-26--customers-their-own-accounts-step-1-first-part)
+- [Customers: businesses and customers connect, and message (Step 1, second part)](progress/2026-10-26.md#2026-10-26--customers-businesses-and-customers-connect-and-message-step-1-second-part)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

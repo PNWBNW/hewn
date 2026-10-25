@@ -55,6 +55,7 @@ import type { Funds } from "./funds";
 import type { Rail } from "./rail";
 import { type Role, type Work, emptyWork } from "./work";
 import { type CustomerSide, emptyCustomer } from "./customer";
+import type { Connections } from "./connections";
 import { markBackedUp } from "./backup_reminder";
 import { type AccountRestoreReport, type AccountUnlock, type FindBooks, restoreIntoVault } from "./account_restore";
 import {
@@ -150,6 +151,8 @@ type BooksContextValue = {
   work: Work | null;
   /** A customer's own side (books/customer.ts); null on any other account. */
   customer: CustomerSide | null;
+  /** A business's connections with its customers (books/connections.ts); null before the first. */
+  clients: Connections | null;
   /** Personal events on this account's own calendar (books/events.ts); empty before the first. */
   events: readonly PersonalEvent[];
   /** Shared events: the ones this account organizes and its invitations (books/shared_events.ts); null before the first. */
@@ -740,6 +743,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       role: company ? roleOf(company) : "business",
       work: company?.work ?? null,
       customer: company?.customer ?? null,
+      clients: company?.clients ?? null,
       events: company?.events ?? NO_EVENTS,
       calendar: company?.calendar ?? null,
       create,
