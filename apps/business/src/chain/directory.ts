@@ -124,6 +124,14 @@ export async function lookupAddress(address: string, reads: DirectoryReads = dir
   throw new DirectoryError("That account has no registered name");
 }
 
+/** A registered name's kind: what the kind mapping says; when it misses, the owner's own primary business name decides. */
+export async function nameKindOf(nameHash: string, owner: string, reads: DirectoryReads): Promise<NameKind> {
+  const code = await reads.nameKind(nameHash);
+  if (code === 2) return "business";
+  if (code === 1) return "worker";
+  return (await reads.employerName(owner)) ? "business" : "worker";
+}
+
 /** A name → whoever registered it. Exact names only. */
 export async function lookupName(text: string, suffix: string, reads: DirectoryReads = directoryReads): Promise<DirectoryEntry> {
   const name = bareDirectoryName(text, suffix);
@@ -132,12 +140,7 @@ export async function lookupName(text: string, suffix: string, reads: DirectoryR
   const nameHash = computeNameHash(name);
   const owner = await reads.nameOwner(nameHash);
   if (!owner) throw new DirectoryError(`No one has registered ${name}.${suffix}. Names have to match exactly; check the spelling`);
-  const code = await reads.nameKind(nameHash);
-  let kind: NameKind;
-  if (code === 2) kind = "business";
-  else if (code === 1) kind = "worker";
-  else kind = (await reads.employerName(owner)) ? "business" : "worker"; // the kind mapping missed; the owner's own primary name says
-  const entry = await describe(nameHash, owner, kind, reads);
+  const entry = await describe(nameHash, owner, await nameKindOf(nameHash, owner, reads), reads);
   return entry.name ? entry : { ...entry, name };
 }
 

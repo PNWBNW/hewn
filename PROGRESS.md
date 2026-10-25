@@ -4617,3 +4617,19 @@ by `cards/WorkerCardArt.tsx`, which Settings shows a worker; the tenure card is 
 with the pine. 12 land tests (the genome's ranges and the river's three entries, the water below
 its banks, the sky kept, the landmarks on the card and dry, the forest clear of them), 1 in the
 app; rendered in headless Chromium and looked at.
+
+## 2026-10-25 — A card anyone can open: `/card?name=dayco`
+
+The public page the cards design promised (`docs/HEWN_ART.md`, step 2): `app/card/` reads the
+name from its address and `chain/PublicCard.tsx` (loaded only there) draws the card from public
+reads alone, with no account and no Shield: `chain/public_card.ts` asks the registry whose name
+it is and of what kind (the kind mapping, else the owner's own primary business name,
+`nameKindOf` shared with the directory), `cards[name_hash]` for the card, and the issue block
+for the date. A business's card is drawn whenever it has one; a worker's only while `shown` is
+true, and to a visitor a hidden card reads exactly like no card ("no public card"), so the page
+says nothing about a person beyond what it draws. The page has a name field for finding another
+card and the card's address with a copy button for sharing; Settings shows the same address
+under a shown card. `WorkerCardArt` gains a public view (the footer drops "private view").
+`/card` joins the public paths (the board, traction, the terms, the privacy page). 8 new tests
+(the four outcomes, bad input refused before any read, the kind fallback, the path and the public
+route, the public footer); the app's 731 pass, the fiat boundary among them.

@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { Check, Copy, LogOut } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
 import { Field, FormError, PassphraseInput, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { publicCardPath } from "@/books/card";
 import { shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import BusinessCardArt from "@/cards/BusinessCardArt";
@@ -134,6 +136,17 @@ function YourCard() {
               <>
                 <dt className="text-muted-foreground">Visibility</dt>
                 <dd className="font-medium">{card.shown ? "Shown publicly" : "Hidden"}</dd>
+              </>
+            )}
+            {card.shown && (
+              <>
+                <dt className="text-muted-foreground">Anyone can open it at</dt>
+                <dd className="font-medium">
+                  <Link href={publicCardPath(name)} className="break-all underline underline-offset-4">
+                    {BRAND.appUrl}
+                    {publicCardPath(name)}
+                  </Link>
+                </dd>
               </>
             )}
           </dl>
