@@ -36,6 +36,13 @@ const sent: ReviewItem = { id: tx(1), date: "2026-10-16", direction: "out", mino
 const received: ReviewItem = { id: tx(2), date: "2026-10-16", at: "2026-10-16T12:00:00Z", direction: "in", minor: "4250000", kind: "transfer_public", status: "new" };
 
 describe("the review list", () => {
+  it("leaves out a movement it can't keep, and still takes the rest (Joshua's test, 2026-10-26)", () => {
+    const { c } = company();
+    const odd = { ...sent, id: "at1 not-a-transaction" } as ReviewItem;
+    const next = addReviewItems(c, [odd, received]);
+    expect(next.review!.items.map((i) => i.id)).toEqual([received.id]);
+  });
+
   it("adds found movements once, however often the check runs", () => {
     const { c } = company();
     const once = addReviewItems(c, [sent, received]);
