@@ -100,6 +100,8 @@ export type Invoice = {
   voidEntryId?: string;
   /** The estimate this invoice was made from. */
   estimateId?: string;
+  /** The agreement for the job this invoice is under, when there is one (16 hex characters; the app keeps the agreements). */
+  agreementId?: string;
 };
 
 export type InvoiceInput = {
@@ -112,6 +114,8 @@ export type InvoiceInput = {
   lines: InvoiceLine[];
   taxRateBp?: number;
   memo?: string;
+  /** The agreement for the job, if the invoice is under one. */
+  agreementId?: string;
 };
 
 export type Application = { targetId: string; amount: Cents };
@@ -426,7 +430,8 @@ function cleanInvoice(books: Books, sales: Sales, input: InvoiceInput): Omit<Inv
   const taxRateBp = cleanTaxRate(input.taxRateBp);
   const lines = cleanInvoiceLines(books, input.lines);
   const memo = input.memo?.trim();
-  return { customerId: customer.id, date, dueDate, terms, lines, taxRateBp, ...(memo ? { memo } : {}) };
+  if (input.agreementId !== undefined && !/^[0-9a-f]{16}$/.test(input.agreementId)) fail("That agreement isn't one this app knows");
+  return { customerId: customer.id, date, dueDate, terms, lines, taxRateBp, ...(memo ? { memo } : {}), ...(input.agreementId ? { agreementId: input.agreementId } : {}) };
 }
 
 export const findInvoice = (sales: Sales, id: string) => sales.invoices.find((i) => i.id === id) ?? fail("Invoice not found");

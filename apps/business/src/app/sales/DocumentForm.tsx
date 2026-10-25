@@ -34,6 +34,8 @@ import { Button, buttonVariants } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { itemsOf } from "@/books/connections";
+import { invoiceableAgreements } from "@/books/service";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { TagFields, pickedTags } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
@@ -85,7 +87,7 @@ export function DocumentEditor({ kind }: { kind: DocumentKind }) {
 }
 
 function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoice | Estimate }) {
-  const { books, sales, dimensions, updateCompany } = useOpenBooks();
+  const { books, sales, dimensions, clients, updateCompany } = useOpenBooks();
   const router = useRouter();
   const invoice = kind === "invoice" ? (existing as Invoice | undefined) : undefined;
   const estimate = kind === "estimate" ? (existing as Estimate | undefined) : undefined;
@@ -101,6 +103,9 @@ function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoi
   const [expiryDate, setExpiryDate] = useState(estimate?.expiryDate ?? "");
   const [taxRate, setTaxRate] = useState(existing ? formatRateBp(existing.taxRateBp) : "0");
   const [memo, setMemo] = useState(existing?.memo ?? "");
+  const [agreementId, setAgreementId] = useState(invoice?.agreementId ?? "");
+  // The jobs agreed with this customer on the app, for an invoice to name (optional).
+  const jobs = kind === "invoice" && customerId ? invoiceableAgreements(itemsOf(Object.values(clients ?? {}).find((c) => c.customerId === customerId))) : [];
   const [rows, setRows] = useState<Row[]>(() =>
     existing
       ? existing.lines.map((l) => ({
@@ -149,7 +154,7 @@ function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoi
     try {
       const common = { customerId, date, taxRateBp: parseRateBp(taxRate), lines: lines(), ...(memo.trim() ? { memo } : {}) };
       if (kind === "invoice") {
-        const data = { ...common, dueDate: due, terms };
+        const data = { ...common, dueDate: due, terms, ...(agreementId && jobs.some((j) => j.terms.id === agreementId) ? { agreementId } : {}) };
         await updateCompany((c) => {
           let id = invoice?.id;
           let next = c.sales;
@@ -222,6 +227,7 @@ function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoi
               value={customerId}
               onChange={(e) => {
                 setCustomerId(e.target.value);
+                setAgreementId("");
                 const t = sales.customers.find((c) => c.id === e.target.value)?.terms;
                 if (t) setTerms(t);
               }}
@@ -235,6 +241,19 @@ function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoi
               ))}
             </select>
           </Field>
+          {jobs.length > 0 && (
+            <Field label="For agreement" hint="Optional: the job this invoice is for.">
+              <select className={inputClass} value={agreementId} onChange={(e) => setAgreementId(e.target.value)}>
+                <option value="">No agreement</option>
+                {jobs.map((j) => (
+                  <option key={j.terms.id} value={j.terms.id}>
+                    {j.terms.title}
+                    {j.status === "complete" ? " (complete)" : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field label={kind === "invoice" ? "Invoice date" : "Estimate date"}>
             <input type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} required />
           </Field>

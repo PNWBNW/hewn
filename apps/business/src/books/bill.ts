@@ -10,7 +10,8 @@
 // ---------------------------------------------------------------------------
 
 import { type Invoice, type Sales, invoiceTotals } from "@pnw/sales";
-import { type Connections, itemsOf } from "./connections";
+import { type Connection, type Connections, itemsOf } from "./connections";
+import { agreementsIn } from "./service";
 import { type BillPayment, billKey } from "./customer";
 import type { ThreadItem } from "./thread";
 
@@ -31,6 +32,8 @@ export type Bill = {
   tax: string;
   total: string;
   memo?: string;
+  /** The agreement for the job this invoice is under, when there is one (books/service.ts). */
+  agreement?: { id: string; title: string };
 };
 
 export const MAX_BILL_LINES = 60;
@@ -70,12 +73,21 @@ export function validateBill(raw: unknown): Bill {
   for (const k of ["subtotal", "tax", "total"] as const) if (typeof r[k] !== "string" || !CENTS.test(r[k] as string)) throw new BillError("An invoice's totals are damaged");
   const bill: Bill = { v: 1, id: r.id, number, date: r.date, dueDate: r.dueDate, lines, taxRateBp: r.taxRateBp, subtotal: r.subtotal as string, tax: r.tax as string, total: r.total as string };
   if (r.memo !== undefined) bill.memo = text(r.memo, "A memo", 1000);
+  if (r.agreement !== undefined) {
+    const a = r.agreement as Record<string, unknown> | null;
+    if (!a || typeof a.id !== "string" || !/^[0-9a-f]{16}$/.test(a.id)) throw new BillError("An invoice's agreement is damaged");
+    bill.agreement = { id: a.id, title: text(a.title, "An agreement's title", 80) };
+  }
   if (BigInt(bill.subtotal) + BigInt(bill.tax) !== BigInt(bill.total)) throw new BillError("An invoice's totals don't add up");
   return bill;
 }
 
-/** What a customer gets for one of the business's invoices. */
-export function billOf(invoice: Invoice): Bill {
+/**
+ * What a customer gets for one of the business's invoices. An invoice under an agreement names it,
+ * with its title as the conversation `conn` holds it; one whose agreement isn't there names none.
+ */
+export function billOf(invoice: Invoice, conn?: Pick<Connection, "past" | "thread">): Bill {
+  const agreement = invoice.agreementId ? agreementsIn(itemsOf(conn)).find((a) => a.terms.id === invoice.agreementId) : undefined;
   const t = invoiceTotals(invoice);
   return validateBill({
     v: 1,
@@ -89,6 +101,7 @@ export function billOf(invoice: Invoice): Bill {
     tax: t.tax.toString(),
     total: t.total.toString(),
     ...(invoice.memo ? { memo: invoice.memo.slice(0, 1000) } : {}),
+    ...(agreement ? { agreement: { id: agreement.terms.id, title: agreement.terms.title } } : {}),
   });
 }
 

@@ -53,7 +53,7 @@ function Deliver() {
       if (!letters) throw new Error("Connect Shield first");
       const conn = currentCompany()?.clients?.[d.address];
       if (!conn) throw new Error("That customer isn't connected any more");
-      const body: ThreadBody = d.send === "invoice" ? { type: "invoice", bill: billOf(d.invoice) } : { type: "invoice_void", id: d.invoice.id, number: d.invoice.number };
+      const body: ThreadBody = d.send === "invoice" ? { type: "invoice", bill: billOf(d.invoice, conn) } : { type: "invoice_void", id: d.invoice.id, number: d.invoice.number };
       const { writer } = letterThread(wallet, d.address, { letters });
       const item = await postToThread({ client: writer, partiesKey: await connectionKey(conn), from: "business", nextOut: conn.thread?.nextOut ?? 0, body, kinds: CLIENT_KINDS, feeMode: readFeeMode() });
       await updateCompany((c) => ({ ...c, clients: updateConnectionThread(c.clients ?? {}, d.address, (t) => addToThread(t, item), emptyThread) }));

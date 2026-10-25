@@ -69,6 +69,7 @@ function Bills() {
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm font-medium", b.status === "void" && "text-muted-foreground line-through")}>
                           {b.business}.{BRAND.nameSuffix} · {b.bill.number}
+                          {b.bill.agreement ? ` · ${b.bill.agreement.title}` : ""}
                         </span>
                         <span className={cn("block truncate text-xs", late ? "text-destructive" : "text-muted-foreground")}>
                           {STATUS_LINE[b.status] ?? (late ? `Overdue since ${b.bill.dueDate}` : `Due ${b.bill.dueDate}`)}
@@ -100,6 +101,7 @@ function BillDetail({ view }: { view: BillView }) {
             Invoice {bill.number} from {view.business}.{BRAND.nameSuffix}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
+            {bill.agreement && <span className="block">For the agreed job “{bill.agreement.title}”</span>}
             Dated {bill.date} · due {bill.dueDate}
             {view.status === "void" && " · voided by the business: nothing is owed"}
             {view.status === "paid" && " · paid"}
