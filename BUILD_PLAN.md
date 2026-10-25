@@ -3,7 +3,7 @@
 Oct 13, 2026 · Joshua Day
 
 > Source of truth for what gets built and in what order. Mirrors the Claude Doc
-> "PNW Ledger — Build Plan" (the product is now named Hewn). When an exit criterion is met, tick it here and log it in PROGRESS.md.
+> "PNW Ledger — Build Plan" (the product is now named Hewn). When an exit criterion is met, tick it here and log it in that day's file in `progress/`.
 
 ## Now
 

@@ -24,10 +24,12 @@ submodule over HTTPS; you only need it to work on the chain side.
 
 ## How the work is organised
 
-- **`BUILD_PLAN.md`** is the spec: phases, deliverables, exit criteria. **`PROGRESS.md`** is the
-  dated log of every change. **`CLAUDE.md`** holds the rules everyone follows, person or agent.
+- **`BUILD_PLAN.md`** is the spec: phases, deliverables, exit criteria. **`progress/`** is the
+  dated log of every change, one file per day, indexed by `PROGRESS.md`. **`CLAUDE.md`** holds
+  the rules everyone follows, person or agent.
 - One task, one exit criterion, one pull request. A PR ends with the tests run, a dated entry in
-  `PROGRESS.md`, and any exit criterion it met ticked in the plan.
+  that day's `progress/` file (then `python3 -I scripts/progress_index.py --write`), and any exit
+  criterion it met ticked in the plan.
 - CI (`.github/workflows/ci.yml`) runs the tests, a strict typecheck and build of every package,
   the static bundle of the app, and a dependency audit that fails on anything moderate or worse.
   New dependencies must be at least a week old (`pnpm-workspace.yaml`).
