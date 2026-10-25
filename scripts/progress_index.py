@@ -2,8 +2,8 @@
 """The progress log: one file per day, and an index generated from them.
 
 Entries live in progress/YYYY-MM-DD.md, one `## YYYY-MM-DD — Title` heading per entry, newest
-last within a day. PROGRESS.md at the root is generated from those files: a line per day with a
-link to its file and each entry's title. Never edit PROGRESS.md by hand; add or change an entry in
+last within a day. PROGRESS.md at the root is generated from those files: a heading per day, newest
+first, linking its file, and a line per entry linking its heading. Never edit PROGRESS.md by hand; add or change an entry in
 its day's file, then run
 
     python3 -I scripts/progress_index.py --write
@@ -71,7 +71,7 @@ def entries(path: Path):
 
 def build_index():
     problems = []
-    lines = [INTRO, "| Day | Entries |", "|---|---|"]
+    lines = [INTRO]
     files = sorted(DAYS.glob("*.md")) if DAYS.is_dir() else []
     days = [p for p in files if p.name != "README.md"]
     if not days:
@@ -93,9 +93,9 @@ def build_index():
                 continue
             if date != day:
                 problems.append(f"{rel}: entry dated {date}: {title}")
-            links.append(f"[{title.replace('|', '/')}]({rel}#{slug})")
+            links.append(f"- [{title}]({rel}#{slug})")
             total += 1
-        lines.append(f"| [{day}]({rel}) | " + "<br>".join(links) + " |")
+        lines.append(f"## [{day}]({rel})\n\n" + "\n".join(links) + "\n")
     return "\n".join(lines) + "\n", problems, total, len(days)
 
 
