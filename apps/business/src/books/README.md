@@ -23,6 +23,7 @@ Most files pair up that way. The ones worth knowing first:
 | `card.ts`, `credential.ts`, `paystub_rings.ts` | The account's card as the vault remembers it; a credential (its document, whose hash the record carries, and the landmarks a person's land draws from theirs); a paystub's place in its year for the rings |
 | `rail.ts`, `funds.ts`, `opening.ts`, `tags.tsx`, `display.tsx` | Links to people on the rail; set-asides; opening balances; dimensions; formatting |
 | `backup_reminder.ts`, `BackupReminder.tsx` | When to ask for a backup (never saved, or a week old) and the reminder and Settings card that ask; the browser's answer on keeping the books |
+| `books_backup.ts` | The books as pieces of a backup chain (docs/CHAIN_BACKUP.md): a snapshot, then changes, each naming the state it builds on; rebuilding them in order, stopping cleanly at a gap |
 | `reconcile.ts`, `ShieldCheck.tsx` | The books' Shield account against what Shield holds (the stablecoin only; cash never enters it), and how the Dashboard shows it |
 
 Everything here is covered by tests; run them with `pnpm --filter @pnw/business test`.
