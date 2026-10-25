@@ -5,6 +5,7 @@ are at the repository root; this folder holds the thinking behind particular pie
 
 | File | Status | What it answers |
 |---|---|---|
+| [`INVARIANTS.md`](INVARIANTS.md) | Living, checked in CI | Every non-negotiable rule with an id (INV-01…), where it is enforced, the check that proves it, and the threats it answers. Where an auditor starts. |
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Living | What Hewn protects, from whom, how, and what it can't. Every PR checks its changes against it; new features add rows. |
 | [`LETTERS.md`](LETTERS.md) | Living | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
 | [`TWIN_CURVE_CONVERSATIONS.md`](TWIN_CURVE_CONVERSATIONS.md) | Design, for review | Moving the business ↔ team member conversation to key exchange, and backups both people agree to. |

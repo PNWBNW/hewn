@@ -44,22 +44,25 @@ programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its ow
 
 ## Non-negotiable rules
 
+Each rule carries an id; `docs/INVARIANTS.md` says where each is enforced, the check that proves
+it, and the threats it answers (CI keeps the two in step: `scripts/check_invariants.py`).
+
 **Privacy floor**
 - Anything tied to an individual — wages, withholdings, W-4 data, bank details, paystubs, worker
   address — is private in every mode and can never be made public. Enforce it in the circuit or the
-  vault, not only the UI.
-- No private data on any server, ever. No database. Plaintext lives in the browser session only.
+  vault, not only the UI. (INV-01)
+- No private data on any server, ever. No database. Plaintext lives in the browser session only. (INV-02)
 - Public Aleo mappings hold only hashes, commitments and block heights. Never a plaintext amount,
-  account name, memo or identity.
-- Aggregates publish only as proofs, with a minimum group size (no single-worker inference).
+  account name, memo or identity. (INV-03)
+- Aggregates publish only as proofs, with a minimum group size (no single-worker inference). (INV-04)
 - **One exception: testnet traction counts (Joshua, 2026-10-19).** Two totals per country since launch
   (visits, visitors) in a small Upstash store, nothing else: no dates, no addresses, no ids. A
   visitor is decided on the device (it remembers it was counted) and only yes/no is sent. Published
   on `/traction` only for countries with at least 5 visitors, cached for a day
-  (`apps/business/src/app/api/traction/counts.ts`). Nothing else may be stored this way.
+  (`apps/business/src/app/api/traction/counts.ts`). Nothing else may be stored this way. (INV-05)
 
 **Keys and storage**
-- Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs.
+- Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs. (INV-06)
 - The vault key is derived from the user's unlock secret: **username + passphrase** together in
   fiat mode (no wallet needed; `apps/business/src/books/account.ts`: the secret is the normalised
   username and the passphrase, the vault id a hash of role + username, so one username can hold a
@@ -74,7 +77,8 @@ programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its ow
   `resetWithRecovery`), if one was made. Scheme (`@pnw/vault`): a random AES-256-GCM
   data key encrypts the books; the unlock secret (PBKDF2-SHA256, 600k rounds) only wraps that key,
   so a recovery key, a wallet unlock or per-member access later just adds another wrapped copy.
-- localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault.
+  (INV-07, INV-08, INV-09)
+- localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault. (INV-10)
 
 **Boundaries**
 - Every on-chain write is signed in the user's wallet through the `wallet` package's executor, so
@@ -82,6 +86,7 @@ programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its ow
   (never hard-coded elsewhere). The CLI adapter / Path B (pasted private key) is legacy: the
   `coordinator` package that carried it is gone (2026-10-14; the pay queue in `rail` is the wallet
   path), and no new code or screen may use `pnw-adapter`'s CLI adapter. Nothing calls `snarkos` or the SDK execute path directly.
+  (INV-11, INV-12)
 - **Every account is on the registry (Joshua, 2026-10-15).** Setup links a Shield account and
   registers a `name.hewn` (a worker also creates the profile behind it); the app shell keeps an
   unfinished account on `/settings/setup` (`books/setup.ts`). Team members, customers and vendors are
@@ -95,18 +100,18 @@ programs are in `pnw_mvp_v2` (a submodule, fetched over HTTPS), which has its ow
   `pnw-adapter`, `rail` or `records`; chain code lives in `src/chain` and loads only on the pages
   that need it (`fiat_boundary.test.ts`; the CSP is one policy for the whole app since 2026-10-15,
   `docs/THREAT_MODEL.md` T3). The books keep working offline
-  once an account is set up.
-- Extension modules may never touch posting logic or the vault key.
+  once an account is set up. (INV-13, INV-14, INV-15, INV-16, INV-17)
+- Extension modules may never touch posting logic or the vault key. (INV-18)
 - Mode upgrades (fiat → anchored → settled) are one-way, show exactly what goes on-chain, and require
-  a second wallet signature after a review screen. Never flip a mode as a side effect.
+  a second wallet signature after a review screen. Never flip a mode as a side effect. (INV-19)
 
 **Leo programs**
 - Deployed programs are immutable. Never edit a deployed program in place; ship a new version and a
-  migration. `config/testnet.manifest.json` is the source of truth for what's live.
+  migration. `config/testnet.manifest.json` is the source of truth for what's live. (INV-20)
 - Superseded program versions go to `src/layer1/archive/` or `src/layer2/archive/` in
-  `pnw_mvp_v2`, unchanged, with a row in that folder's README.
+  `pnw_mvp_v2`, unchanged, with a row in that folder's README. (INV-21)
 - Any new or changed Leo program: say so explicitly before starting, so Joshua can switch the session
-  to Fable 5.1 at high effort. Include negative tests (inputs that must fail).
+  to Fable 5.1 at high effort. Include negative tests (inputs that must fail). (INV-22)
 
 ## Working agreement
 

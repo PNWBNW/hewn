@@ -4871,3 +4871,25 @@ reconciliation criterion as next, and both blockers, from about 35 KB of reading
 reconciliation check as a pure function first, the Dashboard flag later with a screen greenlight.
 It also noted that `tail -n 120` of this file starts mid-entry, which Step 6 (one file per day)
 fixes.
+
+## 2026-10-25 — Rules with ids, tied to threats and checks (ICM Step 2)
+
+Step 2 of the audit-ready plan. **`docs/INVARIANTS.md`**: the 24 non-negotiable rules (22 from
+CLAUDE.md, 2 from `pnw_mvp_v2`'s: no cumulative counters, Layer 2 moves no funds), each with an id
+(INV-01 to INV-24), where it is enforced (structure, vault, circuit, code, CI, review, not yet),
+the check that proves it (a test or script path, with the test's name where it helps), and the
+threats it answers. 15 have a check; 9 say **none**, now a visible to-do list: aggregates with a
+minimum group size and mode upgrades (not built yet), extension modules (Phase 8), no secrets scan
+(INV-06; also the one rule with no threat in the model), localStorage, the signing path and
+program names (review only), the archive convention, and Layer 2 custody. **Threat ids:** the nine
+dated sections after T8 are now T9 to T17 (review list, mailbox, traction, reports, shared events,
+handshake, v5 agreements, who a letter is from, cards), with a line that ids never change; T6's
+"🔜 `gl_core`" now points at the public-state map and the period-status program. **CLAUDE.md**
+gains the ids at the end of each rule, wording unchanged. CONTRIBUTING.md and README.md link to the
+table instead of restating the rules; SECURITY.md and `docs/README.md` point to it.
+
+Check: `scripts/check_invariants.py` (standard library, `python3 -I`, a new CI step after the
+tests) fails when an id cited in CLAUDE.md has no row, a Hewn row isn't cited in CLAUDE.md, an id
+repeats, a check path doesn't exist (paths in `pnw_mvp_v2/` only when the submodule is checked
+out), or a row names a threat the model doesn't have. Shown failing on five planted mistakes
+first; passes with and without the chain repo present.

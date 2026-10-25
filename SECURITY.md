@@ -10,7 +10,10 @@ a reply, and credit if you want it. There is no bounty programme.
 **What's in scope:** the app (`apps/business`), the marketing site (`apps/site`), the packages,
 the brand build, and the Leo programs in `pnw_mvp_v2`. The threat model, with what is protected,
 from whom, and the accepted risks, is [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md); a finding
-that contradicts a row there is exactly what we want to hear about.
+that contradicts a row there is exactly what we want to hear about. Every rule the code must keep,
+with the check that enforces it, is in [`docs/INVARIANTS.md`](docs/INVARIANTS.md); a way around
+one of them is a finding too. The public state of the Leo programs, mapping by mapping, is
+`pnw_mvp_v2`'s `docs/PUBLIC_STATE.md`.
 
 **Status:** Hewn runs on Aleo testnet and is in active development. Don't keep real books in it
 yet, and never put a real private key, view key or seed phrase into anything you send us.

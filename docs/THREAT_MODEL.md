@@ -25,6 +25,11 @@ Status: ✅ in place · 🔜 planned (phase) · ⚠️ accepted risk.
 
 ## Threats
 
+Each threat has an id, T1 to T17; the later ones head their own dated sections below. Ids never
+change once given and are never reused: cite them from code, from migration notes and from
+[`INVARIANTS.md`](INVARIANTS.md), which ties every rule to the threats it answers and the check
+that enforces it.
+
 ### T1 — Central breach of everyone's books
 No server, no database. ✅ Structural, from the architecture.
 
@@ -160,7 +165,7 @@ The highest risk for a browser app.
   they signed for, so it can't be paid (`books/rail.ts` `payableLinks`). ✅
 
 ### T6 — Privacy leak through the chain (anchored/settled modes)
-- Public mappings hold only hashes, commitments, block heights. ✅ (existing programs) 🔜 `gl_core`
+- Public mappings hold only hashes, commitments, block heights. ✅ (existing programs; every mapping listed in `pnw_mvp_v2` `docs/PUBLIC_STATE.md`, checked in CI) 🔜 the period-status program (Phase 1, feed, reconcile, seal)
 - Aggregates only as proofs with a minimum group size. 🔜 P3 (group size decision open)
 - Fiat-mode app cannot import chain packages at all. ✅ `fiat_boundary.test.ts`
 - The sender behind every transaction. A public fee (`fee_public`) names the paying address, so
@@ -198,7 +203,7 @@ The highest risk for a browser app.
   (the books themselves already hold those conversations).
 - ⚠️ No recovery key and no backup still means lost books. Setup and Settings say so.
 
-## The review list (Transactions → For review)
+## T9 — The review list (Transactions → For review)
 - Built on the device from Shield's own history and records plus the read-only explorer; kept in
   the encrypted vault (amounts, dates and the other side's account). Nothing is sent anywhere. ✅
 - ⚠️ Naming the other side asks the registry (explorer) about that account's name, so the
@@ -207,7 +212,7 @@ The highest risk for a browser app.
 - An accepted item is undone from the review list (its entry reversed), never voided alone in the
   register, so the list and the books can't disagree. ✅
 
-## The mailbox
+## T10 — The mailbox
 
 **Retired 2026-10-22** (`archive/mailbox-api/`). Every message is now a letter on chain
 (`docs/LETTERS.md`), sent from the user's wallet; no server holds messages. What follows is kept
@@ -350,7 +355,7 @@ offer. ✅
 Phishing look-alike sites, browser extensions with page access, and denial of service are out
 of scope until the first external release; revisit then.
 
-## Traction counts (2026-10-19)
+## T11 — Traction counts (2026-10-19)
 
 During testnet the app keeps two totals per country since launch, visits and visitors, in a small
 Upstash store (`apps/business/src/app/api/traction/`), and shows them on the public `/traction` map.
@@ -364,7 +369,7 @@ Upstash store (`apps/business/src/app/api/traction/`), and shows them on the pub
   inflated totals; the endpoint takes same-origin requests only and caps the body, and the numbers
   are presented as rough. It never touches the vault, keys, wallets or the chain.
 
-## Reports (2026-10-20)
+## T12 — Reports (2026-10-20)
 
 A person can report a message they received to Hewn (`docs/LETTERS.md`, "Reports").
 - **What leaves the conversation:** only what the reporter chooses to report: that one message's
@@ -379,7 +384,7 @@ A person can report a message they received to Hewn (`docs/LETTERS.md`, "Reports
 - **The sender:** never told about a harassment report. Any other kind sends them a notice in the
   conversation, which names the kind of report but not the note.
 
-## Shared events (2026-10-22)
+## T13 — Shared events (2026-10-22)
 
 Events with guests (`docs/LETTERS.md`, "Shared events").
 - **What guests learn:** the event, the guest list (names as the organizer shows them) and each
@@ -399,7 +404,7 @@ Events with guests (`docs/LETTERS.md`, "Shared events").
 - **Answers and keys** travel in the existing conversations, sealed with their keys, so a view key
   alone doesn't open a coworker's answer (the same as coworker chat).
 
-## Business ↔ team member conversations: the handshake (2026-10-23)
+## T14 — Business ↔ team member conversations: the handshake (2026-10-23)
 
 `docs/TWIN_CURVE_CONVERSATIONS.md`, `books/key_ring.ts`. The agreement is the first lock: a
 conversation starts under the parties key in the agreement record, which a view key opens. Each
@@ -425,7 +430,7 @@ write under it in its own slots.
 - **Paystubs and timesheets** go under the pair's key once a side writes under it; a reader tries
   every key it holds, and passes a slot sealed with a key it lost once a later one arrives. ✅
 
-## Agreements on chain: v5 (deployed 2026-10-24, the app switched 2026-10-25)
+## T15 — Agreements on chain: v5 (deployed 2026-10-24, the app switched 2026-10-25)
 
 `employer_agreement_v5.aleo` (pnw_mvp_v2, `docs/migrations/2026-10-23-agreement-v5.md` there):
 every new offer goes to it (`chain/agreement_programs.ts`), with its bytes packed as two or four
@@ -447,7 +452,7 @@ u128 words (`@pnw/records` `packed`); v4 stays read for the agreements made befo
   mean the record pair can't be made again, and the conversation starts over on the agreement
   stream as for any lost key (above).
 
-## Who a letter is from (2026-10-22)
+## T16 — Who a letter is from (2026-10-22)
 
 The security review found that, apart from event invitations, a letter was believed because it
 opened with the right key. A key isn't an identity: every channel member holds the channel's key,
@@ -469,7 +474,7 @@ public. Now every reader also checks the letter's sender, which only the record'
   look-alike characters); an application's name likewise; an account's primary name only while
   the account still owns it. Otherwise the account is shown. ✅
 
-## Cards (2026-10-25)
+## T17 — Cards (2026-10-25)
 
 Every account gets a card (`docs/HEWN_ART.md`; `hewn_cards_v1` on chain). What the chain holds
 per name is one public entry: the block the card was issued at and whether it is shown. Nothing
