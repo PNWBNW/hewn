@@ -2,10 +2,10 @@
 // Reconciling the books' Shield account with Shield itself, as a bank
 // reconciliation does with a bank statement: one account against what holds
 // its money. The books' "Shield account" and its set-asides are compared with
-// the linked account's USDCx (private and public together). Nothing else is:
+// the linked account's stablecoin (private and public together). Nothing else is:
 // cash on hand, other bank accounts and anything paid with them never touch
 // Shield, so they never enter this (Joshua, 2026-10-26). Only the stablecoin
-// counts; ALEO is fee money and isn't in the books.
+// counts; the network's own coin is fee money and isn't in the books.
 //
 // The two can differ for reasons that are fine, and the check says which:
 //   - movements waiting in For review: on the network, not yet in the books;
@@ -30,7 +30,7 @@ import { MINOR_PER_CENT, minorToCents } from "./opening";
 export type Reconciliation =
   /** The books don't follow a Shield account yet: nothing to compare. */
   | { kind: "not_started" }
-  /** The account's USDCx isn't fully read (Shield not connected, or a read failed). */
+  /** The account's stablecoin isn't fully read (Shield not connected, or a read failed). */
   | { kind: "unread"; books: Cents }
   /** The books and Shield agree, to the cent. */
   | { kind: "matches"; books: Cents; shield: Cents }
@@ -45,7 +45,7 @@ export type Reconciliation =
 const signed = (direction: "in" | "out", minor: bigint) => (direction === "in" ? minor : -minor);
 
 /**
- * Compares the books' Shield account (with its set-asides) with the linked account's USDCx total,
+ * Compares the books' Shield account (with its set-asides) with the linked account's stablecoin total,
  * `shieldMinor` in six-decimal minor units, or null when it isn't fully read.
  */
 export function reconcileShield(
