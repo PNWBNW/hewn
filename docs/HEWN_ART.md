@@ -287,8 +287,9 @@ or the hours.
 3. **Credential cards**, which need a credential program. The deployed `credential_nft_v3` and
    `v4` check agreements through `employer_agreement_v4` (gone in v5) and the licence registry,
    with both names' hashes and both accounts as public finalize inputs, so a v5 agreement can't
-   mint one and the pair would show. **`hewn_credentials_v1.aleo`**, staged 2026-10-25 in
-   `pnw_mvp_v2` (Joshua's go, Fable 5.1), `@noupgrade`, importing only `employer_agreement_v5`:
+   mint one and the pair would show. **`hewn_credentials_v1.aleo`**, staged and deployed 2026-10-25
+   from `pnw_mvp_v2` (Joshua's go, Fable 5.1; block 20806575, 9.08 credits), `@noupgrade`,
+   importing only `employer_agreement_v5`:
    - A credential is a private record in two copies (the business's and the person's) with the
      kind (1 employment, 2 skills, 3 clearance, 4 custom), the issuer, the subject, a scope hash
      (what it says stays in the two vaults) and a random nonce. Its commitment, one hash over
@@ -321,9 +322,14 @@ or the hours.
    and checked against the record, then accepted or declined (one approval each), and every one
    found goes to the vault, so the landmarks on their land follow. Nothing about a credential is
    public, and the business's copy says which team member it was for.
-   Next: deploy and record the program, then check it on the network with the two test accounts
-   (the B–W pair holds an active v5 agreement since the OFFER-4 run), and the credential card
-   (open question 1).
+   **Deployed and checked** (2026-10-25, block 20806575, 9.08 credits, `pnw_mvp_v2` #219): on the
+   B–W test pair's active v5 agreement, issue → accept → `assert_active` → revoke, issue →
+   decline, and issue → revoke while offered all went through with the expected status and
+   anchor, and the six refusals (the worker issuing, the withdrawn pair, the same commitment
+   twice, accepting a revoked one, revoking a declined one, `assert_active` on a revoked one)
+   were rejected in finalize: fourteen of fourteen. The explorer shows an `issue` as five private
+   inputs and a future naming only the pair tag and the commitment. Next: the credential card
+   (open question 1), and the screens tried end to end in Shield.
 4. **Proofs instead of showing:** a person proves one fact from their private records (employed by,
    licensed as, earned over) without showing a card. (The page anyone can open, drawn from a
    name, exists since 2026-10-25: step 2.)

@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// A worker's credentials on chain (pnw_mvp_v2 hewn_credentials_v1, staged
-// 2026-10-25; the design in docs/HEWN_ART.md):
+// A worker's credentials on chain (pnw_mvp_v2 hewn_credentials_v1, deployed
+// 2026-10-25 at block 20806575; the design in docs/HEWN_ART.md):
 //
 //   hewn_credentials_v1::issue(parties_key, subject, kind, scope, nonce)   all private
 //   hewn_credentials_v1::accept(c) / decline(c)   the subject's copy
