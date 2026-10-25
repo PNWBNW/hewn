@@ -137,7 +137,11 @@ export async function findMovements(args: { me: string; start: RailStart | null 
   for (const e of entries) {
     const id = transactionIdOf(e, ["transactionId", "transaction_id", "txId"]);
     const when = timeOf(e.blockTimestamp);
-    if (!id || seen.has(id) || !when || !afterStart(when, start)) continue;
+    if (!id) {
+      unread++; // listed by Shield without an id the books can keep: said, not dropped silently
+      continue;
+    }
+    if (seen.has(id) || !when || !afterStart(when, start)) continue;
     if (typeof e.transactionStatus === "string" && e.transactionStatus.toLowerCase() !== "accepted") continue;
     seen.add(id);
     try {

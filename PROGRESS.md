@@ -30,6 +30,7 @@ index is out of date.
 - [Customers: no cards for clients (decision)](progress/2026-10-26.md#2026-10-26--customers-no-cards-for-clients-decision)
 - [Customers: a payment is confirmed from the business's own Shield records](progress/2026-10-26.md#2026-10-26--customers-a-payment-is-confirmed-from-the-businesss-own-shield-records)
 - [For review takes every movement in the Shield account](progress/2026-10-26.md#2026-10-26--for-review-takes-every-movement-in-the-shield-account)
+- [For review: one oddly described movement no longer blocks the rest](progress/2026-10-26.md#2026-10-26--for-review-one-oddly-described-movement-no-longer-blocks-the-rest)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

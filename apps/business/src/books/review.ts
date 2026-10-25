@@ -135,8 +135,15 @@ export function addReviewItems(company: Company, found: readonly ReviewItem[]): 
   const review = company.review ?? emptyReview();
   const known = knownIds(review);
   const recorded = recordedIds(company);
-  const fresh = found
-    .map(validateItem)
+  // One movement described oddly is left out; it never stops the rest coming in.
+  const readable = found.flatMap((i) => {
+    try {
+      return [validateItem(i)];
+    } catch {
+      return [];
+    }
+  });
+  const fresh = readable
     .filter((i) => !known.has(i.id))
     .map((i): ReviewItem => (i.status === "new" && recorded.has(i.id) ? { ...i, status: "recorded" } : i));
   if (fresh.length === 0) return company;

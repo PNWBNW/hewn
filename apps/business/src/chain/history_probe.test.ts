@@ -47,6 +47,13 @@ function fakeDeps(over: Partial<ProbeDeps["wallet"]> = {}): ProbeDeps & { opened
 }
 
 describe("history probe", () => {
+  it("reads a transaction id however Shield spells it, and nothing that isn't one", () => {
+    const id = "at1" + "q".repeat(58);
+    expect(transactionIdOf({ transactionId: ` ${id.toUpperCase()}\n` })).toBe(id);
+    expect(transactionIdOf({ transactionId: "at1-not-one", txId: id }, ["transactionId", "txId"])).toBe(id);
+    expect(transactionIdOf({ transactionId: "at1 short" })).toBeNull();
+  });
+
   it("counts records and history per program, and finds received payments the history leaves out", async () => {
     const r = await runProbe(fakeDeps());
     expect(r.records[USDCX_PROGRAM]).toEqual({

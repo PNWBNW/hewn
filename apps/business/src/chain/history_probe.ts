@@ -78,13 +78,19 @@ const TX_KEYS = ["transactionId", "transaction_id", "txId", "id"] as const;
 
 /** The transaction id a history entry or a record carries, if any. */
 export function transactionIdOf(v: unknown, keys: readonly string[] = TX_KEYS): string | null {
-  if (typeof v === "string") return v.startsWith("at1") ? v : null;
+  if (typeof v === "string") return cleanTxId(v);
   if (!isObj(v)) return null;
   for (const k of keys) {
-    const x = v[k];
-    if (typeof x === "string" && x.startsWith("at1")) return x;
+    const x = typeof v[k] === "string" ? cleanTxId(v[k]) : null;
+    if (x) return x;
   }
   return null;
+}
+
+/** A transaction id as the books keep it: trimmed, lower-case, `at1` and its characters; null when it isn't one. */
+function cleanTxId(v: string): string | null {
+  const id = v.trim().toLowerCase();
+  return /^at1[a-z0-9]{20,80}$/.test(id) ? id : null;
 }
 
 /** The transitions inside whatever the explorer returned for a transaction. */
