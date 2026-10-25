@@ -110,3 +110,25 @@ describe("a customer's bills", () => {
     expect(billsIn(undefined)).toEqual([]);
   });
 });
+
+describe("an invoice under an agreement", () => {
+  const ID = "0123456789abcdef";
+  const offer = (title: string): ThreadItem => item({ type: "agreement_offer", terms: { id: ID, rev: 1, title, scope: "The sink", priceKind: "fixed", amount: "15490", startDate: "2026-10-20", closesWhen: "The customer signs off on the work" } }, true);
+  const accepted: ThreadItem = { ...item({ type: "agreement_answer", id: ID, rev: 1, answer: "accept" }, false), from: "worker" };
+
+  it("names the agreed job, by the title in the conversation", () => {
+    const s = setup();
+    const inv = createInvoice(s.books, s.sales, { customerId: s.customerId, date: "2026-10-20", lines: s.invoice.lines, agreementId: ID });
+    expect(inv.invoice.agreementId).toBe(ID);
+    const bill = billOf(inv.invoice, { thread: { items: [{ ...offer("Kitchen sink"), from: "business" }, accepted], nextIn: 1, nextOut: 1 } });
+    expect(bill.agreement).toEqual({ id: ID, title: "Kitchen sink" });
+    expect(billOf(inv.invoice).agreement).toBeUndefined(); // without the conversation, no title to give
+  });
+
+  it("refuses an agreement id that isn't one, and a damaged agreement on a bill", () => {
+    const s = setup();
+    expect(() => createInvoice(s.books, s.sales, { customerId: s.customerId, date: "2026-10-20", lines: s.invoice.lines, agreementId: "nope" })).toThrow(/agreement/);
+    const bill = billOf(s.invoice);
+    expect(() => validateBill({ ...bill, agreement: { id: "x", title: "y" } })).toThrow(/agreement is damaged/);
+  });
+});

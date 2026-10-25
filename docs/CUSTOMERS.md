@@ -19,7 +19,8 @@ Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
 - [x] Agreements for a job in the conversation (decision 20): the business proposes or revises,
   the customer accepts, asks for changes or declines, either side marks it complete or cancels;
   and either side disconnects. Built 2026-10-26.
-- [ ] An invoice names its agreement when there is one (decision 21).
+- [x] An invoice names its agreement when there is one (decision 21): the invoice form offers the
+  customer's agreed jobs, optional; the bill and the printed invoice show it. Built 2026-10-26.
 - [x] Invoices sent to a connected customer and shown under Bills (Step 1, no new Leo). Built
   2026-10-26.
 - [x] Bills paid from the customer's Shield account, the business told, and recorded on the

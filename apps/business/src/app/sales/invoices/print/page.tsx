@@ -15,7 +15,9 @@ import { formatCents } from "@pnw/ledger";
 import { TERMS, invoiceBalance, invoiceTotals, lineAmount } from "@pnw/sales";
 import { Button } from "@pnw/ui/button";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { itemsOf } from "@/books/connections";
 import { registeredFor } from "@/books/rail";
+import { agreementsIn } from "@/books/service";
 import { BRAND } from "@/brand";
 
 export default function PrintInvoicePage() {
@@ -29,7 +31,7 @@ export default function PrintInvoicePage() {
 const dollars = (cents: bigint) => `$${formatCents(cents)}`;
 
 function PrintInvoice() {
-  const { books, sales, rail } = useOpenBooks();
+  const { books, sales, rail, clients } = useOpenBooks();
   const id = useSearchParams().get("id");
   const invoice = sales.invoices.find((i) => i.id === id);
   if (!invoice || invoice.state === "draft") {
@@ -48,6 +50,7 @@ function PrintInvoice() {
   const paid = totals.total - balance;
   const terms = TERMS.find((t) => t.id === invoice.terms)?.label ?? "";
   const registered = customer ? registeredFor(rail, "customer", customer.id) : undefined;
+  const job = invoice.agreementId ? agreementsIn(itemsOf(Object.values(clients ?? {}).find((c) => c.customerId === invoice.customerId))).find((a) => a.terms.id === invoice.agreementId) : undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -95,6 +98,7 @@ function PrintInvoice() {
             </p>
           )}
           {customer?.email && <p className="text-sm text-neutral-600">{customer.email}</p>}
+          {job && <p className="mt-2 text-sm">For the agreed job “{job.terms.title}”</p>}
         </section>
 
         <table className="w-full text-sm">
