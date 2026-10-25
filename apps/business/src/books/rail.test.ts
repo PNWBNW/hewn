@@ -8,23 +8,25 @@ import {
   isRailAddress,
   linkFor,
   linkStatus,
-  payableLinks,
   markLinked,
   markOfferReceived,
   nextSeq,
   partyLinkFor,
+  payableLinks,
+  railCredentialFor,
   railFromJson,
   railToJson,
+  registeredFor,
   removeLink,
   removePartyLink,
   setPartyAddress,
   setPartyLink,
+  setRailCredential,
+  setRegistered,
   shortAddress,
   validateLink,
   validatePartyLink,
   validateRail,
-  registeredFor,
-  setRegistered,
 } from "./rail";
 
 const ADDR = "aleo1" + "q".repeat(58);
@@ -48,6 +50,17 @@ const rail: Rail = {
 describe("rail", () => {
   it("round-trips through JSON", () => {
     expect(railFromJson(railToJson(rail))).toEqual(rail);
+  });
+
+  it("keeps the business's copies of the credentials it issued, each naming its team member", () => {
+    const doc = { version: 1 as const, kind: "employment" as const, title: "Carpenter", from: "2026-03-02" };
+    const c = { commitment: "123", kind: "employment" as const, document: doc, scope: "ab".repeat(32), nonce: "cd".repeat(32), status: "offered" as const, counterpart: `aleo1${"z".repeat(58)}`, workerId: "w1" };
+    const withOne = setRailCredential(rail, c);
+    expect(railFromJson(railToJson(withOne)).credentials).toEqual([c]);
+    expect(railCredentialFor(withOne, "123")).toEqual(c);
+    expect(setRailCredential(withOne, { ...c, status: "revoked" }).credentials).toEqual([{ ...c, status: "revoked" }]);
+    expect(() => validateRail({ ...rail, credentials: [{ ...c, workerId: "" }] })).toThrow(/team member/);
+    expect(validateRail({ ...rail, credentials: [] }).credentials).toBeUndefined();
   });
 
   it("keeps the business's card, and refuses one that isn't a card", () => {

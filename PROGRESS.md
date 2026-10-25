@@ -4702,3 +4702,22 @@ withdrawn, nothing public but the id and the tag. Refused: the same agreement id
 withdrawing the accepted offer (`at1e5kuj8cpxyyftze3l0tvcvdset56h06pyayhk4ptlq5qr25q7qzsjauzpz`,
 status still 1). Six of six; the pair B–W now holds an active v5 agreement, which the credentials
 program's network check will use. Result posted on #153 (OFFER-4).
+
+## 2026-10-25 — Credentials in the app, the plumbing: the document, the vault, the records, the landmarks
+
+The app side of `hewn_credentials_v1` before its screens (`docs/HEWN_ART.md`, step 3).
+`books/credential.ts`: what a credential says (`CredentialDocument`: kind, title, from, to,
+details; canonical bytes with keys in order), the vault's copy (`Credential`: the commitment,
+the document, its scope hash, the nonce both sides hold, the status, the other party, the team
+member on the business's side, the issue block and date once read), and `landmarksOf`, the
+landmarks a person's land draws from theirs (offered the bare frame, active built and lit,
+revoked the ghost, declined no mark; each placed by its commitment). `chain/credentials.ts`:
+the program's names and codes, `scopeHash` (BLAKE3 over `PNW::DOC` and a TLV object of its
+own, after the handshake's), `issueInputs` (five private inputs, the 32-byte ones packed),
+the record parser (both copies, the role checked against the owner), the reads from Shield,
+and the public status and issue block by commitment. The person's vault keeps `credentials`
+(`upsertCredential`, `credentialFor`), the business's rail its copies (`setRailCredential`,
+`railCredentialFor`); `@pnw/config` names the program. `WorkerCardArt` takes landmarks, and
+the worker's own card in Settings draws theirs; the public card draws none. 17 new tests;
+the app's 760 pass. No screen yet: issuing, accepting and declining come next, once the
+program is deployed.

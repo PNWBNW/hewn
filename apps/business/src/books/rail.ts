@@ -24,6 +24,7 @@
 
 import type { AttachmentRef } from "@pnw/sales";
 import { type Card, validateCard } from "./card";
+import { type Credential, validateCredential, validateCredentials } from "./credential";
 import { type Half, validateHalf } from "./key_ring";
 import { LetterError, validateFileRefs } from "./offer_letter";
 import { type Terms, validateTerms } from "./work";
@@ -130,6 +131,8 @@ export type Rail = {
   start?: RailStart;
   /** The business's card (books/card.ts), once issued or claimed. */
   card?: Card;
+  /** The business's copies of the credentials it issued (books/credential.ts), by commitment, each naming its team member. */
+  credentials?: Credential[];
 };
 
 /** The day the books began following the linked account, and the entry that opened its balance. */
@@ -327,6 +330,10 @@ export function validateRail(raw: unknown, options: ValidateOptions = {}): Rail 
   if (byParty.size > 0) rail.partyLinks = [...byParty.values()];
   if (r.start !== undefined) rail.start = validateStart(r.start);
   if (r.card !== undefined) rail.card = validateCard(r.card);
+  if (r.credentials !== undefined) {
+    const credentials = validateCredentials(r.credentials);
+    if (credentials.length > 0) rail.credentials = credentials;
+  }
   return rail;
 }
 
@@ -510,4 +517,16 @@ export function bumpSeq(rail: Rail, workerId: string, kind: MailboxKind, used?: 
   if (!Number.isInteger(slot) || slot < 0 || slot > MAX_SEQ) throw new RailError(`The ${kind} sequence number must be a whole number`);
   const bumped: RailLink = { ...link, mailboxSeq: { ...link.mailboxSeq, [kind]: Math.max(current, slot + 1) } };
   return validateRail({ ...rail, links: rail.links.map((l) => (l.workerId === workerId ? bumped : l)) }, LEGACY);
+}
+
+/** The business's copy of one credential, if it holds one. */
+export const railCredentialFor = (rail: Rail, commitment: string): Credential | undefined => rail.credentials?.find((c) => c.commitment === commitment);
+
+/** Adds or replaces one issued credential by its commitment; an existing one keeps its date fields unless the new one brings its own. */
+export function setRailCredential(rail: Rail, credential: Credential): Rail {
+  const fresh = validateCredential(credential);
+  const previous = railCredentialFor(rail, fresh.commitment);
+  const merged: Credential = previous ? { ...previous, ...fresh } : fresh;
+  const rest = (rail.credentials ?? []).filter((c) => c.commitment !== fresh.commitment);
+  return validateRail({ ...rail, credentials: [...rest, merged] }, LEGACY);
 }

@@ -8,27 +8,30 @@ import {
   addPaystub,
   agreementFor,
   bumpWorkSeq,
+  confirmShift,
+  credentialFor,
   emptyWork,
+  forgetConfirmedName,
+  keepConfirmedName,
+  markTimesheetReceived,
   nextWorkSeq,
   openPunch,
   punch,
-  markTimesheetReceived,
-  setIdentity,
-  updateCoworker,
-  updateWorkThread,
-  workThread,
   recordTimesheet,
   removePunch,
+  setIdentity,
   setProfile,
+  updateCoworker,
   updatePunch,
+  updateWorkThread,
   upsertAgreement,
+  upsertCredential,
+  validatePunch,
   validateTerms,
   workFromJson,
+  workThread,
   workToJson,
-  confirmShift,
-  validatePunch,
-  keepConfirmedName,
-  forgetConfirmedName,
+  validateWork,
 } from "./work";
 import { CONFIRM_AGAIN_MS, MAX_CONFIRMED_NAMES, confirmAgainDue } from "./directory";
 
@@ -81,6 +84,19 @@ describe("work file", () => {
     w = addPaystub(w, paystub(0));
     expect(workFromJson(workToJson(w))).toEqual(w);
     expect(w.mailboxSeq[AID]).toEqual({ timesheet: 1, paystub: 1 });
+  });
+
+  it("keeps the person's credentials by commitment, and refuses one that isn't a credential", () => {
+    const doc = { version: 1 as const, kind: "skills" as const, title: "OSHA 30", from: "2026-01-15" };
+    const c = { commitment: "123", kind: "skills" as const, document: doc, scope: "ab".repeat(32), nonce: "cd".repeat(32), status: "offered" as const, counterpart: `aleo1${"q".repeat(58)}` };
+    const w = upsertCredential(emptyWork("Ana"), c);
+    expect(workFromJson(workToJson(w)).credentials).toEqual([c]);
+    expect(credentialFor(w, "123")).toEqual(c);
+    const later = upsertCredential(upsertCredential(w, { ...c, since: "2026-10-25T03:00:00.000Z" }), { ...c, status: "active" });
+    expect(later.credentials).toEqual([{ ...c, status: "active", since: "2026-10-25T03:00:00.000Z" }]);
+    expect(upsertCredential(w, { ...c, commitment: "456" }).credentials).toHaveLength(2);
+    expect(() => upsertCredential(w, { ...c, status: "lost" } as never)).toThrow(/offered, active/);
+    expect(validateWork({ ...emptyWork("Ana"), credentials: [] }).credentials).toBeUndefined();
   });
 
   it("keeps the person's card on the profile, and refuses one that isn't a card", () => {

@@ -16,6 +16,7 @@
 
 import type { AttachmentRef } from "@pnw/sales";
 import { type Card, validateCard } from "./card";
+import { type Credential, validateCredential, validateCredentials } from "./credential";
 import { type ApplicationStatus, type Thread, emptyThread, validateThread } from "./thread";
 import { type WorkChannel, applyChannelMessage, validateWorkChannel } from "./channels";
 import { agreedChanges, hoursChanges } from "./hours_change";
@@ -152,6 +153,8 @@ export type Work = {
   confirmedNames?: Record<string, ConfirmedName>;
   /** Jobs this person applied to on the board (docs/JOB_BOARD.md); the conversation is the thread under the application's key. */
   applications?: Application[];
+  /** Credentials businesses issued this person (books/credential.ts): what the landmarks on their land draw from. */
+  credentials?: Credential[];
 };
 
 /** One application, as the person's vault keeps it. Its status is read from the thread (applicationStatus). */
@@ -445,6 +448,10 @@ export function validateWork(raw: unknown): Work {
     mailboxSeq: validateSeq(raw.mailboxSeq ?? {}),
   };
   if (raw.profile !== undefined) work.profile = validateProfile(raw.profile);
+  if (raw.credentials !== undefined) {
+    const credentials = validateCredentials(raw.credentials);
+    if (credentials.length > 0) work.credentials = credentials;
+  }
   if (raw.applications !== undefined) {
     if (!Array.isArray(raw.applications)) throw new WorkError("The applications must be a list");
     const apps = raw.applications.map(validateApplication);
@@ -519,6 +526,17 @@ export const agreementFor = (work: Work, agreementId: string): WorkAgreement | u
 
 /** The agreements the person can clock in against. */
 export const activeAgreements = (work: Work): WorkAgreement[] => work.agreements.filter((a) => a.status === "active");
+
+export const credentialFor = (work: Work, commitment: string): Credential | undefined => work.credentials?.find((c) => c.commitment === commitment);
+
+/** Adds or replaces one credential by its commitment; an existing one keeps its date fields unless the new one brings its own. */
+export function upsertCredential(work: Work, credential: Credential): Work {
+  const fresh = validateCredential(credential);
+  const previous = credentialFor(work, fresh.commitment);
+  const merged: Credential = previous ? { ...previous, ...fresh } : fresh;
+  const rest = (work.credentials ?? []).filter((c) => c.commitment !== fresh.commitment);
+  return validateWork({ ...work, credentials: [...rest, merged] });
+}
 
 /** Adds or replaces one agreement; an existing one keeps its terms, name and acceptance unless the new one brings its own. */
 export function upsertAgreement(work: Work, agreement: WorkAgreement): Work {

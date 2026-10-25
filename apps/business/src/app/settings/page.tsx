@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FormError, PassphraseInput, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { publicCardPath } from "@/books/card";
+import { landmarksOf } from "@/books/credential";
 import { shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import BusinessCardArt from "@/cards/BusinessCardArt";
@@ -123,7 +124,7 @@ function YourCard() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {card && !worker && <BusinessCardArt name={name} displayName={books.settings.businessName} card={card} className="w-full max-w-[280px]" />}
-        {card && worker && <WorkerCardArt name={name} card={card} className="w-full max-w-[280px]" />}
+        {card && worker && <WorkerCardArt name={name} card={card} landmarks={landmarksOf(work?.credentials ?? [])} className="w-full max-w-[280px]" />}
         {card && (
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
             <dt className="text-muted-foreground">Name</dt>
