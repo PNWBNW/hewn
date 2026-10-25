@@ -9,7 +9,15 @@ import {
   DECLINE_CREDENTIAL,
   ISSUE_CREDENTIAL,
   REVOKE_CREDENTIAL,
+  awaitCredentialStatus,
+  credentialDocKind,
+  credentialFromDraft,
+  credentialFromRecord,
+  credentialLookup,
   documentMatchesRecord,
+  findRecordByNonce,
+  openCredentialDocument,
+  sealCredentialDocument,
   explorerCredentialRead,
   issueInputs,
   kindCode,
@@ -138,5 +146,58 @@ describe("reading credential records", () => {
     expect(urls[0]).toBe(`https://x/testnet/program/hewn_credentials_v1.aleo/mapping/credential_status/${COMMITMENT}field`);
     await expect(explorerCredentialRead("credential_status", "https://x/testnet", fetchImpl)("abc")).rejects.toThrow(/commitment/);
     await expect(queryCredentialStatus(COMMITMENT, explorerCredentialRead("credential_status", "https://x/testnet", fakeFetch(() => ({ status: 500 }))))).rejects.toThrow(/couldn't be read/);
+  });
+});
+
+describe("the document as a letter", () => {
+  it("goes under its own slot, named by the scope, under the agreement's key", async () => {
+    const scope = scopeHash(doc);
+    expect(credentialDocKind(scope)).toBe(`cred_${scope.slice(0, 24)}`);
+    expect(credentialDocKind(scope).length).toBeLessThanOrEqual(32);
+    expect(() => credentialDocKind("zz")).toThrow(/scope/);
+    expect(credentialLookup(KEY, scope)).toMatch(/^[0-9a-f]{64}$/);
+    expect(credentialLookup(KEY, scope)).not.toBe(credentialLookup("ab".repeat(32), scope));
+    const sealed = await sealCredentialDocument(KEY, doc);
+    expect(sealed.scope).toBe(scope);
+    expect(sealed.lookup).toBe(credentialLookup(KEY, scope));
+    expect(new TextDecoder().decode(sealed.envelope)).not.toContain("Carpenter");
+  });
+
+  it("opens back to the same document, and refuses the wrong key or a document that isn't the record's", async () => {
+    const sealed = await sealCredentialDocument(KEY, doc);
+    expect(await openCredentialDocument(KEY, sealed.scope, sealed.envelope)).toEqual(doc);
+    await expect(openCredentialDocument("ab".repeat(32), sealed.scope, sealed.envelope)).rejects.toThrow();
+    const other = await sealCredentialDocument(KEY, { ...doc, title: "Foreman" });
+    await expect(openCredentialDocument(KEY, sealed.scope, other.envelope)).rejects.toThrow();
+  });
+});
+
+describe("from the record to the vault", () => {
+  const draft = { nonce: NONCE, workerId: "w1", kind: "employment" as const, document: doc, scope: scopeHash(doc), counterpart: PERSON, startedAt: "2026-10-25T03:00:00.000Z" };
+
+  it("finds the business's record by the draft's nonce and makes the business's copy, offered", () => {
+    const records = parseCredentialRecords([record(BIZ, 1), record(BIZ, 1, { scope: "11".repeat(32) })], BIZ);
+    const mine = findRecordByNonce(records, NONCE)!;
+    expect(mine.commitment).toBe(COMMITMENT);
+    expect(findRecordByNonce(records, "00".repeat(32))).toBeUndefined();
+    expect(credentialFromDraft(draft, mine)).toEqual({ commitment: COMMITMENT, kind: "employment", document: doc, scope: scopeHash(doc), nonce: NONCE, status: "offered", counterpart: PERSON, workerId: "w1" });
+    expect(() => credentialFromDraft({ ...draft, nonce: "00".repeat(32) }, mine)).toThrow(/draft/);
+    expect(() => credentialFromDraft(draft, parseCredentialRecord(record(PERSON, 2), PERSON)!)).toThrow(/draft/);
+  });
+
+  it("makes the person's copy from their record and the document that came, in the status the network says", () => {
+    const mine = parseCredentialRecord(record(PERSON, 2), PERSON)!;
+    expect(credentialFromRecord(mine, doc, "active")).toEqual({ commitment: COMMITMENT, kind: "employment", document: doc, scope: scopeHash(doc), nonce: NONCE, status: "active", counterpart: BIZ });
+    expect(() => credentialFromRecord(mine, { ...doc, title: "Foreman" }, "offered")).toThrow(/match/);
+    expect(() => credentialFromRecord(parseCredentialRecord(record(BIZ, 1), BIZ)!, doc, "offered")).toThrow(/person/);
+  });
+
+  it("waits for the status the move should leave, and gives up honestly", async () => {
+    const answers = [null, "1u8", "2u8"];
+    let i = 0;
+    const read = async () => answers[Math.min(i++, answers.length - 1)] ?? null;
+    expect(await awaitCredentialStatus(COMMITMENT, { read, until: (s) => s === "active", sleep: async () => {} })).toBe("active");
+    expect(i).toBe(3);
+    await expect(awaitCredentialStatus(COMMITMENT, { read: async () => "1u8", until: (s) => s === "revoked", attempts: 2, sleep: async () => {} })).rejects.toThrow(/isn't showing yet/);
   });
 });

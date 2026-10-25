@@ -46,6 +46,11 @@ const PayPanel = dynamic(() => import("@/chain/PayPanel"), {
   ssr: false,
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
+// Issuing a credential to a team member, and the ones issued; only when opened from a member's row.
+const IssueCredential = dynamic(() => import("@/chain/IssueCredential"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
 
 const sum = (xs: bigint[]) => xs.reduce((a, b) => a + b, 0n);
 
@@ -300,6 +305,7 @@ function Team() {
   const { payroll, rail, mailbox, updateCompany } = useOpenBooks();
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [credentialsFor, setCredentialsFor] = useState<string | null>(null);
   // The person found on the registry for the team member being added.
   const [adding, setAdding] = useState<Registered | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -439,6 +445,11 @@ function Team() {
                       Send offer
                     </Link>
                   )}
+                  {status === "linked" && (
+                    <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setCredentialsFor((c) => (c === w.id ? null : w.id))}>
+                      Credentials
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setEditing(w.id)}>
                     Edit
                   </Button>
@@ -465,6 +476,11 @@ function Team() {
                     </Button>
                   )}
                 </div>
+                {credentialsFor === w.id && (
+                  <div className="border-t px-4 py-3">
+                    <IssueCredential workerId={w.id} onClose={() => setCredentialsFor(null)} />
+                  </div>
+                )}
                 {removing === w.id && (
                   <div className="flex flex-wrap items-center gap-3 border-t px-4 py-3 text-sm">
                     <span className="flex-1">

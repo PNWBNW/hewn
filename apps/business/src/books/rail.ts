@@ -24,7 +24,7 @@
 
 import type { AttachmentRef } from "@pnw/sales";
 import { type Card, validateCard } from "./card";
-import { type Credential, validateCredential, validateCredentials } from "./credential";
+import { type Credential, type CredentialDraft, validateCredential, validateCredentialDraft, validateCredentialDrafts, validateCredentials } from "./credential";
 import { type Half, validateHalf } from "./key_ring";
 import { LetterError, validateFileRefs } from "./offer_letter";
 import { type Terms, validateTerms } from "./work";
@@ -133,6 +133,8 @@ export type Rail = {
   card?: Card;
   /** The business's copies of the credentials it issued (books/credential.ts), by commitment, each naming its team member. */
   credentials?: Credential[];
+  /** Credentials started but not yet read back from the network, by nonce (books/credential.ts). */
+  credentialDrafts?: CredentialDraft[];
 };
 
 /** The day the books began following the linked account, and the entry that opened its balance. */
@@ -334,6 +336,10 @@ export function validateRail(raw: unknown, options: ValidateOptions = {}): Rail 
     const credentials = validateCredentials(r.credentials);
     if (credentials.length > 0) rail.credentials = credentials;
   }
+  if (r.credentialDrafts !== undefined) {
+    const drafts = validateCredentialDrafts(r.credentialDrafts);
+    if (drafts.length > 0) rail.credentialDrafts = drafts;
+  }
   return rail;
 }
 
@@ -529,4 +535,18 @@ export function setRailCredential(rail: Rail, credential: Credential): Rail {
   const merged: Credential = previous ? { ...previous, ...fresh } : fresh;
   const rest = (rail.credentials ?? []).filter((c) => c.commitment !== fresh.commitment);
   return validateRail({ ...rail, credentials: [...rest, merged] }, LEGACY);
+}
+
+/** Keeps a credential the business is issuing until its record is read back. */
+export function setRailDraft(rail: Rail, draft: CredentialDraft): Rail {
+  const fresh = validateCredentialDraft(draft);
+  const rest = (rail.credentialDrafts ?? []).filter((d) => d.nonce !== fresh.nonce);
+  return validateRail({ ...rail, credentialDrafts: [...rest, fresh] }, LEGACY);
+}
+
+/** Forgets a draft: resolved into a credential, or given up. */
+export function dropRailDraft(rail: Rail, nonce: string): Rail {
+  const rest = (rail.credentialDrafts ?? []).filter((d) => d.nonce !== nonce);
+  const { credentialDrafts: _drop, ...others } = rail;
+  return validateRail(rest.length > 0 ? { ...others, credentialDrafts: rest } : others, LEGACY);
 }

@@ -5,9 +5,12 @@ import {
   type CredentialDocument,
   CredentialError,
   canonicalCredential,
+  credentialSpan,
   landmarksOf,
   validateCredential,
   validateCredentialDocument,
+  validateCredentialDraft,
+  validateCredentialDrafts,
   validateCredentials,
 } from "./credential";
 
@@ -20,6 +23,8 @@ describe("a credential's document", () => {
     expect(validateCredentialDocument(doc)).toEqual(doc);
     expect(validateCredentialDocument({ version: 1, kind: "skills", title: "OSHA 30", from: "2026-01-15" })).toEqual({ version: 1, kind: "skills", title: "OSHA 30", from: "2026-01-15" });
     expect(validateCredentialDocument({ ...doc, details: "   " })).not.toHaveProperty("details");
+    // The canonical form writes absent fields as null; reading it back gives the same document.
+    expect(validateCredentialDocument(JSON.parse(canonicalCredential({ version: 1, kind: "custom", title: "Night shift lead", from: "2026-05-01" })))).toEqual({ version: 1, kind: "custom", title: "Night shift lead", from: "2026-05-01" });
     expect(CREDENTIAL_KIND_LABEL.clearance).toBe("Clearance");
   });
 
@@ -77,5 +82,23 @@ describe("the landmarks a person's credentials put on their land", () => {
       { type: "clearance", seed: "credential:3", status: "revoked" },
     ]);
     expect(landmarksOf([])).toEqual([]);
+  });
+});
+
+describe("a credential the business is still issuing", () => {
+  const draft = { nonce: "ef".repeat(32), workerId: "w1", kind: "employment" as const, document: doc, scope: "ab".repeat(32), counterpart: BIZ, startedAt: "2026-10-25T03:00:00.000Z" };
+
+  it("keeps the nonce, the team member, the document and its scope until the record is read", () => {
+    expect(validateCredentialDraft(draft)).toEqual(draft);
+    expect(validateCredentialDrafts([draft, { ...draft, workerId: "w2" }]).map((d) => d.workerId)).toEqual(["w2"]);
+    expect(() => validateCredentialDraft({ ...draft, nonce: "short" })).toThrow(/nonce/);
+    expect(() => validateCredentialDraft({ ...draft, kind: "skills" })).toThrow(/match its document/);
+    expect(() => validateCredentialDraft({ ...draft, startedAt: "yesterday" })).toThrow(/time/);
+    expect(() => validateCredentialDrafts("x")).toThrow(/list/);
+  });
+
+  it("says the dates in a line", () => {
+    expect(credentialSpan(doc)).toBe("2026-03-02 to 2026-10-01");
+    expect(credentialSpan({ from: "2026-05-01" })).toBe("from 2026-05-01");
   });
 });

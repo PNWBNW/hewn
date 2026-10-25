@@ -10,6 +10,8 @@ import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useWork } from "@/books/BooksProvider";
+import { CREDENTIAL_KIND_LABEL, CREDENTIAL_STATUS_LABEL, credentialSpan } from "@/books/credential";
+import { shortAddress } from "@/books/rail";
 import { BRAND } from "@/brand";
 import { PageHeader } from "@/shell/SectionView";
 import { RailNeeded, when } from "../shared";
@@ -18,11 +20,21 @@ const ProfilePanel = dynamic(() => import("@/chain/work/Profile"), {
   ssr: false,
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
+const CredentialsPanel = dynamic(() => import("@/chain/work/Credentials"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
 
 export default function ProfilePage() {
   const { work, rail } = useWork();
   const [open, setOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
   const profile = work.profile;
+  const credentials = work.credentials ?? [];
+  const employerLabel = (address: string) => {
+    const name = work.agreements.find((a) => a.employerAddress === address && a.employerName)?.employerName;
+    return name ? `${name}.${BRAND.nameSuffix}` : shortAddress(address);
+  };
   const done = !!profile?.profileAnchored;
   const steps = [
     { label: "Register your name", done: !!profile },
@@ -65,6 +77,38 @@ export default function ProfilePage() {
           ) : (
             <Button className="min-h-11 self-start sm:min-h-9" onClick={() => setOpen(true)}>
               {done ? "Check the registry" : profile ? "Create profile" : "Set up my name"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Credentials</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            What businesses you work for vouch for: a job, a skill, a clearance. Each one you accept stands as a landmark on your land, in Settings. Nobody else sees them.
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {credentials.length > 0 && (
+            <ul className="divide-y text-sm">
+              {credentials.map((c) => (
+                <li key={c.commitment} className="flex flex-col py-2">
+                  <span className="font-medium">{c.document.title}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {employerLabel(c.counterpart)} · {CREDENTIAL_KIND_LABEL[c.kind]} · {credentialSpan(c.document)} · {CREDENTIAL_STATUS_LABEL[c.status]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!rail ? (
+            <RailNeeded />
+          ) : checking ? (
+            <CredentialsPanel onClose={() => setChecking(false)} />
+          ) : (
+            <Button variant={credentials.length > 0 ? "outline" : "default"} className="min-h-11 self-start sm:min-h-9" onClick={() => setChecking(true)}>
+              Check for credentials
             </Button>
           )}
         </CardContent>

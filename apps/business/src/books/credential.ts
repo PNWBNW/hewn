@@ -70,12 +70,13 @@ export function validateCredentialDocument(raw: unknown): CredentialDocument {
   if (typeof raw.title !== "string" || !raw.title.trim() || raw.title.length > MAX_CREDENTIAL_TITLE) throw new CredentialError(`A credential needs a title, up to ${MAX_CREDENTIAL_TITLE} characters`);
   if (!isDate(raw.from)) throw new CredentialError("A credential needs the date it is from (YYYY-MM-DD)");
   const doc: CredentialDocument = { version: 1, kind: raw.kind as CredentialKind, title: raw.title, from: raw.from };
-  if (raw.to !== undefined) {
+  // The canonical form (what travels) writes an absent field as null.
+  if (raw.to !== undefined && raw.to !== null) {
     if (!isDate(raw.to)) throw new CredentialError("A credential's end date must be a date (YYYY-MM-DD)");
     if (raw.to < doc.from) throw new CredentialError("A credential can't end before it starts");
     doc.to = raw.to;
   }
-  if (raw.details !== undefined) {
+  if (raw.details !== undefined && raw.details !== null) {
     if (typeof raw.details !== "string" || raw.details.length > MAX_CREDENTIAL_DETAILS) throw new CredentialError(`A credential's details are up to ${MAX_CREDENTIAL_DETAILS} characters`);
     if (raw.details.trim()) doc.details = raw.details;
   }
@@ -153,4 +154,43 @@ export function landmarksOf(credentials: readonly Credential[]): Landmark[] {
     out.push({ type: c.kind, seed: `credential:${c.commitment}`, status: c.status === "active" ? "active" : c.status === "offered" ? "pending" : "revoked" });
   }
   return out;
+}
+
+/** "2026-03-02 to 2026-10-01", or "from 2026-03-02" while it runs. */
+export const credentialSpan = (doc: Pick<CredentialDocument, "from" | "to">): string => (doc.to ? `${doc.from} to ${doc.to}` : `from ${doc.from}`);
+
+/**
+ * A credential the business has started issuing: the document and the nonce are kept here
+ * before the letter goes and the transaction is sent, so nothing is lost if the record takes a
+ * while to show in Shield, or the send fails part way. Resolved into a credential once the
+ * record with this nonce is read; dropped if the business gives up.
+ */
+export type CredentialDraft = {
+  nonce: string;
+  workerId: string;
+  kind: CredentialKind;
+  document: CredentialDocument;
+  scope: string;
+  counterpart: string;
+  startedAt: string;
+};
+
+export function validateCredentialDraft(raw: unknown): CredentialDraft {
+  if (!isObject(raw)) throw new CredentialError("A credential draft must be an object");
+  if (typeof raw.nonce !== "string" || !HEX64.test(raw.nonce)) throw new CredentialError("A draft needs its nonce");
+  if (typeof raw.workerId !== "string" || !raw.workerId) throw new CredentialError("A draft's team member must be named");
+  const document = validateCredentialDocument(raw.document);
+  if (raw.kind !== document.kind) throw new CredentialError("A draft's kind must match its document");
+  if (typeof raw.scope !== "string" || !HEX64.test(raw.scope)) throw new CredentialError("A draft needs its scope hash");
+  if (typeof raw.counterpart !== "string" || !ADDRESS.test(raw.counterpart)) throw new CredentialError("A draft needs the person's account");
+  if (typeof raw.startedAt !== "string" || Number.isNaN(Date.parse(raw.startedAt))) throw new CredentialError("A draft needs the time it started");
+  return { nonce: raw.nonce, workerId: raw.workerId, kind: document.kind, document, scope: raw.scope, counterpart: raw.counterpart, startedAt: raw.startedAt };
+}
+
+/** One draft per nonce, the later one winning. */
+export function validateCredentialDrafts(raw: unknown): CredentialDraft[] {
+  if (!Array.isArray(raw)) throw new CredentialError("Credential drafts must be a list");
+  const byNonce = new Map<string, CredentialDraft>();
+  for (const d of raw.map(validateCredentialDraft)) byNonce.set(d.nonce, d);
+  return [...byNonce.values()];
 }
