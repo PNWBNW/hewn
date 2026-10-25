@@ -4653,3 +4653,21 @@ README. 10 new tests (the period lengths, the number in the year, a received pay
 with an unreadable one beside it, the business's runs and the clamp, the card's words with no
 amount and the check line); the app's 733 pass. There is no paystub PDF yet; when one exists the
 card goes in it.
+
+## 2026-10-25 — hewn_credentials_v1 staged: a worker's credentials on chain, the pair checked through v5
+
+The credential program the cards design waited on (`docs/HEWN_ART.md`, step 3), in `pnw_mvp_v2`
+(Joshua's go; Fable 5.1): a business vouches for a person it has an agreement with (employment
+verified, a skill, a clearance, custom). `issue` makes two private copies, the issuer's and the
+subject's, and puts only a commitment (one hash over the kind, the two accounts, the scope hash
+and a random nonce) in public state, with its status and its issue block; it calls
+`employer_agreement_v5::assert_pair_agreed` with the key and both accounts private, so the pair
+tag is the one public finalize input besides the commitment and nothing public names the two (a
+past employer may still vouch: paused and ended agreements count, pending and withdrawn offers
+don't). Two-party like an offer: `accept` and `decline` take the subject's copy, `revoke` the
+issuer's, a role byte refuses the other move; `assert_active` for other programs. `@noupgrade`. A
+local stub of v5 (the pair tag as deployed, the two assertions, a test-only `set_test_pair`) lets
+it build and test offline; the deploy workflow swaps it for the live program. 28 Leo tests, 20
+refusals, in the plan gate. Not yet deployed: Joshua runs deploy-new-program; then the deploy
+record, the network checks with the two test accounts (an offer and acceptance on v5 first), and
+the app side.
