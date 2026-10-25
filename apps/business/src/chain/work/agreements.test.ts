@@ -1,7 +1,8 @@
 import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
 import { describe, expect, it } from "vitest";
-import { ACCEPT, acceptCall, acceptInputs, acceptTimeHash, parseAgreementRecord, parseAgreementRecords, readAgreementRecords } from "./agreements";
+import { packedWords } from "@pnw/records/packed";
+import { ACCEPT, acceptCall, acceptInputs, acceptTimeHash, acceptTimeHashPacked, parseAgreementRecord, parseAgreementRecords, readAgreementRecords } from "./agreements";
 import { AGREEMENT_PROGRAMS, AGREEMENT_V4, AGREEMENT_V5, halfToInput } from "../agreement_programs";
 
 const WORKER = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px";
@@ -126,10 +127,40 @@ describe("employer_agreement_v5 records", () => {
   it("accept with the person's public half as the third input, and v4 with two", () => {
     const p = parseAgreementRecord(pendingV5, WORKER, AGREEMENT_V5)!;
     const call = acceptCall(p, 1_760_000_000, workerHalf);
-    expect(call).toEqual({ program: AGREEMENT_V5, function: "accept_offer", inputs: [p.plaintext, acceptTimeHash(1_760_000_000), halfToInput(workerHalf)] });
+    expect(call).toEqual({ program: AGREEMENT_V5, function: "accept_offer", inputs: [p.plaintext, acceptTimeHashPacked(1_760_000_000), halfToInput(workerHalf)] });
+    // The same digest v4 takes as bytes, packed as v5 takes it.
+    const hexOfBytes = (s: string) => (s.match(/\d+u8\b/g) ?? []).map((b) => parseInt(b, 10).toString(16).padStart(2, "0")).join("");
+    expect(acceptTimeHashPacked(1_760_000_000)).toBe(packedWords(hexOfBytes(acceptTimeHash(1_760_000_000)), 2));
+    expect(acceptTimeHashPacked(1_760_457_600)).toBe(packedWords("993f1b1283483a250ad3b2820df03f7f3922f234e97cc4da4afbc9ed8bf97a42", 2));
     expect(() => acceptCall(p, 1_760_000_000)).toThrow(/key half/);
     const v4 = acceptCall(parseAgreementRecord(pending, WORKER)!, 1_760_000_000);
     expect(v4).toEqual({ ...ACCEPT, inputs: acceptInputs(parseAgreementRecord(pending, WORKER)!, 1_760_000_000) });
+  });
+
+  it("are read with their bytes packed as the deployed program writes them: the id, the key and the hashes as two u128 words each", () => {
+    const id = "a1".repeat(32);
+    const key = "b2".repeat(32);
+    const terms = "c3".repeat(32);
+    const plaintext = [
+      "{",
+      `  owner: ${WORKER}.private,`,
+      `  agreement_id: ${packedWords(id, 2)}.private,`,
+      `  parties_key: ${packedWords(key, 2)}.private,`,
+      "  employer_name_hash: 111field.private,",
+      "  worker_name_hash: 222field.private,",
+      "  industry_code: 9u8.private,",
+      `  terms_doc_hash: ${packedWords(terms, 2)}.private,`,
+      `  terms_root: ${packedWords("d4".repeat(32), 2)}.private,`,
+      `  offer_time_hash: ${packedWords("e5".repeat(32), 2)}.private,`,
+      `  employer_address: ${EMPLOYER}.private,`,
+      `  worker_address: ${WORKER}.private,`,
+      `  employer_half: ${halfToInput(employerHalf)}.private,`,
+      "  _nonce: 1group.public",
+      "}",
+    ].join("\n");
+    const p = parseAgreementRecord({ recordName: "PendingAgreement", spent: false, recordPlaintext: plaintext }, WORKER, AGREEMENT_V5)!;
+    expect(p).toMatchObject({ kind: "pending", agreementId: id, partiesKey: key, termsDocHash: terms, employerNameHash: "111", workerNameHash: "222", employerHalf, program: AGREEMENT_V5 });
+    expect(p.workerHalf).toBeUndefined();
   });
 
   it("are read from every program the app uses, the newer program's copy winning", async () => {

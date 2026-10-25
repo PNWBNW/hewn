@@ -425,22 +425,23 @@ write under it in its own slots.
 - **Paystubs and timesheets** go under the pair's key once a side writes under it; a reader tries
   every key it holds, and passes a slot sealed with a key it lost once a later one arrives. ✅
 
-## Agreements on chain: v5 (2026-10-23, staged)
+## Agreements on chain: v5 (deployed 2026-10-24, the app switched 2026-10-25)
 
-`employer_agreement_v5.aleo` (pnw_mvp_v2 PR #210), not deployed yet; the app's paths for it are
-behind one flip (`chain/agreement_programs.ts`).
+`employer_agreement_v5.aleo` (pnw_mvp_v2, `docs/migrations/2026-10-23-agreement-v5.md` there):
+every new offer goes to it (`chain/agreement_programs.ts`), with its bytes packed as two or four
+u128 words (`@pnw/records` `packed`); v4 stays read for the agreements made before.
 - **No name or account in public state.** v4's offer and acceptance call the registry's
   `assert_is_owner` with a name hash and an account as public finalize inputs. v5 calls nothing:
   the offer binds the signer inside the record, accepting takes the worker's own record, pause,
   terminate and resume take the holder's own copy; the only public inputs are the agreement id and
-  the parties commitment. ✅ once switched
+  the pair tag (a hash over the random key and the two accounts: a pseudonym, not a name). ✅
 - **The halves in the records.** The employer's public half rides in the offer, the worker's in the
   acceptance; each side's private half stays in its vault (the rail link, the agreement), so the
   first letter after acceptance is under a key no view key reaches. A view key sees two public
-  halves. ✅ once switched. ⚠️ The offer's terms and the negotiation before acceptance still go
+  halves. ✅. ⚠️ The offer's terms and the negotiation before acceptance still go
   under the record's random key, as in v4.
 - **No DAO copy.** Two records, two parties; a `SentOffer` to the employer, so withdrawing names
-  nobody. ✅ once switched
+  nobody. ✅
 - **Immutable** (`@noupgrade`): no admin key can change what an agreement means. ✅
 - ⚠️ A private half kept only in the vault: lost books before the handshake over letters ran
   mean the record pair can't be made again, and the conversation starts over on the agreement

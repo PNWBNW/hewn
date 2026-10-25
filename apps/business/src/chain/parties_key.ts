@@ -5,23 +5,15 @@
 // the link saved at import carries it. Private records never leave the
 // session and nothing here is logged.
 
-import { PROGRAMS } from "@pnw/config/programs";
-
-const BYTES32 = (field: string) => new RegExp(`${field}:\\s*\\[([^\\]]*)\\]`);
+import { arrayFieldHex } from "@pnw/records/packed";
+import { AGREEMENT_PROGRAMS } from "./agreement_programs";
 
 /**
- * A `[u8; N]` record field as lower-case hex, or null if absent (or not
- * `length` bytes when one is given). The agreement id is read the way
- * `scanAgreementRecords` reads it, whatever its length, so the two match.
+ * A record's array field as lower-case hex: v4's `[u8; N]` bytes or v5's packed `u128` words
+ * (@pnw/records `packed`), or null if absent (or not `length` bytes when one is given). The
+ * agreement id is read the way `scanAgreementRecords` reads it, so the two match.
  */
-export function byteArrayHex(plaintext: string, field: string, length?: number): string | null {
-  const section = plaintext.match(BYTES32(field));
-  if (!section?.[1]) return null;
-  const bytes = section[1].match(/\d+u8/g);
-  if (!bytes || bytes.length === 0 || (length !== undefined && bytes.length !== length)) return null;
-  if (bytes.some((b) => parseInt(b, 10) > 255)) return null;
-  return bytes.map((b) => parseInt(b, 10).toString(16).padStart(2, "0")).join("");
-}
+export const byteArrayHex = (plaintext: string, field: string, length?: number): string | null => arrayFieldHex(plaintext, field, length);
 
 /** agreement id (hex) → parties key (64 hex) for every unspent agreement record, pending or final. */
 export function partiesKeysOf(records: unknown[]): Map<string, string> {
@@ -40,8 +32,12 @@ export function partiesKeysOf(records: unknown[]): Map<string, string> {
   return keys;
 }
 
-/** Reads the employer's agreement records from the wallet and returns their parties keys by agreement id. */
-export async function readPartiesKeys(requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>): Promise<Map<string, string>> {
-  const records = await requestRecords(PROGRAMS.layer1.employer_agreement, true);
-  return partiesKeysOf(Array.isArray(records) ? records : []);
+/** Reads the employer's agreement records from every agreement program and returns their parties keys by agreement id (a newer program's record wins). */
+export async function readPartiesKeys(requestRecords: (programId: string, all?: boolean) => Promise<unknown[]>, programs: readonly string[] = AGREEMENT_PROGRAMS): Promise<Map<string, string>> {
+  const records: unknown[] = [];
+  for (const program of programs) {
+    const found = await requestRecords(program, true);
+    if (Array.isArray(found)) records.push(...found);
+  }
+  return partiesKeysOf(records);
 }

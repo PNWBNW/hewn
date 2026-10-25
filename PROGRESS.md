@@ -4671,3 +4671,34 @@ it build and test offline; the deploy workflow swaps it for the live program. 28
 refusals, in the plan gate. Not yet deployed: Joshua runs deploy-new-program; then the deploy
 record, the network checks with the two test accounts (an offer and acceptance on v5 first), and
 the app side.
+
+## 2026-10-25 — Every new offer goes to employer_agreement_v5; the first v5 agreement on testnet
+
+The flip the app kept behind one constant since v5 was staged, done now that v5 is deployed
+(2026-10-24) and packs its bytes (locked in before the deploy): new offers go to v5's
+`create_offer` with the agreement id, the parties key and the three hashes as two u128 words
+each and the employer's P-256 half as four; the worker's acceptance passes the accept-time hash
+packed and their half; withdrawing takes the `SentOffer`. Records from both programs are read,
+v5's packed fields and v4's byte arrays alike (`@pnw/records` `packed`: `packedWords`,
+`byteWords`, `arrayFieldHex`), by the worker's agreements, the employer's parties keys and the
+records package's scanner; the status reader keys v5's mapping with the packed id and knows
+"withdrawn". Docs: the threat model's v5 section, the build plan (who works for whom off the
+public chain: ticked; the packing: done in v5 as deployed), the chain README. 2 new test files
+and 5 new cases; the monorepo's 1,185 pass; both builds pass.
+
+**OFFER-4 on the network** (`dev_testing_guide.md`), with the two funded test accounts (B,
+`hewncards_b1`; W, `hewncards_w1`), inputs built as the app builds them (the halves random bytes,
+not real P-256 points; the chain doesn't check them):
+B `create_offer` accepted (`at1qx9q5qlv6vfyyj56k6azc36v0uaagyeqf7jjkjq5z2kyfzuahupqgmulc2`): all
+eight transition inputs private, the finalize's arguments the agreement id and the pair tag
+only, no name hash and no account. W `accept_offer` accepted
+(`at1f96vhyqufqpjw8336l5zmpwydde9eg4vdsgh39jz59cnkt4v8u9qfy4dgj`, the first v5 acceptance on
+testnet): inputs a record and two private values, the same two public arguments;
+`agreement_status` 0 then 1. A second offer accepted
+(`at1m7c8dk9853fqryw057nxhayv2f900rcaknx0tmw9x0sahnuewc9q7umjau`) and withdrawn with the
+`SentOffer` alone (`at1tmjtj4dt78tf3rav86yungp64fwx8rmf2k8zs0wgn4l30ja3scfq32qh8d`): status 4,
+withdrawn, nothing public but the id and the tag. Refused: the same agreement id offered again
+(`at16mt8xlwfa0gph9kksmruan8h92fes45fyqgnrs5p56enf58lwvgsyupjjt`, status still 1) and
+withdrawing the accepted offer (`at1e5kuj8cpxyyftze3l0tvcvdset56h06pyayhk4ptlq5qr25q7qzsjauzpz`,
+status still 1). Six of six; the pair B–W now holds an active v5 agreement, which the credentials
+program's network check will use. Result posted on #153 (OFFER-4).

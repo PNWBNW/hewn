@@ -11,7 +11,8 @@
 
 import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
-import { AGREEMENT_PROGRAMS, AGREEMENT_V4, carriesHalves, halfFromRecord, halfToInput } from "../agreement_programs";
+import { packedWords } from "@pnw/records/packed";
+import { AGREEMENT_PROGRAMS, AGREEMENT_V4, carriesHalves, halfOf, halfToInput } from "../agreement_programs";
 import { byteArrayHex } from "../parties_key";
 
 export type AgreementRecord = {
@@ -58,8 +59,8 @@ export function parseAgreementRecord(raw: unknown, workerAddress: string, progra
   if (!agreementId || !partiesKey || !termsDocHash || !employerNameHash || !workerNameHash) return null;
   const record: AgreementRecord = { kind, agreementId, partiesKey, employerAddress: employer, workerAddress: worker, employerNameHash, workerNameHash, termsDocHash, plaintext, program };
   if (carriesHalves(program)) {
-    const employerHalf = halfFromRecord(byteArrayHex(plaintext, "employer_half", 64));
-    const workerHalf = halfFromRecord(byteArrayHex(plaintext, "worker_half", 64));
+    const employerHalf = halfOf(plaintext, "employer_half");
+    const workerHalf = halfOf(plaintext, "worker_half");
     if (employerHalf) record.employerHalf = employerHalf;
     if (workerHalf) record.workerHalf = workerHalf;
   }
@@ -106,11 +107,18 @@ const u32be = (v: number): Uint8Array => {
 /** `[ 12u8, 255u8, … ]`: a 32-byte array as a transition input. */
 export const toU8Array = (bytes: Uint8Array): string => "[ " + Array.from(bytes, (b) => `${b}u8`).join(", ") + " ]";
 
-/** The accept-time hash for `accept_job_offer`, from the acceptance's epoch seconds. */
-export function acceptTimeHash(epochSeconds: number): string {
+/** The accept-time digest, from the acceptance's epoch seconds. */
+function acceptTimeDigest(epochSeconds: number): Uint8Array {
   if (!Number.isInteger(epochSeconds) || epochSeconds < 0 || epochSeconds > 0xffff_ffff) throw new Error("The acceptance time must be a whole number of seconds");
-  return toU8Array(domainHash(DOMAIN_TAGS.DOC, tlvEncode(OBJ_ACCEPT_TIME, [{ tag: 0x01, value: u32be(epochSeconds) }])));
+  return domainHash(DOMAIN_TAGS.DOC, tlvEncode(OBJ_ACCEPT_TIME, [{ tag: 0x01, value: u32be(epochSeconds) }]));
 }
+
+/** The accept-time hash for v4's `accept_job_offer`, as `[u8; 32]`. */
+export const acceptTimeHash = (epochSeconds: number): string => toU8Array(acceptTimeDigest(epochSeconds));
+
+/** The same hash as v5's `accept_offer` takes it: two packed u128 words. */
+export const acceptTimeHashPacked = (epochSeconds: number): string =>
+  packedWords(Array.from(acceptTimeDigest(epochSeconds), (b) => b.toString(16).padStart(2, "0")).join(""), 2);
 
 export const ACCEPT = { program: AGREEMENT_V4, function: "accept_job_offer" } as const;
 
@@ -121,11 +129,13 @@ export function acceptInputs(record: Pick<AgreementRecord, "kind" | "plaintext">
 }
 
 /**
- * The acceptance for whichever program the offer came from: v4's two inputs, or v5's three, the
- * third this person's public half (`04` + x + y), which the record then carries to the employer.
+ * The acceptance for whichever program the offer came from: v4's two inputs, or v5's three (the
+ * record, the accept-time hash packed, and this person's public half, `04` + x + y, which the
+ * record then carries to the employer).
  */
 export function acceptCall(record: Pick<AgreementRecord, "kind" | "plaintext" | "program">, epochSeconds: number, half?: string): { program: string; function: string; inputs: string[] } {
   if (!carriesHalves(record.program)) return { ...ACCEPT, inputs: acceptInputs(record, epochSeconds) };
   if (!half) throw new Error("Accepting this offer needs a key half");
-  return { program: record.program, function: "accept_offer", inputs: [...acceptInputs(record, epochSeconds), halfToInput(half)] };
+  if (record.kind !== "pending") throw new Error("Only a pending offer can be accepted");
+  return { program: record.program, function: "accept_offer", inputs: [record.plaintext, acceptTimeHashPacked(epochSeconds), halfToInput(half)] };
 }

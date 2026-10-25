@@ -531,14 +531,17 @@ Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`he
 - [x] ~~Mailbox storage moves from Pinata to object storage (Cloudflare R2) for scale; Pinata stays
   an option (2026-10-16).~~ Moot: the
   mailbox is retired and every message is a letter on chain (2026-10-22).
-- [ ] Who works for whom stays off the public chain (Joshua, 2026-10-22, from the security review):
-  making or accepting an offer today shows both names' hashes and both accounts in the
-  transaction (`employer_agreement_v4` calls the registry's `assert_is_owner` with them). A new
-  `employer_agreement_v5` authorises without a public ownership check. **Written and staged**
-  (2026-10-23, pnw_mvp_v2 PR #210, with the halves and the two-party change); ticked once deployed
-  and the app switched.
-- [ ] Maybe, for mainnet: the agreement program packs its byte fields (Joshua, 2026-10-24). v5's
-  records hold two key halves and six hashes as about 320 one-byte slots (`[u8; 64]`, `[u8; 32]`),
+- [x] Who works for whom stays off the public chain (Joshua, 2026-10-22, from the security review):
+  making or accepting an offer on v4 showed both names' hashes and both accounts in the
+  transaction (`employer_agreement_v4` calls the registry's `assert_is_owner` with them).
+  `employer_agreement_v5` authorises without a public ownership check: written and staged
+  2026-10-23 (pnw_mvp_v2 PR #210, with the halves and the two-party change), deployed 2026-10-24,
+  and the app switched 2026-10-25 (new offers to v5, v4 still read; `chain/agreement_programs.ts`).
+- [x] ~~Maybe, for mainnet:~~ done in v5 as deployed (locked in 2026-10-24 before the deploy, pnw_mvp_v2
+  `docs/migrations/2026-10-23-agreement-v5.md` "Packed bytes"; the app's readers and inputs
+  followed on 2026-10-25, `@pnw/records` `packed`): the agreement program packs its byte fields
+  (Joshua, 2026-10-24). The staged v5's
+  records held two key halves and six hashes as about 320 one-byte slots (`[u8; 64]`, `[u8; 32]`),
   each one encrypted and proven on its own; packed as `[u128; 4]` and `[u128; 2]` (about 20 slots,
   the way Provable's `hyperlane-aleo` stores message bodies and ids), deploys cost less (v5:
   38.86 credits, estimated 25–30 packed) and proofs are faster in Shield on a phone. The same
@@ -579,8 +582,8 @@ Design: `docs/CUSTOMERS.md`, for review. Not greenlit; two new Leo programs (`he
   and backups on chain only when both people agree, up to that point, Joshua 2026-10-23; built
   for messages, paystubs and timesheets, and the agreed backups); (3) rotation by handshake: skipped (Joshua, 2026-10-23); (4) v5 agreements
   carry the two public halves (Leo, Fable): built and staged, `employer_agreement_v5.aleo`
-  (pnw_mvp_v2 PR #210) and the app's v5 paths behind one flip
-  (`apps/business/src/chain/agreement_programs.ts`), waiting on Joshua's deploy; (5) optional: a
+  (pnw_mvp_v2 PR #210), deployed 2026-10-24, and the app switched to it 2026-10-25
+  (`apps/business/src/chain/agreement_programs.ts`); (5) optional: a
   second lock on reports to Hewn.
 - [x] Free names can be squatted or registered ahead of someone on testnet; accepted until
   mainnet's names (Joshua, 2026-10-22).
