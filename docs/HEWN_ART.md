@@ -284,9 +284,32 @@ or the hours.
    it has one; a worker's only while `shown` is true, and a hidden card reads to a visitor exactly
    like no card ("no public card"). Settings shows the address under the card for sharing
    (`chain/public_card.ts`, `chain/PublicCard.tsx`, `app/card/`).
-3. **Credential cards**, which need a credential program: the deployed `credential_nft_v3` and
-   `v4` check agreements in `employer_agreement_v4`, so a v5 agreement can't mint one. A new
-   program (new Leo, Fable 5.1 at high effort, must-fail tests), then the cards.
+3. **Credential cards**, which need a credential program. The deployed `credential_nft_v3` and
+   `v4` check agreements through `employer_agreement_v4` (gone in v5) and the licence registry,
+   with both names' hashes and both accounts as public finalize inputs, so a v5 agreement can't
+   mint one and the pair would show. **`hewn_credentials_v1.aleo`**, staged 2026-10-25 in
+   `pnw_mvp_v2` (Joshua's go, Fable 5.1), `@noupgrade`, importing only `employer_agreement_v5`:
+   - A credential is a private record in two copies (the business's and the person's) with the
+     kind (1 employment, 2 skills, 3 clearance, 4 custom), the issuer, the subject, a scope hash
+     (what it says stays in the two vaults) and a random nonce. Its commitment, one hash over
+     those, is the only public thing: `credential_status[commitment]` (offered, active, revoked,
+     declined) and `credential_anchor[commitment]` (the issue block). No name, no account, no
+     counter.
+   - Who may issue: the signer passes the agreement's key and the worker's account privately and
+     the program calls `assert_pair_agreed` (active, paused or ended: a past employer may still
+     vouch), so a credential needs a real agreement and nothing public names it; the pair tag is
+     the one public finalize input besides the commitment. No registry call.
+   - Two-party, like an offer: issuing leaves it *offered* (the bare timber frame); the person
+     accepts with their copy (*active*: the landmark built and lit) or declines (nothing on the
+     land); the issuer revokes with its copy (*revoked*: the ghost). Every move takes the mover's
+     own record; a role byte refuses the other side's move.
+   - 28 Leo tests, 20 refusals (a pending or withdrawn offer, no agreement, the worker issuing to
+     themself, the wrong subject or key, a bad kind, a zero nonce, the same commitment twice, each
+     move in the wrong state or with the wrong copy, `assert_active` off an active one).
+   Next: deploy and record it, check it on the network with the two test accounts (an offer and
+   acceptance on v5 first), then the app: `chain/credentials.ts`, the business's issue screen from
+   the team list, the person's inbox to accept or decline, the landmarks on the land from their
+   credential records (the spot from the commitment), and the credential card.
 4. **Proofs instead of showing:** a person proves one fact from their private records (employed by,
    licensed as, earned over) without showing a card. (The page anyone can open, drawn from a
    name, exists since 2026-10-25: step 2.)
