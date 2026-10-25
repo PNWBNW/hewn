@@ -64,8 +64,12 @@ export const WORK_NAV: NavItem[] = [
   { href: "/work/profile", label: "Profile", icon: IdCard },
 ];
 
-/** A business's client: only what they do with the businesses they hire (docs/CUSTOMERS.md). Bills, payments and messages come next. */
-export const CUSTOMER_NAV: NavItem[] = [{ href: "/customer", label: "Home", icon: Home, art: "dashboard" }];
+/** A business's client: only what they do with the businesses they hire (docs/CUSTOMERS.md). Bills and payments come next. */
+export const CUSTOMER_NAV: NavItem[] = [
+  { href: "/customer", label: "Home", icon: Home, art: "dashboard" },
+  { href: "/customer/businesses", label: "Businesses", icon: Briefcase },
+  { href: "/customer/messages", label: "Messages", icon: MessageSquare, art: "messages" },
+];
 
 /** The pathname without a trailing slash: the static bundle's pages are folders (next.config.ts), the website's are not. */
 export const canonicalPath = (pathname: string) => (pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname);
@@ -142,13 +146,14 @@ function Rail({
   onBackup: () => void;
   onLock: () => void;
 }) {
-  const { mailbox, review, work, calendar } = useOpenBooks();
+  const { mailbox, review, work, calendar, customer, clients } = useOpenBooks();
   const unread = unreadCount(mailbox);
   // Invitations waiting for an answer: on Schedule for a person, on Payroll (where Schedule is) for a business.
   const invites = waitingInvites(calendar, myAnswerIn({ mailbox, work }), todayIso()).length;
   // Unread messages: in the business's threads, or the person's.
   const unreadMessages =
     Object.values((role === "worker" ? work?.threads : mailbox?.threads) ?? {}).reduce((n, t) => n + unreadIn(t), 0) +
+    Object.values((role === "customer" ? customer?.businesses : clients) ?? {}).reduce((n, c) => n + unreadIn(c.thread), 0) +
     (role === "worker" ? (work?.channels ?? []).reduce((n, c) => n + unreadPosts(c), 0) + Object.values(work?.coworkers ?? {}).reduce((n, t) => n + unreadIn(t), 0) : 0);
   const waiting = waitingCount(review);
   const worker = role === "worker";
@@ -177,7 +182,7 @@ function Rail({
           >
             <NavIcon icon={icon} {...(art ? { art } : {})} active={active} />
             {label}
-            {(href === "/messages" || href === "/work/messages") && unreadMessages > 0 && (
+            {(href === "/messages" || href === "/work/messages" || href === "/customer/messages") && unreadMessages > 0 && (
               <span className="ml-auto rounded-full bg-rail-accent px-2 text-xs font-medium text-rail" aria-label={`${unreadMessages} unread`}>
                 {unreadMessages}
               </span>

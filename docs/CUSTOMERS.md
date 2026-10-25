@@ -13,8 +13,11 @@ Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
 - [x] Customer accounts: their own sign-up, login and portal; a person can be a worker and a
   customer, as two accounts (Step 1, no new Leo). Built 2026-10-26: the portal has Home and
   Settings; bills, payments and messages come with the next items.
-- [ ] Invoices sent to a customer as letters, paid from the customer's Shield account, matched
-  on the business's side (Step 1, no new Leo).
+- [x] A business and a customer connect, either one starting, and message each other privately
+  (Step 1, no new Leo). Built 2026-10-26: a hello each way, then a shared key (`docs/LETTERS.md`,
+  Businesses and their customers).
+- [ ] Invoices sent to a connected customer, paid from the customer's Shield account, matched on
+  the business's side (Step 1, no new Leo).
 - [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
 - [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
   up later; business posts, public or sealed. Free for now; $1 later in a new version.
@@ -127,8 +130,11 @@ a worker keeps the two apart, as two accounts.
 What works before `hewn_service_v1` exists, using only what is live (`hewn_letters_v2`, the
 stablecoin's own private transfer, the registry):
 
-1. **The business adds the customer** by registered name, on the customer record it already
-   keeps (Sales, Customers).
+1. **The two connect** (built 2026-10-26). The business adds the customer by registered name
+   (Sales, Customers) and taps Connect, or the customer finds the business by its name (Businesses).
+   Each side sends a hello with a fresh public key, one approval each, and from then on everything
+   between them is sealed under a key only the two can make (`docs/LETTERS.md`). Messages work
+   from here.
 2. **The business sends an invoice:** **Send to customer** on an invoice seals it as a letter to
    the customer's account: number, lines, total, due date, and the business account to pay. One
    approval in the business's Shield.

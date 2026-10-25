@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
@@ -39,6 +40,9 @@ import { linkStatus } from "@/books/rail";
 import { PartyForm, partyLinkView, withRegistered } from "./PartyForm";
 import { ReceivePaymentForm } from "./ReceivePaymentForm";
 import { AgingCard, EstimateBadge, StatusBadge, voidWithFallback } from "./parts";
+
+// Customers on the app (connecting, sealed messages): loaded only on the Customers tab, with a linked Shield account.
+const BusinessClients = dynamic(() => import("@/chain/clients/BusinessClients"), { ssr: false });
 
 type Receiving = { customerId?: string; invoiceId?: string } | null;
 
@@ -383,6 +387,7 @@ function Customers() {
         />
       )}
       <FormError message={error} />
+      {rail && <BusinessClients />}
       {sales.customers.length > 0 && (
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
           {sales.customers.map((cust) =>

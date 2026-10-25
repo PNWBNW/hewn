@@ -1,10 +1,11 @@
 "use client";
 
 // A customer's home: who they are to businesses, and the backup reminder.
-// Bills, payments and conversations with businesses come next
-// (docs/CUSTOMERS.md, Step 1); until then this says so plainly.
+// Bills and payments come next (docs/CUSTOMERS.md, Step 1); until then this
+// says so plainly and points to connecting with businesses.
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { BackupReminder } from "@/books/BackupReminder";
@@ -43,8 +44,15 @@ export default function CustomerHome() {
             Bills
           </CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Invoices from businesses, paying them, and your receipts are coming next. Nothing to do here yet.
+        <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <p>Invoices from businesses, paying them, and your receipts are coming next.</p>
+          <p>
+            For now,{" "}
+            <Link href="/customer/businesses" className="text-foreground underline underline-offset-4">
+              connect with the businesses you hire
+            </Link>{" "}
+            and message them privately.
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -4,9 +4,12 @@
 // does with the businesses they hire. A person can be a worker and a customer
 // as two accounts under one username; never a business with either.
 //
-// This first step holds only the registered name. Bills, payments and
-// conversations with businesses come next. Pure: no React, no storage.
+// It holds the registered name and the businesses this customer is connected
+// with (books/connections.ts). Bills and payments come next. Pure: no React,
+// no storage.
 // ---------------------------------------------------------------------------
+
+import { type Connections, validateConnections } from "./connections";
 
 /** The name businesses find this customer by: the person's own name.hewn, registered or already theirs. */
 export type CustomerName = {
@@ -19,6 +22,8 @@ export type CustomerName = {
 export type CustomerSide = {
   version: 1;
   name?: CustomerName;
+  /** The businesses this customer is connected with, or asked by, keyed by their account. */
+  businesses?: Connections;
 };
 
 export const emptyCustomer = (): CustomerSide => ({ version: 1 });
@@ -39,6 +44,7 @@ export function validateCustomer(raw: unknown): CustomerSide {
     }
     out.name = { name: n.name, nameHash: n.nameHash, registeredAt: n.registeredAt };
   }
+  if (r.businesses !== undefined) out.businesses = validateConnections(r.businesses);
   return out;
 }
 

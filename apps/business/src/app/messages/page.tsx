@@ -1,7 +1,8 @@
 "use client";
 
 // Messages: one private conversation with each team member (and anyone with
-// an offer waiting), sealed to the two of you. The list comes from the vault;
+// an offer waiting), and with each customer connected on the app, sealed to
+// the two of you. The list comes from the vault;
 // a conversation loads its sending and reading code only when opened.
 
 import { Suspense, useCallback, useState } from "react";
@@ -16,6 +17,8 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { type Thread, preview, unreadIn } from "@/books/thread";
 import { businessDirectory, directoryOutbox } from "@/books/directory";
+import { connectedIn, updateConnectionThread } from "@/books/connections";
+import { emptyThread } from "@/books/thread";
 import { PageHeader } from "@/shell/SectionView";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -24,6 +27,7 @@ const Channel = dynamic(() => import("@/chain/Channel"), { ssr: false, loading }
 const MessagesCheck = dynamic(() => import("@/chain/MessagesCheck"), { ssr: false });
 const RestoreBackups = dynamic(() => import("@/chain/RestoreBackups"), { ssr: false });
 const SendDirectory = dynamic(() => import("@/chain/SendDirectory"), { ssr: false, loading });
+const ClientConversation = dynamic(() => import("@/chain/clients/ClientConversation"), { ssr: false, loading });
 
 export default function MessagesPage() {
   return (
@@ -34,11 +38,15 @@ export default function MessagesPage() {
 }
 
 function Messages() {
-  const { rail, payroll, mailbox, updateCompany } = useOpenBooks();
+  const { rail, payroll, mailbox, sales, clients, updateCompany } = useOpenBooks();
   const params = useSearchParams();
   const router = useRouter();
   const selected = params.get("with");
   const channelId = params.get("channel");
+  const clientAddress = params.get("client");
+  const customerNames = new Map(sales.customers.map((c) => [c.id, c.name]));
+  const customers = connectedIn(clients ?? undefined).map((c) => ({ ...c, label: (c.customerId && customerNames.get(c.customerId)) || c.name }));
+  const client = customers.find((c) => c.address === clientAddress);
   const [making, setMaking] = useState(false);
   const [check, setCheck] = useState<{ run: number } | { done: string | null }>({ run: 0 });
   const finished = useCallback((message: string | null) => setCheck({ done: message }), []);
@@ -60,6 +68,25 @@ function Messages() {
     },
     [open, updateCompany],
   );
+
+  const updateClient = useCallback(
+    async (change: (t: Thread) => Thread) => {
+      if (!client) return;
+      await updateCompany((c) => ({ ...c, clients: updateConnectionThread(c.clients ?? {}, client.address, change, emptyThread) }));
+    },
+    [client, updateCompany],
+  );
+
+  if (client) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Link href="/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+          <ChevronLeft aria-hidden className="size-4" /> All messages
+        </Link>
+        <ClientConversation key={client.address} side="business" connection={client} title={client.label} update={updateClient} />
+      </div>
+    );
+  }
 
   const channel = channelId ? mailbox?.channels?.find((c) => c.id === channelId) : undefined;
   if (channel) {
@@ -172,6 +199,33 @@ function Messages() {
           )}
         </CardContent>
       </Card>
+      {customers.length > 0 && (
+        <Card>
+          <CardContent className="flex flex-col gap-2 pt-6">
+            <h2 className="text-sm font-semibold">Customers</h2>
+            <ul className="divide-y">
+              {customers.map((c) => {
+                const unread = unreadIn(c.thread);
+                return (
+                  <li key={c.address}>
+                    <Link href={`/messages?client=${encodeURIComponent(c.address)}`} className="flex min-h-14 items-center gap-3 py-3">
+                      <span className="min-w-0 flex-1">
+                        <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>{c.label}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{c.thread?.items.length ? preview(c.thread.items.at(-1)) : "Connected. Say hello."}</span>
+                      </span>
+                      {unread > 0 && (
+                        <span className="rounded-full bg-primary px-2 text-xs font-medium text-primary-foreground" aria-label={`${unread} unread`}>
+                          {unread}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
       {listed > 0 && (
         <p className="text-xs text-muted-foreground">
           Coworker directory: {listed} {listed === 1 ? "person has" : "people have"} opted in to find each other. You pass on their names, keys and accounts; you
