@@ -37,12 +37,15 @@ import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
 import { LinkBadge } from "@/books/LinkBadge";
 import { linkStatus } from "@/books/rail";
+import { invoicesToDeliver } from "@/books/bill";
 import { PartyForm, partyLinkView, withRegistered } from "./PartyForm";
 import { ReceivePaymentForm } from "./ReceivePaymentForm";
 import { AgingCard, EstimateBadge, StatusBadge, voidWithFallback } from "./parts";
 
 // Customers on the app (connecting, sealed messages): loaded only on the Customers tab, with a linked Shield account.
 const BusinessClients = dynamic(() => import("@/chain/clients/BusinessClients"), { ssr: false });
+// Sent invoices a connected customer hasn't had yet: loaded only when there are some.
+const DeliverInvoices = dynamic(() => import("@/chain/clients/DeliverInvoices"), { ssr: false });
 
 type Receiving = { customerId?: string; invoiceId?: string } | null;
 
@@ -120,7 +123,8 @@ function Sales() {
 // ---- Invoices --------------------------------------------------------------
 
 function Invoices({ onReceive }: { onReceive: (r: Receiving) => void }) {
-  const { sales, updateCompany } = useOpenBooks();
+  const { sales, clients, rail, updateCompany } = useOpenBooks();
+  const toDeliver = rail ? invoicesToDeliver(sales, clients ?? undefined).length : 0;
   const [error, setError] = useState<string | null>(null);
   const today = todayIso();
   const names = new Map(sales.customers.map((c) => [c.id, c.name]));
@@ -162,6 +166,7 @@ function Invoices({ onReceive }: { onReceive: (r: Receiving) => void }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {toDeliver > 0 && <DeliverInvoices />}
       <AgingCard title="Owed to you, by age" aging={arAging(sales, today)} />
       <FormError message={error} />
       <div className="relative overflow-x-auto rounded-lg border bg-card">

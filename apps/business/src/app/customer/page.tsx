@@ -1,14 +1,15 @@
 "use client";
 
-// A customer's home: who they are to businesses, and the backup reminder.
-// Bills and payments come next (docs/CUSTOMERS.md, Step 1); until then this
-// says so plainly and points to connecting with businesses.
+// A customer's home: who they are to businesses, what's owed, and the backup
+// reminder. Paying from Shield comes next (docs/CUSTOMERS.md, Step 1).
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
+import { formatCents } from "@pnw/ledger";
 import { BackupReminder } from "@/books/BackupReminder";
+import { billsIn } from "@/books/bill";
 import { useCustomer } from "@/books/BooksProvider";
 import { BRAND } from "@/brand";
 import { PageHeader } from "@/shell/SectionView";
@@ -18,6 +19,7 @@ const ChainBackup = dynamic(() => import("@/chain/ChainBackup"), { ssr: false })
 export default function CustomerHome() {
   const { books, customer, rail } = useCustomer();
   const greeting = books.settings.businessName.split(" ")[0] || books.settings.businessName;
+  const open = billsIn(customer.businesses).filter((b) => b.status === "open");
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={`Hi, ${greeting}`} summary="The businesses you hire, their invoices, and every receipt, kept on this device." />
@@ -45,14 +47,22 @@ export default function CustomerHome() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <p>Invoices from businesses, paying them, and your receipts are coming next.</p>
-          <p>
-            For now,{" "}
-            <Link href="/customer/businesses" className="text-foreground underline underline-offset-4">
-              connect with the businesses you hire
-            </Link>{" "}
-            and message them privately.
-          </p>
+          {open.length > 0 ? (
+            <p>
+              <Link href="/customer/bills" className="font-medium text-foreground underline underline-offset-4">
+                {open.length} open {open.length === 1 ? "bill" : "bills"}
+              </Link>
+              , ${formatCents(open.reduce((n, b) => n + BigInt(b.bill.total), 0n))} in all.
+            </p>
+          ) : (
+            <p>
+              No open bills.{" "}
+              <Link href="/customer/businesses" className="text-foreground underline underline-offset-4">
+                Connect with the businesses you hire
+              </Link>{" "}
+              and their invoices arrive under Bills.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
