@@ -27,6 +27,7 @@ index is out of date.
 - [Customers: a printable invoice (Step 1, fifth part)](progress/2026-10-26.md#2026-10-26--customers-a-printable-invoice-step-1-fifth-part)
 - [Customers: agreements for a job, and disconnecting](progress/2026-10-26.md#2026-10-26--customers-agreements-for-a-job-and-disconnecting)
 - [Customers: an invoice names its agreed job](progress/2026-10-26.md#2026-10-26--customers-an-invoice-names-its-agreed-job)
+- [Customers: no cards for clients (decision)](progress/2026-10-26.md#2026-10-26--customers-no-cards-for-clients-decision)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

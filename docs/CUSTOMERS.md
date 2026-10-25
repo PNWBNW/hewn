@@ -95,6 +95,9 @@ everything about them private. A customer can:
     later. Either side can disconnect, and then no invoice can be sent (2026-10-26).
 21. An invoice names the agreement it's under when there is one for that job, chosen from the
     agreed ones; it doesn't have to (2026-10-26).
+22. No cards for clients (2026-10-26): a customer's name is a person's name, a person who also
+    works keeps their one card, and a public card for a client would say little but that they
+    hire businesses here.
 
 ## Accounts (decision 17)
 
