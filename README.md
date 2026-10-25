@@ -192,7 +192,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 | [`docs/`](docs/README.md) | Design documents with their status: the [threat model](docs/THREAT_MODEL.md), [letters](docs/LETTERS.md), the [job board](docs/JOB_BOARD.md), the [audit design](docs/AUDIT_DESIGN.md), and the grant proposal |
 | [`archive/`](archive/README.md) | Retired code, kept as it was: the Julia tax engine, the salvage script, four salvaged packages nothing uses |
 | [`BUILD_PLAN.md`](BUILD_PLAN.md) | The spec: phases, deliverables and exit criteria |
-| [`PROGRESS.md`](PROGRESS.md) | A dated log of every change, with test counts |
+| [`PROGRESS.md`](PROGRESS.md), [`progress/`](progress/) | A dated log of every change, with test counts: one file per day, and the index |
 | [`CLAUDE.md`](CLAUDE.md) | The project's rules: privacy floor, key handling, boundaries |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md) | Running it, the rules in short, forking, and how to report a problem privately |
 | [`dev_testing_guide.md`](dev_testing_guide.md) | For developers testing the app by hand: scenarios we're unsure of, with results posted on each area's `manual-test` issue |

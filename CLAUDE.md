@@ -22,12 +22,13 @@ hand-edit the generated files in `apps/*/public/brand/` (the app and the marketi
 `apps/site` serve byte-identical copies). Internal package names stay `@pnw/*` (PNW is the
 company and protocol namespace).
 
-`BUILD_PLAN.md` (repo root) is the spec: phases, deliverables, exit criteria. `PROGRESS.md` is the log.
+`BUILD_PLAN.md` (repo root) is the spec: phases, deliverables, exit criteria. The log is one file
+per day in `progress/`; `PROGRESS.md` is its generated index.
 
 ## Session start
 
-1. Read the **Now** block at the top of `BUILD_PLAN.md`, the phase it names, and the last few
-   entries of `PROGRESS.md` (it is long; the newest entries are at the end).
+1. Read the **Now** block at the top of `BUILD_PLAN.md`, the phase it names, and the newest day's
+   file in `progress/` (the top row of `PROGRESS.md`; within a day, entries run oldest to newest).
 2. The current phase is the one the Now block names (not the first phase with an open box: older
    phases keep leftovers that wait on other things). Report to Joshua in 10 lines or fewer: current
    phase, what's done, what's next, any blocker. Then propose **one** task aimed at **one** exit
@@ -120,10 +121,12 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   inspection and tests are fine anytime.
 - Production revisions get a decimal version in the filename (v1.1, v1.2, …). Joshua decides when the
   whole number bumps.
-- End of every task: run the tests, append a dated entry to `PROGRESS.md` (what changed, test counts,
-  tx hashes if any), tick any exit criteria met in `BUILD_PLAN.md`, commit, open a PR, stop.
+- End of every task: run the tests, append a dated entry to that day's file in `progress/` (what
+  changed, test counts, tx hashes if any) and regenerate the index
+  (`python3 -I scripts/progress_index.py --write`), tick any exit criteria met in `BUILD_PLAN.md`,
+  commit, open a PR, stop.
 - Joshua mostly works from his phone: lead with the result, keep reports short, put detail in
-  `PROGRESS.md` rather than chat.
+  `progress/` rather than chat.
 - If something in the existing code contradicts this file or the build plan, stop and ask. Don't
   silently pick one.
 

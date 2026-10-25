@@ -1,7 +1,7 @@
 # docs/
 
-Hewn's design documents. The build plan (`BUILD_PLAN.md`) and the progress log (`PROGRESS.md`)
-are at the repository root; this folder holds the thinking behind particular pieces.
+Hewn's design documents. The build plan (`BUILD_PLAN.md`) and the progress log (`progress/`, one file per
+day, indexed by `PROGRESS.md`) are at the repository root; this folder holds the thinking behind particular pieces.
 
 | File | Status | What it answers |
 |---|---|---|
