@@ -199,11 +199,10 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 | [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2) (submodule) | **The Leo programs** (the on-chain side) and the deployed-program manifest |
 | [`pnw_employment_portal_v1`](https://github.com/PNWBNW/pnw_employment_portal_v1) (submodule) | The original PNW portal, retired on 2026-10-13. Its libraries became `packages/`; its README points here |
 
-Two rules worth knowing before you change code:
-
-- **Chain code stays in `apps/business/src/chain`.** The ledger, vault, reports and payroll never
-  import the wallet or Aleo packages. A test (`fiat_boundary.test.ts`) enforces this.
-- **Deployed Leo programs are never edited.** Changes ship as a new version.
+Before you change code, read [`docs/INVARIANTS.md`](docs/INVARIANTS.md): every rule that isn't up
+for debate, the check that enforces it, and the threats it answers. The two you'll meet first:
+chain code stays in `apps/business/src/chain` (INV-16), and deployed Leo programs are never edited
+(INV-20).
 
 ## Running it locally
 

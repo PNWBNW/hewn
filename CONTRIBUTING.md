@@ -35,19 +35,12 @@ submodule over HTTPS; you only need it to work on the chain side.
 
 ## The rules that aren't up for debate
 
-They are spelled out in `CLAUDE.md`; the short form:
-
-- **Privacy floor.** Anything tied to a person (wages, withholding, W-4s, bank details, paystubs,
-  addresses) is private in every mode and can never be made public. Enforce it in the vault or the
-  circuit, not only in the UI.
-- **No private data on any server.** No database. The one exception, two totals per country for
-  the traction map, is described in `CLAUDE.md` and `docs/THREAT_MODEL.md`.
-- **Keys.** Never commit or print a private key, view key, `.env` or seed phrase.
-- **Boundaries.** Chain code lives in `apps/business/src/chain` and is loaded only by the pages
-  that need it; the ledger, vault, reports and payroll never import a wallet or Aleo package. A
-  test enforces this (`apps/business/src/fiat_boundary.test.ts`).
-- **Leo.** Deployed programs are never edited; changes ship as a new version with a migration
-  note and negative tests.
+Each one has an id, a check and the threats it answers in
+[`docs/INVARIANTS.md`](docs/INVARIANTS.md); the full wording is in `CLAUDE.md`. In one line each:
+the privacy floor (nothing about a person is ever public), no private data on any server, keys
+never committed or printed, chain code only in `apps/business/src/chain`, and deployed Leo
+programs never edited. A change that weakens one of them is a design discussion before it is a
+pull request.
 
 ## Where things are
 
