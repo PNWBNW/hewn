@@ -59,6 +59,11 @@ export const PROGRAMS = {
     usdcx: "test_usdcx_stablecoin.aleo", // testnet only
     usdcx_freezelist: "test_usdcx_freezelist.aleo", // testnet only
   },
+  // Superseded programs still read for what was made with them (never written to).
+  legacy: {
+    // v1 registry (@noupgrade): only read for business names registered before v2.
+    pnw_name_registry_v1: "pnw_name_registry.aleo",
+  },
 } as const;
 
 /** Current version tags — must match deployed program expectations */
