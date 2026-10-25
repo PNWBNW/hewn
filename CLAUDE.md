@@ -27,9 +27,10 @@ per day in `progress/`; `PROGRESS.md` is its generated index.
 
 ## Session start
 
-1. Read the **Now** block at the top of `BUILD_PLAN.md`, the phase it names, and the last few
-   entries of the newest day's file in `progress/` (the top row of `PROGRESS.md`; within a day,
-   entries run oldest to newest, so the newest are at the end). About 5k tokens in all.
+1. Read the **Now** block at the top of `BUILD_PLAN.md` (it ends at `## Scope`), the phase it
+   names, and the last few entries of the newest file in `progress/` (files are named by date;
+   within a day, entries run oldest to newest, so the newest are at the end). You don't need
+   `PROGRESS.md`, the index. About 5k tokens in all.
 2. The current phase is the one the Now block names (not the first phase with an open box: older
    phases keep leftovers that wait on other things). Report to Joshua in 10 lines or fewer: current
    phase, what's done, what's next, any blocker. Then propose **one** task aimed at **one** exit

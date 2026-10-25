@@ -7,15 +7,14 @@ Oct 13, 2026 · Joshua Day
 
 ## Now
 
-Updated 2026-10-25. Session start reads this block; keep it to these four lines and change it
+Updated 2026-10-26. Session start reads this block; keep it to these four lines and change it
 whenever the work moves.
 
 - **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
-- **In flight:** audit readiness, Steps 6 and 7 of the ICM plan (a lighter session start: the
-  progress log split by day with an index, the chain facts moved to the chain README; a link
-  checker in CI), and the manual tests (issues #150–#164). Steps 1–5 are done (PROGRESS.md,
-  2026-10-25: invariants with checks, numbered threats, the public-state map, Leo tests for every
-  program Hewn calls).
+- **In flight:** the manual tests (issues #150–#164). Audit readiness (the ICM plan) is done:
+  invariants with checks, numbered threats, the public-state map, Leo tests for every program Hewn
+  calls, a lighter Session start, a link checker (`progress/2026-10-25.md`, `2026-10-26.md`); a
+  cold Session start is walked at the end of each phase and kept in that day's log.
 - **Next criterion:** Phase 1, reconciliation: the books' cash accounts checked against the Shield
   balance, with any difference flagged.
 - **Blocked on Joshua:** archiving the old portal repository on GitHub (Phase 0); two phones with
@@ -45,9 +44,9 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 
 - Privacy architecture: records for identifying data, mappings hold only hashes and block heights, commitment-based authorization (`parties_key` commitments).
 - The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. The CLI adapter / private-key path is legacy and gone: the `coordinator` package that carried it was removed on 2026-10-14, and the pay queue in `rail` is the wallet path. The app never calls `snarkos` directly. Extensions hang off this seam.
-- `paystub_receipts` + `payroll_audit_log` as the pattern for all ledger postings (dual records + hash anchor).
-- `.pnw` name registry, credential NFTs, employer license gate, wallet-signature session model.
-- TypeScript tax engine (`src/lib/tax-engine.ts`, IRS annualization method).
+- `payroll_audit_log` as the pattern for anchoring: a hash on chain, everything else private (a sealed month's root goes through it; the postings themselves stay in the vault, Decisions 2026-10-25).
+- The name registry (`pnw_name_registry_v2`; names are `name.hewn`), credentials (now `hewn_credentials_v1`), employer license gate, wallet-signature session model.
+- TypeScript tax engine (now `packages/tax-engine`, IRS annualization method).
 
 **Retired**
 
@@ -123,7 +122,7 @@ read against this. The original line: "Fiat-first: the vault and ledger logic co
 - ~~`leo build` and `leo test` green for `gl_core.aleo`, including negative tests (unbalanced entry, closed period, unknown account) that fail as expected~~ Replaced 2026-10-25 (feed, reconcile, seal)
 - ~~Deployed to testnet; program ID in `testnet.manifest.json`~~ Replaced 2026-10-25 (feed, reconcile, seal)
 - ~~A 20-entry sample ledger posted, period closed, root anchored, with tx hashes recorded in PROGRESS.md~~ Replaced by the next line
-- [ ] A month of a sample business's Shield movements comes in through For review, is categorized, reconciles, and the month is sealed: its root anchored through `payroll_audit_log`, with the tx hash recorded in PROGRESS.md
+- [ ] A month of a sample business's Shield movements comes in through For review, is categorized, reconciles, and the month is sealed: its root anchored through `payroll_audit_log`, with the tx hash recorded in that day's file in `progress/`
 - [ ] Reconciliation: the books' cash accounts are checked against the Shield balance (private records and public), and any difference is flagged on the Dashboard
 - [x] Vault survives browser clear-site-data via export/import round trip, and opens in a second browser with the same passphrase, no wallet required (2026-10-13)
 - [ ] Once a Shield wallet is linked, the vault opens with either the passphrase or the wallet; the passphrase keeps working so a lost wallet never locks the books
@@ -155,7 +154,7 @@ This is where it starts to feel like QuickBooks.
 
 **Deliverables**
 
-1. Customers and vendors: records in the vault, hash-anchored; optional `.pnw` name link when the counterparty is also on the platform.
+1. Customers and vendors: records in the vault, hash-anchored; optional `name.hewn` link when the counterparty is also on the platform.
 2. Invoices and estimates: line items, sales tax per line (computed and tracked, not filed), terms, status (draft / sent / partially paid / paid / void). Estimate converts to invoice. Batch create.
 3. Bills and expenses: line items, due dates, status, batch entry. Receipt image stored encrypted in the vault, hash on the entry.
 4. Payments: apply a payment to one or many invoices; record a bill payment. In settled mode, a USDCx transfer; in fiat and anchored, a bank reference.
