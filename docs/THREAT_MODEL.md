@@ -548,5 +548,5 @@ site data is cleared, or the books were made in another browser or at another ad
 - ⚠️ **Not covered:** someone who never saves a backup still loses everything with the browser,
   and a backup is only as safe as where it's kept. An encrypted backup of the books on chain,
   restorable on any device with the wallet, username and passphrase, is the planned fix
-  (`docs/CHAIN_BACKUP.md`, for review). A question for Shield is drafted: whether its browser can keep site
+  (`docs/CHAIN_BACKUP.md`, approved 2026-10-26, being built). A question for Shield is drafted: whether its browser can keep site
   storage across updates.

@@ -1,6 +1,6 @@
 # The books backed up on chain: design
 
-**Status:** design, for Joshua's review (2026-10-26). Nothing is built. No new Leo: it uses the
+**Status:** design, approved by Joshua on 2026-10-26 (decisions at the end). Being built in the order below. No new Leo: it uses the
 letters program already live (`hewn_letters_v2`). Approach chosen by Joshua on 2026-10-26: the
 books are compressed before they're encrypted, and after the first full copy only the changes are
 sent.
@@ -149,9 +149,8 @@ People choose, the app asks. It can't send a backup on its own: every page needs
 4. **A network test:** two test accounts. Back up, wipe the browser, restore on a second browser,
    then compare the restored books entry by entry.
 
-## Decisions for Joshua
+## Decisions (Joshua, 2026-10-26)
 
-1. **The snapshot rule:** a new chain at half a snapshot of changes or 12 changes. Fine?
-2. **When to ask:** weekly, after a pay run, and on closing a month. Fine?
-3. **Show the cost before each backup** ("2 pages, 2 approvals, about 0.17 ALEO")? Recommended:
-   yes.
+1. **The snapshot rule:** a new chain at half a snapshot of changes, or after 12 changes. Yes.
+2. **When to ask:** weekly, after each pay run, and on closing each month. Yes, on each of those.
+3. **The cost is shown before each backup** ("2 pages, 2 approvals, about 0.17 ALEO"). Yes.
