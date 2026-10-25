@@ -1,0 +1,25 @@
+{
+  "name": "@pnw/art",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./seed": "./src/seed.ts",
+    "./sky": "./src/sky.ts",
+    "./constellation": "./src/constellation.ts",
+    "./map": "./src/map.ts",
+    "./rings": "./src/rings.ts",
+    "./card": "./src/card.ts",
+    "./png": "./src/png.ts",
+    "./svg": "./src/svg.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@pnw/brand": "workspace:*"
+  }
+}
