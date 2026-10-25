@@ -331,7 +331,7 @@ export async function queryEmployerName(address: Address): Promise<Field | null>
  */
 export async function queryEmployerNameV1(address: Address): Promise<Field | null> {
   const endpoint = ENV.ALEO_ENDPOINT;
-  const programId = "pnw_name_registry.aleo"; // v1 only
+  const programId = PROGRAMS.legacy.pnw_name_registry_v1;
 
   try {
     const url = `${endpoint}/program/${programId}/mapping/employer_primary_name_of/${address}`;
@@ -435,7 +435,7 @@ export function buildUsdcxTransferCommand(
   totalAmount: bigint,
 ): string {
   return (
-    `snarkos developer execute test_usdcx_stablecoin.aleo transfer_public ` +
+    `snarkos developer execute ${PROGRAMS.external.usdcx} transfer_public ` +
     `${daoTreasury} ${totalAmount}u128`
   );
 }

@@ -4924,3 +4924,19 @@ name the calls left alone; the tree passes (390 source files). INV-11 has a chec
 Noted for Joshua: CLAUDE.md says writes go through "the `wallet` package's executor"; in practice
 the one door is `useShield()` in the app's chain folder, built on the wallet package's provider.
 The rule holds; its wording could name the door.
+
+## 2026-10-25 — Program names from one place, checked (ICM Step 4; INV-12)
+
+`scripts/check_program_names.py` (standard library, `python3 -I`, a CI step) fails on any
+`<name>.aleo` written out in source outside `packages/config` (the `PROGRAMS` registry, which
+mirrors the manifest) and `packages/pnw-adapter` (the retired CLI path's own table). Comments and
+tests are left alone; `credits.aleo` is allowed everywhere, being the network's own program; a
+line that must keep a name carries `program-names: allow` and a reason (none needs it today). It
+also fails if it finds no source files, so a misplaced copy can't pass by scanning nothing. Two
+names were written out by hand in `packages/records` and now come from the config: the v1
+registry read (a new `PROGRAMS.legacy.pnw_name_registry_v1`) and a command preview naming the
+USDCx program (`PROGRAMS.external.usdcx`); records' 16 tests pass. Shown failing on three planted
+names (one inside an explorer URL) with a comment, a block comment, `credits.aleo`, an allowed
+line and a test file left alone; the tree passes (380 source files). INV-12 has a check: 18 of
+24 rules checked, 6 none (aggregates, mode upgrades and extensions, which aren't built;
+localStorage; the archive convention; Layer 2 custody).
