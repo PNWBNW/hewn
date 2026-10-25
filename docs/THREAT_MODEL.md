@@ -521,3 +521,28 @@ would cost most.
   2026-10-25), and anything printed by a tool the scan doesn't see, such as a CI log. If a real key
   is ever found: treat it as leaked, move what it holds, make a new one, then remove it.
 
+
+## T19 — The browser loses the books (2026-10-26)
+
+The books live only in the browser that holds them (INV-02: no server copy), so whatever empties
+that browser's storage takes the books with it. On a phone, the way in is Shield's own browser,
+and a Shield app update around 2026-10-23 emptied it: two accounts made there wouldn't open
+afterwards ("That username and passphrase don't match an account on this device"). The vault code
+was ruled out (a vault made before the 2026-10-24 recovery-key change opens with today's code, with
+and without a recovery key); nothing on chain was lost. The same happens if a browser clears space,
+site data is cleared, or the books were made in another browser or at another address.
+
+- **The browser is asked to keep the books** (`@pnw/vault` `requestPersistence`, whenever an
+  account is made, opened or restored on a device). Chrome and Safari can grant it; it doesn't stop
+  an app from wiping its own browser on an update, and many in-app browsers don't grant it. ✅
+- **Settings says which it is** ("agreed to keep", "may clear", "can't say"), so a person knows
+  whether to rely on the browser. ✅
+- **Backups are asked for:** right after setup and a week after the last one, on the Dashboard and
+  the worker's Home (`books/backup_reminder.ts`; the last backup's time is kept in the vault). On a
+  phone, saving a backup opens the share sheet (save to Files, send to yourself), since a plain
+  download often goes nowhere inside an app's browser. ✅
+- ⚠️ **Not covered:** someone who never saves a backup still loses everything with the browser,
+  and a backup is only as safe as where it's kept. An encrypted backup of the books on chain,
+  restorable on any device with the wallet, username and passphrase, is the planned fix (design
+  first, Joshua's greenlight). A question for Shield is drafted: whether its browser can keep site
+  storage across updates.

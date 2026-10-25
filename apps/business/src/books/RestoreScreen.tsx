@@ -129,7 +129,7 @@ export function RestoreScreen({ onCancel, replacing }: { onCancel: () => void; r
         )}
         {replacing && (
           <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-            If this account already has books on this device, restoring replaces them. Download a backup of them
+            If this account already has books on this device, restoring replaces them. Save a backup of them
             first if you might need them.
           </p>
         )}

@@ -51,6 +51,8 @@ export type Company = {
   calendar?: SharedCalendar;
   /** The account's username, normalised (an email on accounts made before usernames). Kept inside the encrypted file, never in the vault id's clear. Absent on books made before accounts. */
   username?: string;
+  /** When a backup was last saved from these books (ISO time; books/backup_reminder.ts). Absent before the first. */
+  backedUpAt?: string;
 };
 
 const ROLES: Role[] = ["business", "worker"];
@@ -76,6 +78,7 @@ export function companyToJson(c: Company): string {
     ...(c.events && c.events.length > 0 ? { events: JSON.stringify(c.events) } : {}),
     ...(c.calendar ? { calendar: calendarToJson(c.calendar) } : {}),
     ...(c.username ? { username: c.username } : {}),
+    ...(c.backedUpAt ? { backedUpAt: c.backedUpAt } : {}),
   });
 }
 
@@ -98,6 +101,7 @@ export function companyFromJson(text: string): Company {
     events?: string;
     calendar?: string;
     username?: string;
+    backedUpAt?: string;
     /** What the username was called before usernames (2026-10-21). */
     email?: string;
   };
@@ -123,6 +127,7 @@ export function companyFromJson(text: string): Company {
     if (typeof doc.calendar === "string") company.calendar = calendarFromJson(doc.calendar);
     const username = typeof doc.username === "string" && doc.username ? doc.username : typeof doc.email === "string" && doc.email ? doc.email : null;
     if (username) company.username = username;
+    if (typeof doc.backedUpAt === "string" && !Number.isNaN(Date.parse(doc.backedUpAt))) company.backedUpAt = doc.backedUpAt;
     return company;
   }
   // Earlier saves held only the books.

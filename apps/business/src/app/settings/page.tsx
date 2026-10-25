@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@pnw/ui/dialog";
 import { Field, FormError, PassphraseInput, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
+import { BackupCard } from "@/books/BackupReminder";
 import { publicCardPath } from "@/books/card";
 import { landmarksOf } from "@/books/credential";
 import { shortAddress } from "@/books/rail";
@@ -91,6 +92,8 @@ export default function SettingsPage() {
       </Card>
 
       <YourCard />
+
+      <BackupCard />
 
       <RecoveryKey />
 

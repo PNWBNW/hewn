@@ -10,6 +10,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
 import { waitingCount } from "@/books/review";
 import { SetAsides } from "@/books/SetAsides";
+import { BackupReminder } from "@/books/BackupReminder";
 import { PageHeader } from "@/shell/SectionView";
 
 // What the linked account holds, read from the network; loaded only once an account is linked.
@@ -58,6 +59,8 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title="Dashboard" summary="Where your business stands today." />
+
+      <BackupReminder />
 
       <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {figures.map((f) => (
