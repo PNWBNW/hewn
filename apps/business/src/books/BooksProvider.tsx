@@ -54,6 +54,7 @@ import type { Funds } from "./funds";
 import type { Rail } from "./rail";
 import { type Role, type Work, emptyWork } from "./work";
 import { markBackedUp } from "./backup_reminder";
+import { type AccountRestoreReport, type AccountUnlock, type FindBooks, restoreIntoVault } from "./account_restore";
 import {
   type KeySlots,
   type SealedAttachment,
@@ -201,6 +202,18 @@ type BooksContextValue = {
   recover: (username: string, code: string, nextPassphrase: string, stay?: boolean) => Promise<UnlockOutcome>;
   /** The same from a backup file: the recovery key sets a new passphrase on the backup, then it restores. */
   restoreWithRecovery: (fileText: string, username: string, code: string, nextPassphrase: string, stay?: boolean) => Promise<void>;
+  /**
+   * The books from the backup kept with the account (docs/CHAIN_BACKUP.md): `find` looks for it
+   * and opens it with the passphrase, or with the recovery key, which then sets `next` as the new
+   * passphrase. Writes the books into this device's vault and says how it went; `open` then opens
+   * them. Null when there is no backup for this username with the account.
+   */
+  restoreFromAccount: (
+    find: FindBooks,
+    username: string,
+    unlock: AccountUnlock,
+    stay?: boolean,
+  ) => Promise<(AccountRestoreReport & { open: () => Promise<void> }) | null>;
   /** When the open books' recovery key was made, or null when they have none. */
   recoveryMadeAt: string | null;
   /** Makes a recovery key (replacing any earlier one) and returns its code, shown once. Takes the passphrase. */
@@ -553,6 +566,16 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store, open],
   );
 
+  const restoreFromAccount = useCallback(
+    async (find: FindBooks, username: string, unlock: AccountUnlock, stay = true): Promise<(AccountRestoreReport & { open: () => Promise<void> }) | null> => {
+      const restored = await restoreIntoVault(store, find, username, unlock);
+      if (!restored) return null;
+      writeAccountFlag();
+      return { ...restored.report, open: () => open(restored.session, stay) };
+    },
+    [store, open],
+  );
+
   /**
    * Swaps in a record whose key slots changed (a recovery key made or taken away), in the queue
    * with every other write. The books are written again with it, so another tab sees a change and
@@ -707,6 +730,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       backupKey,
       recover,
       restoreWithRecovery,
+      restoreFromAccount,
       recoveryMadeAt,
       makeRecoveryKey,
       removeRecoveryKey,
@@ -736,6 +760,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       backupKey,
       recover,
       restoreWithRecovery,
+      restoreFromAccount,
       recoveryMadeAt,
       makeRecoveryKey,
       removeRecoveryKey,

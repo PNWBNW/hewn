@@ -22,8 +22,8 @@ itself: letters to the account's own account, which the same wallet finds again 
   Shield approval.
 - **Restore:** on any device, connect the same wallet, give your username and passphrase. The app
   finds the backup letters among your own letters, opens them, rebuilds the books, and opens them.
-- **After a lost browser:** a login that finds no books here, with Shield connected, offers
-  **Look for your books on chain**, so today's dead end becomes one more tap.
+- **After a lost browser:** Log in offers **Books gone from this device? Find them with Shield**,
+  so today's dead end becomes one more tap.
 
 ## The format
 
@@ -154,8 +154,12 @@ People choose, the app asks. It can't send a backup on its own: every page needs
    wrong passphrase opens nothing, the recovery key opens it, recomputed hashes match.
 2. **Writing it** (built 2026-10-26): **Back up with your account** in the Backups card and the
    reminder, with the cost shown before any approval.
-3. **Finding and restoring it:** **Look for your books on chain** after a failed login with Shield
-   connected, and **From your account on chain** on the restore screen.
+3. **Finding and restoring it** (built 2026-10-26): **Books gone from this device? Find them with
+   Shield** under Log in, and **Kept with Shield** beside **A backup file** on the restore screen
+   (`chain/ChainRestore.tsx`, `books/account_restore.ts`). With the passphrase, the books come back
+   under the same keys and backups carry on; with the recovery key, a new passphrase is set and the
+   next backup starts a fresh copy. Files already on the device stay; the screen says how many the
+   books miss, and how far a broken backup got.
 4. **A network test:** two test accounts. Back up, wipe the browser, restore on a second browser,
    then compare the restored books entry by entry.
 

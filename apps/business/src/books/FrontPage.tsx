@@ -6,6 +6,7 @@ import { Button } from "@pnw/ui/button";
 import { BRAND } from "@/brand";
 import { AuthFooter, AuthHero, AuthTopBar } from "./AuthCard";
 import { LoginDialog } from "./LoginDialog";
+import type { RestoreStart } from "./RestoreScreen";
 
 const VALUES = [
   { icon: HardDrive, text: "Your books stay on your device" },
@@ -17,7 +18,7 @@ const VALUES = [
  * What a visitor sees first: the whole hero, a few plain words, and two ways in. Nothing opens by
  * itself. On a device with no books Get started leads; on one with books Log in does.
  */
-export function FrontPage({ locked, onNewHere, onRestore }: { locked: boolean; onNewHere: () => void; onRestore: () => void }) {
+export function FrontPage({ locked, onNewHere, onRestore }: { locked: boolean; onNewHere: () => void; onRestore: (start?: RestoreStart) => void }) {
   const [loginOpen, setLoginOpen] = useState(false);
 
   const getStarted = (
@@ -82,9 +83,9 @@ export function FrontPage({ locked, onNewHere, onRestore }: { locked: boolean; o
           setLoginOpen(false);
           onNewHere();
         }}
-        onRestore={() => {
+        onRestore={(start) => {
           setLoginOpen(false);
-          onRestore();
+          onRestore(start);
         }}
       />
     </div>
