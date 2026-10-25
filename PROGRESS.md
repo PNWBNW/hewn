@@ -15,6 +15,7 @@ index is out of date.
 - [Reconciliation: the books' Shield account against Shield (Phase 1)](progress/2026-10-26.md#2026-10-26--reconciliation-the-books-shield-account-against-shield-phase-1)
 - [Keeping the books: the browser is asked to keep them, and backups are asked for](progress/2026-10-26.md#2026-10-26--keeping-the-books-the-browser-is-asked-to-keep-them-and-backups-are-asked-for)
 - [A download counts as a backup only once the person says it saved](progress/2026-10-26.md#2026-10-26--a-download-counts-as-a-backup-only-once-the-person-says-it-saved)
+- [Design: the books backed up on chain (for review)](progress/2026-10-26.md#2026-10-26--design-the-books-backed-up-on-chain-for-review)
 
 ## [2026-10-25](progress/2026-10-25.md)
 
