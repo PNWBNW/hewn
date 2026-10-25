@@ -4743,3 +4743,25 @@ follow; the Profile page lists them. Nothing about a credential is public. 8 new
 drafts, the dates line, the letter's slot and round trip, the record by nonce and the two copies
 made from it, the wait); the app's 768 pass; both builds pass. Not yet: the credential card
 (open question 1), and the network check, which waits on the deploy.
+
+## 2026-10-25 — `hewn_credentials_v1` deployed and checked on the network
+
+Joshua deployed the credentials program from `pnw_mvp_v2` main (`deploy-new-program` run 16):
+`at1fndzrvr79edftn7a8k5shvqcp5ygj4jw4q9qndmwdpu3fa7vluzqu4hauy`, block 20806575 (03:37 UTC),
+9.083442 credits (storage 6.423, synthesis 1.658442, namespace 1, constructor 0.002; `issue`
+0.005567, `accept` 0.003091, `decline` 0.002459, `revoke` 0.002497, `assert_active` 0.001486 a
+call). The program on chain matches main instruction for instruction against a local Leo 4.0.0
+build. Recorded in the manifest and the READMEs (`pnw_mvp_v2` #219, Joshua merges). Then the
+network check from a script with the two test accounts, on the B–W pair's active v5 agreement
+from the OFFER-4 run: issue employment → accept → `assert_active` → revoke
+(`at12ssfs79…`, `at1rpd3ry5…`, `at1ul0vx3c…`, `at1acf2ecc…`), issue skills → decline
+(`at1t2u6j5f…`, `at1nh0fay2…`), issue clearance → revoke while offered (`at132an3nr…`,
+`at1vxve7cq…`), each with the expected status and the issue block in `credential_anchor`; and
+six refusals rejected in finalize: the worker issuing to the business, issuing under the
+withdrawn pair, the same scope and nonce again, accepting a revoked one, revoking a declined
+one, `assert_active` on a revoked one. Fourteen of fourteen. What the explorer shows of an
+`issue`: five private inputs, two records, a future whose arguments are the pair tag and the
+commitment; the moves name only the commitment; each copy opens only with its owner's view key.
+In the app, the two "staged" comments (`chain/credentials.ts`, `packages/config`) and the
+HEWN_ART step-3 text now say deployed; no code change, tests as before (768). Not yet: the
+credential card (open question 1), and the screens tried end to end in Shield.
