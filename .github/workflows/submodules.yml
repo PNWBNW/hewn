@@ -1,0 +1,86 @@
+name: Submodule pins
+
+# The two submodules (pnw_mvp_v2, the Leo programs; pnw_employment_portal_v1, the retired portal)
+# are pinned to a commit, as every submodule is, so the folder links on GitHub age as those repos
+# move. This keeps them current: every day, and on demand, it moves each pin to its repo's `main`
+# (the `branch` in .gitmodules) and, when anything moved, opens or refreshes one pull request
+# (`bump-submodules`) with the change. Nothing merges on its own: the pull request goes through
+# the plan gate like any other (dispatched below, since a push made with the workflow token
+# doesn't start `pull_request` runs by itself).
+#
+# Needs, once, in the repository's Settings > Actions > General: "Allow GitHub Actions to create
+# and approve pull requests". Until then the branch is pushed and the step that opens the pull
+# request says so.
+
+on:
+  schedule:
+    - cron: "17 9 * * *" # 09:17 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: submodule-pins
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Move the pins to each repo's main
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Move each pin to its branch
+        run: |
+          git submodule update --init --remote --depth 1 pnw_mvp_v2 pnw_employment_portal_v1
+          git status --porcelain -- pnw_mvp_v2 pnw_employment_portal_v1 | tee "$RUNNER_TEMP/moved"
+      - name: Push the bump branch
+        id: push
+        run: |
+          if [ ! -s "$RUNNER_TEMP/moved" ]; then
+            echo "Both pins already sit on main."
+            echo "moved=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "moved=true" >> "$GITHUB_OUTPUT"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          summary=""
+          for sub in pnw_mvp_v2 pnw_employment_portal_v1; do
+            if git status --porcelain -- "$sub" | grep -q .; then
+              old=$(git rev-parse "HEAD:$sub" | cut -c1-7)
+              new=$(git -C "$sub" rev-parse HEAD | cut -c1-7)
+              summary="$summary- $sub: $old -> $new"$'\n'
+            fi
+          done
+          printf '%s' "$summary" > "$RUNNER_TEMP/summary"
+          git checkout -B bump-submodules
+          git add pnw_mvp_v2 pnw_employment_portal_v1
+          git commit -q -m "chore: move the submodule pins to each repo's main" -m "$summary"
+          git push --force -u origin bump-submodules
+      - name: Open or refresh the pull request
+        if: steps.push.outputs.moved == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="The submodule pins, moved to each repo's \`main\` by the Submodule pins workflow:"$'\n\n'"$(cat "$RUNNER_TEMP/summary")"$'\n'"Review as any other change; nothing merges on its own."
+          if gh pr list --head bump-submodules --state open --json number --jq '.[0].number' | grep -q .; then
+            n=$(gh pr list --head bump-submodules --state open --json number --jq '.[0].number')
+            gh pr edit "$n" --body "$body"
+            echo "Refreshed pull request #$n."
+          elif gh pr create --head bump-submodules --base main --title "chore: move the submodule pins to each repo's main" --body "$body"; then
+            echo "Opened the pull request."
+          else
+            echo "::warning::Could not open the pull request. Allow GitHub Actions to create pull requests in Settings > Actions > General, or open one from the bump-submodules branch."
+          fi
+      - name: Run CI on the bump branch
+        if: steps.push.outputs.moved == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref bump-submodules
