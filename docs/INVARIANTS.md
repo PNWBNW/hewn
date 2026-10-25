@@ -32,7 +32,7 @@ fails the build), *review* (only a person reading the change), *not yet* (nothin
 | INV-07 | The vault key comes from the unlock secret (username and passphrase, PBKDF2-SHA256 600k rounds) and only wraps a random AES-256-GCM data key; the key is never stored in plaintext and never leaves the vault module | vault, CI | `packages/vault/src/vault.test.ts` · "defaults to 600k PBKDF2 rounds", "never exposes an exportable data key", "changes passphrase without re-encrypting the books" | T2, T8 |
 | INV-08 | "Stay logged in" keeps only the non-extractable data key, for at most 24 hours, forgotten on Log out | vault, CI | `packages/vault/src/vault.test.ts` · "reopens the books without the passphrase until the session expires", "keeps a non-extractable key, and refuses to resume a tampered one" (known gap: Log out and closing the tab at once, issue #150) | T8 |
 | INV-09 | No server account: nothing is verified remotely; a lost passphrase is replaced only with the account's recovery key | structure, vault, CI | `packages/vault/src/recovery.test.ts` | T8 |
-| INV-10 | localStorage is not a book of record; durable data goes in the encrypted IndexedDB vault | review | none (manual check PRIV-3 on issue #163, 2026-10-25: two flags only) | T2 |
+| INV-10 | localStorage is not a book of record; durable data goes in the encrypted IndexedDB vault | code, CI | `scripts/check_browser_storage.py` (web storage holds four flags, each owned by one file; IndexedDB only in `packages/vault`; no cookies or Cache API); manual check PRIV-3 on issue #163 | T2 |
 
 ## Boundaries
 

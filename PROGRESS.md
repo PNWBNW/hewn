@@ -4940,3 +4940,19 @@ names (one inside an explorer URL) with a comment, a block comment, `credits.ale
 line and a test file left alone; the tree passes (380 source files). INV-12 has a check: 18 of
 24 rules checked, 6 none (aggregates, mode upgrades and extensions, which aren't built;
 localStorage; the archive convention; Layer 2 custody).
+
+## 2026-10-25 — Browser storage holds only four flags, checked (ICM Step 4; INV-10)
+
+`scripts/check_browser_storage.py` (standard library, `python3 -I`, a CI step) pins what plain
+browser storage may hold: four flags, each written by one file. `pnw:has-account` (an account
+exists here, never whose; `books/BooksProvider.tsx`), `hewn-visitor-counted` and
+`hewn-visit-counted` (the traction counter's device and session flags; `traction/VisitCounter.tsx`)
+and `hewn.fee-mode` (this device's fee switch; `packages/wallet/src/fee_mode.ts`). Outside tests
+and comments it fails when another file touches localStorage or sessionStorage, a listed file's
+key constant changes or it stores under another key, or anything outside `packages/vault` opens
+IndexedDB, a cookie or the Cache API. Shown failing on four planted misuses (a draft in
+localStorage, the books under a new key, a renamed session key, IndexedDB and a cookie outside the
+vault) with the vault's own IndexedDB, the fee switch, a comment and a test left alone; the tree
+passes (390 source files). Matches what PRIV-3 found by hand on issue #163. INV-10 has a check:
+19 of 24 rules checked; the 5 left are aggregates, mode upgrades and extensions (not built yet),
+and two in `pnw_mvp_v2`: the archive convention and Layer 2 custody.
