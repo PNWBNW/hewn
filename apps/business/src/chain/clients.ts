@@ -29,8 +29,8 @@ import type { ThreadKinds } from "./thread";
 
 export const CLIENT_KINDS: ThreadKinds = { business: "cl_b", worker: "cl_c" };
 
-/** What passes between a business and a customer: plain messages, invoices and their voids, and payments. */
-export const CLIENT_TYPES: readonly ThreadBody["type"][] = ["text", "invoice", "invoice_void", "payment"];
+/** What passes between a business and a customer: plain messages, agreements, invoices and their voids, payments, and a disconnect. */
+export const CLIENT_TYPES: readonly ThreadBody["type"][] = ["text", "agreement_offer", "agreement_answer", "agreement_close", "invoice", "invoice_void", "payment", "disconnect"];
 export const clientAccepts = (body: ThreadBody): boolean => CLIENT_TYPES.includes(body.type);
 
 /** How many hellos one account may send another (each a fresh place); a reader stops at the first empty one. */

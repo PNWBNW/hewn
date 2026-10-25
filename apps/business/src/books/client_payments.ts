@@ -13,6 +13,7 @@ import type { IsoDate } from "@pnw/ledger";
 import { ensureRailAccount } from "@pnw/payroll";
 import { invoiceBalance, receivePayment } from "@pnw/sales";
 import type { Company } from "./company";
+import { itemsOf } from "./connections";
 import { minorToCents } from "./opening";
 import type { ReviewItem } from "./review";
 
@@ -38,7 +39,7 @@ export function paymentsToRecord(company: Pick<Company, "clients" | "sales" | "r
   const out: ClientPayment[] = [];
   for (const c of Object.values(company.clients ?? {})) {
     if (!c.customerId) continue;
-    for (const item of c.thread?.items ?? []) {
+    for (const item of itemsOf(c)) {
       if (item.mine || item.body.type !== "payment") continue;
       const b = item.body;
       if (recorded.has(b.transactionId) || out.some((o) => o.transactionId === b.transactionId)) continue;
