@@ -4820,3 +4820,30 @@ script refused; rebuild the website first), and the agent proxy refuses plain HT
 headless browser runs without a proxy and the explorer is reached through node's fetch. The
 scripts live in the session's scratchpad for now (`issues/*.mjs`); nothing in the repo changed
 but this entry. Tests as before (768).
+
+## 2026-10-25 — Issues tab, second pass, and a review of icm-architect against Hewn
+
+**Testing.** A bill from the registry vendor posts and balances (250.75 both sides; the blank chart
+has no expense account, so it won't show on the profit and loss until one exists), negative
+amounts leave Save disabled, 2026-12-31 saves, the built-in accounts carry no deactivate control;
+the "Log out and close the tab at once" known gap reproduced on a persistent profile (the
+forget-session write loses the race). Comments on #150 and #161. VAULT-5 is parked under "Known
+gaps" in the guide (Joshua: a browser app offline is a later problem; the books already read and
+save offline, only the app's own files need caching). Joshua takes PRIV-4 on the live site. The
+rest of the guide needs Shield on two phones.
+
+**icm-architect.** Joshua's fork (PNWBNW/icm-architect.hewn, the Interpretable Context
+Methodology skill) read by an independent reviewer agent against both repos; report in the
+session's scratchpad (`icm-review.md`), relayed to Joshua. The short of it: Hewn already does
+most of what ICM asks (small catalogs in 15 READMEs, contracts per program, factory/product/dead
+split, checks as tests and CI; the skill's link checker finds 0 broken links in both repos).
+Five gaps, ranked: the Session-start rule points at Phase 0, whose open criteria are stale;
+PROGRESS.md at 345 KB and 177 entries (split by day with a generated index); the invariants live
+in four prose homes and already drift; no traceability from threat → invariant → check →
+program/mapping (the threat model stops numbering at T8, 5 of 15 live programs have Leo tests in
+the gate); the session-start load is about 16k tokens. Don't adopt: AGENTS.md, CONTEXT.md per
+folder, stage folders, underscore folders, the quote and graph scripts, folder-per-phase. First
+step proposed, one PR: number the later threats, `docs/INVARIANTS.md` with a rule table (id,
+rule, enforced in, check path or none, threat) and a public-state table (every mapping in the
+live programs), ids on CLAUDE.md's bullets, links instead of restatements, two stale lines fixed.
+Waiting on Joshua's go.

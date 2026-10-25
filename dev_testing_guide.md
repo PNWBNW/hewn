@@ -323,3 +323,8 @@ welcome. The accepted risks are in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md
 - A job post whose answer from Shield is lost (JOB-3).
 - Background page loads (prefetches) don't carry the security policy.
 - No size limit when unpacking a letter (parked: low risk).
+- Offline, only the screen already open keeps working (the books are on the device, and a change
+  saved there is kept); moving to another page needs the network on both builds (VAULT-5,
+  2026-10-25). Parked: a browser app can't do better without caching its own files on the device
+  (a service worker), which is the plan: read everything and enter entries offline, sign and
+  broadcast when the network is back.
