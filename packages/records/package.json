@@ -7,6 +7,7 @@
   "exports": {
     "./agreement_reader": "./src/agreement_reader.ts",
     "./credential_scanner": "./src/credential_scanner.ts",
+    "./packed": "./src/packed.ts",
     "./payroll_history_scanner": "./src/payroll_history_scanner.ts",
     "./receipt_scanner": "./src/receipt_scanner.ts",
     "./registry/name_registry": "./src/registry/name_registry.ts",

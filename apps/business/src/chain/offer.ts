@@ -24,7 +24,8 @@ import type { PayFrequency, Worker } from "@pnw/payroll";
 import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
 import { type RailLink, isRailAddress } from "../books/rail";
-import { AGREEMENT_V4, AGREEMENT_V5, OFFER_PROGRAM as CURRENT_OFFER_PROGRAM, carriesHalves, halfFromRecord, halfToInput } from "./agreement_programs";
+import { packedWords } from "@pnw/records/packed";
+import { AGREEMENT_V4, AGREEMENT_V5, OFFER_PROGRAM as CURRENT_OFFER_PROGRAM, carriesHalves, halfOf, halfToInput } from "./agreement_programs";
 import { bareDirectoryName } from "./directory";
 import { newHalf } from "./key_ring";
 import { byteArrayHex } from "./parties_key";
@@ -200,8 +201,8 @@ export function createJobOfferInputs(i: OfferInputs): string[] {
 
 /**
  * The offer's 8 inputs for employer_agreement_v5 `create_offer`: the same values as v4's 16, with
- * the numeric terms and the hashes grouped as the program's structs, then the employer's public
- * half (x and y, 64 bytes).
+ * the numeric terms and the hashes grouped as the program's structs, the 32-byte values packed as
+ * two u128 words, then the employer's public half (x and y, 64 bytes, four words).
  */
 export function createOfferInputsV5(i: OfferInputs, employerHalf: string): string[] {
   const terms = [
@@ -215,13 +216,13 @@ export function createOfferInputsV5(i: OfferInputs, employerHalf: string): strin
     `policy_v: ${VERSIONS.policy_v}u16`,
   ];
   const hashes = [
-    `terms_doc_hash: ${bytesToAleoU8Array(i.computed.terms_doc_hash)}`,
-    `terms_root: ${bytesToAleoU8Array(i.computed.terms_root)}`,
-    `offer_time_hash: ${bytesToAleoU8Array(i.computed.offer_time_hash)}`,
+    `terms_doc_hash: ${packedWords(i.computed.terms_doc_hash, 2)}`,
+    `terms_root: ${packedWords(i.computed.terms_root, 2)}`,
+    `offer_time_hash: ${packedWords(i.computed.offer_time_hash, 2)}`,
   ];
   return [
-    bytesToAleoU8Array(i.computed.agreement_id),
-    bytesToAleoU8Array(i.computed.parties_key),
+    packedWords(i.computed.agreement_id, 2),
+    packedWords(i.computed.parties_key, 2),
     `${bareField(i.employerNameHash)}field`,
     `${bareField(i.workerNameHash)}field`,
     i.workerAddress,
@@ -274,7 +275,7 @@ export function finalAgreements(records: unknown[]): Map<string, { workerHalf?: 
     const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
     const id = byteArrayHex(plaintext, "agreement_id");
     if (!id) continue;
-    const workerHalf = halfFromRecord(byteArrayHex(plaintext, "worker_half", 64));
+    const workerHalf = halfOf(plaintext, "worker_half");
     out.set(id, workerHalf ? { workerHalf } : {});
   }
   return out;

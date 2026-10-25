@@ -15,24 +15,24 @@ import { PROGRAMS } from "@pnw/config/programs";
 import type { Address, Bytes32 } from "@pnw/commitments/aleo_types";
 import type { WorkerRecord } from "./types/worker";
 import { queryWorkerName, queryNamePlaintext } from "./registry/name_registry";
+import { arrayFieldHex, byteWords, packedWords } from "./packed";
 
-/** Agreement status from on-chain state */
-export type AgreementStatus = "active" | "paused" | "terminated";
+/** Agreement status from on-chain state. `withdrawn` is v5's own status for an offer taken back before acceptance. */
+export type AgreementStatus = "active" | "paused" | "terminated" | "withdrawn";
 
+// v4: 0 pending, 1 active, 2 paused, 3 terminated (4 superseded is left unmapped).
+// v5: 0 pending, 1 active, 2 paused, 3 ended, 4 withdrawn.
 const STATUS_MAP: Record<string, AgreementStatus> = {
   "0u8": "active",   // PENDING maps to active for display (offer sent)
   "1u8": "active",   // ACTIVE
   "2u8": "paused",   // PAUSED
-  "3u8": "terminated", // TERMINATED
+  "3u8": "terminated", // TERMINATED (v4) / ENDED (v5)
 };
+const STATUS_MAP_V5: Record<string, AgreementStatus> = { ...STATUS_MAP, "4u8": "withdrawn" };
 
-function bytesToAleoU8Array(hex: string): string {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-  const bytes: number[] = [];
-  for (let i = 0; i < clean.length; i += 2) {
-    bytes.push(parseInt(clean.slice(i, i + 2), 16));
-  }
-  return "[ " + bytes.map(b => `${b}u8`).join(", ") + " ]";
+/** The agreement id as the program's mapping key: v5 packs it as two u128 words, v4 as 32 bytes. */
+function statusKey(agreementIdHex: string, programId: string): string {
+  return programId === PROGRAMS.layer1.employer_agreement_v5 ? packedWords(agreementIdHex, 2) : byteWords(agreementIdHex);
 }
 
 /**
@@ -68,15 +68,8 @@ function parseAgreementRecord(
     // Must have a worker address
     if (!workerAddrMatch?.[1]) return null;
 
-    // Parse agreement_id bytes → hex string
-    const aidSection = plaintext.match(/agreement_id:\s*\[([\s\S]*?)\]/);
-    let agreementId = "";
-    if (aidSection?.[1]) {
-      const byteMatches = aidSection[1].match(/(\d+)u8/g);
-      if (byteMatches) {
-        agreementId = byteMatches.map(m => parseInt(m).toString(16).padStart(2, "0")).join("");
-      }
-    }
+    // The agreement id as hex: 32 bytes in v4's records, two packed u128 words in v5's.
+    const agreementId = arrayFieldHex(plaintext, "agreement_id") ?? "";
     if (!agreementId) return null;
 
     // Determine status: FinalAgreement = active, PendingAgreement = active (pending acceptance)
@@ -161,7 +154,7 @@ async function queryAgreementStatusInternal(
   const endpoint = ENV.ALEO_ENDPOINT;
 
   try {
-    const key = bytesToAleoU8Array(agreementIdHex);
+    const key = statusKey(agreementIdHex, programId);
     const url = `${endpoint}/program/${programId}/mapping/agreement_status/${encodeURIComponent(key)}`;
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -172,7 +165,7 @@ async function queryAgreementStatusInternal(
 
     const data = await response.text();
     const clean = data.replace(/"/g, "").trim();
-    return STATUS_MAP[clean] ?? null;
+    return (programId === PROGRAMS.layer1.employer_agreement_v5 ? STATUS_MAP_V5 : STATUS_MAP)[clean] ?? null;
   } catch {
     return null;
   }
@@ -284,20 +277,9 @@ export async function fetchCredentialAuthForWorker(
 }
 
 /**
- * Helper — pull a `[u8; 32]` array field out of a record plaintext
- * and return it as a 64-char hex string (no prefix).
+ * Helper — pull a 32-byte array field (v4's `[u8; 32]`, or v5's two packed
+ * u128 words) out of a record plaintext as a 64-char hex string (no prefix).
  */
-function extractByteArrayHex(
-  plaintext: string,
-  fieldName: string,
-): string | null {
-  const section = plaintext.match(
-    new RegExp(`${fieldName}:\\s*\\[([\\s\\S]*?)\\]`),
-  );
-  if (!section?.[1]) return null;
-  const byteMatches = section[1].match(/(\d+)u8/g);
-  if (!byteMatches || byteMatches.length === 0) return null;
-  return byteMatches
-    .map((m) => parseInt(m).toString(16).padStart(2, "0"))
-    .join("");
+function extractByteArrayHex(plaintext: string, fieldName: string): string | null {
+  return arrayFieldHex(plaintext, fieldName);
 }

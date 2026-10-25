@@ -34,7 +34,8 @@ import {
   withdrawOfferInputs,
 } from "./offer";
 import { offerTermsKind } from "./offer_files";
-import { AGREEMENT_V4, AGREEMENT_V5, halfToInput } from "./agreement_programs";
+import { packedWords } from "@pnw/records/packed";
+import { AGREEMENT_PROGRAMS, AGREEMENT_V4, AGREEMENT_V5, halfToInput } from "./agreement_programs";
 import { OFFER_FUNCTION_V5, WITHDRAW_FUNCTION_V5, createOfferInputsV5, finalAgreements, sentOfferPlaintext, withdrawOffer as withdraw } from "./offer";
 import { canonicalTerms, parseTerms } from "./terms";
 
@@ -146,9 +147,10 @@ function input(over: Partial<SendOfferInput> = {}): SendOfferInput {
 
 // ---- Encoding ------------------------------------------------------------------------------
 describe("create_offer_open inputs", () => {
-  it("go to the open copy of create_job_offer (agreement v4 edition 2: no license approval)", () => {
+  it("go to the open copy of create_job_offer (agreement v4 edition 2: no license approval); new offers go to v5 since 2026-10-25", () => {
     expect(OFFER_FUNCTION).toBe("create_offer_open");
-    expect(OFFER_PROGRAM).toBe("employer_agreement_v4.aleo");
+    expect(OFFER_PROGRAM).toBe("employer_agreement_v5.aleo");
+    expect(AGREEMENT_PROGRAMS).toEqual([AGREEMENT_V5, AGREEMENT_V4]);
   });
 
   const computed = computeAgreementValues(EMPLOYER, WORKER, '{"version":1,"kind":"terms"}', 1_760_454_245);
@@ -466,7 +468,7 @@ describe("withdrawing an offer", () => {
   });
 
   it("sends terminate_employer_open with the agreement, the parties key and both name hashes", async () => {
-    const sent = await sendOffer(input());
+    const sent = await sendOffer(input({ program: AGREEMENT_V4 }));
     const inputs = withdrawOfferInputs(sent.link, EMPLOYER_HASH);
     expect(WITHDRAW_FUNCTION).toBe("terminate_employer_open");
     expect(inputs).toEqual([sent.inputs[0], sent.inputs[1], `${EMPLOYER_HASH}field`, `${WORKER_HASH}field`]);
@@ -515,7 +517,7 @@ describe("the parties key", () => {
     const client = fakeClient();
     const wallet = fakeWallet();
     const sent = await sendOffer(input({ client, wallet }));
-    expect(wallet.calls[0]!.inputs[1]).toBe(bytesToAleoU8Array(sent.link.partiesKey!));
+    expect(wallet.calls[0]!.inputs[1]).toBe(packedWords(sent.link.partiesKey!, 2));
     const key = partiesKeyFromHex(sent.link.partiesKey!);
     expect(client.puts[0]!.lookup).toBe(lookupId(key, offerTermsKind(sent.link.agreementId), TERMS_SLOT));
   });
@@ -564,11 +566,14 @@ describe("offers to employer_agreement_v5", () => {
     const canonical = canonicalTerms(sent.terms);
     const computed = { ...computeAgreementValues(EMPLOYER, WORKER, canonical, Math.floor(NOW.getTime() / 1000)), parties_key: `0x${sent.link.partiesKey}` };
     const v4 = portalInputs(computed, { employerNameHash: EMPLOYER_HASH, workerNameHash: WORKER_HASH, workerAddress: WORKER, industryCode: 9, payFrequency: 3, startEpoch: dateToHeight("2026-11-02", HEIGHT, NOW.getTime()), endEpoch: 0, reviewEpoch: dateToHeight("2027-01-31", HEIGHT, NOW.getTime()) });
-    expect(call.inputs.slice(0, 5)).toEqual(v4.slice(0, 5));
+    // The 32-byte values packed as two u128 words (@pnw/records packed), everything else as v4 had it.
+    expect(call.inputs.slice(0, 5)).toEqual([packedWords(computed.agreement_id, 2), packedWords(computed.parties_key, 2), ...v4.slice(2, 5)]);
     expect(call.inputs[5]).toBe(`{ industry_code: ${v4[5]}, pay_frequency_code: ${v4[6]}, start_epoch: ${v4[7]}, end_epoch: ${v4[8]}, review_epoch: ${v4[9]}, agreement_rev: ${v4[10]}, schema_v: ${v4[11]}, policy_v: ${v4[12]} }`);
-    expect(call.inputs[6]).toBe(`{ terms_doc_hash: ${v4[13]}, terms_root: ${v4[14]}, offer_time_hash: ${v4[15]} }`);
+    expect(call.inputs[6]).toBe(`{ terms_doc_hash: ${packedWords(computed.terms_doc_hash, 2)}, terms_root: ${packedWords(computed.terms_root, 2)}, offer_time_hash: ${packedWords(computed.offer_time_hash, 2)} }`);
     expect(call.inputs[7]).toBe(halfToInput(sent.link.half!.publicKey));
-    expect(call.inputs[7]!.match(/u8/g)).toHaveLength(64);
+    expect(call.inputs[7]!.match(/u128/g)).toHaveLength(4);
+    // No byte array anywhere: the only u8 values left are the two codes in the terms.
+    expect(call.inputs.join(" ").match(/u8\b/g)).toHaveLength(2);
     // Only the public half leaves the device: the private part is on the link, not in the inputs.
     expect(call.inputs.join(" ")).not.toContain(sent.link.half!.privateKey.d);
   });
@@ -584,7 +589,7 @@ describe("offers to employer_agreement_v5", () => {
   it("read the worker's half from a v5 FinalAgreement, and nothing from a v4 one", () => {
     const workerHalf = "04" + "cd".repeat(64);
     const id = "11".repeat(32);
-    const v5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  agreement_id: ${bytesToAleoU8Array(id)}.private,\n  worker_half: ${halfToInput(workerHalf)}.private\n}` };
+    const v5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  agreement_id: ${packedWords(id, 2)}.private,\n  worker_half: ${halfToInput(workerHalf)}.private\n}` };
     const v4 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  agreement_id: ${bytesToAleoU8Array("22".repeat(32))}.private\n}` };
     const found = finalAgreements([v5, v4, { recordName: "SentOffer", spent: false, recordPlaintext: v5.recordPlaintext }]);
     expect(found.get(id)).toEqual({ workerHalf });
@@ -595,8 +600,8 @@ describe("offers to employer_agreement_v5", () => {
   it("are withdrawn with the SentOffer record alone, found among Shield's v5 records", async () => {
     const wallet = fakeWallet();
     const id = "11".repeat(32);
-    const plaintext = `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${bytesToAleoU8Array(id)}.private\n}`;
-    const records = [{ recordName: "SentOffer", spent: true, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext.replace(bytesToAleoU8Array(id), bytesToAleoU8Array("33".repeat(32))) }];
+    const plaintext = `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${packedWords(id, 2)}.private\n}`;
+    const records = [{ recordName: "SentOffer", spent: true, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext.replace(packedWords(id, 2), packedWords("33".repeat(32), 2)) }];
     expect(sentOfferPlaintext(records, id)).toBe(plaintext);
     expect(sentOfferPlaintext(records, "44".repeat(32))).toBeNull();
     const link = { agreementId: id, partiesKey: "ab".repeat(32), nameHash: WORKER_HASH, program: AGREEMENT_V5 };

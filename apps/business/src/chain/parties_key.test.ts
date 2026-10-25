@@ -58,7 +58,7 @@ describe("parties keys from agreement records", () => {
       calls.push([program, all]);
       return [record("FinalAgreement")];
     });
-    expect(calls).toEqual([["employer_agreement_v4.aleo", true]]);
+    expect(calls).toEqual([["employer_agreement_v5.aleo", true], ["employer_agreement_v4.aleo", true]]);
     expect(keys.get("01".repeat(32))).toBe("09".repeat(32));
     expect(await readPartiesKeys(async () => "nothing" as unknown as unknown[])).toEqual(new Map());
   });
