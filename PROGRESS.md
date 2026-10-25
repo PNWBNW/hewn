@@ -4893,3 +4893,19 @@ tests) fails when an id cited in CLAUDE.md has no row, a Hewn row isn't cited in
 repeats, a check path doesn't exist (paths in `pnw_mvp_v2/` only when the submodule is checked
 out), or a row names a threat the model doesn't have. Shown failing on five planted mistakes
 first; passes with and without the chain repo present.
+
+## 2026-10-25 — A secrets scan in both repositories (ICM Step 4, first check; INV-06, T18)
+
+The first "none" row in `docs/INVARIANTS.md` gets its check. `scripts/check_secrets.py`
+(standard library, `python3 -I`; the same script in Hewn's CI and `pnw_mvp_v2`'s plan gate) reads
+every tracked file and fails on an Aleo private or view key, a GitHub or AWS token, a PEM private
+key, a token, secret, password or key assigned a long literal value, or a tracked `.env` file
+other than `.env.example`. It reports file and line, never the match, so a failing run can't leak
+what it found; a line that must keep such a string carries `secrets-scan: allow` and a reason (two
+dummy keys in `pnw_mvp_v2`'s old adapter test, whose zeros aren't key characters). Shown failing
+on six planted secrets of each kind, with the allowed line passing; both trees pass (766 and 200
+tracked files). A one-off search of the history found no key-shaped line ever added in either
+repository (241 and 596 commits) and no `.env` file but the examples. The threat model gains
+**T18, a key leaked through a repository or a log**, the gap Step 2 found; it names what the scan
+doesn't cover (seed phrases, the history going forward, CI logs). INV-06 now has a check: 16 of
+24 rules checked, 8 none.
