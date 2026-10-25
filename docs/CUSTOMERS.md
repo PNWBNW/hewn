@@ -79,11 +79,15 @@ a worker keeps the two apart, as two accounts.
 
 | | Business | Worker | Customer |
 |---|---|---|---|
-| Welcome card | Run a business | Work for a business | Hire a business (new) |
+| Welcome card | I run a business | I work for a business | I'm a client or customer (new) |
 | Vault | `hash(business + username)` | `hash(worker + username)` | `hash(customer + username)` |
 | Portal | The books (`/`) | `/work` | `/customer` (new) |
 | Name on the registry | A business name | A personal name, with a profile | A personal name, no profile |
 
+- **Sign-up.** A third card on the Welcome screen: **I'm a client or customer**, "Find
+  businesses, get invoices, pay them, and keep every receipt." (Joshua, 2026-10-26: not "I hire
+  businesses".) The note under the cards changes to say a username can hold all three, and that a
+  worker and a customer account can share a Shield account while a business needs its own.
 - **Login.** The same username and passphrase screen. The vault id already mixes in the role, so
   one username can hold a business, a worker and a customer account, each with its own vault and
   keys; when one username opens more than one, the login asks which (it does this today for a
