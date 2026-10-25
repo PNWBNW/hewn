@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch: # the Submodule pins workflow starts a run on its bump branch
 
 # Least privilege: CI reads the repo and nothing else. No secrets are used.
 permissions:
