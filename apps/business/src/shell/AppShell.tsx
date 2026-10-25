@@ -299,8 +299,8 @@ function OpenShell({ children }: { children: ReactNode }) {
   }, [drawerOpen]);
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
-      <aside className="sticky top-0 hidden h-dvh border-r border-rail-border lg:block">
+    <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr] print:block print:bg-white">
+      <aside className="sticky top-0 hidden h-dvh border-r border-rail-border lg:block print:hidden">
         <Rail pathname={pathname} role={role} setupDone={setupDone} onBackup={backup} onLock={lock} />
       </aside>
 
@@ -318,7 +318,7 @@ function OpenShell({ children }: { children: ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur sm:px-6 print:hidden">
           <button
             className="-ml-2 grid size-11 place-items-center rounded-md hover:bg-accent lg:hidden"
             aria-label={drawerOpen ? "Close menu" : "Open menu"}
