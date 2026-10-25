@@ -13,13 +13,19 @@
     "./rings": "./src/rings.ts",
     "./card": "./src/card.ts",
     "./png": "./src/png.ts",
-    "./svg": "./src/svg.ts"
+    "./svg": "./src/svg.ts",
+    "./land": "./src/land.ts",
+    "./land3d": "./src/land3d.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@pnw/brand": "workspace:*"
+    "@pnw/brand": "workspace:*",
+    "three": "0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.169.0"
   }
 }

@@ -251,7 +251,10 @@ or the hours.
    these renders (`art/prototype/`: the 2D cards, the 3D land and the 100-name checker). Begun
    2026-10-25: the business's map (its one raster a PNG written by hand, the rest lines), the
    paystub's log, the constellation and the sky, as SVG text; Settings draws a business's card
-   from it. The worker's land in 3D is next. The business's map and the paystub
+   from it. The same day, the worker's land: `land.ts` is the scene as data (the genome, the
+   terrain, the placement, the forest), `land3d.ts` the three.js render, loaded only where a land
+   is shown; Settings draws a worker's card (the bare land with the pine; landmarks wait for
+   credentials). The business's map and the paystub
    rings are SVG: deterministic text, testable byte for byte, crisp at any size and in PDFs. A
    worker's land is a 3D scene (three.js, pinned, loaded only on the pages that show it). Its
    **scene** is deterministic and tested as data (the same name and records give the same terrain,
