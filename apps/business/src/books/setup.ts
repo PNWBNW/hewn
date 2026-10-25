@@ -2,33 +2,53 @@
 // Where an account stands in its setup. Every account, business or worker,
 // links a Shield account and registers its name.hewn before it can use the
 // app (Joshua, 2026-10-15); a worker also creates the private profile behind
-// the name, as the MVP did. The app shell sends an unfinished account to
-// /settings/setup and keeps it there until this says "done".
+// the name, as the MVP did; and, since the cards program went live
+// (2026-10-25), every new account ends by issuing its card. The app shell
+// sends an unfinished account to /settings/setup and keeps it there until
+// this says "done".
 //
 // Pure: reads only what the vault already holds.
 // ---------------------------------------------------------------------------
 
+import { CARDS_SINCE } from "./card";
 import type { Rail } from "./rail";
 import type { Role, Work } from "./work";
 
-export type SetupStep = "link" | "name" | "profile" | "done";
+export type SetupStep = "link" | "name" | "profile" | "card" | "done";
 
 export const SETUP_PATH = "/settings/setup";
 
 export function setupStep({ role, rail, work }: { role: Role; rail: Rail | null | undefined; work: Work | null | undefined }): SetupStep {
   if (!rail) return "link";
+  const card = cardStepApplies(rail);
   if (role === "worker") {
     if (!work?.profile) return "name";
-    return work.profile.profileAnchored ? "done" : "profile";
+    if (!work.profile.profileAnchored) return "profile";
+    return card && !work.profile.card ? "card" : "done";
   }
-  return rail.businessNameHash ? "done" : "name";
+  if (!rail.businessNameHash) return "name";
+  return card && !rail.card ? "card" : "done";
 }
 
-/** The steps a role goes through, in order, for the progress list. */
+/**
+ * Whether setup ends with the card. An account linked before the cards program went live claims
+ * its card from Settings instead: a step here would stop it at the door, and it may hold nothing
+ * for the network fee. An account not linked yet is about to be, so it counts as new.
+ */
+export function cardStepApplies(rail: Pick<Rail, "linkedAt"> | null | undefined): boolean {
+  return !rail || Date.parse(rail.linkedAt) >= Date.parse(CARDS_SINCE);
+}
+
+/** Every step a role can go through, in order. */
 export const SETUP_STEPS: Record<Role, Exclude<SetupStep, "done">[]> = {
-  business: ["link", "name"],
-  worker: ["link", "name", "profile"],
+  business: ["link", "name", "card"],
+  worker: ["link", "name", "profile", "card"],
 };
+
+/** The steps this account goes through, for the progress list. */
+export function setupSteps(role: Role, rail: Pick<Rail, "linkedAt"> | null | undefined): Exclude<SetupStep, "done">[] {
+  return cardStepApplies(rail) ? SETUP_STEPS[role] : SETUP_STEPS[role].filter((s) => s !== "card");
+}
 
 /** Where an unfinished account must go instead of `pathname`, or null when it may stay. */
 export function setupRedirect(step: SetupStep, pathname: string): string | null {

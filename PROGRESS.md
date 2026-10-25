@@ -4568,3 +4568,21 @@ counts from the card's issue; the registry check runs at issue, so issuing leave
 and hiding is the app's permission to draw, not an erasure (`docs/HEWN_ART.md` updated, open
 question 1 closed). Next: deploy (deploy-new-program, broadcast off then on), the network checks
 in the program's README, then the app: cards at setup, the switch in Settings, the public page.
+
+## 2026-10-25 — hewn_cards_v1 deployed, and the app issues, claims and switches cards
+
+`pnw_mvp_v2` #214 records the deploy (transaction `at1wcl4ymh20vhmq3td6jt4meknl5u8uclptc2ktl5r2jk2eh6jtcyqmakzeq`,
+block 20801930, 6.12 credits; the program on chain matches main instruction for instruction).
+The app's plumbing (task A of three): `packages/config` names `hewn_cards_v1`; `books/card.ts`
+is the vault's copy of what the chain holds (`issuedAt`, `shown`, the issue block's date once
+read) on the business's rail and the worker's profile; `books/setup.ts` ends a new account's
+setup with a `card` step (an account linked before the cards program went live, 2026-10-25 00:08
+UTC, claims its card from Settings instead, so nothing stops it at the door); `chain/cards.ts`
+has the four calls' inputs, the mapping read, the wait for the entry after Shield's acceptance
+and the block's time; `chain/CardPanel.tsx` reads the chain first (a card issued on another
+device is kept), issues (a worker chooses shown or hidden, hidden by default), and switches,
+with the honest note before hiding; the setup page's card step and a "Your card" section in
+Settings ("on Hewn since", the switch, "Claim your card"). `docs/THREAT_MODEL.md` has a Cards
+section. Tests: 23 new (inputs, parsing, the explorer read, the wait, block time, the vault's
+card, the setup step and its date rule). Not yet: the renderer (B) and the public page (C), and
+the network checks in the program's README (test credits arrived; next).

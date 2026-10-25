@@ -45,6 +45,11 @@ export const PROGRAMS = {
   jobs: {
     hewn_jobs: "hewn_jobs_v1.aleo",
   },
+  // The cards every account gets (docs/HEWN_ART.md; deployed 2026-10-25): one public entry per
+  // name, the block the card was issued at (where time on Hewn counts from) and whether it is shown.
+  cards: {
+    hewn_cards: "hewn_cards_v1.aleo",
+  },
   external: {
     usdcx: "test_usdcx_stablecoin.aleo", // testnet only
     usdcx_freezelist: "test_usdcx_freezelist.aleo", // testnet only

@@ -30,6 +30,12 @@ const LetterCheck = dynamic(() => import("@/chain/LetterCheck"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
+// The account's card: claimed once by an account from before the cards, switched by a worker; fetched only when tapped.
+const CardPanel = dynamic(() => import("@/chain/CardPanel"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
 // Hewn's own report inbox; shown only to the account reports go to, fetched only when tapped.
 const ReportInbox = dynamic(() => import("@/chain/ReportInbox"), {
   ssr: false,
@@ -79,10 +85,64 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <YourCard />
+
       <RecoveryKey />
 
       <PrivatePayments />
     </div>
+  );
+}
+
+/**
+ * The account's card (docs/HEWN_ART.md): what the chain holds for the name, as the vault last saw
+ * it. An account from before the cards claims its card here; a worker switches theirs between
+ * shown and hidden here. A business's card is always shown.
+ */
+function YourCard() {
+  const { role, rail, work } = useOpenBooks();
+  const worker = role === "worker";
+  const name = worker ? work?.profile?.name : rail?.businessName;
+  const card = worker ? work?.profile?.card : rail?.card;
+  const [open, setOpen] = useState(false);
+  if (!rail || !name) return null;
+  const since = card?.since ? new Date(card.since).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{worker ? "Your card" : "Your business's card"}</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {worker
+            ? `Your land, drawn from your name, with a pine that grows with your time on ${BRAND.name}. It shows your name and your time here, nothing else.`
+            : `Your land as a map, drawn from your name, with your time on ${BRAND.name}. Public, like your name, and bound to it.`}
+        </p>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {card && (
+          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[auto_1fr]">
+            <dt className="text-muted-foreground">Name</dt>
+            <dd className="font-medium">
+              {name}.{BRAND.nameSuffix}
+            </dd>
+            <dt className="text-muted-foreground">On {BRAND.name} since</dt>
+            <dd className="font-medium">{since ?? `block ${card.issuedAt.toLocaleString()}`}</dd>
+            {worker && (
+              <>
+                <dt className="text-muted-foreground">Visibility</dt>
+                <dd className="font-medium">{card.shown ? "Shown publicly" : "Hidden"}</dd>
+              </>
+            )}
+          </dl>
+        )}
+        {open ? (
+          <CardPanel onClose={() => setOpen(false)} />
+        ) : card && !worker ? null : (
+          <Button className="min-h-11 self-start sm:min-h-9" variant={card ? "outline" : "default"} onClick={() => setOpen(true)}>
+            {card ? (card.shown ? "Hide it" : "Show it") : "Claim your card"}
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

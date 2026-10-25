@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Rail } from "./rail";
-import { SETUP_PATH, SETUP_STEPS, setupRedirect, setupStep } from "./setup";
+import { SETUP_PATH, SETUP_STEPS, cardStepApplies, setupRedirect, setupStep, setupSteps } from "./setup";
 import type { Work } from "./work";
 
 const rail = (over: Partial<Rail> = {}): Rail => ({
@@ -13,6 +13,7 @@ const rail = (over: Partial<Rail> = {}): Rail => ({
 });
 const work = (profile?: Work["profile"]): Work => ({ ...({} as Work), ...(profile ? { profile } : {}) });
 const PROFILE = { nameHash: "7", name: "ana", profileAnchored: true, registeredAt: "2026-10-15T00:00:00.000Z" };
+const CARD = { issuedAt: 20801930, shown: true, since: "2026-10-25T00:08:18.000Z" };
 
 describe("setup steps", () => {
   it("starts every account by linking Shield", () => {
@@ -37,9 +38,32 @@ describe("setup steps", () => {
     expect(setupStep({ role: "business", rail: rail(), work: work(PROFILE) })).toBe("name");
   });
 
+  it("ends a new account's setup with its card, after the name or the profile", () => {
+    const fresh = rail({ linkedAt: "2026-10-25T01:00:00.000Z" });
+    expect(setupStep({ role: "business", rail: fresh, work: null })).toBe("name");
+    expect(setupStep({ role: "business", rail: { ...fresh, businessNameHash: "123", businessName: "dayco" }, work: null })).toBe("card");
+    expect(setupStep({ role: "business", rail: { ...fresh, businessNameHash: "123", businessName: "dayco", card: CARD }, work: null })).toBe("done");
+    expect(setupStep({ role: "worker", rail: fresh, work: work({ ...PROFILE, profileAnchored: false }) })).toBe("profile");
+    expect(setupStep({ role: "worker", rail: fresh, work: work(PROFILE) })).toBe("card");
+    expect(setupStep({ role: "worker", rail: fresh, work: work({ ...PROFILE, card: CARD }) })).toBe("done");
+  });
+
+  it("lets an account from before the cards in without one: it claims its card from Settings", () => {
+    const before = rail({ linkedAt: "2026-10-24T23:00:00.000Z", businessNameHash: "123", businessName: "dayco" });
+    expect(setupStep({ role: "business", rail: before, work: null })).toBe("done");
+    expect(setupStep({ role: "worker", rail: rail({ linkedAt: "2026-10-24T23:00:00.000Z" }), work: work(PROFILE) })).toBe("done");
+    expect(cardStepApplies(before)).toBe(false);
+    expect(cardStepApplies(rail({ linkedAt: "2026-10-25T00:08:18.000Z" }))).toBe(true);
+    expect(cardStepApplies(null)).toBe(true);
+  });
+
   it("lists the steps each role goes through", () => {
-    expect(SETUP_STEPS.business).toEqual(["link", "name"]);
-    expect(SETUP_STEPS.worker).toEqual(["link", "name", "profile"]);
+    expect(SETUP_STEPS.business).toEqual(["link", "name", "card"]);
+    expect(SETUP_STEPS.worker).toEqual(["link", "name", "profile", "card"]);
+    expect(setupSteps("business", null)).toEqual(["link", "name", "card"]);
+    expect(setupSteps("worker", rail({ linkedAt: "2026-10-25T01:00:00.000Z" }))).toEqual(["link", "name", "profile", "card"]);
+    expect(setupSteps("business", rail())).toEqual(["link", "name"]);
+    expect(setupSteps("worker", rail())).toEqual(["link", "name", "profile"]);
   });
 });
 
@@ -48,6 +72,7 @@ describe("setup redirect", () => {
     for (const path of ["/", "/payroll", "/work", "/settings", "/mailbox"]) expect(setupRedirect("link", path)).toBe(SETUP_PATH);
     expect(setupRedirect("name", SETUP_PATH)).toBeNull();
     expect(setupRedirect("profile", "/work/profile")).toBe(SETUP_PATH);
+    expect(setupRedirect("card", "/settings")).toBe(SETUP_PATH);
   });
 
   it("lets a finished account go anywhere, the setup page included", () => {

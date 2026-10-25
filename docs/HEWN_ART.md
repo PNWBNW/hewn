@@ -258,10 +258,13 @@ or the hours.
    the season moves on.
 2. **Paystub rings** on the person's Paystubs and the business's paystub view, and in the PDF.
    App only: no Leo.
-   **The cards program**, `hewn_cards_v1` (staged 2026-10-24; deploy, then the app: a business's
-   card issued in the same setup that registers its name, a worker asked at setup whether theirs
-   is shown, the switch in Settings, existing accounts claiming theirs once, and the public page
-   that draws a business's card from its name).
+   **The cards program**, `hewn_cards_v1`, deployed 2026-10-25, and the app's plumbing for it the
+   same day: a new account ends setup by issuing its card (a business's after its name, a worker's
+   after their profile, with the shown-or-hidden choice), an account from before the cards claims
+   its card once from Settings, a worker switches theirs there (the honest note first), and
+   Settings shows "on Hewn since" from the issue block (`chain/cards.ts`, `chain/CardPanel.tsx`,
+   `books/card.ts`). The vault keeps a copy of what the chain holds; the chain is the truth. Still
+   to come: the public page that draws a business's card from its name, once the renderer exists.
 3. **Credential cards**, which need a credential program: the deployed `credential_nft_v3` and
    `v4` check agreements in `employer_agreement_v4`, so a v5 agreement can't mint one. A new
    program (new Leo, Fable 5.1 at high effort, must-fail tests), then the cards.
