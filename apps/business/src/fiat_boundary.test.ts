@@ -1,7 +1,8 @@
-// Fiat first: the business app must run with no wallet, no network and no
-// chain package loaded (CLAUDE.md, "Boundaries"). And a fiat user never sees
-// chain vocabulary until they choose to turn anchoring on (BUILD_PLAN.md,
-// Phase 1 headless mode).
+// The books without the chain: the ledger core, the vault, the reports and
+// payroll run with no chain package loaded, and screens outside src/chain
+// carry no chain vocabulary (CLAUDE.md, "Boundaries"). Every account links
+// Shield at setup since 2026-10-15 (the old "fiat first" rule is retired), but
+// the books still open and work offline without it.
 //
 // The chain adaptor lives in src/chain and is the only code allowed to import
 // a chain package or use chain words. Everything else reaches it through a

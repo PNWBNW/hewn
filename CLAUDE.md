@@ -26,11 +26,13 @@ company and protocol namespace).
 
 ## Session start
 
-1. Read `BUILD_PLAN.md` and the last few entries of `PROGRESS.md` (it is long; the newest entries
-   are at the end).
-2. Find the current phase (first phase with an unchecked exit criterion). Report to Joshua in
-   10 lines or fewer: current phase, what's done, what's next, any blocker. Then propose **one** task
-   aimed at **one** exit criterion, and wait for his go-ahead before writing code.
+1. Read the **Now** block at the top of `BUILD_PLAN.md`, the phase it names, and the last few
+   entries of `PROGRESS.md` (it is long; the newest entries are at the end).
+2. The current phase is the one the Now block names (not the first phase with an open box: older
+   phases keep leftovers that wait on other things). Report to Joshua in 10 lines or fewer: current
+   phase, what's done, what's next, any blocker. Then propose **one** task aimed at **one** exit
+   criterion, and wait for his go-ahead before writing code. When the work moves, update the Now
+   block in the same PR.
 
 ## Where to look
 

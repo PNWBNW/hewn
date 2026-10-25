@@ -89,8 +89,9 @@ appeared and refuses the same hash twice. On chain, the only new things are:
 
 That is one tap a month for a monthly close, no matter how many paychecks the period holds.
 
-`gl_core.aleo::anchor_period_root` (Phase 1, a Fable session) will replace it later, adding
-on-chain period status (open, closed, locked). The root format above doesn't change, so roots
+A small period-status program (Phase 1, *feed, reconcile, seal*; a Fable session) will replace it
+later, adding on-chain period status (open, closed, locked) and no postings; it replaces the
+`gl_core.aleo::anchor_period_root` first planned here (2026-10-25). The root format above doesn't change, so roots
 anchored before then stay valid.
 
 ## 3. The payment proof
@@ -175,6 +176,6 @@ guard is planned: it would wrap the transfer in a two-call function, which Shiel
 3. **Audit pack export and the verify page** (Opus). Scopes one to three, with the verifier
    tested against a fixture pack, including failing ones.
 4. **The worker's own proof** (Opus, after the SDK check in §4).
-5. **`gl_core.aleo::anchor_period_root`** (Fable, Phase 1). Takes over from
-   `payroll_audit_log`, same root format.
+5. **The period-status program** (Fable, Phase 1; replaced `gl_core.aleo::anchor_period_root`
+   on 2026-10-25). Takes over from `payroll_audit_log`, same root format.
 6. **Claims with a minimum group size** (Fable, Phase 4).
