@@ -24,6 +24,7 @@ import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./sc
 import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, validateHoursChange } from "./hours_change";
 import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from "./report";
 import { MAX_EVENT_TITLE } from "./events";
+import { type Bill, validateBill } from "./bill";
 import { type HalfOnWire, type KeyRing, emptyRing, noteReceived, noteSent, validateHalfOnWire, validateKeyRing } from "./key_ring";
 
 export type Side = "business" | "worker";
@@ -78,6 +79,10 @@ export type ThreadBody =
   | { type: "application"; postingId: string; name: string; nameHash: string; message: string; resume: string }
   /** The business says where an application stands. */
   | { type: "application_status"; postingId: string; status: ApplicationStatus }
+  /** A business sends a connected customer an invoice (books/bill.ts). */
+  | { type: "invoice"; bill: Bill }
+  /** A business voids an invoice it sent: the customer no longer owes it. */
+  | { type: "invoice_void"; id: string; number: string }
   /** The business publishes the person's week (books/schedule.ts): shift blocks and on-call days, and an optional note. */
   | { type: "schedule"; week: ScheduleWeek; note: string }
   /** The person confirms the week published in message `scheduleId`, or asks for a change, with a note. */
@@ -165,6 +170,8 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   group_leave: "either",
   application: "worker",
   application_status: "business",
+  invoice: "business",
+  invoice_void: "business",
   schedule: "business",
   schedule_answer: "worker",
   hours_change: "either",
@@ -356,6 +363,18 @@ function validateBody(raw: unknown): ThreadBody {
     case "application_status": {
       if (!APPLICATION_STATUSES.includes(raw.status as ApplicationStatus)) throw new ThreadError("That application status isn't one this app knows");
       return { type: "application_status", postingId: postingId(raw.postingId), status: raw.status as ApplicationStatus };
+    }
+    case "invoice": {
+      try {
+        return { type: "invoice", bill: validateBill(raw.bill) };
+      } catch (e) {
+        throw new ThreadError(e instanceof Error ? e.message : "That invoice isn't valid");
+      }
+    }
+    case "invoice_void": {
+      if (typeof raw.id !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(raw.id)) throw new ThreadError("A void needs the invoice's id");
+      if (typeof raw.number !== "string" || !raw.number.trim() || [...raw.number].length > 40) throw new ThreadError("A void needs the invoice's number");
+      return { type: "invoice_void", id: raw.id, number: raw.number };
     }
     case "text": {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
@@ -624,6 +643,8 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "backup_request") return item.mine ? "You asked to back up this conversation" : "Asked to back up this conversation";
   if (b.type === "backup_answer") return b.allow ? (item.mine ? "You allowed the backup" : "Allowed the backup") : item.mine ? "You declined the backup" : "Declined the backup";
   if (b.type === "sealed") return "A sealed message";
+  if (b.type === "invoice") return item.mine ? `You sent invoice ${b.bill.number}` : `Sent you invoice ${b.bill.number}`;
+  if (b.type === "invoice_void") return item.mine ? `You voided invoice ${b.number}` : `Voided invoice ${b.number}`;
   if (b.type === "report_notice") return item.mine ? `You reported their message as ${REPORT_AS[b.category]}` : `Reported your message as ${REPORT_AS[b.category]}`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";

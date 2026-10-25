@@ -64,9 +64,10 @@ export const WORK_NAV: NavItem[] = [
   { href: "/work/profile", label: "Profile", icon: IdCard },
 ];
 
-/** A business's client: only what they do with the businesses they hire (docs/CUSTOMERS.md). Bills and payments come next. */
+/** A business's client: only what they do with the businesses they hire (docs/CUSTOMERS.md). Paying comes next. */
 export const CUSTOMER_NAV: NavItem[] = [
   { href: "/customer", label: "Home", icon: Home, art: "dashboard" },
+  { href: "/customer/bills", label: "Bills", icon: FileText },
   { href: "/customer/businesses", label: "Businesses", icon: Briefcase },
   { href: "/customer/messages", label: "Messages", icon: MessageSquare, art: "messages" },
 ];

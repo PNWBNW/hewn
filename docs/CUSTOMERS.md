@@ -16,8 +16,10 @@ Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
 - [x] A business and a customer connect, either one starting, and message each other privately
   (Step 1, no new Leo). Built 2026-10-26: a hello each way, then a shared key (`docs/LETTERS.md`,
   Businesses and their customers).
-- [ ] Invoices sent to a connected customer, paid from the customer's Shield account, matched on
-  the business's side (Step 1, no new Leo).
+- [x] Invoices sent to a connected customer and shown under Bills (Step 1, no new Leo). Built
+  2026-10-26.
+- [ ] Bills paid from the customer's Shield account, with a receipt, matched on the business's
+  side (Step 1, no new Leo).
 - [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
 - [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
   up later; business posts, public or sealed. Free for now; $1 later in a new version.
@@ -135,10 +137,13 @@ stablecoin's own private transfer, the registry):
    Each side sends a hello with a fresh public key, one approval each, and from then on everything
    between them is sealed under a key only the two can make (`docs/LETTERS.md`). Messages work
    from here.
-2. **The business sends an invoice:** **Send to customer** on an invoice seals it as a letter to
-   the customer's account: number, lines, total, due date, and the business account to pay. One
-   approval in the business's Shield.
-3. **The customer sees it under Bills,** read from their own letters by the portal.
+2. **The business sends an invoice** (built 2026-10-26): once an invoice is sent in the books, Sales
+   → Invoices lists it under **To send to customers on Hewn** while its customer is connected and
+   hasn't had it; **Send** puts it in their conversation (number, dates, lines, tax, total, memo;
+   nothing of the books' accounts), one approval. Voiding it later lists **Tell them**.
+3. **The customer sees it under Bills** (built 2026-10-26): every invoice from each connected
+   business, the latest copy, voided when the business said so; opened in full, and the open total
+   on Home. Bills checks each conversation for what's new.
 4. **The customer pays it:** **Pay** sends exactly the invoice's amount as a private USDCx
    transfer from their Shield account to the business's, then a receipt letter to the business
    naming the invoice and the transaction. Two approvals: the payment, then the receipt. The

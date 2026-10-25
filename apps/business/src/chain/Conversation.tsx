@@ -22,6 +22,7 @@ import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { formatCents } from "@pnw/ledger";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { shortAddress } from "@/books/rail";
 import { QuotedNote } from "@/books/NegotiationView";
@@ -515,6 +516,23 @@ function Bubble({ item, title, offersHref }: { item: ThreadItem; title: string; 
           <summary className="cursor-pointer text-xs font-medium text-primary">Resume</summary>
           <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">{b.resume}</pre>
         </details>
+      </div>
+    );
+  }
+  if (b.type === "invoice") {
+    // An invoice to a customer: what it's for, what's owed and by when. Paying happens under Bills.
+    return (
+      <div className="flex max-w-[90%] flex-col gap-1 rounded-xl border border-primary/40 bg-card px-3 py-2 text-sm">
+        <span className="font-medium">{item.mine ? `You sent invoice ${b.bill.number}` : `Invoice ${b.bill.number} from ${title}`}</span>
+        <span>
+          ${formatCents(BigInt(b.bill.total))} · due {b.bill.dueDate}
+        </span>
+        {b.bill.lines.slice(0, 3).map((l, i) => (
+          <span key={i} className="truncate text-xs text-muted-foreground">
+            {l.description || "A line"} · {l.quantity} × ${formatCents(BigInt(l.unitPrice))}
+          </span>
+        ))}
+        {b.bill.lines.length > 3 && <span className="text-xs text-muted-foreground">and {b.bill.lines.length - 3} more</span>}
       </div>
     );
   }

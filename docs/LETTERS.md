@@ -233,7 +233,8 @@ says hello first. Nothing new is deployed:
   exchange, with its own salt). Neither side sends it, and a view key that reads both hellos
   can't make it.
 - **The conversation.** It is sealed under that key in the usual conversation slots: the business
-  writes `cl_b`, the customer `cl_c`. Only plain messages for now; invoices and payments come next.
+  writes `cl_b`, the customer `cl_c`: plain messages, and the business's invoices (`invoice`,
+  `books/bill.ts`) and voids (`invoice_void`). Payments come next.
   A new hello with a new key starts the conversation afresh.
 - **Either side starts.** A business connects a customer it added by registered name; a customer
   finds a business by its name. The other answers by sending its own hello, or turns the request

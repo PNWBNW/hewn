@@ -22,6 +22,7 @@ index is out of date.
 - [Backing up with the account: finding and restoring (part 3 of 4)](progress/2026-10-26.md#2026-10-26--backing-up-with-the-account-finding-and-restoring-part-3-of-4)
 - [Customers: their own accounts (Step 1, first part)](progress/2026-10-26.md#2026-10-26--customers-their-own-accounts-step-1-first-part)
 - [Customers: businesses and customers connect, and message (Step 1, second part)](progress/2026-10-26.md#2026-10-26--customers-businesses-and-customers-connect-and-message-step-1-second-part)
+- [Customers: invoices reach the customer's Bills (Step 1, third part)](progress/2026-10-26.md#2026-10-26--customers-invoices-reach-the-customers-bills-step-1-third-part)
 
 ## [2026-10-25](progress/2026-10-25.md)
 
