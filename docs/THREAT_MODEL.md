@@ -25,7 +25,7 @@ Status: ✅ in place · 🔜 planned (phase) · ⚠️ accepted risk.
 
 ## Threats
 
-Each threat has an id, T1 to T17; the later ones head their own dated sections below. Ids never
+Each threat has an id, T1 to T18; the later ones head their own dated sections below. Ids never
 change once given and are never reused: cite them from code, from migration notes and from
 [`INVARIANTS.md`](INVARIANTS.md), which ties every rule to the threats it answers and the check
 that enforces it.
@@ -499,4 +499,25 @@ hash and its account are public there by design).
   `shown` is true, and to a visitor a hidden card reads exactly like no card ("no public card"),
   so the page states nothing about a person beyond what it draws. No account, no Shield, nothing
   written, nothing logged (`chain/public_card.ts`). ✅
+
+## T18 — A key leaked through a repository or a log (2026-10-25)
+
+Both repositories are public, and agents as well as people commit to them. A private key, view
+key, token or `.env` file committed once is public for good: deleting it later leaves it in the
+history and in every fork and clone. The admin key that deploys the programs is the one whose loss
+would cost most.
+
+- **The admin key never touches a repository.** It lives only in the GitHub secret
+  `ADMIN_PRIVATE_KEY` (environment `testnet-staging`) and is read by the deploy workflows, which
+  print a redacted form. ✅
+- **A secrets scan runs in CI in both repositories** (`scripts/check_secrets.py`): Aleo private
+  and view keys, GitHub and AWS tokens, PEM private keys, a token, secret, password or key assigned
+  a long literal value, and any tracked `.env` file other than `.env.example`. It reports the file
+  and line, never the match. ✅
+- **Test accounts' keys stay off the repositories**: scripts read them from a file outside the
+  checkout and never print them. ✅ (by practice; the scan is the backstop)
+- ⚠️ **Not covered:** seed phrases (ordinary words the scan can't tell from text), the git
+  history (the scan reads the tree as it is; a one-off history check found nothing on
+  2026-10-25), and anything printed by a tool the scan doesn't see, such as a CI log. If a real key
+  is ever found: treat it as leaked, move what it holds, make a new one, then remove it.
 
