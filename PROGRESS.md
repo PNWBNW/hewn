@@ -25,6 +25,7 @@ index is out of date.
 - [Customers: invoices reach the customer's Bills (Step 1, third part)](progress/2026-10-26.md#2026-10-26--customers-invoices-reach-the-customers-bills-step-1-third-part)
 - [Customers: paying a bill from Shield (Step 1, fourth part)](progress/2026-10-26.md#2026-10-26--customers-paying-a-bill-from-shield-step-1-fourth-part)
 - [Customers: a printable invoice (Step 1, fifth part)](progress/2026-10-26.md#2026-10-26--customers-a-printable-invoice-step-1-fifth-part)
+- [Customers: agreements for a job, and disconnecting](progress/2026-10-26.md#2026-10-26--customers-agreements-for-a-job-and-disconnecting)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

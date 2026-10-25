@@ -16,6 +16,10 @@ Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
 - [x] A business and a customer connect, either one starting, and message each other privately
   (Step 1, no new Leo). Built 2026-10-26: a hello each way, then a shared key (`docs/LETTERS.md`,
   Businesses and their customers).
+- [x] Agreements for a job in the conversation (decision 20): the business proposes or revises,
+  the customer accepts, asks for changes or declines, either side marks it complete or cancels;
+  and either side disconnects. Built 2026-10-26.
+- [ ] An invoice names its agreement when there is one (decision 21).
 - [x] Invoices sent to a connected customer and shown under Bills (Step 1, no new Leo). Built
   2026-10-26.
 - [x] Bills paid from the customer's Shield account, the business told, and recorded on the
@@ -84,6 +88,12 @@ everything about them private. A customer can:
     always runs its own Shield account (2026-10-26).
 19. Order: the account backup's restore (`docs/CHAIN_BACKUP.md` part 3) first, then Step 1 here,
     greenlit for its screens (2026-10-26).
+20. A business and a customer link before any invoice: either just linked (both connect) or with
+    an agreement for a job that both agree to. Agreements travel in the conversation for now
+    (option A: kept in both vaults, nothing public); the on-chain `hewn_service_v1` takes them over
+    later. Either side can disconnect, and then no invoice can be sent (2026-10-26).
+21. An invoice names the agreement it's under when there is one for that job, chosen from the
+    agreed ones; it doesn't have to (2026-10-26).
 
 ## Accounts (decision 17)
 

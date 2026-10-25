@@ -4,14 +4,17 @@
 // The conversation between a business and a customer, once both hellos are
 // in: the shared key is made on this device (chain/clients.ts
 // `connectionKey`), then it is the same conversation screen as everywhere
-// else, with its own slots and only the kinds of message the two may send.
+// else, with its own slots and only the kinds of message the two may send,
+// under the agreements between them (chain/clients/Agreements.tsx).
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
 import type { Connection } from "@/books/connections";
 import type { Side, Thread } from "@/books/thread";
+import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { CLIENT_KINDS, clientAccepts, connectionKey } from "../clients";
 import Conversation from "../Conversation";
+import { Agreements } from "./Agreements";
 
 export default function ClientConversation({
   side,
@@ -40,7 +43,11 @@ export default function ClientConversation({
   if (error) return <p className="text-sm text-destructive">{error}</p>;
   if (!key) return <p className="text-sm text-muted-foreground">Opening…</p>;
   return (
-    <Conversation
+    <div className="flex flex-col gap-4">
+      <AleoWalletProviderWrapper>
+        <Agreements side={side} connection={connection} partiesKey={key} title={title} update={update} />
+      </AleoWalletProviderWrapper>
+      <Conversation
       side={side}
       partiesKey={key}
       title={title}
@@ -51,6 +58,7 @@ export default function ClientConversation({
       accept={clientAccepts}
       peer={connection.address}
       subtitle="Sealed to the two of you"
-    />
+      />
+    </div>
   );
 }

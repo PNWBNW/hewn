@@ -18,7 +18,7 @@
 
 import type { Half } from "./key_ring";
 import { validateHalf } from "./key_ring";
-import { PUBLIC_KEY, type Thread, validateThread } from "./thread";
+import { PUBLIC_KEY, type Thread, type ThreadItem, validateThread } from "./thread";
 
 /** Who said hello. */
 export type HelloSide = "business" | "customer";
@@ -46,6 +46,12 @@ export type Connection = {
   customerId?: string;
   /** The conversation, once connected. */
   thread?: Thread;
+  /** What was said before the connection ended or its key changed: bills, agreements and payments stay readable. */
+  past?: ThreadItem[];
+  /** When the connection last ended (either side disconnected). */
+  endedAt?: string;
+  /** Their keys from connections that ended: a hello carrying one is an old letter, not a new request. */
+  retired?: string[];
 };
 
 export type Connections = Record<string, Connection>;
@@ -59,8 +65,10 @@ export type ConnectionState =
   | "waiting"
   /** Neither yet (a customer added by name, not connected). */
   | "none"
-  /** I turned their request down. */
-  | "ignored";
+  /** I turned their request down, or I disconnected. */
+  | "ignored"
+  /** They disconnected; either side can connect again. */
+  | "ended";
 
 export function connectionState(c: Connection | undefined): ConnectionState {
   if (!c) return "none";
@@ -68,10 +76,14 @@ export function connectionState(c: Connection | undefined): ConnectionState {
   if (c.ignored) return "ignored";
   if (c.theirs) return "asked";
   if (c.mine && c.helloAt) return "waiting";
+  if (c.endedAt) return "ended";
   return "none";
 }
 
 export const MAX_CONNECTIONS = 500;
+/** The most messages kept from before a connection ended or changed key. */
+export const MAX_PAST = 2_000;
+const MAX_RETIRED = 32;
 const ADDRESS = /^aleo1[02-9ac-hj-np-z]{58}$/;
 const NAME = /^[a-z0-9_]{1,32}$/;
 const FIELD = /^\d{1,78}$/;
@@ -119,6 +131,18 @@ export function validateConnection(raw: unknown): Connection {
     out.customerId = r.customerId;
   }
   if (r.thread !== undefined) out.thread = validateThread(r.thread);
+  if (r.past !== undefined) {
+    if (!Array.isArray(r.past) || r.past.length > MAX_PAST) throw new ConnectionError("A connection's history is damaged");
+    out.past = validateThread({ items: r.past, nextIn: 0, nextOut: 0 }).items;
+  }
+  if (r.retired !== undefined) {
+    if (!Array.isArray(r.retired) || r.retired.length > MAX_RETIRED || !r.retired.every((k) => typeof k === "string" && PUBLIC_KEY.test(k))) throw new ConnectionError("A connection's old keys are damaged");
+    out.retired = [...r.retired] as string[];
+  }
+  if (r.endedAt !== undefined) {
+    if (!iso(r.endedAt)) throw new ConnectionError("A connection's end time is damaged");
+    out.endedAt = r.endedAt;
+  }
   return out;
 }
 
@@ -165,12 +189,12 @@ export function keepMine(conns: Connections, who: { address: string; name: strin
 export function noteHelloReceived(conns: Connections, sender: string, hello: Hello, at: string): Connections {
   const before = conns[sender];
   if (!before && Object.keys(conns).length >= MAX_CONNECTIONS) return conns; // full: nothing new is taken
-  if (before?.theirs === hello.publicKey) return conns;
+  if (before?.theirs === hello.publicKey || before?.retired?.includes(hello.publicKey)) return conns;
   const base: Connection = before ?? { address: sender, name: hello.name, nameHash: hello.nameHash };
-  const { thread: _old, ...rest } = base;
+  const { thread: old, ...rest } = base;
   const next: Connection = { ...rest, name: hello.name, nameHash: hello.nameHash, theirs: hello.publicKey, receivedAt: at };
-  // A new key from them means a new conversation; the old one stays readable only while its key holds.
-  if (before?.thread && !before.theirs) next.thread = before.thread;
+  // A new key from them means a new conversation; what was said before is kept as history.
+  if (old?.items.length) next.past = [...(base.past ?? []), ...old.items].slice(-MAX_PAST);
   return { ...conns, [sender]: validateConnection(next) };
 }
 
@@ -188,12 +212,36 @@ export function linkCustomer(conns: Connections, address: string, customerId: st
   return { ...conns, [address]: { ...c, customerId } };
 }
 
-/** Applies a change to one connection's conversation. */
+/**
+ * Applies a change to one connection's conversation. A disconnect in it (sent by either side) ends
+ * the connection there and then: see `endConnection`.
+ */
 export function updateConnectionThread(conns: Connections, address: string, change: (t: Thread) => Thread, empty: () => Thread): Connections {
   const c = conns[address];
   if (!c) throw new ConnectionError("No connection with that account");
-  return { ...conns, [address]: { ...c, thread: change(c.thread ?? empty()) } };
+  const thread = change(c.thread ?? empty());
+  const ended = thread.items.find((i) => i.body.type === "disconnect");
+  const next = { ...conns, [address]: { ...c, thread } };
+  return ended ? endConnection(next, address, { byMe: ended.mine, at: ended.receivedAt ?? ended.sentAt }) : next;
 }
+
+/**
+ * Ends a connection: both keys are dropped, so nothing more can be sealed or read under them, and
+ * what was said is kept as history. When I ended it, their later hellos are ignored until I connect
+ * again; when they did, either side may.
+ */
+export function endConnection(conns: Connections, address: string, { byMe, at }: { byMe: boolean; at: string }): Connections {
+  const c = conns[address];
+  if (!c) throw new ConnectionError("No connection with that account");
+  const { mine: _m, theirs: _t, helloAt: _h, receivedAt: _r, thread, ignored: _i, ...rest } = c;
+  const past = [...(c.past ?? []), ...(thread?.items ?? [])].slice(-MAX_PAST);
+  const retired = [...(c.retired ?? []), ...(c.theirs ? [c.theirs] : [])].slice(-MAX_RETIRED);
+  const next: Connection = { ...rest, endedAt: at, ...(past.length ? { past } : {}), ...(retired.length ? { retired } : {}), ...(byMe ? { ignored: true as const } : {}) };
+  return { ...conns, [address]: validateConnection(next) };
+}
+
+/** Everything said in a connection, history first. */
+export const itemsOf = (c: Pick<Connection, "past" | "thread"> | undefined): ThreadItem[] => [...(c?.past ?? []), ...(c?.thread?.items ?? [])];
 
 /** The connections that asked and haven't been answered or turned down: newest first. */
 export const requestsIn = (conns: Connections | undefined): Connection[] =>

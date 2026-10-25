@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { type Invoice, type Sales, invoiceTotals } from "@pnw/sales";
-import type { Connections } from "./connections";
+import { type Connections, itemsOf } from "./connections";
 import { type BillPayment, billKey } from "./customer";
 import type { ThreadItem } from "./thread";
 
@@ -114,7 +114,7 @@ export function invoicesToDeliver(sales: Pick<Sales, "invoices">, conns: Connect
   for (const inv of sales.invoices) {
     const conn = byCustomer.get(inv.customerId);
     if (!conn) continue;
-    const delivered = deliveryOf(conn.thread?.items, inv.id);
+    const delivered = deliveryOf(itemsOf(conn), inv.id);
     if (inv.state === "sent" && delivered === "not_sent") out.push({ invoice: inv, address: conn.address, send: "invoice" });
     if (inv.state === "void" && delivered === "sent") out.push({ invoice: inv, address: conn.address, send: "void" });
   }
@@ -140,7 +140,7 @@ export function billsIn(conns: Connections | undefined, payments?: Record<string
   const out: BillView[] = [];
   for (const c of Object.values(conns ?? {})) {
     const bills = new Map<string, BillView>();
-    for (const i of c.thread?.items ?? []) {
+    for (const i of itemsOf(c)) {
       if (i.mine) continue;
       if (i.body.type === "invoice") {
         const before = bills.get(i.body.bill.id);

@@ -118,7 +118,7 @@ function Clients() {
       const reg = registeredFor(rail, "customer", c.id);
       if (!reg) return [];
       const state = connectionState(clients?.[reg.address]);
-      return state === "none" || state === "waiting" || state === "ignored" ? [{ id: c.id, label: c.name, state, who: { address: reg.address, name: reg.name, nameHash: reg.nameHash } }] : [];
+      return state === "none" || state === "waiting" || state === "ignored" || state === "ended" ? [{ id: c.id, label: c.name, state, who: { address: reg.address, name: reg.name, nameHash: reg.nameHash } }] : [];
     });
   const ready = !!letters && !!me;
 
@@ -165,7 +165,7 @@ function Clients() {
               <span className="min-w-0 flex-1 truncate text-sm">
                 {r.label}{" "}
                 <span className="text-xs text-muted-foreground">
-                  {r.state === "waiting" ? "· waiting for them to connect" : `· ${r.who.name}.${BRAND.nameSuffix}`}
+                  {r.state === "waiting" ? "· waiting for them to connect" : r.state === "ended" || r.state === "ignored" ? "· disconnected" : `· ${r.who.name}.${BRAND.nameSuffix}`}
                 </span>
               </span>
               <Button variant={r.state === "waiting" ? "ghost" : "outline"} size="sm" className="min-h-11 sm:min-h-8" disabled={!ready || busy !== null} onClick={() => void connect(r.who)}>
@@ -177,12 +177,19 @@ function Clients() {
       )}
 
       {connected.length > 0 && (
-        <p className="text-sm">
-          Connected with {connected.map((c) => c.name).join(", ")}.{" "}
-          <Link href="/messages" className="underline underline-offset-4">
-            Messages
-          </Link>
-        </p>
+        <ul className="divide-y rounded-md border">
+          {connected.map((c) => (
+            <li key={c.address}>
+              <Link href={`/messages?client=${encodeURIComponent(c.address)}`} className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">
+                  {(c.customerId && sales.customers.find((x) => x.id === c.customerId)?.name) || c.name}{" "}
+                  <span className="text-xs text-muted-foreground">· connected</span>
+                </span>
+                <span className="text-xs underline underline-offset-4">Agreements and messages</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
       {checked && requests.length === 0 && reachable.length === 0 && connected.length === 0 && (
         <p className="text-sm text-muted-foreground">No customers on {BRAND.name} yet. Add one by their registered name, or give them yours.</p>

@@ -25,6 +25,7 @@ import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, valida
 import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from "./report";
 import { MAX_EVENT_TITLE } from "./events";
 import { type Bill, validateBill } from "./bill";
+import { type CloseReason, type ServiceAnswer, type ServiceTerms, serviceId, serviceNote, serviceRev, validateTerms } from "./service";
 import { type HalfOnWire, type KeyRing, emptyRing, noteReceived, noteSent, validateHalfOnWire, validateKeyRing } from "./key_ring";
 
 export type Side = "business" | "worker";
@@ -83,6 +84,14 @@ export type ThreadBody =
   | { type: "invoice"; bill: Bill }
   /** A business voids an invoice it sent: the customer no longer owes it. */
   | { type: "invoice_void"; id: string; number: string }
+  /** A business proposes the terms of one job to a connected customer, or revises them (books/service.ts). */
+  | { type: "agreement_offer"; terms: ServiceTerms }
+  /** The customer accepts a proposal's revision, asks for changes to it, or declines it. */
+  | { type: "agreement_answer"; id: string; rev: number; answer: ServiceAnswer; note?: string }
+  /** Either side ends an agreed job: done, or called off. */
+  | { type: "agreement_close"; id: string; reason: CloseReason; note?: string }
+  /** Either side ends the connection: no more invoices or messages until both connect again. */
+  | { type: "disconnect" }
   /** A customer paid an invoice from Shield: which one, how much (cents), and the transfer. The business checks it against its own account. */
   | { type: "payment"; invoiceId: string; number: string; amount: string; transactionId: string }
   /** The business publishes the person's week (books/schedule.ts): shift blocks and on-call days, and an optional note. */
@@ -175,6 +184,10 @@ export const SENDS: Record<ThreadBody["type"], Side | "either"> = {
   invoice: "business",
   invoice_void: "business",
   payment: "worker",
+  agreement_offer: "business",
+  agreement_answer: "worker",
+  agreement_close: "either",
+  disconnect: "either",
   schedule: "business",
   schedule_answer: "worker",
   hours_change: "either",
@@ -379,6 +392,33 @@ function validateBody(raw: unknown): ThreadBody {
       if (typeof raw.number !== "string" || !raw.number.trim() || [...raw.number].length > 40) throw new ThreadError("A void needs the invoice's number");
       return { type: "invoice_void", id: raw.id, number: raw.number };
     }
+    case "agreement_offer": {
+      try {
+        return { type: "agreement_offer", terms: validateTerms(raw.terms) };
+      } catch (e) {
+        throw new ThreadError(e instanceof Error ? e.message : "That proposal isn't valid");
+      }
+    }
+    case "agreement_answer": {
+      if (raw.answer !== "accept" && raw.answer !== "changes" && raw.answer !== "decline") throw new ThreadError("An answer accepts, asks for changes or declines");
+      try {
+        const note = serviceNote(raw.note);
+        return { type: "agreement_answer", id: serviceId(raw.id), rev: serviceRev(raw.rev), answer: raw.answer, ...(note ? { note } : {}) };
+      } catch (e) {
+        throw new ThreadError(e instanceof Error ? e.message : "That answer isn't valid");
+      }
+    }
+    case "agreement_close": {
+      if (raw.reason !== "complete" && raw.reason !== "cancelled") throw new ThreadError("A job ends complete or cancelled");
+      try {
+        const note = serviceNote(raw.note);
+        return { type: "agreement_close", id: serviceId(raw.id), reason: raw.reason, ...(note ? { note } : {}) };
+      } catch (e) {
+        throw new ThreadError(e instanceof Error ? e.message : "That close isn't valid");
+      }
+    }
+    case "disconnect":
+      return { type: "disconnect" };
     case "payment": {
       if (typeof raw.invoiceId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(raw.invoiceId)) throw new ThreadError("A payment needs the invoice's id");
       if (typeof raw.number !== "string" || !raw.number.trim() || [...raw.number].length > 40) throw new ThreadError("A payment needs the invoice's number");
@@ -656,6 +696,13 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "invoice") return item.mine ? `You sent invoice ${b.bill.number}` : `Sent you invoice ${b.bill.number}`;
   if (b.type === "invoice_void") return item.mine ? `You voided invoice ${b.number}` : `Voided invoice ${b.number}`;
   if (b.type === "payment") return item.mine ? `You paid invoice ${b.number}` : `Paid invoice ${b.number}`;
+  if (b.type === "agreement_offer") return `${item.mine ? "You proposed" : "Proposed"} “${b.terms.title}”${b.terms.rev > 1 ? " (revised)" : ""}`;
+  if (b.type === "agreement_answer") {
+    const what = b.answer === "accept" ? "accepted the agreement" : b.answer === "changes" ? "asked for changes to the agreement" : "declined the agreement";
+    return `${item.mine ? "You" : "They"} ${what}`;
+  }
+  if (b.type === "agreement_close") return `${item.mine ? "You" : "They"} ${b.reason === "complete" ? "marked the job complete" : "cancelled the job"}`;
+  if (b.type === "disconnect") return item.mine ? "You disconnected" : "Disconnected";
   if (b.type === "report_notice") return item.mine ? `You reported their message as ${REPORT_AS[b.category]}` : `Reported your message as ${REPORT_AS[b.category]}`;
   if (b.type === "counter") return item.mine ? "You asked for changes to the offer" : "Asked for changes to the offer";
   if (b.type === "stands") return item.mine ? "You kept the offer as it is" : "Kept the offer as it is";

@@ -164,7 +164,7 @@ function List() {
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
                   {c.name}.{BRAND.nameSuffix}
                 </span>
-                <span className="text-xs text-muted-foreground">Connected</span>
+                <span className="text-xs underline underline-offset-4">Agreements and messages</span>
               </Link>
             </li>
           ))}
