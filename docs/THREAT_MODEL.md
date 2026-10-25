@@ -541,6 +541,10 @@ site data is cleared, or the books were made in another browser or at another ad
   the worker's Home (`books/backup_reminder.ts`; the last backup's time is kept in the vault). On a
   phone, saving a backup opens the share sheet (save to Files, send to yourself), since a plain
   download often goes nowhere inside an app's browser. ✅
+- **A download counts only when confirmed.** A page can't see whether a download landed, and
+  Shield's browser dropped one silently while the app recorded a backup (2026-10-26). Now a backup
+  counts at once only through the share sheet; after a plain download the app asks "Did the file
+  save?" and records it on "Yes". ✅
 - ⚠️ **Not covered:** someone who never saves a backup still loses everything with the browser,
   and a backup is only as safe as where it's kept. An encrypted backup of the books on chain,
   restorable on any device with the wallet, username and passphrase, is the planned fix (design

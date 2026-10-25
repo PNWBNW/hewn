@@ -14,6 +14,7 @@ index is out of date.
 - [Session start walked cold, and what it found (ICM Step 7, part 2)](progress/2026-10-26.md#2026-10-26--session-start-walked-cold-and-what-it-found-icm-step-7-part-2)
 - [Reconciliation: the books' Shield account against Shield (Phase 1)](progress/2026-10-26.md#2026-10-26--reconciliation-the-books-shield-account-against-shield-phase-1)
 - [Keeping the books: the browser is asked to keep them, and backups are asked for](progress/2026-10-26.md#2026-10-26--keeping-the-books-the-browser-is-asked-to-keep-them-and-backups-are-asked-for)
+- [A download counts as a backup only once the person says it saved](progress/2026-10-26.md#2026-10-26--a-download-counts-as-a-backup-only-once-the-person-says-it-saved)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

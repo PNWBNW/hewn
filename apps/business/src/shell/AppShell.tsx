@@ -260,6 +260,9 @@ function OpenShell({ children }: { children: ReactNode }) {
   const step = setupStep({ role, rail, work });
   const setupDone = step === "done";
   const redirect = setupRedirect(step, pathname) ?? redirectFor(role, pathname);
+  // The menu's backup goes to Settings' Backups card, where a download is confirmed before it counts.
+  // Before setup is finished Settings isn't open yet, so it downloads there and then (not counted).
+  const backup = () => (setupDone ? router.push("/settings#backups") : void downloadBackup());
   useEffect(() => {
     if (redirect) router.replace(redirect);
   }, [redirect, router]);
@@ -276,7 +279,7 @@ function OpenShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh border-r border-rail-border lg:block">
-        <Rail pathname={pathname} role={role} setupDone={setupDone} onBackup={() => void downloadBackup()} onLock={lock} />
+        <Rail pathname={pathname} role={role} setupDone={setupDone} onBackup={backup} onLock={lock} />
       </aside>
 
       {drawerOpen && (
@@ -287,7 +290,7 @@ function OpenShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">
-            <Rail pathname={pathname} role={role} setupDone={setupDone} onNavigate={() => setDrawerOpen(false)} onBackup={() => void downloadBackup()} onLock={lock} />
+            <Rail pathname={pathname} role={role} setupDone={setupDone} onNavigate={() => setDrawerOpen(false)} onBackup={() => { setDrawerOpen(false); backup(); }} onLock={lock} />
           </div>
         </div>
       )}
