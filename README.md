@@ -164,7 +164,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 
 **Next: mainnet.** `.hewn` names are planned as a top-level domain in the
 [Aleo Name Service](https://aleonames.id), so they resolve across the Aleo ecosystem. See
-[`BUILD_PLAN.md`](BUILD_PLAN.md#mainnet-names-hewn-under-the-aleo-name-service-design-joshua-2026-10-15).
+[`docs/MAINNET_NAMES.md`](docs/MAINNET_NAMES.md).
 
 <details>
 <summary>The first private payroll on testnet (April 10, 2026)</summary>
