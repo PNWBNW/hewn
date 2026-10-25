@@ -51,6 +51,44 @@ export type BackupMark = {
   sections: Record<string, string>;
 };
 
+/** Where this account's backup stands, kept in the vault after each one is sent in full. */
+export type ChainState = {
+  /** The chain being added to (0, 1, 2…: a new snapshot starts the next one). */
+  chain: number;
+  /** The last piece sent in it (the snapshot is 0). */
+  seq: number;
+  mark: BackupMark;
+  /** Sealed sizes: the snapshot's, and the changes' since it. */
+  snapshotBytes: number;
+  changeBytes: number;
+  changes: number;
+};
+
+const HEX64 = /^[0-9a-f]{64}$/;
+const count = (n: unknown) => typeof n === "number" && Number.isInteger(n) && n >= 0;
+
+/** Checks a chain state read back from the vault. */
+export function validateChainState(raw: unknown): ChainState {
+  const s = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const m = (s.mark && typeof s.mark === "object" ? s.mark : {}) as Record<string, unknown>;
+  const sections = (m.sections && typeof m.sections === "object" ? m.sections : null) as Record<string, unknown> | null;
+  if (
+    !count(s.chain) || !count(s.seq) || !count(s.snapshotBytes) || !count(s.changeBytes) || !count(s.changes) ||
+    typeof m.state !== "string" || !HEX64.test(m.state) || !count(m.entries) ||
+    !sections || !Object.values(sections).every((v) => typeof v === "string" && HEX64.test(v))
+  ) {
+    throw new BackupFormatError("The backup's place isn't readable");
+  }
+  return {
+    chain: s.chain as number,
+    seq: s.seq as number,
+    mark: { state: m.state, entries: m.entries as number, sections: { ...(sections as Record<string, string>) } },
+    snapshotBytes: s.snapshotBytes as number,
+    changeBytes: s.changeBytes as number,
+    changes: s.changes as number,
+  };
+}
+
 export class BackupFormatError extends Error {
   constructor(message: string) {
     super(message);
@@ -83,9 +121,18 @@ const BIG = (_key: string, value: unknown) =>
     ? BigInt((value as { $c: string }).$c)
     : value;
 
+/**
+ * What a backup keeps about the backups themselves: nothing. When the last one was saved and where
+ * the chain stands change with every backup, so they're left out of what is backed up and hashed (a
+ * restore sets them afresh).
+ */
+const NOT_BACKED_UP = ["backedUpAt", "chainBackup"] as const;
+
 /** The company document as its sections (each a JSON string), normalised by a round trip. */
 function docOf(company: Company): Doc {
-  return JSON.parse(companyToJson(companyFromJson(companyToJson(company)))) as Doc;
+  const doc = JSON.parse(companyToJson(companyFromJson(companyToJson(company)))) as Doc;
+  for (const k of NOT_BACKED_UP) delete doc[k];
+  return doc;
 }
 
 /** JSON with every object's keys sorted, nested section strings included, so equal states hash equal. */

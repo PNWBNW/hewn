@@ -24,6 +24,7 @@ import { type Schedule, scheduleFromJson, scheduleToJson } from "./schedule";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
 import { type PersonalEvent, validateEvents } from "./events";
 import { type SharedCalendar, calendarFromJson, calendarToJson } from "./shared_events";
+import { type ChainState, validateChainState } from "./books_backup";
 
 export type Company = {
   books: Books;
@@ -53,6 +54,8 @@ export type Company = {
   username?: string;
   /** When a backup was last saved from these books (ISO time; books/backup_reminder.ts). Absent before the first. */
   backedUpAt?: string;
+  /** Where the backup kept as letters to this account stands (books/books_backup.ts). Absent before the first. */
+  chainBackup?: ChainState;
 };
 
 const ROLES: Role[] = ["business", "worker"];
@@ -79,6 +82,7 @@ export function companyToJson(c: Company): string {
     ...(c.calendar ? { calendar: calendarToJson(c.calendar) } : {}),
     ...(c.username ? { username: c.username } : {}),
     ...(c.backedUpAt ? { backedUpAt: c.backedUpAt } : {}),
+    ...(c.chainBackup ? { chainBackup: JSON.stringify(validateChainState(c.chainBackup)) } : {}),
   });
 }
 
@@ -102,6 +106,7 @@ export function companyFromJson(text: string): Company {
     calendar?: string;
     username?: string;
     backedUpAt?: string;
+    chainBackup?: string;
     /** What the username was called before usernames (2026-10-21). */
     email?: string;
   };
@@ -128,6 +133,7 @@ export function companyFromJson(text: string): Company {
     const username = typeof doc.username === "string" && doc.username ? doc.username : typeof doc.email === "string" && doc.email ? doc.email : null;
     if (username) company.username = username;
     if (typeof doc.backedUpAt === "string" && !Number.isNaN(Date.parse(doc.backedUpAt))) company.backedUpAt = doc.backedUpAt;
+    if (typeof doc.chainBackup === "string") company.chainBackup = validateChainState(JSON.parse(doc.chainBackup));
     return company;
   }
   // Earlier saves held only the books.

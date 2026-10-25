@@ -3,7 +3,7 @@ import { addAccount, createBooks, postEntry } from "@pnw/ledger";
 import { type VaultSession, addRecovery, createVault, openKeySlots, openKeySlotsWithRecovery } from "@pnw/vault";
 import { MAX_CHANGES, stateHash } from "../books/books_backup";
 import { type Company, companyToJson, emptyCompany } from "../books/company";
-import { type ChainState, type Page, finderKey, pageLookup, planBackup, restoreBackup } from "./books_backup";
+import { type ChainState, type Page, finderKey, pageLookup, planBackup, restoreBackup, sealerOf } from "./books_backup";
 import { LETTER_BYTES, PAGE_BYTES } from "./letters";
 
 const USER = "alder";
@@ -39,7 +39,7 @@ function letters() {
 const withPassphrase = (secret: string) => (slots: Parameters<typeof openKeySlots>[0]) => openKeySlots(slots, secret);
 
 async function backUp(session: VaultSession, company: Company, state: ChainState | null, send: (p: Page[]) => void) {
-  const plan = await planBackup({ session, company, username: USER, address: ADDR, state });
+  const plan = await planBackup({ sealer: sealerOf(session), company, username: USER, address: ADDR, state });
   if (!plan) return null;
   send(plan.pages);
   return plan;
@@ -69,7 +69,7 @@ describe("backing the books up as letters to the account itself", () => {
     const l = letters();
     let books = sell(company, bank, sales, 100);
     let state = (await backUp(session, books, null, l.send))!.next;
-    expect(await planBackup({ session, company: books, username: USER, address: ADDR, state })).toBeNull();
+    expect(await planBackup({ sealer: sealerOf(session), company: books, username: USER, address: ADDR, state })).toBeNull();
     books = sell(books, bank, sales, 2, 100);
     const c1 = (await backUp(session, books, state, l.send))!;
     expect(c1).toMatchObject({ kind: "change", chain: 0, seq: 1 });
@@ -95,7 +95,7 @@ describe("backing the books up as letters to the account itself", () => {
     const out = (await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(SECRET) }))!;
     expect(await stateHash(out.company)).toBe(await stateHash(books));
     // A small change after it fits one letter.
-    const change = (await planBackup({ session, company: sell(books, bank, sales, 1, 600), username: USER, address: ADDR, state: plan.next }))!;
+    const change = (await planBackup({ sealer: sealerOf(session), company: sell(books, bank, sales, 1, 600), username: USER, address: ADDR, state: plan.next }))!;
     expect(change).toMatchObject({ kind: "change", letters: 1, fullPages: 0 });
     expect(change.pages[0]!.envelope.length).toBeLessThanOrEqual(LETTER_BYTES);
   });
@@ -169,5 +169,24 @@ describe("backing the books up as letters to the account itself", () => {
     const fallback = (await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(SECRET) }))!;
     expect(fallback.state.chain).toBe(0);
     expect(await stateHash(fallback.company)).toBe(await stateHash(before));
+  });
+
+  it("starts a new chain when a backup cut off partway left its pages behind", async () => {
+    const { session, company, bank, sales } = await setup();
+    const l = letters();
+    let books = sell(company, bank, sales, 100);
+    const state = (await backUp(session, books, null, l.send))!.next;
+    books = sell(books, bank, sales, 1, 100);
+    const taken = async (lookup: string) => l.box.has(lookup);
+    // The change was sent once but the books never recorded it: its slot is taken.
+    const cut = (await planBackup({ sealer: sealerOf(session), company: books, username: USER, address: ADDR, state }))!;
+    expect(cut).toMatchObject({ kind: "change", chain: 0, seq: 1 });
+    l.send(cut.pages);
+    const retry = (await planBackup({ sealer: sealerOf(session), company: books, username: USER, address: ADDR, state, taken }))!;
+    expect(retry).toMatchObject({ kind: "snapshot", chain: 1, seq: 0 });
+    l.send(retry.pages);
+    const out = (await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(SECRET) }))!;
+    expect(out.state.chain).toBe(1);
+    expect(await stateHash(out.company)).toBe(await stateHash(books));
   });
 });

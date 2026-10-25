@@ -17,6 +17,7 @@ index is out of date.
 - [A download counts as a backup only once the person says it saved](progress/2026-10-26.md#2026-10-26--a-download-counts-as-a-backup-only-once-the-person-says-it-saved)
 - [Design: the books backed up on chain (for review)](progress/2026-10-26.md#2026-10-26--design-the-books-backed-up-on-chain-for-review)
 - [The on-chain backup's format, built (part 1 of 4)](progress/2026-10-26.md#2026-10-26--the-on-chain-backups-format-built-part-1-of-4)
+- [Backing up with the account: the button (part 2 of 4)](progress/2026-10-26.md#2026-10-26--backing-up-with-the-account-the-button-part-2-of-4)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

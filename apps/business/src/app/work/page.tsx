@@ -5,6 +5,7 @@
 // Punches are written to the vault here and nowhere else leaves the device.
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowRight, Clock } from "lucide-react";
 import { Button } from "@pnw/ui/button";
@@ -23,8 +24,10 @@ import { PageHeader } from "@/shell/SectionView";
 import { SendWeek } from "./SendWeek";
 import { STATUS_LABEL, clock, dollars, employerLabel, payLine, useNow } from "./shared";
 
+const ChainBackup = dynamic(() => import("@/chain/ChainBackup"), { ssr: false });
+
 export default function WorkHomePage() {
-  const { work, updateWork } = useWork();
+  const { work, updateWork, rail } = useWork();
   const now = useNow(30_000);
   const active = activeAgreements(work);
   const [chosen, setChosen] = useState<string>("");
@@ -64,7 +67,7 @@ export default function WorkHomePage() {
     <div className="flex flex-col gap-6">
       <PageHeader title={`Hi, ${work.displayName.split(" ")[0] || work.displayName}`} summary="Clock in, clock out, send your week, keep every paystub." />
 
-      <BackupReminder />
+      <BackupReminder account={rail ? <ChainBackup /> : undefined} />
 
       <Card>
         <CardContent className="flex flex-col items-center gap-4 pt-6">

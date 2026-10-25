@@ -25,24 +25,13 @@
 // letter box), nothing logged.
 // ---------------------------------------------------------------------------
 
-import { type KeySlots, type VaultSession, keySlotsOf, sha256Hex } from "@pnw/vault";
-import { type BackupMark, type BackupPiece, type Rebuilt, changeOf, rebuild, snapshotOf, wantsSnapshot } from "../books/books_backup";
+import { type KeySlots, type SealedAttachment, type VaultSession, keySlotsOf, sha256Hex } from "@pnw/vault";
+import { type BackupPiece, type ChainState, type Rebuilt, changeOf, rebuild, snapshotOf, wantsSnapshot } from "../books/books_backup";
+
+export type { ChainState };
 import type { Company } from "../books/company";
 import { packPayload, unpackPayload } from "./compress";
 import { LETTER_BYTES, PAGE_BYTES } from "./letters";
-
-/** Where this account's backup stands, kept in the vault after each one is sent. */
-export type ChainState = {
-  /** The chain being added to (0, 1, 2…: a new snapshot starts the next one). */
-  chain: number;
-  /** The last piece sent in it (the snapshot is 0). */
-  seq: number;
-  mark: BackupMark;
-  /** Sealed sizes: the snapshot's, and the changes' since it. */
-  snapshotBytes: number;
-  changeBytes: number;
-  changes: number;
-};
 
 export class ChainBackupError extends Error {
   constructor(message: string) {
@@ -84,13 +73,23 @@ export const pageLookup = (finder: string, chain: number, seq: number, page: num
 
 const attachmentId = (chain: number, seq: number) => `bb-${chain}-${seq}`;
 
+/**
+ * What a backup needs from the open books, and no more: sealing a piece with their data key (as a
+ * receipt file is sealed) and the vault's key slots. The vault session itself stays in the books'
+ * provider (BooksProvider `backupSealer`).
+ */
+export type Sealer = { seal(id: string, bytes: Uint8Array<ArrayBuffer>): Promise<SealedAttachment>; slots: KeySlots };
+
+/** A sealer over an open session (tests, and the provider). */
+export const sealerOf = (session: VaultSession): Sealer => ({ seal: (id, bytes) => session.sealAttachment(id, bytes), slots: keySlotsOf(session.record) });
+
 // ---- a piece on the wire ----------------------------------------------------------
 
 /** [version][header length (2)][header JSON][iv (12)][ciphertext]: the header holds the key slots on a snapshot. */
-async function sealPiece(session: VaultSession, chain: number, seq: number, piece: BackupPiece): Promise<Uint8Array> {
+async function sealPiece(sealer: Sealer, chain: number, seq: number, piece: BackupPiece): Promise<Uint8Array> {
   const body = await packPayload(enc.encode(JSON.stringify(piece)));
-  const sealed = await session.sealAttachment(attachmentId(chain, seq), body as Uint8Array<ArrayBuffer>);
-  const header = enc.encode(JSON.stringify(piece.kind === "snapshot" ? { slots: keySlotsOf(session.record) } : {}));
+  const sealed = await sealer.seal(attachmentId(chain, seq), body as Uint8Array<ArrayBuffer>);
+  const header = enc.encode(JSON.stringify(piece.kind === "snapshot" ? { slots: sealer.slots } : {}));
   const iv = unb64(sealed.iv);
   const data = unb64(sealed.data);
   const out = new Uint8Array(3 + header.length + iv.length + data.length);
@@ -203,31 +202,53 @@ const cost = (pages: Page[]) => {
  * The next backup of `company`: a change on the current chain, or a snapshot starting the next one
  * (`wantsSnapshot`); null when nothing changed since the last. Nothing is sent: the caller shows the
  * cost, sends each page as a letter to the account's own account, and keeps `next` once all are in.
+ *
+ * `taken` says whether this account already sent a letter under a lookup. A backup cut off partway
+ * leaves some pages of its piece on chain and the vault's state unchanged; sending that piece again
+ * would mix two sealings in one place, so when any page's slot is taken the backup starts a new
+ * chain instead, at the first chain whose first page is free.
  */
-export async function planBackup(input: { session: VaultSession; company: Company; username: string; address: string; state: ChainState | null }): Promise<BackupPlan | null> {
-  const { session, company, state } = input;
+export async function planBackup(input: {
+  sealer: Sealer;
+  company: Company;
+  username: string;
+  address: string;
+  state: ChainState | null;
+  taken?: (lookup: string) => Promise<boolean>;
+}): Promise<BackupPlan | null> {
+  const { sealer, company, state, taken } = input;
   const finder = await finderKey(input.username, input.address);
+  const anyTaken = async (pages: Page[]) => {
+    if (!taken) return false;
+    for (const p of pages) if (await taken(p.lookup)) return true;
+    return false;
+  };
 
   if (state) {
     const change = await changeOf(company, state.mark).catch(() => undefined); // a mark from other books: start over
     if (change === null) return null;
     if (change) {
       const seq = state.seq + 1;
-      const bytes = await sealPiece(session, state.chain, seq, change.piece);
+      const bytes = await sealPiece(sealer, state.chain, seq, change.piece);
       if (!wantsSnapshot(state, bytes.length)) {
         const pages = await pagesOf(finder, state.chain, seq, bytes);
-        const next: ChainState = { ...state, seq, mark: change.mark, changeBytes: state.changeBytes + bytes.length, changes: state.changes + 1 };
-        return { kind: "change", chain: state.chain, seq, pages, ...cost(pages), next };
+        if (!(await anyTaken(pages))) {
+          const next: ChainState = { ...state, seq, mark: change.mark, changeBytes: state.changeBytes + bytes.length, changes: state.changes + 1 };
+          return { kind: "change", chain: state.chain, seq, pages, ...cost(pages), next };
+        }
       }
     }
   }
 
-  const chain = state ? state.chain + 1 : 0;
   const snap = await snapshotOf(company);
-  const bytes = await sealPiece(session, chain, 0, snap.piece);
-  const pages = await pagesOf(finder, chain, 0, bytes);
-  const next: ChainState = { chain, seq: 0, mark: snap.mark, snapshotBytes: bytes.length, changeBytes: 0, changes: 0 };
-  return { kind: "snapshot", chain, seq: 0, pages, ...cost(pages), next };
+  for (let chain = state ? state.chain + 1 : 0; chain < MAX_CHAINS; chain++) {
+    const bytes = await sealPiece(sealer, chain, 0, snap.piece);
+    const pages = await pagesOf(finder, chain, 0, bytes);
+    if (await anyTaken(pages)) continue;
+    const next: ChainState = { chain, seq: 0, mark: snap.mark, snapshotBytes: bytes.length, changeBytes: 0, changes: 0 };
+    return { kind: "snapshot", chain, seq: 0, pages, ...cost(pages), next };
+  }
+  throw new ChainBackupError("There's no room left for a new backup");
 }
 
 // ---- restoring ---------------------------------------------------------------------

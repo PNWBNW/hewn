@@ -149,11 +149,11 @@ People choose, the app asks. It can't send a backup on its own: every page needs
 
 ## Build order (one PR each)
 
-1. **The format, pure:** snapshot and change pieces, the hash chain, compress and seal, the two
+1. **The format, pure** (built 2026-10-26): snapshot and change pieces, the hash chain, compress and seal, the two
    wrapped key copies, the finder lookups. Tests: round trips, a missing piece stops cleanly, a
    wrong passphrase opens nothing, the recovery key opens it, recomputed hashes match.
-2. **Writing it:** **Back up on chain** in the Backups card and the reminder, with the piece and
-   page count shown before any approval.
+2. **Writing it** (built 2026-10-26): **Back up with your account** in the Backups card and the
+   reminder, with the cost shown before any approval.
 3. **Finding and restoring it:** **Look for your books on chain** after a failed login with Shield
    connected, and **From your account on chain** on the restore screen.
 4. **A network test:** two test accounts. Back up, wipe the browser, restore on a second browser,
