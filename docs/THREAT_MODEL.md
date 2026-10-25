@@ -488,4 +488,9 @@ hash and its account are public there by design).
   record when a name was registered).
 - **Bound to the name.** The program has no transfer; the registry decides who may call, so a
   card follows its name if the name ever changes hands.
+- **The page anyone can open (`/card?name=…`) reads only what is public already**: the registry's
+  owner and kind mappings, `cards[name_hash]`, and a block's time. It draws a card only while
+  `shown` is true, and to a visitor a hidden card reads exactly like no card ("no public card"),
+  so the page states nothing about a person beyond what it draws. No account, no Shield, nothing
+  written, nothing logged (`chain/public_card.ts`). ✅
 

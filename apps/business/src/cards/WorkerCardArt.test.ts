@@ -18,4 +18,8 @@ describe("a worker's card's words", () => {
     expect(later.text.footer).toBe(`${BRAND.name} · private view`);
     expect(later.text.name).toBe(`ana_w.${BRAND.nameSuffix}`);
   });
+
+  it("drop the private-view mark on the page anyone can open", () => {
+    expect(workerCardText("ana_w", card, new Date("2026-11-01T00:00:00Z"), "public").text.footer).toBe(BRAND.name);
+  });
 });
