@@ -132,51 +132,22 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 
 ## Known facts about the existing stack
 
-- Portal: Next.js 16.1.6, React 19.2.3, pnpm, vitest (tests at `src/**/*.test.ts`; path aliases
-  `@/src`, `@/components`, `@/app`). Monorepo is on Next.js 16.4.1 (security fixes). Wallet adapters
-  `@provablehq/aleo-wallet-adapter-*` (renamed from `-adaptor-` on 2026-10-19: core 1.1.2, react
-  1.3.1, shield 1.3.0, standard 1.4.0, types 1.1.0) — pin exactly. **Shield is the only wallet**;
-  don't add other adapters. `@provablehq/sdk` 0.10.1.
-- **Three ways in to Shield, one adapter** (`packages/wallet/src/wallet-provider.tsx`, Joshua,
-  2026-10-19): the extension on a computer and Shield's own browser on a phone both inject Shield
-  into the page; a plain phone browser (the third way) pairs with the Shield app over Shield's
-  relay: `connect()` opens the app with a `shield://` link, every approval opens it again, and
-  answers come back sealed end to end through `wss://relay.shield.app` (the one host besides the
-  explorer in the app's CSP; pinned in both places). A computer without the extension has no way
-  in yet (Shield's app can't scan a pairing code). Over the relay the app answers reads only while
-  it is open; `src/chain/shield.ts` exposes `route` and `away` for the wording and an "Open Shield"
-  link. Not yet tried on a real phone.
-- **Two builds of the business app** (2026-10-19): the website (`pnpm build`) and the static
-  bundle for the installable app (`pnpm --filter @pnw/business build:static`, `HEWN_STATIC=1`:
-  `output: export`, pages as folders, the policy stamped into each page, `apps/business/out/`).
-  Server-only files end in `.server.ts` (the route handlers under `src/app/api`), an extension only
-  the website build sees; the proxy stays `proxy.ts` (the export tolerates it). Client code reaches
-  the server pieces through `src/api_base.ts` (`apiUrl("/api/…")`, the website by full address in
-  the bundle). The old mailbox server is retired (2026-10-22, `archive/mailbox-api/`): every message
-  is a letter on chain, sent from the user's wallet, and no server holds messages. Pathnames
-  may end in `/` in the bundle: compare them through `canonicalPath` (`shell/AppShell.tsx`). CI
-  builds both.
-- Security baseline: `docs/THREAT_MODEL.md`. CI blocks on tests, build and `pnpm audit` (moderate+).
-  New dependencies must be at least 7 days old (`minimumReleaseAge`).
-- Leo programs (Leo v4 syntax) live in `pnw_mvp_v2/src/layer1`, `src/layer2`, `src/stubs`.
-- Shield wallet: `privateFee: false` was required on every `executeTransaction` (proof generation
-  silently failed without it, most likely because the test accounts held no private ALEO to pay
-  with). Private fees by default is the goal (Joshua, 2026-10-16); being tested behind the
-  dashboard's per-device switch, which `chain/shield.ts` applies to every call. Its browser WASM
-  prover drops multi-program proofs, so payroll runs as four sequential transactions (verify →
-  transfer → receipts → audit) rather than the monolithic `payroll_core_v2::execute_payroll`.
-- USDCx `transfer_private` needs a Sealance Poseidon4 Merkle exclusion proof, tree depth 16, built
-  client-side via `SealanceMerkleTree`.
-- Explorer REST base is `https://api.explorer.provable.com/v2`; `snarkos developer execute/deploy`
-  need `--network 1` for testnet.
+Each fact lives in the README of the thing it describes; this is where to find them.
+
+- **Shield and signing** (Shield only, the pinned adapter versions, the three ways in, fees, why
+  nothing is a multi-program proof): `packages/wallet/README.md`.
+- **The app's two builds** (website and static bundle, `.server.ts`, `api_base`, `canonicalPath`,
+  the stack's versions): `apps/business/README.md`.
+- **The packages and their layering**, the stablecoin's exclusion proof: `packages/README.md`.
+- **Aleo limits and toolchain**: `docs/ALEO_CONSTRAINTS.md`; the explorer base and `--network 1`:
+  `pnw_mvp_v2/CLAUDE.md` (Toolchain). The Leo programs: `pnw_mvp_v2/src/layer1`, `src/layer2`,
+  `src/stubs`.
+- **Security baseline**: `docs/THREAT_MODEL.md` (CI blocks on tests, build and `pnpm audit`
+  moderate+; new dependencies are at least 7 days old, `minimumReleaseAge`).
+- **What was retired and why** (the Julia tax service, four salvaged packages, the old portal and
+  mailbox): `archive/README.md`. `packages/tax-engine` is the only tax engine.
 - The double-pay item in `pnw_mvp_v2/docs/NOTES.md` is stale per Joshua; ignore it unless a test
   shows otherwise.
-- The Julia tax service is retired (`archive/pnw_payroll_engine/`). `packages/tax-engine` is the
-  only tax engine.
-- Retired code goes to `archive/` with a row in `archive/README.md`, never deleted silently
-  (2026-10-20): the Julia engine, the salvage script, and four salvaged packages nothing uses
-  (`persistence`, `w4-crypto`, `pdf`, `nft-art`). The old portal repository is retired; its README
-  and `CLAUDE.md` point here.
-- Licence: **AGPL-3.0-only** since 2026-10-15 (Joshua), for this repo and `pnw_mvp_v2`; text in `LICENSE`.
-  Every package says `"license": "AGPL-3.0-only"`. The app and the site link to the source
-  (`BRAND.sourceUrl`); keep that link. The Hewn name and logo are not licensed.
+- Licence: **AGPL-3.0-only** since 2026-10-15 (Joshua), here and in `pnw_mvp_v2`; every package
+  says so. The app and the site link to the source (`BRAND.sourceUrl`); keep that link. The Hewn
+  name and logo are not licensed.

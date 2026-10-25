@@ -16,6 +16,17 @@ server piece counts visits by country.
 Server-only files end in `.server.ts`, an extension only the website build looks at, so the bundle
 never contains a route handler. CI builds both.
 
+- The request proxy stays `src/proxy.ts`; the static export tolerates it.
+- Client code reaches the server pieces only through `src/api_base.ts` (`apiUrl("/api/…")`), which
+  names the website by its full address in the bundle.
+- In the bundle a pathname may end in `/`: compare pathnames through `canonicalPath`
+  (`src/shell/AppShell.tsx`), never as raw strings.
+- No server holds messages: the old mailbox server is retired (2026-10-22,
+  `archive/mailbox-api/`), and every message is a letter on chain sent from the user's wallet.
+
+The stack: Next.js 16.4.1 (moved up from the portal's 16.1.6 for security fixes), React 19.2.3,
+pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/` for `src/`.
+
 ## The source, folder by folder
 
 | Folder | What's in it |
