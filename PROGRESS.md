@@ -4956,3 +4956,18 @@ vault) with the vault's own IndexedDB, the fee switch, a comment and a test left
 passes (390 source files). Matches what PRIV-3 found by hand on issue #163. INV-10 has a check:
 19 of 24 rules checked; the 5 left are aggregates, mode upgrades and extensions (not built yet),
 and two in `pnw_mvp_v2`: the archive convention and Layer 2 custody.
+
+## 2026-10-25 — The chain rules checked too: the archive and Layer 2 custody (ICM Step 4; INV-21, INV-24)
+
+Two checks in `pnw_mvp_v2`'s plan gate (PNWBNW/pnw_mvp_v2#222 and #223, Joshua merges), cited
+from `docs/INVARIANTS.md` here. **The archive (INV-21):** `scripts/check_archive.py` fails when an
+archived folder has no README row, or an archived file is edited, added or removed without its
+line in that archive's new `SHA256SUMS` (39 files recorded; checked first that every one arrived
+by an exact move or as an upgrade-day snapshot). **Layer 2 custody (INV-24):**
+`scripts/check_layer2_moves_no_funds.py` fails when a Layer 2 program imports anything but the
+money-free Layer 1 programs, calls another program's function that isn't an `assert_` check, or
+names a token program or a transfer; the four pass. Both shown failing on planted mistakes first.
+With these, 21 of 24 rules have a check (also from today: the secrets scan, the signing path,
+program names, browser storage). The three left are rules for things not built yet: aggregates
+with a minimum group size (INV-04), extension modules (INV-18) and mode upgrades (INV-19); each
+gets its check with the feature.
