@@ -7,6 +7,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
 import { useBooks } from "./BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "./NewPassphrase";
+import type { RestoreStart } from "./RestoreScreen";
 import type { Role } from "./work";
 
 const linkClass =
@@ -25,7 +26,7 @@ export function LoginDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onNewHere: () => void;
-  onRestore: () => void;
+  onRestore: (start?: RestoreStart) => void;
 }) {
   const { cancelChoice } = useBooks();
   return (
@@ -49,7 +50,7 @@ export function LoginDialog({
   );
 }
 
-function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore: () => void }) {
+function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore: (start?: RestoreStart) => void }) {
   const { unlock, unlockLegacy, recover, chooseAccount, cancelChoice, legacyAvailable } = useBooks();
   const [legacy, setLegacy] = useState(false);
   // A forgotten passphrase: the username, the recovery key and a new passphrase.
@@ -209,7 +210,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
           >
             Back to Log in
           </button>
-          <button type="button" className={linkClass} onClick={onRestore}>
+          <button type="button" className={linkClass} onClick={() => onRestore()}>
             Restore from a backup file
           </button>
         </div>
@@ -285,7 +286,10 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
             >
               Forgot your passphrase? Use your recovery key
             </button>
-            <button type="button" className={linkClass} onClick={onRestore}>
+            <button type="button" className={linkClass} onClick={() => onRestore({ from: "account", username })}>
+              Books gone from this device? Find them with Shield
+            </button>
+            <button type="button" className={linkClass} onClick={() => onRestore()}>
               Restore from a backup file
             </button>
             <button type="button" className={linkClass} onClick={onNewHere}>

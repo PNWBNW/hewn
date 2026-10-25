@@ -1,20 +1,29 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useBooks } from "./BooksProvider";
 import { canonicalPath, isPublicPath } from "@/shell/AppShell";
 import { FrontPage } from "./FrontPage";
-import { RestoreScreen } from "./RestoreScreen";
+import { type RestoreStart, RestoreScreen } from "./RestoreScreen";
 import { SetupScreen } from "./SetupScreen";
 
 type View = "front" | "setup" | "restore";
+
+// Finding the backup kept with the account needs Shield: loaded only when the restore screen shows.
+const ChainRestore = dynamic(() => import("@/chain/ChainRestore"), { ssr: false });
 
 /** Nothing inside renders until the books are open, apart from public pages. Until then: the front page, or the screen it leads to. */
 export function BooksGate({ children }: { children: ReactNode }) {
   const { status } = useBooks();
   const pathname = canonicalPath(usePathname());
   const [view, setView] = useState<View>("front");
+  const [start, setStart] = useState<RestoreStart>({ from: "file" });
+  const restoreFrom = (s: RestoreStart = { from: "file" }) => {
+    setStart(s);
+    setView("restore");
+  };
 
   // Once the books are open, the next time they close (Lock, idle) the front page comes back.
   useEffect(() => {
@@ -27,7 +36,18 @@ export function BooksGate({ children }: { children: ReactNode }) {
     return <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Opening…</div>;
   }
   if (status === "open") return <>{children}</>;
-  if (view === "setup") return <SetupScreen onBack={() => setView("front")} onRestore={() => setView("restore")} />;
-  if (view === "restore") return <RestoreScreen replacing={status === "locked"} onCancel={() => setView("front")} />;
-  return <FrontPage locked={status === "locked"} onNewHere={() => setView("setup")} onRestore={() => setView("restore")} />;
+  if (view === "setup") return <SetupScreen onBack={() => setView("front")} onRestore={() => restoreFrom()} />;
+  if (view === "restore") {
+    const replacing = status === "locked";
+    const back = () => setView("front");
+    return (
+      <RestoreScreen
+        replacing={replacing}
+        onCancel={back}
+        start={start}
+        fromAccount={<ChainRestore username={start.username} replacing={replacing} onCancel={back} />}
+      />
+    );
+  }
+  return <FrontPage locked={status === "locked"} onNewHere={() => setView("setup")} onRestore={restoreFrom} />;
 }
