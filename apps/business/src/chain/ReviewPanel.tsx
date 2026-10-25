@@ -92,12 +92,12 @@ function ReviewFlow() {
   }, [rail, sales, payroll]);
 
   const run = useCallback(async () => {
-    if (!rail?.start || !address || mismatch) return;
+    if (!rail || !address || mismatch) return;
     setCheck({ state: "running" });
     try {
       const result = await findMovements({
         me: rail.address,
-        start: rail.start,
+        start: rail.start ?? null,
         known: knownIds(review),
         deps: {
           wallet: {
@@ -119,7 +119,7 @@ function ReviewFlow() {
 
   // Check once when the tab opens with Shield connected to the linked account.
   useEffect(() => {
-    if (!address || mismatch || !rail?.start || ran.current === address) return;
+    if (!address || mismatch || !rail || ran.current === address) return;
     ran.current = address;
     void run();
   }, [address, mismatch, rail, run]);
@@ -145,12 +145,12 @@ function ReviewFlow() {
 
   const nameOf = (a: string | undefined) => (a ? (known.get(a) ?? (names[a] || shortAddress(a))) : null);
 
-  if (!rail?.start) {
+  if (!rail) {
     return (
       <div className="rounded-lg border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
-        Start your books from your Shield balance first, then everything that moves in the account after that comes in here.
-        <Link href="/#balances" className="mt-2 block font-medium text-primary underline-offset-4 hover:underline">
-          Go to the dashboard
+        Link your Shield account in Settings, and every payment in or out of it comes in here to review.
+        <Link href="/settings" className="mt-2 block font-medium text-primary underline-offset-4 hover:underline">
+          Go to Settings
         </Link>
       </div>
     );
@@ -174,7 +174,9 @@ function ReviewFlow() {
                   ? `Couldn't check: ${check.message}`
                   : check.state === "done"
                     ? `${check.found === 0 ? "Nothing new" : `${check.found} new`}${check.unread > 0 ? `; ${check.unread} couldn't be read yet and will be tried next time` : ""}.`
-                    : `Movements since ${longDate(rail.start.date)}.`}
+                    : rail.start
+                      ? `Every movement since ${longDate(rail.start.date)}; earlier ones are in your opening balance.`
+                      : "Every movement in and out of your Shield account."}
         </p>
         {!address && state.kind === "ready" ? (
           <Button className="min-h-11 sm:min-h-9" onClick={connect}>

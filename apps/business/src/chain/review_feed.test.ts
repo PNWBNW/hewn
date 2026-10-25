@@ -129,6 +129,16 @@ describe("finding what moved in the account", () => {
     expect(r.items).toEqual([]);
   });
 
+  it("takes every movement when the books weren't started from the Shield balance (Joshua, 2026-10-26)", async () => {
+    const r = await findMovements({
+      me: ME,
+      start: null,
+      known: new Set(),
+      deps: deps({ history: [entry(2, "2026-10-15T09:59:00Z")], docs: { [tx(2)]: publicTransfer(ME, DAO, "1") } }),
+    });
+    expect(r.items.map((i) => i.id)).toEqual([tx(2)]);
+  });
+
   it("counts a transaction it can't read yet and tries it again next time", async () => {
     const r = await findMovements({ me: ME, start: START, known: new Set(), deps: deps({ history: [entry(7, "2026-10-16T09:00:00Z")] }) });
     expect(r).toEqual({ items: [], unread: 1 });

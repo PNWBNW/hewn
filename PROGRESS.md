@@ -29,6 +29,7 @@ index is out of date.
 - [Customers: an invoice names its agreed job](progress/2026-10-26.md#2026-10-26--customers-an-invoice-names-its-agreed-job)
 - [Customers: no cards for clients (decision)](progress/2026-10-26.md#2026-10-26--customers-no-cards-for-clients-decision)
 - [Customers: a payment is confirmed from the business's own Shield records](progress/2026-10-26.md#2026-10-26--customers-a-payment-is-confirmed-from-the-businesss-own-shield-records)
+- [For review takes every movement in the Shield account](progress/2026-10-26.md#2026-10-26--for-review-takes-every-movement-in-the-shield-account)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

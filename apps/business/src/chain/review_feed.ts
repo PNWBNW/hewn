@@ -10,8 +10,9 @@
 //   records  the account's USDCx records: a private payment received shows up
 //            here, with its amount and Shield's `sender`.
 //
-// Only movements after the books started count (before it, they're in the
-// opening balance). Fees are ALEO and never counted. A move inside the
+// Every movement in the account comes in (Joshua, 2026-10-26). When the books
+// were started from the Shield balance, only movements after the start do:
+// the ones before are in the opening balance. Fees are ALEO and never counted. A move inside the
 // account (public to private and back) is marked internal. Nothing is
 // logged, posted or stored here: the caller adds what this returns.
 // ---------------------------------------------------------------------------
@@ -55,8 +56,9 @@ function timeOf(v: unknown): Date | null {
   return Number.isFinite(ms) ? new Date(ms) : null;
 }
 
-/** Whether a movement at `when` falls after the books started. A start without a time counts from the next day. */
-export function afterStart(when: Date, start: RailStart): boolean {
+/** Whether a movement at `when` falls after the books started (always, when they weren't started from the Shield balance). A start without a time counts from the next day. */
+export function afterStart(when: Date, start: RailStart | null | undefined): boolean {
+  if (!start) return true;
   if (start.at) return when.getTime() > Date.parse(start.at);
   return when.toISOString().slice(0, 10) > start.date;
 }
@@ -123,7 +125,7 @@ export function classify(input: {
  * Finds the movements not in `known`, after `start`. Transactions that can't be read yet are
  * counted in `unread` and left for the next check.
  */
-export async function findMovements(args: { me: string; start: RailStart; known: ReadonlySet<string>; deps: FeedDeps }): Promise<FeedResult> {
+export async function findMovements(args: { me: string; start: RailStart | null | undefined; known: ReadonlySet<string>; deps: FeedDeps }): Promise<FeedResult> {
   const { me, start, known, deps } = args;
   const items: ReviewItem[] = [];
   const seen = new Set(known);

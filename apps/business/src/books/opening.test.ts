@@ -27,6 +27,11 @@ describe("starting the books from the Shield account", () => {
     expect(() => minorToCents(-1n)).toThrow(/negative/);
   });
 
+  it("refuses to start from the balance once movements are going into the books from For review", () => {
+    const withReviewed: Company = { ...company(), review: { version: 1, items: [{ id: "at1" + "q".repeat(58), date: "2026-10-15", direction: "in", minor: "1000000", kind: "transfer_private", status: "recorded", entryId: "e1" }] } };
+    expect(() => startFromShield(withReviewed, { date: "2026-10-16", minor: 1_000_000n })).toThrow(/count them twice/);
+  });
+
   it("records the start with no entry when the account holds nothing", () => {
     const c = startFromShield(company(), { date: "2026-10-15", minor: 5_000n });
     expect(c.books.entries).toHaveLength(0);
