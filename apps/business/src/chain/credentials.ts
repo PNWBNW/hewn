@@ -19,8 +19,10 @@ import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
 import { ENV } from "@pnw/config/env";
 import { PROGRAMS } from "@pnw/config/programs";
+import { lookupId, open, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import { arrayFieldHex, packedWords } from "@pnw/records/packed";
-import { CREDENTIAL_KINDS, type CredentialDocument, type CredentialKind, type CredentialStatus, canonicalCredential } from "@/books/credential";
+import { CREDENTIAL_KINDS, type Credential, type CredentialDocument, type CredentialDraft, type CredentialKind, type CredentialStatus, canonicalCredential, validateCredentialDocument } from "@/books/credential";
+import { packPayload, unpackPayload } from "./compress";
 
 export const CREDENTIALS_PROGRAM: string = PROGRAMS.credentials.hewn_credentials;
 export const ISSUE_CREDENTIAL = { program: CREDENTIALS_PROGRAM, function: "issue" } as const;
@@ -162,4 +164,83 @@ export async function queryCredentialAnchor(commitment: string, read: MappingRea
   if (raw === null) return null;
   const height = /^\s*(\d+)u32/.exec(raw)?.[1];
   return height ? Number(height) : null;
+}
+
+// ---- The document as a letter ----------------------------------------------------------------
+// What a credential says travels to the person as a sealed page under the agreement's parties
+// key, the way an offer's terms do (chain/work/terms.ts): one slot of its own kind, named by the
+// scope, so the person finds it from their record alone. The record carries only the hash.
+
+/** The letter kind a credential's document goes under: its own slot, named by the scope (a kind is at most 32 characters). */
+export function credentialDocKind(scope: string): string {
+  if (!HEX64.test(scope)) throw new CredentialsError("The scope must be 64 hex characters");
+  return `cred_${scope.slice(0, 24)}`;
+}
+
+/** Where the document sits: the lookup of its slot under the agreement's key. */
+export function credentialLookup(partiesKeyHex: string, scope: string): string {
+  return lookupId(partiesKeyFromHex(partiesKeyHex), credentialDocKind(scope), 0);
+}
+
+/** The document sealed for the person: the lookup, the envelope and the scope the record will carry. */
+export async function sealCredentialDocument(partiesKeyHex: string, doc: CredentialDocument): Promise<{ lookup: string; envelope: Uint8Array; scope: string }> {
+  const document = validateCredentialDocument(doc);
+  const scope = scopeHash(document);
+  const sealed = await seal(partiesKeyFromHex(partiesKeyHex), credentialDocKind(scope), 0, await packPayload(new TextEncoder().encode(canonicalCredential(document))));
+  return { lookup: sealed.lookup, envelope: sealed.envelope, scope };
+}
+
+/** The document back from its envelope, checked against the scope it was sealed under. */
+export async function openCredentialDocument(partiesKeyHex: string, scope: string, envelope: Uint8Array): Promise<CredentialDocument> {
+  const bytes = await unpackPayload(await open(partiesKeyFromHex(partiesKeyHex), credentialDocKind(scope), 0, envelope));
+  let raw: unknown;
+  try {
+    raw = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new CredentialsError("The credential's document couldn't be read");
+  }
+  const doc = validateCredentialDocument(raw);
+  if (scopeHash(doc) !== scope) throw new CredentialsError("The credential's document doesn't match its record");
+  return doc;
+}
+
+// ---- From the record to the vault ------------------------------------------------------------
+
+/** The record issued with this nonce, if it is among the account's records yet. */
+export const findRecordByNonce = (records: readonly CredentialRecord[], nonce: string): CredentialRecord | undefined => records.find((r) => r.nonce === nonce);
+
+/** The business's copy, once its record is read: the draft's document and the record's commitment. */
+export function credentialFromDraft(draft: CredentialDraft, record: CredentialRecord): Credential {
+  if (record.role !== "issuer" || record.nonce !== draft.nonce || record.scope !== draft.scope || record.subject !== draft.counterpart) throw new CredentialsError("That record isn't this draft's");
+  return { commitment: record.commitment, kind: draft.kind, document: draft.document, scope: draft.scope, nonce: draft.nonce, status: "offered", counterpart: draft.counterpart, workerId: draft.workerId };
+}
+
+/** The person's copy: the record with the document that came for it. */
+export function credentialFromRecord(record: CredentialRecord, document: CredentialDocument, status: CredentialStatus): Credential {
+  if (record.role !== "subject") throw new CredentialsError("That copy isn't the person's");
+  if (!documentMatchesRecord(document, record)) throw new CredentialsError("The credential's document doesn't match its record");
+  return { commitment: record.commitment, kind: record.kind, document, scope: record.scope, nonce: record.nonce, status, counterpart: record.issuer };
+}
+
+export type AwaitOptions = {
+  read?: MappingRead;
+  /** What the status must be before it counts. */
+  until: (status: CredentialStatus | null) => boolean;
+  attempts?: number;
+  waitMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+};
+
+/** After Shield says a move was accepted: the status as the explorer shows it, which can lag by a few blocks. */
+export async function awaitCredentialStatus(commitment: string, options: AwaitOptions): Promise<CredentialStatus | null> {
+  const read = options.read ?? explorerCredentialRead("credential_status");
+  const attempts = options.attempts ?? 15;
+  const waitMs = options.waitMs ?? 4_000;
+  const sleep = options.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)));
+  for (let i = 0; i < attempts; i++) {
+    const status = await queryCredentialStatus(commitment, read).catch(() => null);
+    if (options.until(status)) return status;
+    if (i + 1 < attempts) await sleep(waitMs);
+  }
+  throw new CredentialsError("The network accepted it, but the change isn't showing yet. Check again in a minute.");
 }

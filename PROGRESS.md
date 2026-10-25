@@ -4721,3 +4721,25 @@ and the public status and issue block by commitment. The person's vault keeps `c
 the worker's own card in Settings draws theirs; the public card draws none. 17 new tests;
 the app's 760 pass. No screen yet: issuing, accepting and declining come next, once the
 program is deployed.
+
+## 2026-10-25 — Credentials in the app, the screens: issued from the team list, accepted from the profile
+
+Built ahead of the program's deploy (`docs/HEWN_ART.md`, step 3), on the plumbing of the morning.
+**The business** (`chain/IssueCredential.tsx`, from a team member's row on the Team page): the
+kind, what it says, the dates and details; the document goes to the person as a sealed page
+under the agreement's key, the way an offer's terms do (`sealCredentialDocument`, its own slot
+named by the scope, `cred_` and 24 characters of it, since a kind is at most 32), then `issue`
+runs, and the record is read back from Shield for its commitment. The document and the nonce
+wait in the vault as a draft from the first step (`rail.credentialDrafts`, `setRailDraft`,
+`dropRailDraft`), so a send that fails part way is finished the next time the panel opens, or
+sent again, or discarded. The same panel lists what was issued, refreshes the offered ones'
+status (the person may have answered) and revokes with the issuer's copy. A member whose
+agreement is on v4 is told credentials need a new offer: the program checks the pair in v5.
+**The person** (`chain/work/Credentials.tsx`, from a Credentials card on the Profile page):
+each record's document is fetched from the issuer's letters under every agreement with them,
+checked against the record, then accepted or declined (one approval, the status awaited), and
+every one found goes to the vault with its status, so the landmarks on their land in Settings
+follow; the Profile page lists them. Nothing about a credential is public. 8 new tests (the
+drafts, the dates line, the letter's slot and round trip, the record by nonce and the two copies
+made from it, the wait); the app's 768 pass; both builds pass. Not yet: the credential card
+(open question 1), and the network check, which waits on the deploy.

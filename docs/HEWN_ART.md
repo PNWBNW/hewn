@@ -311,10 +311,19 @@ or the hours.
    draws from theirs: offered the frame, active lit, revoked the ghost, declined gone),
    `chain/credentials.ts` (the packed inputs, the records, the public status and issue block),
    and the worker's own card in Settings drawing their landmarks (the public card draws none).
-   Next: deploy and record the program, check it on the network with the two test accounts (the
-   B–W pair holds an active v5 agreement since the OFFER-4 run), then the screens: the business's
-   issue screen from the team list (the document as a sealed letter first, then the transaction),
-   the person's inbox to accept or decline, and the credential card.
+   **The screens** (2026-10-25, built ahead of the deploy): from the Team page, a business issues
+   a credential to a team member whose agreement is on v5 (the kind, what it says, the dates,
+   details): the document goes to the person as a sealed page under the agreement's key, the
+   way an offer's terms do, then `issue` runs and the record is read back for its commitment
+   (the document and nonce wait in the vault as a draft from the first step, so a send that
+   fails part way is finished next time); the same panel lists what was issued and revokes.
+   From the Profile page, the person checks for credentials: each record's document is fetched
+   and checked against the record, then accepted or declined (one approval each), and every one
+   found goes to the vault, so the landmarks on their land follow. Nothing about a credential is
+   public, and the business's copy says which team member it was for.
+   Next: deploy and record the program, then check it on the network with the two test accounts
+   (the B–W pair holds an active v5 agreement since the OFFER-4 run), and the credential card
+   (open question 1).
 4. **Proofs instead of showing:** a person proves one fact from their private records (employed by,
    licensed as, earned over) without showing a card. (The page anyone can open, drawn from a
    name, exists since 2026-10-25: step 2.)

@@ -5,6 +5,7 @@ import {
   type RailLink,
   addLink,
   bumpSeq,
+  dropRailDraft,
   isRailAddress,
   linkFor,
   linkStatus,
@@ -22,6 +23,7 @@ import {
   setPartyAddress,
   setPartyLink,
   setRailCredential,
+  setRailDraft,
   setRegistered,
   shortAddress,
   validateLink,
@@ -61,6 +63,17 @@ describe("rail", () => {
     expect(setRailCredential(withOne, { ...c, status: "revoked" }).credentials).toEqual([{ ...c, status: "revoked" }]);
     expect(() => validateRail({ ...rail, credentials: [{ ...c, workerId: "" }] })).toThrow(/team member/);
     expect(validateRail({ ...rail, credentials: [] }).credentials).toBeUndefined();
+  });
+
+  it("keeps a credential being issued as a draft until its record is read, then drops it", () => {
+    const doc = { version: 1 as const, kind: "skills" as const, title: "OSHA 30", from: "2026-01-15" };
+    const draft = { nonce: "ef".repeat(32), workerId: "w1", kind: "skills" as const, document: doc, scope: "ab".repeat(32), counterpart: `aleo1${"z".repeat(58)}`, startedAt: "2026-10-25T03:00:00.000Z" };
+    const withDraft = setRailDraft(rail, draft);
+    expect(railFromJson(railToJson(withDraft)).credentialDrafts).toEqual([draft]);
+    expect(setRailDraft(withDraft, { ...draft, workerId: "w2" }).credentialDrafts).toEqual([{ ...draft, workerId: "w2" }]);
+    expect(dropRailDraft(withDraft, draft.nonce)).toEqual(rail);
+    expect(dropRailDraft(withDraft, "00".repeat(32)).credentialDrafts).toEqual([draft]);
+    expect(() => validateRail({ ...rail, credentialDrafts: [{ ...draft, nonce: "x" }] })).toThrow(/nonce/);
   });
 
   it("keeps the business's card, and refuses one that isn't a card", () => {
