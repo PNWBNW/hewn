@@ -44,3 +44,6 @@ export function validateCard(raw: unknown): Card {
  * before it claims its card from Settings; one set up since gets it as the last step of setup.
  */
 export const CARDS_SINCE = "2026-10-25T00:08:18.000Z";
+
+/** The page anyone can open to see a name's card (`app/card`), relative to the app. */
+export const publicCardPath = (name: string): string => `/card?name=${encodeURIComponent(name)}`;

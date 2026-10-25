@@ -269,14 +269,19 @@ or the hours.
    after their profile, with the shown-or-hidden choice), an account from before the cards claims
    its card once from Settings, a worker switches theirs there (the honest note first), and
    Settings shows "on Hewn since" from the issue block (`chain/cards.ts`, `chain/CardPanel.tsx`,
-   `books/card.ts`). The vault keeps a copy of what the chain holds; the chain is the truth. Still
-   to come: the public page that draws a business's card from its name, once the renderer exists.
+   `books/card.ts`). The vault keeps a copy of what the chain holds; the chain is the truth.
+   **The page anyone can open** (2026-10-25): `/card?name=dayco` draws a name's card from public
+   reads alone (the registry for whose name and what kind, `cards[name_hash]` for the card, the
+   issue block for the date), with no account and no Shield. A business's card is drawn whenever
+   it has one; a worker's only while `shown` is true, and a hidden card reads to a visitor exactly
+   like no card ("no public card"). Settings shows the address under the card for sharing
+   (`chain/public_card.ts`, `chain/PublicCard.tsx`, `app/card/`).
 3. **Credential cards**, which need a credential program: the deployed `credential_nft_v3` and
    `v4` check agreements in `employer_agreement_v4`, so a v5 agreement can't mint one. A new
    program (new Leo, Fable 5.1 at high effort, must-fail tests), then the cards.
 4. **Proofs instead of showing:** a person proves one fact from their private records (employed by,
-   licensed as, earned over) without showing a card. And a business that makes its card public
-   gets a page anyone can open, drawn from its name.
+   licensed as, earned over) without showing a card. (The page anyone can open, drawn from a
+   name, exists since 2026-10-25: step 2.)
 
 ## Open questions
 
