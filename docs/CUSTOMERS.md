@@ -1,14 +1,18 @@
 # Customers: design
 
-**Status:** design, for review (Joshua, 2026-10-23). Nothing is built. It needs two new Leo
-programs (Fable 5.1 at high effort, with must-fail tests) and new screens (only with Joshua's
-greenlight). The decisions below are his, from the conversation on 2026-10-23.
+**Status:** design, for review (Joshua, 2026-10-23; accounts revised 2026-10-26). Nothing is
+built. Step 1 (customer accounts, invoices and payment) needs no new Leo; the rest needs two new
+Leo programs (Fable 5.1 at high effort, with must-fail tests). Every step has new screens, built
+only with Joshua's greenlight. The decisions below are his.
 
 ## The checklist
 
 Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
 
-- [ ] A personal account can also be a customer.
+- [ ] Customer accounts: their own sign-up, login and portal; a person can be a worker and a
+  customer, as two accounts (Step 1, no new Leo).
+- [ ] Invoices sent to a customer as letters, paid from the customer's Shield account, matched
+  on the business's side (Step 1, no new Leo).
 - [ ] A directory of businesses taking new clients, by field of work, with sealed inquiries.
 - [ ] Requests only businesses in the chosen field can read, refreshable for businesses that open
   up later; business posts, public or sealed. Free for now; $1 later in a new version.
@@ -36,7 +40,8 @@ everything about them private. A customer can:
 
 ## Decisions so far (Joshua, 2026-10-23)
 
-1. A personal account can be both a worker and a customer.
+1. A person can be both a worker and a customer, as two accounts, each with its own login and
+   portal (revised 2026-10-26, decision 17).
 2. Posting a request is free for now; $1 later, in a new version of the program.
 3. Businesses post on the board too. Posts sort by who posted them (a business or a customer),
    and business posts filter by the kind of work. Businesses describe themselves in their own
@@ -62,12 +67,77 @@ everything about them private. A customer can:
     problem.
 15. A business can post one public reply to each review, once the reviews are public.
 16. At most 24 reviews per job for now; long, continuous jobs may need more later.
+17. Customers sign up on their own and have their own login and a standalone portal that holds
+    only customer activity. A customer can also be a worker, but the two are separate accounts
+    (2026-10-26; this replaces the "customer side" of a personal account first planned).
 
-## Accounts
+## Accounts (decision 17)
 
-A personal account (the one a worker has today) gets a **customer side** to switch on. Same
-username, same Shield account, same vault, its own section. A business stays a business: one kind
-of account per Shield account still holds, because a customer pays from personal money.
+A **customer account** is a third kind beside a business and a worker: its own sign-up, its own
+login, its own vault, and its own portal that shows only customer activity. A person who is also
+a worker keeps the two apart, as two accounts.
+
+| | Business | Worker | Customer |
+|---|---|---|---|
+| Welcome card | Run a business | Work for a business | Hire a business (new) |
+| Vault | `hash(business + username)` | `hash(worker + username)` | `hash(customer + username)` |
+| Portal | The books (`/`) | `/work` | `/customer` (new) |
+| Name on the registry | A business name | A personal name, with a profile | A personal name, no profile |
+
+- **Login.** The same username and passphrase screen. The vault id already mixes in the role, so
+  one username can hold a business, a worker and a customer account, each with its own vault and
+  keys; when one username opens more than one, the login asks which (it does this today for a
+  business and a worker). `ROLES` gains `customer`.
+- **The portal holds only customer activity.** No books, no payroll, no work, no job board. Its
+  pages: **Home** (what's owed and what's been paid), **Businesses** (the ones you deal with,
+  found by registered name), **Bills** (invoices received), **Payments** (paid, with receipts),
+  **Messages**, and **Settings** (Shield, backups, the recovery key). The shell sends a customer
+  vault that lands anywhere else back to `/customer`, the way it keeps a worker on `/work`.
+- **Shield.** Every account is on the registry, so a customer links a Shield account at setup.
+  A customer pays from personal money, so its Shield account may be the one the same person uses
+  as a worker, and never a business's: the one-kind rule becomes **business or personal** per
+  Shield account, with worker and customer both personal (`chain/account_kind.ts` refuses a
+  customer only on a wallet holding a business name).
+- **The name.** A customer needs a registered name so a business can find them. If the Shield
+  account already holds a personal name (from the same person's worker account), the customer
+  account uses it; otherwise setup registers one, free, the same way a worker's is registered,
+  without the worker profile. On chain a customer's name looks exactly like a worker's, so the
+  chain doesn't say who is a customer.
+- **Backups and recovery** work as for the other two: a backup file, the account backup on chain
+  (`docs/CHAIN_BACKUP.md`), and a recovery key.
+
+## Step 1: invoices and payment, with no new Leo
+
+What works before `hewn_service_v1` exists, using only what is live (`hewn_letters_v2`, the
+stablecoin's own private transfer, the registry):
+
+1. **The business adds the customer** by registered name, on the customer record it already
+   keeps (Sales, Customers).
+2. **The business sends an invoice:** **Send to customer** on an invoice seals it as a letter to
+   the customer's account: number, lines, total, due date, and the business account to pay. One
+   approval in the business's Shield.
+3. **The customer sees it under Bills,** read from their own letters by the portal.
+4. **The customer pays it:** **Pay** sends exactly the invoice's amount as a private USDCx
+   transfer from their Shield account to the business's, then a receipt letter to the business
+   naming the invoice and the transaction. Two approvals: the payment, then the receipt. The
+   customer's vault records it as paid.
+5. **The business's books match it:** the payment already arrives in For review (the Shield
+   account is read today); the receipt letter lets the app match it to the invoice and offer
+   **Record payment for INV-0012** (receivable to the Shield account). Without the letter, it
+   matches by amount, as now.
+6. **Messages** between the two are letters, a conversation like a team member's.
+
+**What's public:** the same as any letter and private transfer: that the letters program and the
+stablecoin's private transfer ran, plus the fee payer when the fee is public. Not the amount, the
+parties, or the invoice.
+
+**Honest limits, until `hewn_service_v1`:**
+- Payment and receipt are two transactions. If the receipt doesn't go through, the payment still
+  arrived and the business matches it by amount; the customer's app offers to resend the receipt.
+- Nothing on chain ties a payment to an invoice; the receipt letter and both sides' records do.
+  The one-transaction payment with receipts and a review ticket (decision 9) comes with
+  `hewn_service_v1`.
+- No directory, requests, agreements or reviews yet: those are Steps 2 to 4.
 
 ## Finding a business: the directory
 
@@ -318,7 +388,8 @@ One Leo program per Fable session (Joshua, 2026-10-23): `hewn_service_v1` first,
 
 0. The probe: a private USDCx transfer inside another program's call, proven by Shield on a
    computer and a phone (a tiny test program, flagged as Leo).
-1. Accounts: the customer side of a personal account.
+1. Customer accounts and the portal, invoices as letters, payment by private transfer (Step 1
+   above; no new Leo, so it can start before the probe).
 2. `hewn_service_v1` and the agreement screens: offer, accept, the statuses, invoices and payment.
 3. `hewn_market_v1`, the directory first, then sealed requests and answers.
 4. Reviews: notes at payment, posting at the end, the listing's averages.
