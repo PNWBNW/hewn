@@ -15,8 +15,8 @@ whenever the work moves.
   invariants with checks, numbered threats, the public-state map, Leo tests for every program Hewn
   calls, a lighter Session start, a link checker (`progress/2026-10-25.md`, `2026-10-26.md`); a
   cold Session start is walked at the end of each phase and kept in that day's log.
-- **Next criterion:** Phase 1, reconciliation: the books' cash accounts checked against the Shield
-  balance, with any difference flagged.
+- **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
+  anchored through `payroll_audit_log`). Reconciliation is in (2026-10-26).
 - **Blocked on Joshua:** archiving the old portal repository on GitHub (Phase 0); two phones with
   Shield for the wallet scenarios in the manual tests and Phase 2's three-worker run.
 
@@ -94,8 +94,9 @@ The frozen core. Everything else imports it; nothing else may alter it.
 With nearly all money moving on chain, the chain doesn't need to hold the books: it already holds
 the cash side, as a bank statement does. The chain is the feed (every movement in the Shield
 account comes in for review and is categorized in the vault), the books stay in the vault
-(`@pnw/ledger` refuses unbalanced entries), reconciliation is automatic (the books' cash against
-the wallet), and closing a month seals it (one root anchored, `docs/AUDIT_DESIGN.md`). A small
+(`@pnw/ledger` refuses unbalanced entries), reconciliation is automatic (the books' Shield account
+against the wallet's stablecoin, as a bank account against its statement; cash on hand and other
+bank accounts never enter it, Joshua 2026-10-26), and closing a month seals it (one root anchored, `docs/AUDIT_DESIGN.md`). A small
 period-status program (open, closed, locked; no postings) comes later as new Leo. The deliverables
 below are the original design, kept for the record; later phases that name `gl_core` transitions
 read against this. The original line: "Fiat-first: the vault and ledger logic come first;
@@ -123,7 +124,7 @@ read against this. The original line: "Fiat-first: the vault and ledger logic co
 - ~~Deployed to testnet; program ID in `testnet.manifest.json`~~ Replaced 2026-10-25 (feed, reconcile, seal)
 - ~~A 20-entry sample ledger posted, period closed, root anchored, with tx hashes recorded in PROGRESS.md~~ Replaced by the next line
 - [ ] A month of a sample business's Shield movements comes in through For review, is categorized, reconciles, and the month is sealed: its root anchored through `payroll_audit_log`, with the tx hash recorded in that day's file in `progress/`
-- [ ] Reconciliation: the books' cash accounts are checked against the Shield balance (private records and public), and any difference is flagged on the Dashboard
+- [x] Reconciliation: the books' Shield account (with its set-asides) is checked against the Shield account's USDCx (private records and public), and a difference nothing explains is flagged on the Dashboard. Only the stablecoin counts; cash and other bank accounts never enter it (Joshua, 2026-10-26). `books/reconcile.ts`, 2026-10-26
 - [x] Vault survives browser clear-site-data via export/import round trip, and opens in a second browser with the same passphrase, no wallet required (2026-10-13)
 - [ ] Once a Shield wallet is linked, the vault opens with either the passphrase or the wallet; the passphrase keeps working so a lost wallet never locks the books
 - ~~Trial balance from the vault matches the trial balance recomputed from on-chain records in settled mode~~ Replaced 2026-10-25: there are no on-chain postings to recompute from; reconciliation (above) checks the cash side

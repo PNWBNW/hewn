@@ -15,6 +15,10 @@
 //
 // It also holds this device's fee switch (@pnw/wallet/fee-mode), next to the private ALEO that
 // pays a private fee: while private fees are tested, they are chosen here.
+//
+// Once the books follow the account, the USDCx total is checked against the books' Shield account
+// (books/reconcile.ts): a quiet line when they agree or the difference is explained, a flag when
+// nothing explains it.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useState } from "react";
@@ -28,6 +32,8 @@ import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
 import { minorToCents, startFromShield } from "@/books/opening";
+import { reconcileShield } from "@/books/reconcile";
+import { ShieldCheckView } from "@/books/ShieldCheck";
 import { shortAddress } from "@/books/rail";
 import { longDate } from "./agreement_draft";
 import {
@@ -144,6 +150,7 @@ function BalancesCard({ address }: AccountBalancesProps) {
         {connectError && <p className="text-xs text-money-negative">{connectError}</p>}
 
         <StartBooks usdcx={privateRead ? totalOf(coins[1]!.balance) : null} />
+        <ShieldCheck usdcx={privateRead ? totalOf(coins[1]!.balance) : null} />
 
         {mismatch ? (
           <p className="text-xs text-muted-foreground">
@@ -269,6 +276,13 @@ function StartBooks({ usdcx }: { usdcx: bigint | null }) {
       </div>
     </div>
   );
+}
+
+/** The books' Shield account against the USDCx Shield holds (books/ShieldCheck.tsx shows the result). */
+function ShieldCheck({ usdcx }: { usdcx: bigint | null }) {
+  const company = useOpenBooks();
+  const result = reconcileShield({ ...company, review: company.review ?? undefined, funds: company.funds ?? undefined, rail: company.rail ?? undefined }, usdcx);
+  return <ShieldCheckView result={result} />;
 }
 
 const part = (label: string, minor: bigint | null) => (
