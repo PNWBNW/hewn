@@ -55,6 +55,8 @@ import type { Rail } from "./rail";
 import { type Role, type Work, emptyWork } from "./work";
 import { markBackedUp } from "./backup_reminder";
 import {
+  type KeySlots,
+  type SealedAttachment,
   type VaultSession,
   IndexedDbStore,
   VaultError,
@@ -62,6 +64,7 @@ import {
   createVault,
   exportBackup,
   forgetSession,
+  keySlotsOf,
   parseBackup,
   REMEMBER_MS,
   removeRecovery,
@@ -85,6 +88,8 @@ export type SetupInput = Settings & { template: TemplateId | "blank"; username: 
 
 /** What a login came to: the books are open, or one username and passphrase opened both kinds and the person picks. */
 export type BackupOutcome = "shared" | "downloaded" | "cancelled";
+
+export type BackupSealer = { seal(id: string, bytes: Uint8Array<ArrayBuffer>): Promise<SealedAttachment>; slots: KeySlots };
 
 export type UnlockOutcome = { opened: true } | { opened: false; choices: Role[] };
 
@@ -170,6 +175,14 @@ type BooksContextValue = {
   downloadBackup: () => Promise<BackupOutcome>;
   /** Records that the backup just downloaded was saved (the person said so). */
   confirmBackupSaved: () => Promise<void>;
+  /**
+   * What a backup kept as letters needs from the open books (chain/books_backup.ts): sealing a piece
+   * with their data key, as a receipt is sealed, and the vault's key slots. Null while locked. The
+   * session itself never leaves this provider.
+   */
+  backupSealer: () => BackupSealer | null;
+  /** The open company as it stands now (read-only), for work that needs the whole document; null while locked. */
+  currentCompany: () => Company | null;
   /**
    * Restore a backup file onto this device, then open it. The backup must belong to this username; a
    * backup from before accounts needs only the passphrase (pass null for the username).
@@ -470,6 +483,14 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     await updateCompany((c) => markBackedUp(c));
   }, [updateCompany]);
 
+  const currentCompany = useCallback((): Company | null => companyRef.current, []);
+
+  const backupSealer = useCallback((): BackupSealer | null => {
+    const s = session.current;
+    if (!s || s.locked) return null;
+    return { seal: (id, bytes) => s.sealAttachment(id, bytes), slots: keySlotsOf(s.record) };
+  }, []);
+
   const restore = useCallback(
     async (fileText: string, rawUsername: string | null, passphrase: string, stay = true) => {
       const backup = parseBackup(fileText);
@@ -680,6 +701,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       updateCompany,
       downloadBackup,
       confirmBackupSaved,
+      backupSealer,
+      currentCompany,
       restore,
       backupKey,
       recover,
@@ -707,6 +730,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       updateCompany,
       downloadBackup,
       confirmBackupSaved,
+      backupSealer,
+      currentCompany,
       restore,
       backupKey,
       recover,

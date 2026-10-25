@@ -48,10 +48,16 @@ const ReportInbox = dynamic(() => import("@/chain/ReportInbox"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
+// The backup kept as letters to the account (docs/CHAIN_BACKUP.md), inside the Backups card.
+const ChainBackup = dynamic(() => import("@/chain/ChainBackup"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function SettingsPage() {
-  const { books, role, username, lock, stayUntil } = useOpenBooks();
+  const { books, role, username, lock, stayUntil, rail } = useOpenBooks();
   const worker = role === "worker";
   return (
     <div className="flex flex-col gap-6">
@@ -93,7 +99,7 @@ export default function SettingsPage() {
 
       <YourCard />
 
-      <BackupCard />
+      <BackupCard account={rail ? <ChainBackup /> : undefined} />
 
       <RecoveryKey />
 

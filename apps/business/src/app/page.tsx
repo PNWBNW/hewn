@@ -15,6 +15,7 @@ import { PageHeader } from "@/shell/SectionView";
 
 // What the linked account holds, read from the network; loaded only once an account is linked.
 const AccountBalances = dynamic(() => import("@/chain/AccountBalances"), { ssr: false });
+const ChainBackup = dynamic(() => import("@/chain/ChainBackup"), { ssr: false });
 
 /** Sum of balances for accounts of the given types, positive on their normal side. */
 function totalOf(books: Books, types: AccountType[]): bigint {
@@ -60,7 +61,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-8">
       <PageHeader title="Dashboard" summary="Where your business stands today." />
 
-      <BackupReminder />
+      <BackupReminder account={rail ? <ChainBackup /> : undefined} />
 
       <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {figures.map((f) => (
