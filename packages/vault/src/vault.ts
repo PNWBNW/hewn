@@ -430,6 +430,66 @@ export async function resetWithRecovery(record: VaultRecord, code: string, nextP
   return rewrapUnderPassphrase(record, raw, normalized, options.iterations);
 }
 
+// ---- key slots (backups kept elsewhere) -----------------------------------
+
+/**
+ * The parts of a record that hold its keys and nothing of the books: the passphrase's wrapped copy
+ * of the data key and, once one was made, the recovery key's. A backup kept somewhere else (letters
+ * on the account, the app's chain backup) carries these beside pieces sealed with
+ * `VaultSession.sealAttachment`, so the same passphrase or recovery key opens it, and a restore
+ * rebuilds a vault with the very same keys.
+ */
+export type KeySlots = Pick<VaultRecord, "id" | "kdf" | "wrappedKey" | "recovery">;
+
+export function keySlotsOf(record: VaultRecord): KeySlots {
+  assertRecord(record);
+  return { id: record.id, kdf: record.kdf, wrappedKey: record.wrappedKey, ...(record.recovery ? { recovery: record.recovery } : {}) };
+}
+
+/** A payload that opens nothing: a slots-only session must write the books before anything reads them. */
+const NO_PAYLOAD: Sealed = { iv: "", data: "" };
+
+function slotsRecord(slots: KeySlots, now: string): VaultRecord {
+  const record: VaultRecord = { format: VAULT_FORMAT, version: 1, ...slots, payload: NO_PAYLOAD, updatedAt: now };
+  assertRecord(record);
+  return record;
+}
+
+/**
+ * Opens a vault's key from its slots with the passphrase, as `unlockVault` does: WRONG_PASSPHRASE
+ * when it doesn't. The session has no books yet; `write` them (it returns the record to store),
+ * then read as usual.
+ */
+export async function openKeySlots(slots: KeySlots, passphrase: string, now: string = new Date().toISOString()): Promise<VaultSession> {
+  const record = slotsRecord(slots, now);
+  const kek = await unlockKey(passphrase.normalize("NFKC"), unb64(record.kdf.salt), record.kdf.iterations);
+  try {
+    return new VaultSession(await unwrapDataKey(kek, record), record);
+  } catch {
+    throw new VaultError("WRONG_PASSPHRASE", "That passphrase doesn't open these books");
+  }
+}
+
+/**
+ * The same with the recovery key: WRONG_RECOVERY_KEY when it doesn't open (or there is no recovery
+ * slot). A restore this way should then set a new passphrase (`resetWithRecovery` on the record it
+ * writes), since the person has lost the old one.
+ */
+export async function openKeySlotsWithRecovery(slots: KeySlots, code: string, now: string = new Date().toISOString()): Promise<VaultSession> {
+  const record = slotsRecord(slots, now);
+  const wrong = new VaultError("WRONG_RECOVERY_KEY", "That recovery key doesn't open these books");
+  const secret = await parseRecoveryCode(code);
+  if (!secret || !record.recovery) throw wrong;
+  try {
+    const key = await unwrapSlot(await recoveryKey(secret, unb64(record.recovery.salt), record.id), record.recovery.wrappedKey, record.id, "recovery", false);
+    return new VaultSession(key, record);
+  } catch {
+    throw wrong;
+  } finally {
+    secret.fill(0);
+  }
+}
+
 // ---- backup files ----------------------------------------------------------
 
 /**

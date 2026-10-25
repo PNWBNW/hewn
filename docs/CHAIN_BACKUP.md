@@ -48,7 +48,7 @@ a snapshot, or after 12 changes, so a restore never needs more than a snapshot a
 Old chains stay on chain. Letters can't be deleted; they're ciphertext and harmless, and restore
 reads only the newest complete chain.
 
-### What a piece holds
+### What a piece holds (as built: `books/books_backup.ts`)
 
 - **Snapshot:** the company document as the vault keeps it (`companyToJson`), minus each journal
   entry's `hash` and `prevHash`. Those are recomputed on restore (`@pnw/ledger` `hashEntry`), and
@@ -63,28 +63,37 @@ reads only the newest complete chain.
 ### Compressed, then encrypted
 
 Each piece is deflated (`chain/compress.ts`, the same as long letters), then sealed. Measured with
-the app's own ledger (books of N entries, compressed):
+the app's own ledger and the built code (`chain/books_backup.ts`), a snapshot of books with N
+entries, sealed, with its key slots:
 
-| Entries | Raw | Compressed | Pages |
+| Entries | Sealed | Pages | Fee if the account pays |
 |---|---|---|---|
-| 0 | 2.0 KB | 0.6 KB | 1 |
-| 100 | 52 KB | 7.8 KB | 1 |
-| 500 | 253 KB | 34 KB | 5 |
-| 2,000 | 1.0 MB | 133 KB | 17 |
+| 0 | 1.0 KB | 1 letter | 0.0066 ALEO |
+| 100 | 3.9 KB | 1 page | 0.087 ALEO |
+| 500 | 13 KB | 2 pages | 0.17 ALEO |
+| 2,000 | 48 KB | 7 pages | 0.53 ALEO |
 
-These numbers include the hashes. Without them, expect roughly half. A week's changes for a small
-business (a few dozen entries) is one page, often one letter.
+Leaving out the entry hashes is what makes the difference. With them, 2,000 entries took 17 pages.
+A week's changes for a small business is usually one letter.
 
-### The keys
+### The keys (as built, 2026-10-26)
 
-- **The content key:** each chain has its own random 256-bit content key, and every piece in the
-  chain is sealed with it (AES-256-GCM, as the vault).
-- **Two wrapped copies of it ride in the snapshot:** one under a key from the account's username
-  and passphrase (PBKDF2-SHA256, 600,000 rounds, as `conversationBackupKey`), and one under the
-  account's recovery key, if it has one. Either opens the chain, as either opens the vault.
-- **The finder key** says where the pieces are: it comes from the username and the account's
-  address, not the passphrase, so a recovery-key restore can still find them. Each piece's lookup
-  is a hash of the finder key, the chain and the sequence number, so nothing about the lookup
+- **Every piece is sealed with the books' own data key,** the way a receipt file is
+  (`VaultSession.sealAttachment`): AES-256-GCM, bound to this vault and to the piece's place
+  (`bb-<chain>-<seq>`), so a piece can't be swapped for another.
+- **A snapshot carries the vault's key slots** (@pnw/vault `keySlotsOf`): the data key wrapped
+  under the passphrase (PBKDF2-SHA256, 600,000 rounds) and, once there is one, under the recovery
+  key. Either one opens the backup (`openKeySlots`, `openKeySlotsWithRecovery`), and a restore
+  writes the books into a vault with the very same keys, so the person logs in exactly as before.
+  A recovery-key restore then sets a new passphrase.
+- **This replaces the separate content key first planned.** The app never holds the recovery
+  code after showing it once, so it couldn't wrap a new key under it. The vault's own recovery slot
+  already does that.
+- **The slots are as safe here as in a backup file.** They yield nothing without the passphrase or
+  the recovery key, and only the wallet can read its own letters to see them at all.
+- **The finder key** says where the pieces are. It comes from the username and the account's
+  address, not the passphrase, so a recovery-key restore can still find them. Each page's lookup
+  is a hash of the finder key, the chain, the piece and the page, so nothing about a lookup
   connects two backups for anyone without the username and the wallet.
 
 ## Where it goes, and what's public
@@ -105,12 +114,13 @@ its records and their sizes are described in `docs/LETTERS.md`. In short:
 One page is about 0.087 ALEO and one letter about 0.0066 ALEO, measured at deploy. Shield's sponsor
 paid the fee for Joshua's letters, so it may cost nothing on testnet.
 
-- A first backup of a new business's books: one page.
-- A weekly change: one letter or one page.
-- A busy year's snapshot: five to ten pages.
+- A first backup of a new business's books: one letter or one page.
+- A weekly change: usually one letter.
+- A busy year's snapshot: about seven pages.
 
-Each page is one Shield approval, so snapshots should be rare. The rule above keeps them to about
-one in twelve backups.
+Each page is one Shield approval. Snapshots are rare for books of any size, because the rule
+above starts a new one only when the changes reach half a snapshot or number twelve. For small
+books a snapshot is a single page anyway, so starting a new chain costs nothing extra.
 
 ## When it runs
 
