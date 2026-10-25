@@ -1,7 +1,8 @@
 # Customers: design
 
 **Status:** design, for review (Joshua, 2026-10-23; accounts revised 2026-10-26). Nothing is
-built. Step 1 (customer accounts, invoices and payment) needs no new Leo; the rest needs two new
+built. Step 1 (customer accounts, invoices and payment) needs no new Leo and is greenlit, after
+the account backup's restore; the rest needs two new
 Leo programs (Fable 5.1 at high effort, with must-fail tests). Every step has new screens, built
 only with Joshua's greenlight. The decisions below are his.
 
@@ -70,6 +71,10 @@ everything about them private. A customer can:
 17. Customers sign up on their own and have their own login and a standalone portal that holds
     only customer activity. A customer can also be a worker, but the two are separate accounts
     (2026-10-26; this replaces the "customer side" of a personal account first planned).
+18. One username holds a worker and a customer account, never a business with either; a business
+    always runs its own Shield account (2026-10-26).
+19. Order: the account backup's restore (`docs/CHAIN_BACKUP.md` part 3) first, then Step 1 here,
+    greenlit for its screens (2026-10-26).
 
 ## Accounts (decision 17)
 
@@ -80,18 +85,24 @@ a worker keeps the two apart, as two accounts.
 | | Business | Worker | Customer |
 |---|---|---|---|
 | Welcome card | I run a business | I work for a business | I'm a client or customer (new) |
+| Username | Its own | Shared with the person's customer account, if any | Shared with the person's worker account, if any |
 | Vault | `hash(business + username)` | `hash(worker + username)` | `hash(customer + username)` |
 | Portal | The books (`/`) | `/work` | `/customer` (new) |
 | Name on the registry | A business name | A personal name, with a profile | A personal name, no profile |
 
 - **Sign-up.** A third card on the Welcome screen: **I'm a client or customer**, "Find
   businesses, get invoices, pay them, and keep every receipt." (Joshua, 2026-10-26: not "I hire
-  businesses".) The note under the cards changes to say a username can hold all three, and that a
-  worker and a customer account can share a Shield account while a business needs its own.
+  businesses".) The note under the cards changes to say a username can hold a worker and a
+  customer account, and that a business has a username and a Shield account of its own.
+- **Usernames (decision 18).** One username holds a worker and a customer account, or a business,
+  never a business with either. A business always runs its own Shield account and its own
+  username. Usernames live only on the device (there is no server to check them against), so sign-up
+  enforces it there: making a business under a username that already holds a worker or customer
+  account on this device is refused, and the other way round. Accounts already made under the old
+  rule (a business and a worker on one username) keep opening; nothing is stranded.
 - **Login.** The same username and passphrase screen. The vault id already mixes in the role, so
-  one username can hold a business, a worker and a customer account, each with its own vault and
-  keys; when one username opens more than one, the login asks which (it does this today for a
-  business and a worker). `ROLES` gains `customer`.
+  a worker and a customer account under one username each have their own vault and keys; when
+  one username opens both, the login asks which (as it does today). `ROLES` gains `customer`.
 - **The portal holds only customer activity.** No books, no payroll, no work, no job board. Its
   pages: **Home** (what's owed and what's been paid), **Businesses** (the ones you deal with,
   found by registered name), **Bills** (invoices received), **Payments** (paid, with receipts),
