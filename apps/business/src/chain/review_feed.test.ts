@@ -177,6 +177,28 @@ describe("finding what moved in the account", () => {
     expect((await findMovements({ me: ME, start: START, known: new Set(), deps: d })).why![0]!.why).toMatch(/refused \(Decrypt not supported\)/);
   });
 
+  it("never waits on Shield forever: a decrypt that doesn't answer is given up on, once (Joshua's test, 2026-10-26)", async () => {
+    const d = deps({
+      history: [
+        { ...entry(9, "2026-10-16T12:00:00Z"), functionId: "transfer_private" },
+        { ...entry(10, "2026-10-16T12:00:00Z"), functionId: "transfer_private" },
+      ],
+      docs: { [tx(9)]: privateTransfer, [tx(10)]: privateTransfer },
+    });
+    let asked = 0;
+    d.wallet.decryptRecord = () => {
+      asked++;
+      return new Promise<string>(() => {});
+    };
+    const r = await findMovements({ me: ME, start: START, known: new Set(), deps: { ...d, shieldWaitMs: 5 } });
+    expect(asked).toBe(1);
+    expect(r.unread).toBe(2);
+    expect(r.why!.every((w) => /didn't answer a decrypt within/.test(w.why))).toBe(true);
+    // A history request that never answers ends the check with a reason, not a spinner.
+    d.wallet.requestTransactionHistory = () => new Promise(() => {});
+    await expect(findMovements({ me: ME, start: START, known: new Set(), deps: { ...d, shieldWaitMs: 5 } })).rejects.toThrow(/didn't answer the history request/);
+  });
+
   it("counts a transaction it can't read yet and tries it again next time", async () => {
     const r = await findMovements({ me: ME, start: START, known: new Set(), deps: deps({ history: [entry(7, "2026-10-16T09:00:00Z")] }) });
     expect(r).toMatchObject({ items: [], unread: 1, why: [{ id: tx(7), why: "the explorer doesn't have it yet; not in Shield's record list" }] });
