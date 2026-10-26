@@ -46,6 +46,8 @@ export type FeedResult = {
   items: ReviewItem[];
   /** Transactions that couldn't be read this time (the explorer didn't have them yet, say); tried again next check. */
   unread: number;
+  /** Why each one with an id couldn't be read, in a few words: ids are public, and no amount or account is in it. */
+  why?: { id: string; why: string }[];
 };
 
 type Obj = Record<string, unknown>;
@@ -138,10 +140,10 @@ export async function findMovements(args: { me: string; start: RailStart | null 
   let unread = 0;
   // Read neither way yet. A private payment received is in Shield's history too, but only its
   // sender can open it there; its record (step 2) has the amount, so it isn't given up on here.
-  const notYet = new Set<string>();
-  const later = (id: string) => {
+  const notYet = new Map<string, string>();
+  const later = (id: string, why: string) => {
     seen.delete(id);
-    notYet.add(id);
+    notYet.set(id, why);
   };
 
   // 1. History: both directions of public transfers, and what this account sent privately.
@@ -158,15 +160,19 @@ export async function findMovements(args: { me: string; start: RailStart | null 
     if (typeof e.transactionStatus === "string" && e.transactionStatus.toLowerCase() !== "accepted") continue;
     seen.add(id);
     try {
-      const { transfer, fee } = transitionsOf(await deps.fetchTransaction(id));
+      const doc = await deps.fetchTransaction(id);
+      const { transfer, fee } = transitionsOf(doc);
       if (!transfer) {
-        later(id);
+        later(id, doc ? "the explorer has it, but not as a USDCx transfer" : "the explorer doesn't have it yet");
         continue;
       }
       let read = readTransfer(transfer, fee);
+      let tvks = 0;
       if (read.minor === null || (read.to === null && !read.fn.startsWith("mint") && !read.fn.startsWith("burn"))) {
         // Private values: open them with Shield's view keys for this transaction.
-        for (const tvk of await deps.wallet.transitionViewKeys(id).catch(() => [] as string[])) {
+        const keys = await deps.wallet.transitionViewKeys(id).catch(() => [] as string[]);
+        tvks = keys.length;
+        for (const tvk of keys) {
           const opened = await deps.decrypt(transfer, tvk).catch(() => null);
           if (!isObj(opened)) continue;
           const again = readTransfer(opened, fee);
@@ -176,25 +182,28 @@ export async function findMovements(args: { me: string; start: RailStart | null 
           }
         }
       }
+      let why = tvks ? "Shield's view key didn't open it" : "Shield has no view key for it (someone else sent it)";
       if (read.minor === null && deps.wallet.decryptRecord) {
         // Someone else's private payment to this account: its view key is the sender's, but the
         // record it made is this account's own, and Shield opens that (Joshua's test, 2026-10-26).
         const mine = await ownRecordIn(transfer, me, deps.wallet.decryptRecord);
-        if (mine !== null) read = { fn: read.fn, to: me, minor: mine, from: read.from === me ? null : read.from };
+        if (typeof mine === "bigint") read = { fn: read.fn, to: me, minor: mine, from: read.from === me ? null : read.from };
+        else why = `${why}; ${mine}`;
       }
       if (read.minor === null) {
-        later(id);
+        later(id, why);
         continue;
       }
       const item = classify({ me, id, when, fn: read.fn, to: read.to, from: read.from, minor: read.minor });
       if (item) items.push(item);
-    } catch {
-      later(id);
+    } catch (e) {
+      later(id, `reading it failed: ${shortError(e)}`);
     }
   }
 
   // 2. Records: a private payment received (its transaction isn't one this account signed).
-  for (const r of receivedRecords(await deps.wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[]))) {
+  const raw = await deps.wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[]);
+  for (const r of receivedRecords(raw)) {
     if (seen.has(r.id) || !afterStart(r.when, start)) continue;
     seen.add(r.id);
     notYet.delete(r.id);
@@ -202,21 +211,43 @@ export async function findMovements(args: { me: string; start: RailStart | null 
     if (item) items.push(item);
   }
 
-  return { items, unread: unread + notYet.size };
+  // What Shield's record list says about each one still unread, so a gap can be told apart from a bug.
+  const why = [...notYet].map(([id, w]) => {
+    const rec = raw.filter(isObj).find((r) => transactionIdOf(r, ["transactionId", "transaction_id", "txId"]) === id);
+    const inList = !rec
+      ? "not in Shield's record list"
+      : `in Shield's record list (${[rec.spent === true ? "spent" : "unspent", typeof rec.recordPlaintext === "string" ? "with its amount" : "without its amount", timeOf(rec.blockTimestamp) ? "dated" : "undated"].join(", ")})`;
+    return { id, why: `${w}; ${inList}` };
+  });
+  return { items, unread: unread + notYet.size, why };
 }
 
-/** The amount of the record a transition made for this account, opened with Shield; null when none of its records is this account's. */
-async function ownRecordIn(transition: Obj, me: string, decrypt: (cipherText: string) => Promise<string>): Promise<bigint | null> {
+/** An error in a few words, for the reasons list: never more than its message, cut short. */
+const shortError = (e: unknown): string => (e instanceof Error ? e.message : String(e)).replace(/\s+/g, " ").slice(0, 120);
+
+/** The amount of the record a transition made for this account, opened with Shield; otherwise why not, in a few words. */
+async function ownRecordIn(transition: Obj, me: string, decrypt: (cipherText: string) => Promise<string>): Promise<bigint | string> {
   const outputs = Array.isArray(transition.outputs) ? transition.outputs.filter(isObj) : [];
+  const tried: string[] = [];
   for (const o of outputs) {
     if (o.type !== "record" || typeof o.value !== "string" || !o.value.startsWith("record1")) continue;
-    const plain = await decrypt(o.value).catch(() => null);
-    if (typeof plain !== "string") continue;
+    let plain: unknown;
+    try {
+      plain = await decrypt(o.value);
+    } catch (e) {
+      tried.push(`refused (${shortError(e)})`);
+      continue;
+    }
+    if (typeof plain !== "string") {
+      tried.push(`gave ${typeof plain}`);
+      continue;
+    }
     const owner = /\bowner:\s*(aleo1[a-z0-9]{58})/.exec(plain)?.[1];
     const amount = /\bamount:\s*(\d+)u128\b/.exec(plain)?.[1];
     if (owner === me && amount) return BigInt(amount);
+    tried.push(owner ? (owner === me ? "opened, no amount" : "someone else's") : "opened, no owner");
   }
-  return null;
+  return tried.length ? `Shield's decrypt on its ${tried.length} records: ${tried.join(", ")}` : "no records in it to open";
 }
 
 /** A USDCx record this account holds: the transaction that made it, when, how much, and who sent it when Shield says. */
