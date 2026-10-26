@@ -26,6 +26,7 @@ import { BRAND } from "@/brand";
 import { USDCX_PROGRAM } from "../balances";
 import { useLetters } from "../letter_reader";
 import { receivedRecords } from "../review_feed";
+import { TxLink } from "../TxLink";
 import { checkConnections } from "./checkConnections";
 import { ShieldNeeded } from "./ShieldNeeded";
 
@@ -126,7 +127,7 @@ function Payments() {
               <span className="min-w-0 flex-1 text-sm">
                 {names.get(p.customerId) ?? "A customer"} paid {p.number ?? "you, without an invoice"} · ${formatCents(p.cents)}
                 {p.note && <span className="block text-muted-foreground">For: {p.note}</span>}
-                <span className="block break-all font-mono text-xs text-muted-foreground">{p.transactionId}</span>
+                <TxLink id={p.transactionId} network={rail.network} className="block" />
                 {p.problem && <span className="block text-xs text-muted-foreground">{p.problem}</span>}
               </span>
               {p.seen ? (
