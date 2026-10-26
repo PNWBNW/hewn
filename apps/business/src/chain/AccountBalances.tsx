@@ -33,6 +33,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
 import { minorToCents, startFromShield } from "@/books/opening";
 import { reconcileShield } from "@/books/reconcile";
+import { RecordDifference } from "@/books/RecordDifference";
 import { ShieldCheckView } from "@/books/ShieldCheck";
 import { shortAddress } from "@/books/rail";
 import { longDate } from "./agreement_draft";
@@ -282,7 +283,7 @@ function StartBooks({ usdcx }: { usdcx: bigint | null }) {
 function ShieldCheck({ usdcx }: { usdcx: bigint | null }) {
   const company = useOpenBooks();
   const result = reconcileShield({ ...company, review: company.review ?? undefined, funds: company.funds ?? undefined, rail: company.rail ?? undefined }, usdcx);
-  return <ShieldCheckView result={result} />;
+  return <ShieldCheckView result={result} record={result.kind === "off" && result.shield !== result.books ? <RecordDifference cents={result.shield - result.books} /> : undefined} />;
 }
 
 const part = (label: string, minor: bigint | null) => (

@@ -3,8 +3,8 @@
 // account after the books started, each waiting for the business to say what
 // it was. Accepting one posts it (the Shield account on one side, the account
 // the business picked on the other); excluding one keeps it out of the books.
-// Moves inside the account itself and payments the app already recorded are
-// settled automatically and never ask anything.
+// Payments the app already recorded are settled automatically; moves inside
+// the account itself are asked about like the rest, marked as moves.
 //
 // Items are found by src/chain (review_feed.ts) and kept here, in the vault.
 // The amount is kept as it arrived, in six-decimal minor units; the books
