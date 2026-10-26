@@ -124,9 +124,10 @@ const BIG = (_key: string, value: unknown) =>
 /**
  * What a backup keeps about the backups themselves: nothing. When the last one was saved and where
  * the chain stands change with every backup, so they're left out of what is backed up and hashed (a
- * restore sets them afresh).
+ * restore sets them afresh). The view key never goes out as letters (books/view_key.ts): after a
+ * restore from them, the business enters it again in Settings.
  */
-const NOT_BACKED_UP = ["backedUpAt", "chainBackup"] as const;
+const NOT_BACKED_UP = ["backedUpAt", "chainBackup", "viewKey"] as const;
 
 /** The company document as its sections (each a JSON string), normalised by a round trip. */
 function docOf(company: Company): Doc {

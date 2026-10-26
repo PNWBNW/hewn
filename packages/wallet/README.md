@@ -41,6 +41,11 @@ failed silently, most likely because the test accounts held no private ALEO to p
 fees by default is the goal (Joshua, 2026-10-16); it is being tried behind the dashboard's
 per-device switch (`fee_mode.ts`), which `chain/shield.ts` applies to every call.
 
+Shield may pay the fee itself ("Network fee: Covered by Shield" in its prompt, seen 2026-10-26):
+the transaction then carries a public `fee_public` paid by Shield's own account, and `privateFee`
+is ignored. The user's address isn't the fee payer then, so it isn't exposed; the app must never
+take that payer for the sender (`apps/business/src/chain/review_feed.ts`).
+
 Shield's in-browser prover drops proofs that span several programs, so nothing Hewn sends is one:
 payroll is one `transfer_private` per payee (`packages/rail`), and the paystub goes as a letter,
 rather than `payroll_core_v2`'s one-proof `execute_payroll`, which stays deployed and unused.

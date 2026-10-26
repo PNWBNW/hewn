@@ -23,6 +23,7 @@
 // record and every sealed file.
 // ---------------------------------------------------------------------------
 
+import type { ViewKeyChoice } from "./view_key";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type Books, type Dimensions, type Settings, type TemplateId, applyTemplate, createBooks } from "@pnw/ledger";
 import type { Payroll } from "@pnw/payroll";
@@ -156,6 +157,10 @@ type BooksContextValue = {
   clients: Connections | null;
   /** The project each agreed job has (books/agreement_projects.ts); null before the first. */
   agreementProjects: AgreementProjects | null;
+  /** The business's view key (books/view_key.ts); null when it hasn't given one. Only the For review check reads it. */
+  viewKey: string | null;
+  /** Whether the business added its view key or went without; null until asked. */
+  viewKeyChoice: ViewKeyChoice | null;
   /** Personal events on this account's own calendar (books/events.ts); empty before the first. */
   events: readonly PersonalEvent[];
   /** Shared events: the ones this account organizes and its invitations (books/shared_events.ts); null before the first. */
@@ -748,6 +753,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       customer: company?.customer ?? null,
       clients: company?.clients ?? null,
       agreementProjects: company?.agreementProjects ?? null,
+      viewKey: company?.viewKey ?? null,
+      viewKeyChoice: company?.viewKeyChoice ?? null,
       events: company?.events ?? NO_EVENTS,
       calendar: company?.calendar ?? null,
       create,

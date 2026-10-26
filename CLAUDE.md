@@ -66,6 +66,10 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 
 **Keys and storage**
 - Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs. (INV-06)
+  One exception to keeping keys out of the app: a business's own **view key**, entered by the
+  business in setup or Settings, is kept inside its encrypted books to read its incoming private
+  payments (Joshua, 2026-10-26; `books/view_key.ts`). It is checked against the linked account,
+  never sent, logged or shown back, and never in the backup kept as letters.
 - The vault key is derived from the user's unlock secret: **username + passphrase** together in
   fiat mode (no wallet needed; `apps/business/src/books/account.ts`: the secret is the normalised
   username and the passphrase, the vault id a hash of role + username; one username holds a

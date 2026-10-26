@@ -13,9 +13,10 @@
 import { CARDS_SINCE } from "./card";
 import type { Rail } from "./rail";
 import type { CustomerSide } from "./customer";
+import { type ViewKeyChoice, viewKeyStepApplies } from "./view_key";
 import type { Role, Work } from "./work";
 
-export type SetupStep = "link" | "name" | "profile" | "card" | "done";
+export type SetupStep = "link" | "name" | "profile" | "viewkey" | "card" | "done";
 
 export const SETUP_PATH = "/settings/setup";
 
@@ -24,11 +25,14 @@ export function setupStep({
   rail,
   work,
   customer,
+  viewKeyChoice,
 }: {
   role: Role;
   rail: Rail | null | undefined;
   work: Work | null | undefined;
   customer?: CustomerSide | null;
+  /** A business's answer to the view key step (books/view_key.ts). */
+  viewKeyChoice?: ViewKeyChoice | null;
 }): SetupStep {
   if (!rail) return "link";
   // A customer has a name and nothing else on chain: no profile, and no card yet.
@@ -40,6 +44,7 @@ export function setupStep({
     return card && !work.profile.card ? "card" : "done";
   }
   if (!rail.businessNameHash) return "name";
+  if (viewKeyStepApplies(rail) && !viewKeyChoice) return "viewkey";
   return card && !rail.card ? "card" : "done";
 }
 
@@ -54,14 +59,14 @@ export function cardStepApplies(rail: Pick<Rail, "linkedAt"> | null | undefined)
 
 /** Every step a role can go through, in order. */
 export const SETUP_STEPS: Record<Role, Exclude<SetupStep, "done">[]> = {
-  business: ["link", "name", "card"],
+  business: ["link", "name", "viewkey", "card"],
   worker: ["link", "name", "profile", "card"],
   customer: ["link", "name"],
 };
 
 /** The steps this account goes through, for the progress list. */
 export function setupSteps(role: Role, rail: Pick<Rail, "linkedAt"> | null | undefined): Exclude<SetupStep, "done">[] {
-  return cardStepApplies(rail) ? SETUP_STEPS[role] : SETUP_STEPS[role].filter((s) => s !== "card");
+  return SETUP_STEPS[role].filter((s) => (s !== "card" || cardStepApplies(rail)) && (s !== "viewkey" || viewKeyStepApplies(rail)));
 }
 
 /** Where an unfinished account must go instead of `pathname`, or null when it may stay. */

@@ -155,48 +155,43 @@ describe("finding what moved in the account", () => {
     expect(r.items).toEqual([expect.objectContaining({ id: tx(8), direction: "in", minor: "5750000", counterparty: BOSS, status: "new" })]);
   });
 
-  it("opens the record a private payment made for this account with Shield when the record list doesn't have it", async () => {
-    const d = deps({ history: [{ ...entry(9, "2026-10-16T12:00:00Z"), functionId: "transfer_private" }], docs: { [tx(9)]: privateTransfer } });
+  it("opens each private payment received with the business's view key, on its own, whatever Shield joined since (Joshua's test, 2026-10-26)", async () => {
+    // Paid by Birch, fee covered by Shield's own account: the payer is never taken for the sender.
+    const sponsored = { ...privateTransfer, fee: { transition: fee(DAO) } };
+    const d = deps({ history: [{ ...entry(9, "2026-10-16T12:00:00Z"), functionId: "transfer_private" }], docs: { [tx(9)]: sponsored } });
     const opened: string[] = [];
-    d.wallet.decryptRecord = async (c) => {
+    const withKey = (open: FeedDeps["openRecord"]) => ({ ...d, openRecord: open });
+    const mine = async (c: string) => {
       opened.push(c);
-      if (c !== "record1ccc") throw new Error("not yours");
-      return `{\n  owner: ${ME}.private,\n  amount: 5750000u128.private,\n  _nonce: 1group.public\n}`;
+      return c === "record1ccc" ? `{\n  owner: ${ME}.private,\n  amount: 1000000u128.private,\n  _nonce: 1group.public\n}` : null;
     };
-    const r = await findMovements({ me: ME, start: START, known: new Set(), deps: d });
+    const r = await findMovements({ me: ME, start: START, known: new Set(), deps: withKey(mine) });
     expect(opened).toEqual(["record1ccc"]);
-    expect(r).toMatchObject({ items: [expect.objectContaining({ id: tx(9), direction: "in", minor: "5750000", status: "new" })], unread: 0, why: [] });
-    // Someone else's record: still unread, never guessed.
-    d.wallet.decryptRecord = async () => `{ owner: ${DAO}.private, amount: 5750000u128.private }`;
-    const notMine = await findMovements({ me: ME, start: START, known: new Set(), deps: d });
-    expect(notMine).toMatchObject({ items: [], unread: 1 });
-    expect(notMine.why).toEqual([{ id: tx(9), why: "Shield has no view key for it (someone else sent it); Shield's decrypt on its 1 records: someone else's; not in Shield's record list" }]);
-    d.wallet.decryptRecord = async () => {
-      throw new Error("Decrypt not supported");
-    };
-    expect((await findMovements({ me: ME, start: START, known: new Set(), deps: d })).why![0]!.why).toMatch(/refused \(Decrypt not supported\)/);
+    expect(r).toMatchObject({ unread: 0, why: [] });
+    expect(r.items).toEqual([expect.objectContaining({ id: tx(9), direction: "in", minor: "1000000", status: "new" })]);
+    expect(r.items[0]).not.toHaveProperty("counterparty");
+    // Shield names the sender when its record list still has the record.
+    const named = await findMovements({
+      me: ME,
+      start: START,
+      known: new Set(),
+      deps: { ...deps({ history: [{ ...entry(9, "2026-10-16T12:00:00Z"), functionId: "transfer_private" }], docs: { [tx(9)]: sponsored }, records: [{ recordName: "Token", transactionId: tx(9), sender: BOSS }] }), openRecord: mine },
+    });
+    expect(named.items[0]).toMatchObject({ counterparty: BOSS });
+    // Someone else's record: still unread, never guessed; without a key, it says so.
+    const notMine = await findMovements({ me: ME, start: START, known: new Set(), deps: withKey(async () => null) });
+    expect(notMine.why).toEqual([{ id: tx(9), why: "Shield has no view key for it (someone else sent it); its 1 records with the view key: someone else's; not in Shield's record list" }]);
+    const noKey = await findMovements({ me: ME, start: START, known: new Set(), deps: d });
+    expect(noKey.why![0]!.why).toMatch(/no view key to open its record with/);
   });
 
-  it("never waits on Shield forever: a decrypt that doesn't answer is given up on, once (Joshua's test, 2026-10-26)", async () => {
-    const d = deps({
-      history: [
-        { ...entry(9, "2026-10-16T12:00:00Z"), functionId: "transfer_private" },
-        { ...entry(10, "2026-10-16T12:00:00Z"), functionId: "transfer_private" },
-      ],
-      docs: { [tx(9)]: privateTransfer, [tx(10)]: privateTransfer },
-    });
-    let asked = 0;
-    d.wallet.decryptRecord = () => {
-      asked++;
-      return new Promise<string>(() => {});
-    };
-    const r = await findMovements({ me: ME, start: START, known: new Set(), deps: { ...d, shieldWaitMs: 5 } });
-    expect(asked).toBe(1);
-    expect(r.unread).toBe(2);
-    expect(r.why!.every((w) => /didn't answer a decrypt within/.test(w.why))).toBe(true);
-    // A history request that never answers ends the check with a reason, not a spinner.
+  it("never waits on Shield forever (Joshua's test, 2026-10-26)", async () => {
+    const d = deps({ history: [entry(1, "2026-10-16T09:00:00Z")] });
     d.wallet.requestTransactionHistory = () => new Promise(() => {});
     await expect(findMovements({ me: ME, start: START, known: new Set(), deps: { ...d, shieldWaitMs: 5 } })).rejects.toThrow(/didn't answer the history request/);
+    const r = deps({ history: [entry(7, "2026-10-16T09:00:00Z")] });
+    r.wallet.requestRecords = () => new Promise(() => {});
+    expect((await findMovements({ me: ME, start: START, known: new Set(), deps: { ...r, shieldWaitMs: 5 } })).unread).toBe(1);
   });
 
   it("counts a transaction it can't read yet and tries it again next time", async () => {

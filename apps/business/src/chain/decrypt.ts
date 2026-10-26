@@ -21,3 +21,21 @@ export async function fetchExplorerTransaction(id: string, endpoint: string, fet
   if (!res.ok) throw new Error(`The network answered ${res.status}`);
   return res.json();
 }
+
+/** The account a view key reads (books/view_key.ts): what it's checked against before it's kept. Throws on a malformed key. */
+export async function viewKeyAccount(viewKey: string): Promise<string> {
+  const { Address, ViewKey } = await import("@provablehq/sdk");
+  return Address.from_view_key(ViewKey.from_string(viewKey)).to_string();
+}
+
+/**
+ * A record from the network's copy of a transaction, opened with this account's view key: its
+ * plain text, or null when the record isn't this account's. Runs on this device only; the key
+ * goes nowhere.
+ */
+export async function openOwnRecord(ciphertext: string, viewKey: string): Promise<string | null> {
+  const { RecordCiphertext, ViewKey } = await import("@provablehq/sdk");
+  const key = ViewKey.from_string(viewKey);
+  const record = RecordCiphertext.fromString(ciphertext);
+  return record.isOwner(key) ? record.decrypt(key).toString() : null;
+}
