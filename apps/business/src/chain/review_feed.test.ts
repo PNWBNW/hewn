@@ -165,15 +165,21 @@ describe("finding what moved in the account", () => {
     };
     const r = await findMovements({ me: ME, start: START, known: new Set(), deps: d });
     expect(opened).toEqual(["record1ccc"]);
-    expect(r).toEqual({ items: [expect.objectContaining({ id: tx(9), direction: "in", minor: "5750000", status: "new" })], unread: 0 });
+    expect(r).toMatchObject({ items: [expect.objectContaining({ id: tx(9), direction: "in", minor: "5750000", status: "new" })], unread: 0, why: [] });
     // Someone else's record: still unread, never guessed.
     d.wallet.decryptRecord = async () => `{ owner: ${DAO}.private, amount: 5750000u128.private }`;
-    expect(await findMovements({ me: ME, start: START, known: new Set(), deps: d })).toEqual({ items: [], unread: 1 });
+    const notMine = await findMovements({ me: ME, start: START, known: new Set(), deps: d });
+    expect(notMine).toMatchObject({ items: [], unread: 1 });
+    expect(notMine.why).toEqual([{ id: tx(9), why: "Shield has no view key for it (someone else sent it); Shield's decrypt on its 1 records: someone else's; not in Shield's record list" }]);
+    d.wallet.decryptRecord = async () => {
+      throw new Error("Decrypt not supported");
+    };
+    expect((await findMovements({ me: ME, start: START, known: new Set(), deps: d })).why![0]!.why).toMatch(/refused \(Decrypt not supported\)/);
   });
 
   it("counts a transaction it can't read yet and tries it again next time", async () => {
     const r = await findMovements({ me: ME, start: START, known: new Set(), deps: deps({ history: [entry(7, "2026-10-16T09:00:00Z")] }) });
-    expect(r).toEqual({ items: [], unread: 1 });
+    expect(r).toMatchObject({ items: [], unread: 1, why: [{ id: tx(7), why: "the explorer doesn't have it yet; not in Shield's record list" }] });
   });
 
   it("sends a move between the account's public and private halves to review, marked as one (Joshua, 2026-10-26)", () => {

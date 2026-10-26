@@ -48,6 +48,7 @@ import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
 import { useShield } from "./shield";
 import { ShieldAway } from "./ShieldStatus";
+import { TxLink } from "./TxLink";
 
 export default function ReviewPanel() {
   return (
@@ -57,7 +58,7 @@ export default function ReviewPanel() {
   );
 }
 
-type Check = { state: "idle" } | { state: "running" } | { state: "done"; found: number; unread: number } | { state: "failed"; message: string };
+type Check = { state: "idle" } | { state: "running" } | { state: "done"; found: number; unread: number; why: { id: string; why: string }[] } | { state: "failed"; message: string };
 type Tab = "new" | "reviewed" | "excluded";
 
 function ReviewFlow() {
@@ -112,7 +113,7 @@ function ReviewFlow() {
         },
       });
       if (result.items.length > 0) await updateCompany((c) => addReviewItems(c, result.items));
-      setCheck({ state: "done", found: result.items.filter((i) => i.status === "new").length, unread: result.unread });
+      setCheck({ state: "done", found: result.items.filter((i) => i.status === "new").length, unread: result.unread, why: result.why ?? [] });
     } catch (e) {
       setCheck({ state: "failed", message: errorMessage(e) });
     }
@@ -191,6 +192,19 @@ function ReviewFlow() {
           </Button>
         ) : null}
       </div>
+      {check.state === "done" && check.why.length > 0 && (
+        <details className="-mt-2 rounded-lg border bg-card px-3 py-2 text-xs text-muted-foreground">
+          <summary className="min-h-11 cursor-pointer content-center sm:min-h-0">Why couldn&apos;t {check.why.length === 1 ? "it" : "they"} be read?</summary>
+          <ul className="mt-2 flex flex-col gap-2">
+            {check.why.map((w) => (
+              <li key={w.id}>
+                <TxLink id={w.id} network={rail.network} className="block" />
+                {w.why}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <FormError message={connectError} />
       {away ? <ShieldAway what="the check" /> : null}
 
