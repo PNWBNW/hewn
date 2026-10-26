@@ -37,14 +37,15 @@ import {
   ensureNetworkFees,
   excludeItem,
   keepWithin,
-  matchDifference,
+
   knownIds,
   undoReview,
 } from "@/books/review";
 import { BRAND } from "@/brand";
 import { longDate } from "./agreement_draft";
 import { formatSixDecimals } from "./balances";
-import { differenceFor, recordedDifferences } from "@/books/reconcile";
+import { FIND_DAYS, type MatchCandidate, SUGGEST_DAYS, matchCandidates, matchEntry } from "@/books/match";
+import { recordedDifferences } from "@/books/reconcile";
 import { decryptTransition, fetchExplorerTransaction, openOwnRecord } from "./decrypt";
 import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
@@ -324,7 +325,7 @@ function ReviewCard({
   editing?: AcceptInput;
   onDone?: () => void;
 }) {
-  const { books, sales, dimensions, rail, funds, updateCompany } = useOpenBooks();
+  const { books, sales, dimensions, rail, funds, review, updateCompany } = useOpenBooks();
   const shieldId = findRailAccount(books)?.id;
   const fundView = fundBalances({ books, funds: funds ?? undefined });
   const startKind: Kind = editing ? kindOf(books, editing.accountId) : item.within ? "within" : item.direction === "in" ? "income" : "expense";
@@ -342,7 +343,9 @@ function ReviewCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const earlier = editing ? null : differenceFor(books, item);
+  const [finding, setFinding] = useState(false);
+  const suggested = editing || item.within ? [] : matchCandidates({ books, review: review ?? undefined }, item, SUGGEST_DAYS);
+  const found = finding ? matchCandidates({ books, review: review ?? undefined }, item, FIND_DAYS) : [];
   const cents = minorToCents(BigInt(item.minor));
   const dust = BigInt(item.minor) % 10_000n !== 0n;
   const projects = dimensions.projects.filter((p) => p.status === "active");
@@ -382,11 +385,11 @@ function ReviewCard({
     }
   }
 
-  async function sameMoney(entryId: string) {
+  async function match(entryId: string) {
     setBusy(true);
     setError(null);
     try {
-      await updateCompany((c) => matchDifference(c, item.id, entryId));
+      await updateCompany((c) => matchEntry(c, item.id, entryId));
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -420,15 +423,33 @@ function ReviewCard({
             {item.counterparty && who !== shortAddress(item.counterparty) && <> · {shortAddress(item.counterparty)}</>}
             {dust && <> · goes in the books as <Money cents={cents} /> (a fraction of a cent isn&apos;t kept)</>}
           </p>
-          {earlier && (
+          {suggested[0] && !finding && (
             <div role="status" className="flex flex-col gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
-              <p>
-                You recorded a <Money cents={earlier.cents < 0n ? -earlier.cents : earlier.cents} /> difference from the Dashboard on {longDate(earlier.date)}.
-                If this is that money, say so: nothing is posted again, and it counts once.
-              </p>
-              <Button variant="outline" size="sm" className="min-h-11 self-start sm:min-h-8" disabled={busy} onClick={() => void sameMoney(earlier.entryId)}>
-                Yes, it&apos;s that money
+              <p>Looks like this is already in the books:</p>
+              <MatchRow candidate={suggested[0]} busy={busy} onMatch={(id) => void match(id)} />
+              <p className="text-muted-foreground">Matching posts nothing new: it ties the two together, so the money counts once.</p>
+            </div>
+          )}
+          {!item.within && (
+            <div className="flex flex-col gap-2">
+              <Button variant="link" size="sm" className="h-auto min-h-11 self-start p-0 sm:min-h-0" onClick={() => setFinding((f) => !f)}>
+                {finding ? "Hide matches" : "Find a match in the books"}
               </Button>
+              {finding &&
+                (found.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nothing in the books moved the Shield account by <Money cents={cents} /> {item.direction === "in" ? "in" : "out"} within {FIND_DAYS} days of
+                    this, and isn&apos;t matched already.
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
+                    {found.map((c) => (
+                      <li key={c.entry.id}>
+                        <MatchRow candidate={c} busy={busy} onMatch={(id) => void match(id)} />
+                      </li>
+                    ))}
+                  </ul>
+                ))}
             </div>
           )}
         </>
@@ -555,6 +576,30 @@ function ReviewCard({
   );
 }
 
+/** An entry already in the books, as a match is offered: when, what, how much. */
+function bookEntryLabel(books: Books, entry: MatchCandidate["entry"]): string {
+  const other = entry.lines
+    .filter((l) => !isShieldFamily({ books }, l.accountId))
+    .map((l) => books.accounts.find((a) => a.id === l.accountId)?.name)
+    .filter(Boolean);
+  return entry.memo?.trim() || other.join(", ") || "An entry";
+}
+
+function MatchRow({ candidate, busy, onMatch }: { candidate: MatchCandidate; busy: boolean; onMatch: (entryId: string) => void }) {
+  const { books } = useOpenBooks();
+  const { entry, cents } = candidate;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="min-w-0 flex-1">
+        <span className="font-medium">{longDate(entry.date)}</span> · {bookEntryLabel(books, entry)} · <Money cents={cents < 0n ? -cents : cents} />
+      </span>
+      <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={busy} onClick={() => onMatch(entry.id)}>
+        Match
+      </Button>
+    </div>
+  );
+}
+
 function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string | undefined) => string | null }) {
   const { books, review, sales, updateCompany } = useOpenBooks();
   const [error, setError] = useState<string | null>(null);
@@ -571,9 +616,15 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
     const other = entry?.lines.find((l) => !isShieldFamily({ books }, l.accountId));
     return books.accounts.find((a) => a.id === other?.accountId)?.name;
   };
+  const matchedTo = (i: ReviewItem) => {
+    const entry = i.matched ? books.entries.find((e) => e.id === i.entryId) : undefined;
+    return entry ? `Matched to ${longDate(entry.date)} · ${bookEntryLabel(books, entry)}` : null;
+  };
   const status = (i: ReviewItem) =>
     i.status === "accepted"
       ? `Posted to ${accountName(i.entryId) ?? "the books"}`
+      : i.status === "recorded" && i.matched
+        ? (matchedTo(i) ?? "Matched to an entry in the books")
       : i.status === "recorded"
         ? (paidFor(i.entryId) ?? (isDifference(i.entryId) ? "Already in the books: the difference recorded from the Dashboard" : "Already in the books (paid from the app)"))
         : i.status === "internal"
@@ -607,9 +658,9 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
                   Change
                 </Button>
               )}
-              {(i.status === "accepted" || i.status === "excluded" || i.status === "internal") && changing !== i.id && (
+              {(i.status === "accepted" || i.status === "excluded" || i.status === "internal" || (i.status === "recorded" && i.matched)) && changing !== i.id && (
                 <Button variant="link" size="sm" className="h-auto min-h-11 p-0 sm:min-h-0" onClick={() => void undo(i.id)}>
-                  {i.status === "accepted" ? "Undo" : "Review again"}
+                  {i.status === "accepted" ? "Undo" : i.matched ? "Undo match" : "Review again"}
                 </Button>
               )}
             </div>

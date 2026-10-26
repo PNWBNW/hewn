@@ -26,7 +26,7 @@ export type ReviewStatus =
   | "accepted"
   /** Kept out of the books on purpose. */
   | "excluded"
-  /** Already in the books: a payment the app made itself (a paycheck, say), or a difference recorded from the Dashboard (`matchDifference`). */
+  /** Already in the books: a payment the app made itself (a paycheck, say), or an entry the business matched it to (books/match.ts). */
   | "recorded"
   /** A move inside the account (public to private, say), as the business marked it: nothing to post. */
   | "internal";
@@ -47,6 +47,8 @@ export type ReviewItem = {
   kind: string;
   /** A move inside the account (public to private and back, records combined), as the feed saw it. Still reviewed. */
   within?: true;
+  /** Recorded because the business matched it to an entry already in the books (books/match.ts); a match can be undone. */
+  matched?: true;
   status: ReviewStatus;
   /** Set once accepted. */
   entryId?: string;
@@ -95,6 +97,10 @@ function validateItem(raw: unknown): ReviewItem {
   if (r.within !== undefined) {
     if (r.within !== true) throw new ReviewError("A move within the account is marked true");
     item.within = true;
+  }
+  if (r.matched !== undefined) {
+    if (r.matched !== true || item.status !== "recorded" || !item.entryId) throw new ReviewError("A match is a recorded item with its entry");
+    item.matched = true;
   }
   // Before 2026-10-26 a move within the account was kept out of review on its own (status internal,
   // no `within`); now the business reviews every movement, so those come back to it (Joshua).
@@ -223,18 +229,6 @@ export function keepWithin(company: Company, id: string): Company {
   return withItem(company, { ...item, within: true, status: "internal" });
 }
 
-/**
- * Says a waiting item is money already in the books as a difference recorded from the Dashboard
- * (books/reconcile.ts): nothing is posted, and it's tied to that entry, so it counts once. Not
- * "excluded": that would mean the money is in Shield and not in the books.
- */
-export function matchDifference(company: Company, id: string, entryId: string): Company {
-  const item = itemOf(company, id);
-  if (item.status !== "new") throw new ReviewError("That transaction has already been reviewed");
-  findEntry(company.books, entryId);
-  return withItem(company, { ...item, status: "recorded", entryId });
-}
-
 /** Keeps a waiting item out of the books. */
 export function excludeItem(company: Company, id: string): Company {
   const item = itemOf(company, id);
@@ -251,7 +245,11 @@ export function undoReview(company: Company, id: string, date: IsoDate): Company
   const item = itemOf(company, id);
   if (item.status === "excluded") return withItem(company, { ...item, status: "new" });
   if (item.status === "internal") return withItem(company, { ...item, within: true, status: "new" });
-  if (item.status !== "accepted" || !item.entryId) throw new ReviewError("Only accepted, excluded or kept transactions can go back");
+  if (item.status === "recorded" && item.matched) {
+    const { entryId: _e, matched: _m, ...rest } = item;
+    return withItem(company, { ...rest, status: "new" });
+  }
+  if (item.status !== "accepted" || !item.entryId) throw new ReviewError("Only accepted, excluded, kept or matched transactions can go back");
   findEntry(company.books, item.entryId);
   const { books } = reverseEntry(company.books, item.entryId, { date, memo: "Sent back for review" });
   const { entryId: _gone, ...rest } = item;

@@ -31,7 +31,6 @@ import { RAIL_ACCOUNT_NAME, ensureRailAccount } from "@pnw/payroll";
 import type { Company } from "./company";
 import { fundBalances, isShieldFamily } from "./funds";
 import { MINOR_PER_CENT, minorToCents } from "./opening";
-import type { ReviewItem } from "./review";
 
 export type Reconciliation =
   /** The books don't follow a Shield account yet: nothing to compare. */
@@ -144,16 +143,4 @@ export function recordedDifferences(books: Pick<Books, "entries">): { entryId: s
     const amount = e.lines.reduce((n, l) => n + l.debit, 0n);
     return [{ entryId: e.id, date: e.date, cents: e.source.kind === "deposit" ? amount : -amount }];
   });
-}
-
-/**
- * A difference recorded from the Dashboard that a movement waiting in For review may be: same
- * direction, same amount, recorded on or after the day it moved. Only a reminder; the business
- * decides (a match by amount alone can be a coincidence).
- */
-export function differenceFor(books: Pick<Books, "entries">, item: ReviewItem): { entryId: string; date: string; cents: Cents } | null {
-  if (item.status !== "new" || item.within) return null;
-  const cents = minorToCents(BigInt(item.minor)) * (item.direction === "in" ? 1n : -1n);
-  if (cents === 0n) return null;
-  return recordedDifferences(books).find((d) => d.cents === cents && d.date >= item.date) ?? null;
 }
