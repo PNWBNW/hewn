@@ -274,13 +274,13 @@ function PublicShell({ children }: { children: ReactNode }) {
 function OpenShell({ children }: { children: ReactNode }) {
   const pathname = canonicalPath(usePathname());
   const router = useRouter();
-  const { books, role, rail, work, customer, clients, lock, downloadBackup, currentCompany, updateCompany } = useOpenBooks();
+  const { books, role, rail, work, customer, clients, viewKeyChoice, lock, downloadBackup, currentCompany, updateCompany } = useOpenBooks();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // A worker's vault lives under /work, a customer's under /customer, and a business's everywhere else;
   // landing on the other side (a stale link, a typed URL) goes home.
   // Every account links Shield and registers its name before anything else.
-  const step = setupStep({ role, rail, work, customer });
+  const step = setupStep({ role, rail, work, customer, viewKeyChoice });
   const setupDone = step === "done";
   const redirect = setupRedirect(step, pathname) ?? redirectFor(role, pathname);
   // The menu's backup goes to Settings' Backups card, where a download is confirmed before it counts.

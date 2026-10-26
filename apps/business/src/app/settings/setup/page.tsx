@@ -22,13 +22,14 @@ const loading = () => <p className="text-sm text-muted-foreground">Loading…</p
 const RailPanel = dynamic(() => import("@/chain/RailPanel"), { ssr: false, loading });
 const ProfilePanel = dynamic(() => import("@/chain/work/Profile"), { ssr: false, loading });
 const CardPanel = dynamic(() => import("@/chain/CardPanel"), { ssr: false, loading });
+const ViewKeyPanel = dynamic(() => import("@/chain/ViewKeyPanel"), { ssr: false, loading });
 const CustomerNamePanel = dynamic(() => import("@/chain/customer/NamePanel"), { ssr: false, loading });
 
 export default function SetupPage() {
-  const { role, rail, work, customer } = useOpenBooks();
+  const { role, rail, work, customer, viewKeyChoice } = useOpenBooks();
   const worker = role === "worker";
   const person = role !== "business";
-  const step = setupStep({ role, rail, work, customer });
+  const step = setupStep({ role, rail, work, customer, viewKeyChoice });
   // There's nowhere to go back to, so a panel's Cancel starts its step over.
   const [attempt, setAttempt] = useState(0);
   const restart = () => setAttempt((n) => n + 1);
@@ -37,6 +38,7 @@ export default function SetupPage() {
     link: "Link your Shield account",
     name: person ? `Register your name (yourname.${BRAND.nameSuffix})` : `Register your business name (yourbusiness.${BRAND.nameSuffix})`,
     profile: "Create your profile",
+    viewkey: "Let the books read your payments (view key)",
     card: worker ? "Your card" : "Your business's card",
   };
   const steps = setupSteps(role, rail);
@@ -89,6 +91,7 @@ export default function SetupPage() {
           {step === "name" && role === "customer" && <CustomerNamePanel key={`customer-${attempt}`} onClose={restart} />}
           {step === "name" && role === "business" && <RailPanel key={`name-${attempt}`} mode="register" onClose={restart} />}
           {(step === "name" || step === "profile") && worker && <ProfilePanel key={`work-${attempt}`} onClose={restart} />}
+          {step === "viewkey" && <ViewKeyPanel key={`viewkey-${attempt}`} setup />}
           {step === "card" && (
             <>
               <p className="text-xs text-muted-foreground">

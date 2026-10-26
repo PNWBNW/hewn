@@ -30,11 +30,6 @@ export type FeedWallet = {
   requestRecords(program: string, includePlaintext?: boolean): Promise<unknown[]>;
   requestTransactionHistory(program: string): Promise<{ transactions?: unknown }>;
   transitionViewKeys(transactionId: string): Promise<string[]>;
-  /**
-   * Shield's own decrypt: a record this account owns, as plain text. Not passed by the app since
-   * Joshua's test (2026-10-26): Shield never answered it, and the check hung.
-   */
-  decryptRecord?(cipherText: string): Promise<string>;
 };
 
 export type FeedDeps = {
@@ -45,6 +40,11 @@ export type FeedDeps = {
   decrypt(transition: unknown, tvk: string): Promise<unknown>;
   /** How long to wait for Shield to answer one request before going on without it (tests make it short). */
   shieldWaitMs?: number;
+  /**
+   * A record from a transaction, opened on this device with the business's view key
+   * (books/view_key.ts): its plain text, or null when it isn't this account's. Absent without a key.
+   */
+  openRecord?(ciphertext: string): Promise<string | null>;
 };
 
 /** Shield answers in a second or two; one that hasn't answered by now isn't going to (Joshua's test, 2026-10-26: the check spun forever). */
@@ -165,19 +165,6 @@ export async function findMovements(args: { me: string; start: RailStart | null 
 
   // 1. History: both directions of public transfers, and what this account sent privately.
   const wait = deps.shieldWaitMs ?? SHIELD_WAIT_MS;
-  // Once Shield stops answering decrypt, the rest of this check doesn't ask again.
-  let decryptGone: string | null = null;
-  const decryptRecord = deps.wallet.decryptRecord
-    ? async (c: string) => {
-        if (decryptGone) throw new Error(decryptGone);
-        try {
-          return await answered(deps.wallet.decryptRecord!(c), wait, "a decrypt");
-        } catch (e) {
-          if (e instanceof Error && /didn't answer/.test(e.message)) decryptGone = e.message;
-          throw e;
-        }
-      }
-    : null;
   const history = await answered(deps.wallet.requestTransactionHistory(USDCX_PROGRAM), wait, "the history request");
   const entries = newestFirst(Array.isArray(history?.transactions) ? history.transactions : []).filter(isObj);
   for (const e of entries) {
@@ -214,12 +201,16 @@ export async function findMovements(args: { me: string; start: RailStart | null 
         }
       }
       let why = tvks ? "Shield's view key didn't open it" : "Shield has no view key for it (someone else sent it)";
-      if (read.minor === null && decryptRecord) {
-        // Someone else's private payment to this account: its view key is the sender's, but the
-        // record it made is this account's own, and Shield opens that (Joshua's test, 2026-10-26).
-        const mine = await ownRecordIn(transfer, me, decryptRecord);
-        if (typeof mine === "bigint") read = { fn: read.fn, to: me, minor: mine, from: read.from === me ? null : read.from };
+      if (read.minor === null && deps.openRecord) {
+        // Someone else's private payment to this account: its transition view key is the sender's,
+        // but the record it made is this account's own, and the business's view key opens it. Who
+        // sent it isn't in the record (the fee may be paid by Shield itself), so it comes from
+        // Shield's record list below, when it says (Joshua's test, 2026-10-26).
+        const mine = await ownRecordIn(transfer, me, deps.openRecord);
+        if (typeof mine === "bigint") read = { fn: read.fn, to: me, minor: mine, from: null };
         else why = `${why}; ${mine}`;
+      } else if (read.minor === null) {
+        why = `${why}; no view key to open its record with (Settings, Private payments)`;
       }
       if (read.minor === null) {
         later(id, why);
@@ -234,6 +225,15 @@ export async function findMovements(args: { me: string; start: RailStart | null 
 
   // 2. Records: a private payment received (its transaction isn't one this account signed).
   const raw = await answered(deps.wallet.requestRecords(USDCX_PROGRAM, true), wait, "the records request").catch(() => [] as unknown[]);
+  // A payment read in step 1 with the view key takes its sender from Shield, when Shield names one.
+  const senderOf = (id: string) => {
+    const rec = raw.filter(isObj).find((r) => transactionIdOf(r, ["transactionId", "transaction_id", "txId"]) === id);
+    return rec && typeof rec.sender === "string" && new RegExp(`^${ADDRESS.source}$`).test(rec.sender) ? rec.sender : null;
+  };
+  for (const [i, item] of items.entries()) {
+    const sender = item.direction === "in" && !item.within && !item.counterparty ? senderOf(item.id) : null;
+    if (sender && sender !== me) items[i] = { ...item, counterparty: sender };
+  }
   for (const r of receivedRecords(raw)) {
     if (seen.has(r.id) || !afterStart(r.when, start)) continue;
     seen.add(r.id);
@@ -256,21 +256,21 @@ export async function findMovements(args: { me: string; start: RailStart | null 
 /** An error in a few words, for the reasons list: never more than its message, cut short. */
 const shortError = (e: unknown): string => (e instanceof Error ? e.message : String(e)).replace(/\s+/g, " ").slice(0, 120);
 
-/** The amount of the record a transition made for this account, opened with Shield; otherwise why not, in a few words. */
-async function ownRecordIn(transition: Obj, me: string, decrypt: (cipherText: string) => Promise<string>): Promise<bigint | string> {
+/** The amount of the record a transition made for this account, opened with its view key; otherwise why not, in a few words. */
+async function ownRecordIn(transition: Obj, me: string, open: (cipherText: string) => Promise<string | null>): Promise<bigint | string> {
   const outputs = Array.isArray(transition.outputs) ? transition.outputs.filter(isObj) : [];
   const tried: string[] = [];
   for (const o of outputs) {
     if (o.type !== "record" || typeof o.value !== "string" || !o.value.startsWith("record1")) continue;
-    let plain: unknown;
+    let plain: string | null;
     try {
-      plain = await decrypt(o.value);
+      plain = await open(o.value);
     } catch (e) {
-      tried.push(`refused (${shortError(e)})`);
+      tried.push(`couldn't be opened (${shortError(e)})`);
       continue;
     }
-    if (typeof plain !== "string") {
-      tried.push(`gave ${typeof plain}`);
+    if (plain === null) {
+      tried.push("someone else's");
       continue;
     }
     const owner = /\bowner:\s*(aleo1[a-z0-9]{58})/.exec(plain)?.[1];
@@ -278,7 +278,7 @@ async function ownRecordIn(transition: Obj, me: string, decrypt: (cipherText: st
     if (owner === me && amount) return BigInt(amount);
     tried.push(owner ? (owner === me ? "opened, no amount" : "someone else's") : "opened, no owner");
   }
-  return tried.length ? `Shield's decrypt on its ${tried.length} records: ${tried.join(", ")}` : "no records in it to open";
+  return tried.length ? `its ${tried.length} records with the view key: ${tried.join(", ")}` : "no records in it to open";
 }
 
 /** A USDCx record this account holds: the transaction that made it, when, how much, and who sent it when Shield says. */

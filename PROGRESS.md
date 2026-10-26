@@ -41,6 +41,7 @@ index is out of date.
 - [For review says why a transaction couldn't be read](progress/2026-10-26.md#2026-10-26--for-review-says-why-a-transaction-couldnt-be-read)
 - [For review never waits on Shield forever](progress/2026-10-26.md#2026-10-26--for-review-never-waits-on-shield-forever)
 - [Record a difference the books can't explain; the check stops asking Shield to decrypt](progress/2026-10-26.md#2026-10-26--record-a-difference-the-books-cant-explain-the-check-stops-asking-shield-to-decrypt)
+- [The business's view key: every private payment read on its own](progress/2026-10-26.md#2026-10-26--the-businesss-view-key-every-private-payment-read-on-its-own)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

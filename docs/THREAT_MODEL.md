@@ -550,3 +550,27 @@ site data is cleared, or the books were made in another browser or at another ad
   restorable on any device with the wallet, username and passphrase, is the planned fix
   (`docs/CHAIN_BACKUP.md`, approved 2026-10-26, being built). A question for Shield is drafted: whether its browser can keep site
   storage across updates.
+
+## T20 — The business's view key in its books (2026-10-26)
+
+Shield shows a business the private payments it receives but won't open them for the app, and
+joins each new one with the money already there within a minute, so the books couldn't read a
+payment from anyone the business isn't connected with (Joshua's test: 5.75 and 1.00 from a
+customer, both lost in Shield's joins). A view key opens the records made for the account straight
+from the network's copy of each transaction, so the business may give the books its view key
+(Joshua, 2026-10-26; `apps/business/src/books/view_key.ts`).
+
+- **It can only read.** A view key can't spend, sign or move anything; what it reveals is the
+  account's own history, which the books already hold. ✅
+- **It's checked before it's kept.** The app works out the account the key reads on the device and
+  refuses one that isn't the linked account's (`chain/ViewKeyPanel.tsx`, `chain/decrypt.ts`). ✅
+- **It stays in the encrypted books on the device.** Never sent anywhere (records are opened in the
+  browser, from the explorer's public copy), never logged, never shown back after it's entered,
+  never in the backup kept as letters on chain (`books/books_backup.ts`). A backup file holds it
+  under the same encryption as the device (the passphrase opens both). ✅
+- **It's optional.** Setup asks a new business for it and says what skipping costs; Settings adds
+  or forgets it. ✅
+- ⚠️ **Not covered:** someone who opens the books (the username and passphrase, or a device left
+  logged in) can read the key, and with it the account's history even after the business leaves
+  the app. Forgetting it in Settings removes it from the books; a key already copied can't be
+  taken back, short of moving the money to a new account.

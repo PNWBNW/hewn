@@ -28,6 +28,7 @@ import { type AgreementProjects, validateAgreementProjects } from "./agreement_p
 import { type PersonalEvent, validateEvents } from "./events";
 import { type SharedCalendar, calendarFromJson, calendarToJson } from "./shared_events";
 import { type ChainState, validateChainState } from "./books_backup";
+import { type ViewKeyChoice, cleanViewKey } from "./view_key";
 
 export type Company = {
   books: Books;
@@ -65,6 +66,10 @@ export type Company = {
   backedUpAt?: string;
   /** Where the backup kept as letters to this account stands (books/books_backup.ts). Absent before the first. */
   chainBackup?: ChainState;
+  /** The business's view key, to read private payments into its Shield account (books/view_key.ts). Never in the backup kept as letters. */
+  viewKey?: string;
+  /** Whether the business added its view key or chose to go without. Absent until asked. */
+  viewKeyChoice?: ViewKeyChoice;
 };
 
 const ROLES: Role[] = ["business", "worker", "customer"];
@@ -95,6 +100,8 @@ export function companyToJson(c: Company): string {
     ...(c.username ? { username: c.username } : {}),
     ...(c.backedUpAt ? { backedUpAt: c.backedUpAt } : {}),
     ...(c.chainBackup ? { chainBackup: JSON.stringify(validateChainState(c.chainBackup)) } : {}),
+    ...(c.viewKey ? { viewKey: cleanViewKey(c.viewKey) } : {}),
+    ...(c.viewKeyChoice ? { viewKeyChoice: c.viewKeyChoice } : {}),
   });
 }
 
@@ -122,6 +129,8 @@ export function companyFromJson(text: string): Company {
     username?: string;
     backedUpAt?: string;
     chainBackup?: string;
+    viewKey?: string;
+    viewKeyChoice?: string;
     /** What the username was called before usernames (2026-10-21). */
     email?: string;
   };
@@ -152,6 +161,8 @@ export function companyFromJson(text: string): Company {
     if (username) company.username = username;
     if (typeof doc.backedUpAt === "string" && !Number.isNaN(Date.parse(doc.backedUpAt))) company.backedUpAt = doc.backedUpAt;
     if (typeof doc.chainBackup === "string") company.chainBackup = validateChainState(JSON.parse(doc.chainBackup));
+    if (typeof doc.viewKey === "string") company.viewKey = cleanViewKey(doc.viewKey);
+    if (doc.viewKeyChoice === "added" || doc.viewKeyChoice === "skipped") company.viewKeyChoice = doc.viewKeyChoice;
     return company;
   }
   // Earlier saves held only the books.

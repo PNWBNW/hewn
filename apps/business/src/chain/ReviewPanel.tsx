@@ -43,7 +43,7 @@ import {
 import { BRAND } from "@/brand";
 import { longDate } from "./agreement_draft";
 import { formatSixDecimals } from "./balances";
-import { decryptTransition, fetchExplorerTransaction } from "./decrypt";
+import { decryptTransition, fetchExplorerTransaction, openOwnRecord } from "./decrypt";
 import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
 import { useShield } from "./shield";
@@ -62,7 +62,7 @@ type Check = { state: "idle" } | { state: "running" } | { state: "done"; found: 
 type Tab = "new" | "reviewed" | "excluded";
 
 function ReviewFlow() {
-  const { rail, review, sales, payroll, updateCompany } = useOpenBooks();
+  const { rail, review, sales, payroll, viewKey, updateCompany } = useOpenBooks();
   const { state, away, connect, error: connectError, wallet } = useShield();
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [tab, setTab] = useState<Tab>("new");
@@ -109,6 +109,7 @@ function ReviewFlow() {
           },
           fetchTransaction: (id) => fetchExplorerTransaction(id, ENV.ALEO_ENDPOINT),
           decrypt: decryptTransition,
+          ...(viewKey ? { openRecord: (c: string) => openOwnRecord(c, viewKey) } : {}),
         },
       });
       if (result.items.length > 0) await updateCompany((c) => addReviewItems(c, result.items));
@@ -117,7 +118,7 @@ function ReviewFlow() {
       setCheck({ state: "failed", message: errorMessage(e) });
     }
     // `wallet` changes identity every render; the account and the list are what matter.
-  }, [rail, address, mismatch, review, updateCompany]);
+  }, [rail, address, mismatch, review, viewKey, updateCompany]);
 
   // Check once when the tab opens with Shield connected to the linked account.
   useEffect(() => {

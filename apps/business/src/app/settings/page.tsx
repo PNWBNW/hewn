@@ -24,6 +24,12 @@ const RailPanel = dynamic(() => import("@/chain/RailPanel"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
+// The business's view key (books/view_key.ts); fetched only when tapped.
+const ViewKeyPanel = dynamic(() => import("@/chain/ViewKeyPanel"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
+});
+
 // A read-only check of what Shield can tell the books about past transfers; fetched only when tapped.
 const HistoryProbe = dynamic(() => import("@/chain/HistoryProbe"), {
   ssr: false,
@@ -299,10 +305,10 @@ function RecoveryKey() {
 }
 
 function PrivatePayments() {
-  const { rail, payroll, role, updateCompany } = useOpenBooks();
+  const { rail, payroll, role, viewKey, updateCompany } = useOpenBooks();
   const worker = role === "worker";
   const business = role === "business";
-  const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | "letter" | "reports" | null>(null);
+  const [panel, setPanel] = useState<"connect" | "import" | "register" | "history" | "letter" | "reports" | "viewkey" | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -327,7 +333,9 @@ function PrivatePayments() {
       <CardContent className="flex flex-col gap-4">
         {rail && <LinkedAccount />}
 
-        {panel === "history" ? (
+        {panel === "viewkey" ? (
+          <ViewKeyPanel onClose={() => setPanel(null)} />
+        ) : panel === "history" ? (
           <HistoryProbe onClose={() => setPanel(null)} />
         ) : panel === "letter" ? (
           <LetterCheck onClose={() => setPanel(null)} />
@@ -345,6 +353,11 @@ function PrivatePayments() {
             {business && !rail.businessNameHash && (
               <Button className="min-h-11 sm:min-h-9" onClick={() => setPanel("register")}>
                 Register business name
+              </Button>
+            )}
+            {business && (
+              <Button variant={viewKey ? "outline" : "default"} className="min-h-11 sm:min-h-9" onClick={() => setPanel("viewkey")}>
+                {viewKey ? "View key" : "Add view key"}
               </Button>
             )}
             {business && (

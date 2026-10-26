@@ -69,10 +69,22 @@ describe("setup steps", () => {
     expect(setupSteps("customer", fresh)).toEqual(["link", "name"]);
   });
 
+  it("asks a new business for its view key after its name, and takes skipping it for an answer (Joshua, 2026-10-26)", () => {
+    const fresh = rail({ linkedAt: "2026-10-27T01:00:00.000Z", businessNameHash: "123", businessName: "dayco" });
+    expect(setupStep({ role: "business", rail: { ...fresh, businessNameHash: undefined }, work: null })).toBe("name");
+    expect(setupStep({ role: "business", rail: fresh, work: null })).toBe("viewkey");
+    for (const viewKeyChoice of ["added", "skipped"] as const) expect(setupStep({ role: "business", rail: fresh, work: null, viewKeyChoice })).toBe("card");
+    expect(setupStep({ role: "business", rail: { ...fresh, card: CARD }, work: null, viewKeyChoice: "skipped" })).toBe("done");
+    // An account from before the step adds it in Settings; a worker or customer is never asked.
+    expect(setupStep({ role: "business", rail: rail({ linkedAt: "2026-10-25T01:00:00.000Z", businessNameHash: "123", card: CARD }), work: null })).toBe("done");
+    expect(setupStep({ role: "worker", rail: rail({ linkedAt: "2026-10-27T01:00:00.000Z" }), work: work({ ...PROFILE, card: CARD }) })).toBe("done");
+  });
+
   it("lists the steps each role goes through", () => {
-    expect(SETUP_STEPS.business).toEqual(["link", "name", "card"]);
+    expect(SETUP_STEPS.business).toEqual(["link", "name", "viewkey", "card"]);
     expect(SETUP_STEPS.worker).toEqual(["link", "name", "profile", "card"]);
-    expect(setupSteps("business", null)).toEqual(["link", "name", "card"]);
+    expect(setupSteps("business", null)).toEqual(["link", "name", "viewkey", "card"]);
+    expect(setupSteps("business", rail({ linkedAt: "2026-10-25T01:00:00.000Z" }))).toEqual(["link", "name", "card"]);
     expect(setupSteps("worker", rail({ linkedAt: "2026-10-25T01:00:00.000Z" }))).toEqual(["link", "name", "profile", "card"]);
     expect(setupSteps("business", rail())).toEqual(["link", "name"]);
     expect(setupSteps("worker", rail())).toEqual(["link", "name", "profile"]);
