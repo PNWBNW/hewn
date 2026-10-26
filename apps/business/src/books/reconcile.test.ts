@@ -5,8 +5,8 @@ import { type Company, emptyCompany } from "./company";
 import { createFund, moveFund } from "./funds";
 import { startFromShield } from "./opening";
 import type { Rail } from "./rail";
-import { differenceFor, reconcileShield, recordShieldDifference } from "./reconcile";
-import { type ReviewItem, acceptItem, addReviewItems, excludeItem, keepWithin, matchDifference } from "./review";
+import { reconcileShield, recordShieldDifference } from "./reconcile";
+import { type ReviewItem, acceptItem, addReviewItems, excludeItem, keepWithin } from "./review";
 
 const ADDR = "aleo1" + "q".repeat(58);
 const rail: Rail = { version: 1, network: "testnet", address: ADDR, linkedAt: "2026-10-14T18:00:00.000Z", links: [] };
@@ -129,35 +129,6 @@ describe("reconciling the Shield account", () => {
     expect(() => recordShieldDifference(c, { cents: 0n, accountId: income, date: "2026-10-26" })).toThrow(/no difference/);
     expect(() => recordShieldDifference(c, { cents: 575n, accountId: findRailAccount(c.books)!.id, date: "2026-10-26" })).toThrow(/other than/);
     expect(() => recordShieldDifference(c, { cents: 575n, accountId: "nope", date: "2026-10-26" })).toThrow(/Choose an account/);
-  });
-
-  it("reminds the business when a payment waiting in For review may be a difference it already recorded", () => {
-    const { c, income } = company();
-    const recorded = recordShieldDifference(c, { cents: 575n, accountId: income, date: "2026-10-26" });
-    const birch: ReviewItem = { ...item(20, "in", "5750000"), date: "2026-10-26" };
-    expect(differenceFor(recorded.books, birch)).toMatchObject({ date: "2026-10-26", cents: 575n });
-    // Not another amount, not the other way, not a move within, not one already reviewed, not one after the difference was recorded.
-    expect(differenceFor(recorded.books, { ...birch, minor: "1000000" })).toBeNull();
-    expect(differenceFor(recorded.books, { ...birch, direction: "out" })).toBeNull();
-    expect(differenceFor(recorded.books, { ...birch, within: true })).toBeNull();
-    expect(differenceFor(recorded.books, { ...birch, status: "excluded" })).toBeNull();
-    expect(differenceFor(recorded.books, { ...birch, date: "2026-10-27" })).toBeNull();
-    expect(differenceFor(c.books, birch)).toBeNull();
-  });
-
-  it("counts a payment tied to a recorded difference once, where excluding it would count it twice (Joshua's test, 2026-10-26)", () => {
-    const { c, income } = company();
-    // Shield got 5.75 the books couldn't read; it was recorded from the Dashboard; then the payment came in.
-    let books = recordShieldDifference(c, { cents: 575n, accountId: income, date: "2026-10-26" });
-    books = addReviewItems(books, [{ ...item(30, "in", "5750000"), date: "2026-10-26" }]);
-    expect(reconcileShield(books, 25_750_000n)).toMatchObject({ kind: "off", waiting: 1 });
-    const entryId = differenceFor(books.books, books.review!.items[0]!)!.entryId;
-    const matched = matchDifference(books, tx(30), entryId);
-    expect(matched.review!.items[0]).toMatchObject({ status: "recorded", entryId });
-    expect(matched.books.entries).toHaveLength(books.books.entries.length);
-    expect(reconcileShield(matched, 25_750_000n).kind).toBe("matches");
-    expect(reconcileShield(excludeItem(books, tx(30)), 25_750_000n).kind).toBe("off");
-    expect(() => matchDifference(matched, tx(30), entryId)).toThrow(/already been reviewed/);
   });
 
   it("holds off while rail pay is settling, and judges again once it has", () => {

@@ -109,7 +109,7 @@ describe("the review list", () => {
     expect(item.entryId).toBeUndefined();
     expect(next.books.entries).toHaveLength(entries + 1);
     expect(balanceOf(next.books, expense)).toBe(0n);
-    expect(() => undoReview(next, tx(1), "2026-10-17")).toThrow(/Only accepted, excluded or kept/);
+    expect(() => undoReview(next, tx(1), "2026-10-17")).toThrow(/Only accepted, excluded, kept or matched/);
   });
 
   it("reviews a move within the account like any other: kept with nothing posted, sent back, or posted elsewhere (Joshua, 2026-10-26)", () => {

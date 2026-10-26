@@ -45,6 +45,7 @@ index is out of date.
 - [For review reminds about a difference already recorded](progress/2026-10-26.md#2026-10-26--for-review-reminds-about-a-difference-already-recorded)
 - [View key tested; a payment tied to a recorded difference counts once](progress/2026-10-26.md#2026-10-26--view-key-tested-a-payment-tied-to-a-recorded-difference-counts-once)
 - [Free to spend on the Dashboard, taxes owed set aside on their own](progress/2026-10-26.md#2026-10-26--free-to-spend-on-the-dashboard-taxes-owed-set-aside-on-their-own)
+- [Match in For review](progress/2026-10-26.md#2026-10-26--match-in-for-review)
 
 ## [2026-10-25](progress/2026-10-25.md)
 
