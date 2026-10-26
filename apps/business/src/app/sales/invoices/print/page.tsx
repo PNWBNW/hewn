@@ -78,7 +78,7 @@ function PrintInvoice() {
               </p>
             )}
           </div>
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="text-xl font-semibold">Invoice {invoice.number}</p>
             <p className="text-sm text-neutral-600">Dated {invoice.date}</p>
             <p className="text-sm text-neutral-600">

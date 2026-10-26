@@ -32,6 +32,7 @@ index is out of date.
 - [For review takes every movement in the Shield account](progress/2026-10-26.md#2026-10-26--for-review-takes-every-movement-in-the-shield-account)
 - [For review: one oddly described movement no longer blocks the rest](progress/2026-10-26.md#2026-10-26--for-review-one-oddly-described-movement-no-longer-blocks-the-rest)
 - [First customer payment recorded end to end (testnet)](progress/2026-10-26.md#2026-10-26--first-customer-payment-recorded-end-to-end-testnet)
+- [Agreement to closed job, tested; two small fixes](progress/2026-10-26.md#2026-10-26--agreement-to-closed-job-tested-two-small-fixes)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

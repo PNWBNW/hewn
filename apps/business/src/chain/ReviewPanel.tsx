@@ -506,9 +506,15 @@ function ReviewCard({
 }
 
 function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string | undefined) => string | null }) {
-  const { books, review, updateCompany } = useOpenBooks();
+  const { books, review, sales, updateCompany } = useOpenBooks();
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
+  /** A customer's payment recorded against an invoice: which invoices, by the entry it posted. */
+  const paidFor = (entryId: string | undefined) => {
+    const payment = entryId ? sales.payments.find((p) => p.entryId === entryId) : undefined;
+    const numbers = payment?.applications.map((a) => sales.invoices.find((i) => i.id === a.invoiceId)?.number).filter(Boolean) ?? [];
+    return payment ? (numbers.length ? `Recorded as a payment for ${numbers.join(", ")}` : "Recorded as a payment received") : null;
+  };
   const accountName = (entryId: string | undefined) => {
     const entry = books.entries.find((e) => e.id === entryId);
     const other = entry?.lines.find((l) => !isShieldFamily({ books }, l.accountId));
@@ -518,7 +524,7 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
     i.status === "accepted"
       ? `Posted to ${accountName(i.entryId) ?? "the books"}`
       : i.status === "recorded"
-        ? "Already in the books (paid from the app)"
+        ? (paidFor(i.entryId) ?? "Already in the books (paid from the app)")
         : i.status === "internal"
           ? `Nothing to post: the money stayed in the ${RAIL_ACCOUNT_NAME}`
           : "Kept out of the books";
