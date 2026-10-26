@@ -14,15 +14,20 @@
 //     so each accepted movement and the opening balance may drop under a cent;
 //   - pay still settling: a rail paycheck is in the books from the moment the
 //     run posts, and leaves Shield when its transfer confirms.
-// Whatever is left after those is a difference nothing explains: an entry
-// posted to the Shield account by hand, or a movement the feed hasn't found
-// yet. That is what the Dashboard flags.
+// A move within the account (records combined, public to private) never
+// changes the total, whatever it was marked. Whatever is left after those is a
+// difference nothing explains: an entry posted to the Shield account by hand,
+// or a movement the feed can't read (a private payment from someone else that
+// Shield won't open, Joshua's test 2026-10-26). That is what the Dashboard
+// flags, and the business can record it there, as a bank reconciliation
+// records an unexplained difference (`recordShieldDifference`).
 //
 // Pure: no network, no React, no storage. Amounts are compared in six-decimal
 // minor units so nothing is rounded twice.
 // ---------------------------------------------------------------------------
 
-import type { Cents } from "@pnw/ledger";
+import { type Cents, type IsoDate, type NameRef, postEntry } from "@pnw/ledger";
+import { RAIL_ACCOUNT_NAME, ensureRailAccount } from "@pnw/payroll";
 import type { Company } from "./company";
 import { fundBalances, isShieldFamily } from "./funds";
 import { MINOR_PER_CENT, minorToCents } from "./opening";
@@ -63,6 +68,7 @@ export function reconcileShield(
   let waitingMinor = 0n;
   let waitingCount = 0;
   for (const item of company.review?.items ?? []) {
+    if (item.within) continue; // the money stayed in the account: the total never moved
     const minor = BigInt(item.minor);
     if (item.status === "new") {
       waitingMinor += signed(item.direction, minor);
@@ -92,4 +98,37 @@ export function reconcileShield(
   if (settling > 0) return { kind: "settling", books, shield, count: settling };
 
   return { kind: "off", books, shield, gap: residual - waitingMinor };
+}
+
+export type DifferenceInput = {
+  /** Shield minus the books, in cents: more than zero is money in nothing explains, less is money out. */
+  cents: Cents;
+  /** The other side: income for money in, expense for money out, or whatever the business says it was. */
+  accountId: string;
+  date: IsoDate;
+  memo?: string;
+  /** The customer or vendor, if the business knows who. */
+  name?: NameRef;
+};
+
+/**
+ * Records a difference nothing explains, from the Dashboard's flag: the Shield account on one
+ * side, the account the business chose on the other, dated the day it's recorded. If the movement
+ * behind it shows up in For review later, excluding it there keeps it from counting twice.
+ */
+export function recordShieldDifference(company: Company, input: DifferenceInput): Company {
+  if (typeof input.cents !== "bigint" || input.cents === 0n) throw new Error("There's no difference to record");
+  if (!company.books.accounts.some((a) => a.id === input.accountId && a.active)) throw new Error("Choose an account");
+  const { books: withShield, accountId: shield } = ensureRailAccount(company.books);
+  if (isShieldFamily({ books: withShield }, input.accountId)) throw new Error(`Choose an account other than the ${RAIL_ACCOUNT_NAME}`);
+  const inbound = input.cents > 0n;
+  const amount = inbound ? input.cents : -input.cents;
+  const other = { accountId: input.accountId, ...(input.name ? { name: input.name } : {}) };
+  const { books } = postEntry(withShield, {
+    date: input.date,
+    memo: input.memo?.trim() || `Difference with ${RAIL_ACCOUNT_NAME}, recorded from the Dashboard`,
+    source: { kind: inbound ? "deposit" : "expense", ref: `reconcile:${input.date}` },
+    lines: inbound ? [{ accountId: shield, debit: amount }, { ...other, credit: amount }] : [{ ...other, debit: amount }, { accountId: shield, credit: amount }],
+  });
+  return { ...company, books };
 }

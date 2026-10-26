@@ -30,7 +30,10 @@ export type FeedWallet = {
   requestRecords(program: string, includePlaintext?: boolean): Promise<unknown[]>;
   requestTransactionHistory(program: string): Promise<{ transactions?: unknown }>;
   transitionViewKeys(transactionId: string): Promise<string[]>;
-  /** Shield's own decrypt: a record this account owns, as plain text; throws for anyone else's. */
+  /**
+   * Shield's own decrypt: a record this account owns, as plain text. Not passed by the app since
+   * Joshua's test (2026-10-26): Shield never answered it, and the check hung.
+   */
   decryptRecord?(cipherText: string): Promise<string>;
 };
 

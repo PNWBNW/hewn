@@ -40,6 +40,7 @@ index is out of date.
 - [Every movement is reviewed, moves within the account too](progress/2026-10-26.md#2026-10-26--every-movement-is-reviewed-moves-within-the-account-too)
 - [For review says why a transaction couldn't be read](progress/2026-10-26.md#2026-10-26--for-review-says-why-a-transaction-couldnt-be-read)
 - [For review never waits on Shield forever](progress/2026-10-26.md#2026-10-26--for-review-never-waits-on-shield-forever)
+- [Record a difference the books can't explain; the check stops asking Shield to decrypt](progress/2026-10-26.md#2026-10-26--record-a-difference-the-books-cant-explain-the-check-stops-asking-shield-to-decrypt)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

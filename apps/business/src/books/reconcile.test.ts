@@ -5,8 +5,8 @@ import { type Company, emptyCompany } from "./company";
 import { createFund, moveFund } from "./funds";
 import { startFromShield } from "./opening";
 import type { Rail } from "./rail";
-import { reconcileShield } from "./reconcile";
-import { type ReviewItem, acceptItem, addReviewItems, excludeItem } from "./review";
+import { reconcileShield, recordShieldDifference } from "./reconcile";
+import { type ReviewItem, acceptItem, addReviewItems, excludeItem, keepWithin } from "./review";
 
 const ADDR = "aleo1" + "q".repeat(58);
 const rail: Rail = { version: 1, network: "testnet", address: ADDR, linkedAt: "2026-10-14T18:00:00.000Z", links: [] };
@@ -107,6 +107,28 @@ describe("reconciling the Shield account", () => {
     const shield = findRailAccount(c.books)!.id;
     const books = postEntry(c.books, { date: "2026-10-16", lines: [{ accountId: expense, debit: 300n }, { accountId: shield, credit: 300n }] }).books;
     expect(reconcileShield({ ...c, books }, 20_000_000n)).toMatchObject({ kind: "off", books: 1700n, gap: 3_000_000n });
+  });
+
+  it("never counts a move within the account, waiting or kept (Joshua's test, 2026-10-26)", () => {
+    const join: ReviewItem = { id: tx(9), date: "2026-10-16", direction: "in", minor: "37190000", kind: "join_2", within: true, status: "new" };
+    const listed = addReviewItems(company().c, [join]);
+    expect(reconcileShield(listed, 20_000_000n).kind).toBe("matches");
+    expect(reconcileShield(keepWithin(listed, tx(9)), 20_000_000n).kind).toBe("matches");
+    expect(reconcileShield(excludeItem(listed, tx(9)), 20_000_000n).kind).toBe("matches");
+  });
+
+  it("records a difference nothing explains from the flag, either way, and then matches", () => {
+    const { c, income, expense } = company();
+    // Shield holds $5.75 more: a private payment the books couldn't read.
+    expect(reconcileShield(c, 25_750_000n)).toMatchObject({ kind: "off", books: 2000n, shield: 2575n });
+    const inn = recordShieldDifference(c, { cents: 575n, accountId: income, date: "2026-10-26", memo: "Birch, nails" });
+    expect(reconcileShield(inn, 25_750_000n).kind).toBe("matches");
+    expect(inn.books.entries.at(-1)).toMatchObject({ memo: "Birch, nails", source: { kind: "deposit" } });
+    const out = recordShieldDifference(c, { cents: -300n, accountId: expense, date: "2026-10-26" });
+    expect(reconcileShield(out, 17_000_000n).kind).toBe("matches");
+    expect(() => recordShieldDifference(c, { cents: 0n, accountId: income, date: "2026-10-26" })).toThrow(/no difference/);
+    expect(() => recordShieldDifference(c, { cents: 575n, accountId: findRailAccount(c.books)!.id, date: "2026-10-26" })).toThrow(/other than/);
+    expect(() => recordShieldDifference(c, { cents: 575n, accountId: "nope", date: "2026-10-26" })).toThrow(/Choose an account/);
   });
 
   it("holds off while rail pay is settling, and judges again once it has", () => {

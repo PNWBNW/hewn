@@ -106,7 +106,6 @@ function ReviewFlow() {
             requestRecords: (p, all) => wallet.requestRecords(p, all),
             requestTransactionHistory: (p) => wallet.requestTransactionHistory(p),
             transitionViewKeys: (id) => wallet.transitionViewKeys(id),
-            decryptRecord: (c) => wallet.decrypt(c),
           },
           fetchTransaction: (id) => fetchExplorerTransaction(id, ENV.ALEO_ENDPOINT),
           decrypt: decryptTransition,

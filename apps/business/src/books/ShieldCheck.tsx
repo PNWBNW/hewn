@@ -6,6 +6,7 @@
 // nothing explains it. Only the Shield account is compared; cash and other bank accounts never are.
 // ---------------------------------------------------------------------------
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { CircleCheck, TriangleAlert } from "lucide-react";
 import { Money } from "./display";
@@ -17,7 +18,8 @@ const ReviewLink = () => (
   </Link>
 );
 
-export function ShieldCheckView({ result }: { result: Reconciliation }) {
+/** `record`: what the flag offers to record the difference with (books/RecordDifference.tsx), when the books can be changed. */
+export function ShieldCheckView({ result, record }: { result: Reconciliation; record?: ReactNode }) {
   switch (result.kind) {
     case "not_started":
     case "unread":
@@ -57,6 +59,7 @@ export function ShieldCheckView({ result }: { result: Reconciliation }) {
               <ReviewLink />{" "}
               for anything new, and any entry posted to the Shield account by hand. Cash and other bank accounts aren&apos;t part of this.
             </p>
+            {record}
           </div>
         </div>
       );
