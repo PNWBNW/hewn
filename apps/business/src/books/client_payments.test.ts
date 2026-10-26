@@ -5,7 +5,18 @@ import { billOf, billsIn } from "./bill";
 import { paymentsToRecord, recordClientPayment } from "./client_payments";
 import { type Company, emptyCompany } from "./company";
 import type { Connections } from "./connections";
-import { type CustomerSide, billKey, markPaymentTold, setBillPayment, validateCustomer } from "./customer";
+import {
+  type CustomerSide,
+  billKey,
+  directPaymentsIn,
+  dropDirectPayment,
+  markDirectTold,
+  markPaymentTold,
+  setBillPayment,
+  setDirectPayment,
+  startDirectPayment,
+  validateCustomer,
+} from "./customer";
 import type { Half } from "./key_ring";
 import { addReviewItems } from "./review";
 import { type ThreadItem, validateMessage } from "./thread";
@@ -148,5 +159,82 @@ describe("a customer's payment of a bill", () => {
     expect(billsIn(conns, paying.payments)[0]!.status).toBe("paying");
     const done = setBillPayment(paying, start, { status: "settled", reference: TX });
     expect(billsIn(conns, done.payments)[0]!.status).toBe("paid");
+  });
+});
+
+describe("paying a business without an invoice (decision 24)", () => {
+  const direct = (amount: string, note?: string, transactionId = TX) => item({ type: "payment", amount, transactionId, ...(note ? { note } : {}) }, false, "worker");
+
+  it("travels as a payment naming no invoice, with what it's for; an invoice is named whole or not at all", () => {
+    const raw = { version: 1, id: "e".repeat(32), from: "worker", sentAt: "2026-10-26T10:00:00.000Z", body: { type: "payment", amount: "2500", transactionId: TX, note: "Deposit for the deck" } };
+    expect(validateMessage(raw, "worker").body).toEqual({ type: "payment", amount: "2500", transactionId: TX, note: "Deposit for the deck" });
+    expect(() => validateMessage({ ...raw, body: { ...raw.body, invoiceId: "inv-1" } }, "worker")).toThrow(/invoice's number/);
+    expect(() => validateMessage({ ...raw, body: { ...raw.body, number: "INV-0001" } }, "worker")).toThrow(/invoice's id/);
+    expect(() => validateMessage({ ...raw, body: { ...raw.body, note: "x".repeat(201) } }, "worker")).toThrow(/at most 200/);
+    expect(() => validateMessage({ ...raw, body: { ...raw.body, amount: "0" } }, "worker")).toThrow(/amount/);
+    expect(validateMessage({ ...raw, body: { ...raw.body, note: "  " } }, "worker").body).not.toHaveProperty("note");
+  });
+
+  it("applies to the customer's open invoices once the account shows it, the rest kept as their credit", () => {
+    const { company, invoice, customerId } = business();
+    let c = withPayment(company, customerId, direct("20000", "Sink and a bit extra"));
+    expect(paymentsToRecord(c)[0]).toMatchObject({ note: "Sink and a bit extra", problem: expect.stringMatching(/Not found/) });
+    expect(paymentsToRecord(c)[0]).not.toHaveProperty("number");
+    c = arrived(c, "200000000");
+    const waiting = paymentsToRecord(c)[0]!;
+    expect(waiting.applies).toEqual([{ invoiceId: invoice.id, number: invoice.number, amount: 15490n }]);
+    c = recordClientPayment(c, TX);
+    expect(invoiceBalance(c.sales, c.sales.invoices.find((i) => i.id === invoice.id)!)).toBe(0n);
+    expect(c.sales.payments[0]).toMatchObject({ amount: 20000n, reference: TX, applications: [{ invoiceId: invoice.id, amount: 15490n }] });
+    expect(c.review!.items.find((i) => i.id === TX)).toMatchObject({ status: "recorded", entryId: c.sales.payments[0]!.entryId });
+    expect(paymentsToRecord(c)).toEqual([]);
+  });
+
+  it("is all credit when nothing is owed, and still refuses an amount the account doesn't show", () => {
+    const { company, invoice, customerId } = business();
+    const owedNothing = { ...company, sales: { ...company.sales, invoices: company.sales.invoices.filter((i) => i.id !== invoice.id) } };
+    let c = arrived(withPayment(owedNothing, customerId, direct("2500")), "25000000");
+    expect(paymentsToRecord(c)[0]!.applies).toEqual([]);
+    c = recordClientPayment(c, TX);
+    expect(c.sales.payments[0]).toMatchObject({ amount: 2500n, applications: [] });
+    const wrong = arrived(withPayment(company, customerId, direct("2500")), "99000000");
+    expect(paymentsToRecord(wrong)[0]!.problem).toMatch(/different amount/);
+  });
+});
+
+describe("a customer's payments without a bill", () => {
+  const p = { id: "0123456789abcdef", address: BIZ, name: "cedar_co", cents: "2500", note: "Deposit", createdAt: "2026-10-26T12:00:00.000Z" };
+
+  it("start pending, settle once, keep the tag, and round-trip through the vault", () => {
+    let side: CustomerSide = startDirectPayment({ version: 1 }, p);
+    expect(() => startDirectPayment(side, p)).toThrow(/already started/);
+    side = setDirectPayment(side, p.id, { status: "pending", attempt: "a".repeat(32) });
+    side = setDirectPayment(side, p.id, { status: "failed", failure: "No USDCx" });
+    expect(side.direct![p.id]!.settlement).toEqual({ status: "failed", failure: "No USDCx", attempt: "a".repeat(32) });
+    side = setDirectPayment(side, p.id, { status: "settled", reference: TX });
+    expect(setDirectPayment(side, p.id, { status: "failed", failure: "late" })).toBe(side);
+    side = markDirectTold(side, p.id, "2026-10-26T12:05:00.000Z");
+    expect(validateCustomer(JSON.parse(JSON.stringify(side)))).toEqual(side);
+    expect(directPaymentsIn(side).map((x) => x.id)).toEqual([p.id]);
+  });
+
+  it("refuse a bad amount, name or account, and anything filed under the wrong id", () => {
+    expect(() => startDirectPayment({ version: 1 }, { ...p, cents: "0" })).toThrow(/amount/);
+    expect(() => startDirectPayment({ version: 1 }, { ...p, name: "Cedar Co" })).toThrow(/registered name/);
+    expect(() => startDirectPayment({ version: 1 }, { ...p, address: "aleo1nope" })).toThrow(/account/);
+    expect(() => startDirectPayment({ version: 1 }, { ...p, note: "x".repeat(201) })).toThrow(/at most 200/);
+    const side = startDirectPayment({ version: 1 }, p);
+    expect(() => validateCustomer({ ...side, direct: { ["f".repeat(16)]: side.direct![p.id] } })).toThrow(/wrong id/);
+  });
+
+  it("drop only one that surely never went", () => {
+    const fresh = startDirectPayment({ version: 1 }, p);
+    expect(dropDirectPayment(fresh, p.id).direct).toEqual({});
+    const sent = setDirectPayment(fresh, p.id, { status: "pending", attempt: "a".repeat(32) });
+    expect(() => dropDirectPayment(sent, p.id)).toThrow(/stays as your receipt/);
+    const failed = setDirectPayment(sent, p.id, { status: "failed", failure: "Declined in Shield" });
+    expect(dropDirectPayment(failed, p.id).direct).toEqual({});
+    const settled = setDirectPayment(sent, p.id, { status: "settled", reference: TX });
+    expect(() => dropDirectPayment(settled, p.id)).toThrow(/stays as your receipt/);
   });
 });
