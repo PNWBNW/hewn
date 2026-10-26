@@ -155,6 +155,22 @@ describe("finding what moved in the account", () => {
     expect(r.items).toEqual([expect.objectContaining({ id: tx(8), direction: "in", minor: "5750000", counterparty: BOSS, status: "new" })]);
   });
 
+  it("opens the record a private payment made for this account with Shield when the record list doesn't have it", async () => {
+    const d = deps({ history: [{ ...entry(9, "2026-10-16T12:00:00Z"), functionId: "transfer_private" }], docs: { [tx(9)]: privateTransfer } });
+    const opened: string[] = [];
+    d.wallet.decryptRecord = async (c) => {
+      opened.push(c);
+      if (c !== "record1ccc") throw new Error("not yours");
+      return `{\n  owner: ${ME}.private,\n  amount: 5750000u128.private,\n  _nonce: 1group.public\n}`;
+    };
+    const r = await findMovements({ me: ME, start: START, known: new Set(), deps: d });
+    expect(opened).toEqual(["record1ccc"]);
+    expect(r).toEqual({ items: [expect.objectContaining({ id: tx(9), direction: "in", minor: "5750000", status: "new" })], unread: 0 });
+    // Someone else's record: still unread, never guessed.
+    d.wallet.decryptRecord = async () => `{ owner: ${DAO}.private, amount: 5750000u128.private }`;
+    expect(await findMovements({ me: ME, start: START, known: new Set(), deps: d })).toEqual({ items: [], unread: 1 });
+  });
+
   it("counts a transaction it can't read yet and tries it again next time", async () => {
     const r = await findMovements({ me: ME, start: START, known: new Set(), deps: deps({ history: [entry(7, "2026-10-16T09:00:00Z")] }) });
     expect(r).toEqual({ items: [], unread: 1 });

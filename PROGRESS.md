@@ -36,6 +36,7 @@ index is out of date.
 - [An agreed job becomes a project](progress/2026-10-26.md#2026-10-26--an-agreed-job-becomes-a-project)
 - [Paying a business without a bill, by its name](progress/2026-10-26.md#2026-10-26--paying-a-business-without-a-bill-by-its-name)
 - [A private payment received reaches For review; transaction links](progress/2026-10-26.md#2026-10-26--a-private-payment-received-reaches-for-review-transaction-links)
+- [For review opens a received payment's record with Shield](progress/2026-10-26.md#2026-10-26--for-review-opens-a-received-payments-record-with-shield)
 
 ## [2026-10-25](progress/2026-10-25.md)
 
