@@ -513,7 +513,7 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
   const paidFor = (entryId: string | undefined) => {
     const payment = entryId ? sales.payments.find((p) => p.entryId === entryId) : undefined;
     const numbers = payment?.applications.map((a) => sales.invoices.find((i) => i.id === a.invoiceId)?.number).filter(Boolean) ?? [];
-    return payment ? (numbers.length ? `Recorded as a payment for ${numbers.join(", ")}` : "Recorded as a payment received") : null;
+    return payment ? (numbers.length ? `Paid through ${BRAND.name} · ${numbers.join(", ")}` : `Paid through ${BRAND.name}`) : null;
   };
   const accountName = (entryId: string | undefined) => {
     const entry = books.entries.find((e) => e.id === entryId);
