@@ -139,6 +139,22 @@ describe("finding what moved in the account", () => {
     expect(r.items.map((i) => i.id)).toEqual([tx(2)]);
   });
 
+  it("takes a private payment received from its record when Shield's history lists it too but can't open it (Joshua's test, 2026-10-26)", async () => {
+    const received = { ...privateTransfer, fee: { transition: fee(BOSS) } };
+    const r = await findMovements({
+      me: ME,
+      start: START,
+      known: new Set(),
+      deps: deps({
+        history: [{ ...entry(8, "2026-10-16T12:00:00Z"), functionId: "transfer_private" }],
+        docs: { [tx(8)]: received },
+        records: [{ recordName: "Token", transactionId: tx(8), blockTimestamp: T("2026-10-16T12:00:00Z"), sender: BOSS, functionName: "transfer_private", recordPlaintext: `{ owner: ${ME}.private, amount: 5750000u128.private }` }],
+      }),
+    });
+    expect(r.unread).toBe(0);
+    expect(r.items).toEqual([expect.objectContaining({ id: tx(8), direction: "in", minor: "5750000", counterparty: BOSS, status: "new" })]);
+  });
+
   it("counts a transaction it can't read yet and tries it again next time", async () => {
     const r = await findMovements({ me: ME, start: START, known: new Set(), deps: deps({ history: [entry(7, "2026-10-16T09:00:00Z")] }) });
     expect(r).toEqual({ items: [], unread: 1 });

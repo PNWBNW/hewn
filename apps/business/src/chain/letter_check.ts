@@ -25,6 +25,7 @@ import { ENVELOPE_OVERHEAD, open, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import { parseFeeKind, parseFeeMicrocredits } from "@pnw/rail";
 import { LETTERS_PROGRAM, LETTER_BYTES, PAGE_BYTES, type LetterWallet, letterCall, parseLetterRecord } from "./letters";
 import { executeAndWait } from "./work/execute";
+import { transactionUrl } from "./TxLink";
 
 export const TEST_LINE = "A test letter, sealed for no one but this account.";
 const TEST_KIND = "test_letter";
@@ -260,6 +261,6 @@ export function letterCheckReport(r: LetterCheckResult, date: string): string {
     ``,
     `What the network sees (the public transaction):`,
     ...(r.broadcast ?? ["Not read: the explorer didn't return the transaction in time"]),
-    `Look it up: https://testnet.explorer.provable.com/transaction/${r.transactionId}`,
+    `Look it up: ${transactionUrl(r.transactionId) ?? r.transactionId}`,
   ].join("\n");
 }

@@ -33,6 +33,7 @@ import { useLetters } from "../letter_reader";
 import { letterThread } from "../letters";
 import NameLookup from "../NameLookup";
 import { postToThread } from "../thread";
+import { TxLink } from "../TxLink";
 import { useShield } from "../shield";
 import { payOne, railWalletOf } from "./pay_shield";
 
@@ -276,6 +277,7 @@ function Pay({ preset }: { preset?: string }) {
             <Sent
               key={p.id}
               p={p}
+              network={rail.network}
               busy={busy}
               ready={!!letters.letters}
               connected={isConnected(p.address)}
@@ -294,6 +296,7 @@ function Pay({ preset }: { preset?: string }) {
 
 function Sent({
   p,
+  network,
   busy,
   ready,
   connected,
@@ -303,6 +306,7 @@ function Sent({
   onDrop,
 }: {
   p: DirectPayment;
+  network: string;
   busy: string | null;
   ready: boolean;
   connected: boolean;
@@ -371,7 +375,7 @@ function Sent({
           {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
         </span>
         <span className={s.status === "settled" ? "block text-xs text-money-positive" : "block text-xs text-muted-foreground"}>{line}</span>
-        {s.reference && <span className="block break-all font-mono text-xs text-muted-foreground">{s.reference}</span>}
+        {s.reference && <TxLink id={s.reference} network={network} className="block" />}
       </span>
       {actions && <span className="flex flex-wrap gap-2">{actions}</span>}
     </li>

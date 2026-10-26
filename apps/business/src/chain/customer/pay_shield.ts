@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Settlement } from "@pnw/payroll";
-import { type PayQueueEvent, type RailWallet, explorerNetwork, runPayQueue } from "@pnw/rail";
+import { type PayQueueEvent, RailError, type RailWallet, explorerNetwork, runPayQueue } from "@pnw/rail";
 import type { useShield } from "../shield";
 
 export function railWalletOf(wallet: ReturnType<typeof useShield>["wallet"], address: string): RailWallet {
@@ -23,6 +23,10 @@ export function railWalletOf(wallet: ReturnType<typeof useShield>["wallet"], add
     transactionStatus: (id) => wallet.transactionStatus(id),
   };
 }
+
+/** What a customer is told when their private balance doesn't cover it: payroll's words are about a run. */
+export const SHORT_OF_PRIVATE =
+  "Not enough private USDCx in Shield for this payment. Move some from Public to Private in Shield; if you just did, or just received some, give Shield a minute and try again.";
 
 export type PayOne = {
   wallet: RailWallet;
@@ -53,6 +57,9 @@ export async function payOne({ wallet, key, to, cents, settlement, write }: PayO
     beforeSend: async (_who, attempt) => {
       await write({ status: "pending", attempt });
     },
+  }).catch((e: unknown) => {
+    // Short before anything was sent: said the customer's way (payroll's words are about a run).
+    throw e instanceof RailError && /^Not enough balance/.test(e.message) ? new Error(SHORT_OF_PRIVATE) : e;
   });
   const settled = result.settled[0];
   if (settled) return { transactionId: settled.transactionId };

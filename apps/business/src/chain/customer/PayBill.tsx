@@ -30,6 +30,7 @@ import { ShieldNeeded } from "../clients/ShieldNeeded";
 import { useLetters } from "../letter_reader";
 import { letterThread } from "../letters";
 import { postToThread } from "../thread";
+import { TxLink } from "../TxLink";
 import { useShield } from "../shield";
 import { payOne, railWalletOf } from "./pay_shield";
 
@@ -121,7 +122,7 @@ function Pay({ view }: { view: BillView }) {
     body = (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-money-positive">Paid {amount} from Shield{s.settledAt ? ` on ${new Date(s.settledAt).toLocaleDateString()}` : ""}.</p>
-        {s.reference && <p className="break-all font-mono text-xs text-muted-foreground">{s.reference}</p>}
+        {s.reference && <TxLink id={s.reference} network={rail.network} />}
         {payment?.toldAt ? (
           <p className="text-xs text-muted-foreground">{view.business} was told; it shows in their books once they record it.</p>
         ) : (

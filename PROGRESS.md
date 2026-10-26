@@ -35,6 +35,7 @@ index is out of date.
 - [Agreement to closed job, tested; two small fixes](progress/2026-10-26.md#2026-10-26--agreement-to-closed-job-tested-two-small-fixes)
 - [An agreed job becomes a project](progress/2026-10-26.md#2026-10-26--an-agreed-job-becomes-a-project)
 - [Paying a business without a bill, by its name](progress/2026-10-26.md#2026-10-26--paying-a-business-without-a-bill-by-its-name)
+- [A private payment received reaches For review; transaction links](progress/2026-10-26.md#2026-10-26--a-private-payment-received-reaches-for-review-transaction-links)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

@@ -8,7 +8,9 @@
 //            are in the open, a private one is opened with Shield's transition
 //            view key.
 //   records  the account's USDCx records: a private payment received shows up
-//            here, with its amount and Shield's `sender`.
+//            here, with its amount and Shield's `sender`. Shield's history
+//            lists it too, but only the sender can open it there, so a
+//            transaction the history can't read is taken from its record.
 //
 // Every movement in the account comes in (Joshua, 2026-10-26). When the books
 // were started from the Shield balance, only movements after the start do:
@@ -130,6 +132,13 @@ export async function findMovements(args: { me: string; start: RailStart | null 
   const items: ReviewItem[] = [];
   const seen = new Set(known);
   let unread = 0;
+  // Read neither way yet. A private payment received is in Shield's history too, but only its
+  // sender can open it there; its record (step 2) has the amount, so it isn't given up on here.
+  const notYet = new Set<string>();
+  const later = (id: string) => {
+    seen.delete(id);
+    notYet.add(id);
+  };
 
   // 1. History: both directions of public transfers, and what this account sent privately.
   const history = await deps.wallet.requestTransactionHistory(USDCX_PROGRAM);
@@ -147,7 +156,7 @@ export async function findMovements(args: { me: string; start: RailStart | null 
     try {
       const { transfer, fee } = transitionsOf(await deps.fetchTransaction(id));
       if (!transfer) {
-        unread++;
+        later(id);
         continue;
       }
       let read = readTransfer(transfer, fee);
@@ -164,14 +173,13 @@ export async function findMovements(args: { me: string; start: RailStart | null 
         }
       }
       if (read.minor === null) {
-        unread++;
+        later(id);
         continue;
       }
       const item = classify({ me, id, when, fn: read.fn, to: read.to, from: read.from, minor: read.minor });
       if (item) items.push(item);
     } catch {
-      seen.delete(id);
-      unread++;
+      later(id);
     }
   }
 
@@ -179,11 +187,12 @@ export async function findMovements(args: { me: string; start: RailStart | null 
   for (const r of receivedRecords(await deps.wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[]))) {
     if (seen.has(r.id) || !afterStart(r.when, start)) continue;
     seen.add(r.id);
+    notYet.delete(r.id);
     const item = classify({ me, id: r.id, when: r.when, fn: r.fn, to: me, from: r.from, minor: r.minor });
     if (item) items.push(item);
   }
 
-  return { items, unread };
+  return { items, unread: unread + notYet.size };
 }
 
 /** A USDCx record this account holds: the transaction that made it, when, how much, and who sent it when Shield says. */
