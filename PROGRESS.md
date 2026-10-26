@@ -39,6 +39,7 @@ index is out of date.
 - [For review opens a received payment's record with Shield](progress/2026-10-26.md#2026-10-26--for-review-opens-a-received-payments-record-with-shield)
 - [Every movement is reviewed, moves within the account too](progress/2026-10-26.md#2026-10-26--every-movement-is-reviewed-moves-within-the-account-too)
 - [For review says why a transaction couldn't be read](progress/2026-10-26.md#2026-10-26--for-review-says-why-a-transaction-couldnt-be-read)
+- [For review never waits on Shield forever](progress/2026-10-26.md#2026-10-26--for-review-never-waits-on-shield-forever)
 
 ## [2026-10-25](progress/2026-10-25.md)
 

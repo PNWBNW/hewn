@@ -40,7 +40,21 @@ export type FeedDeps = {
   fetchTransaction(id: string): Promise<unknown>;
   /** A transition with its private values readable, opened with a transition view key. */
   decrypt(transition: unknown, tvk: string): Promise<unknown>;
+  /** How long to wait for Shield to answer one request before going on without it (tests make it short). */
+  shieldWaitMs?: number;
 };
+
+/** Shield answers in a second or two; one that hasn't answered by now isn't going to (Joshua's test, 2026-10-26: the check spun forever). */
+export const SHIELD_WAIT_MS = 20_000;
+
+/** `p`, or a rejection saying Shield didn't answer `what` in time. The request itself can't be cancelled; it is no longer waited on. */
+function answered<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Shield didn't answer ${what} within ${Math.round(ms / 1000)}s`)), ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
 
 export type FeedResult = {
   items: ReviewItem[];
@@ -147,7 +161,21 @@ export async function findMovements(args: { me: string; start: RailStart | null 
   };
 
   // 1. History: both directions of public transfers, and what this account sent privately.
-  const history = await deps.wallet.requestTransactionHistory(USDCX_PROGRAM);
+  const wait = deps.shieldWaitMs ?? SHIELD_WAIT_MS;
+  // Once Shield stops answering decrypt, the rest of this check doesn't ask again.
+  let decryptGone: string | null = null;
+  const decryptRecord = deps.wallet.decryptRecord
+    ? async (c: string) => {
+        if (decryptGone) throw new Error(decryptGone);
+        try {
+          return await answered(deps.wallet.decryptRecord!(c), wait, "a decrypt");
+        } catch (e) {
+          if (e instanceof Error && /didn't answer/.test(e.message)) decryptGone = e.message;
+          throw e;
+        }
+      }
+    : null;
+  const history = await answered(deps.wallet.requestTransactionHistory(USDCX_PROGRAM), wait, "the history request");
   const entries = newestFirst(Array.isArray(history?.transactions) ? history.transactions : []).filter(isObj);
   for (const e of entries) {
     const id = transactionIdOf(e, ["transactionId", "transaction_id", "txId"]);
@@ -170,7 +198,7 @@ export async function findMovements(args: { me: string; start: RailStart | null 
       let tvks = 0;
       if (read.minor === null || (read.to === null && !read.fn.startsWith("mint") && !read.fn.startsWith("burn"))) {
         // Private values: open them with Shield's view keys for this transaction.
-        const keys = await deps.wallet.transitionViewKeys(id).catch(() => [] as string[]);
+        const keys = await answered(deps.wallet.transitionViewKeys(id), wait, "the view key request").catch(() => [] as string[]);
         tvks = keys.length;
         for (const tvk of keys) {
           const opened = await deps.decrypt(transfer, tvk).catch(() => null);
@@ -183,10 +211,10 @@ export async function findMovements(args: { me: string; start: RailStart | null 
         }
       }
       let why = tvks ? "Shield's view key didn't open it" : "Shield has no view key for it (someone else sent it)";
-      if (read.minor === null && deps.wallet.decryptRecord) {
+      if (read.minor === null && decryptRecord) {
         // Someone else's private payment to this account: its view key is the sender's, but the
         // record it made is this account's own, and Shield opens that (Joshua's test, 2026-10-26).
-        const mine = await ownRecordIn(transfer, me, deps.wallet.decryptRecord);
+        const mine = await ownRecordIn(transfer, me, decryptRecord);
         if (typeof mine === "bigint") read = { fn: read.fn, to: me, minor: mine, from: read.from === me ? null : read.from };
         else why = `${why}; ${mine}`;
       }
@@ -202,7 +230,7 @@ export async function findMovements(args: { me: string; start: RailStart | null 
   }
 
   // 2. Records: a private payment received (its transaction isn't one this account signed).
-  const raw = await deps.wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[]);
+  const raw = await answered(deps.wallet.requestRecords(USDCX_PROGRAM, true), wait, "the records request").catch(() => [] as unknown[]);
   for (const r of receivedRecords(raw)) {
     if (seen.has(r.id) || !afterStart(r.when, start)) continue;
     seen.add(r.id);
