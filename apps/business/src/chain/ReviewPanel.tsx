@@ -37,13 +37,14 @@ import {
   ensureNetworkFees,
   excludeItem,
   keepWithin,
+  matchDifference,
   knownIds,
   undoReview,
 } from "@/books/review";
 import { BRAND } from "@/brand";
 import { longDate } from "./agreement_draft";
 import { formatSixDecimals } from "./balances";
-import { differenceFor } from "@/books/reconcile";
+import { differenceFor, recordedDifferences } from "@/books/reconcile";
 import { decryptTransition, fetchExplorerTransaction, openOwnRecord } from "./decrypt";
 import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
@@ -381,6 +382,17 @@ function ReviewCard({
     }
   }
 
+  async function sameMoney(entryId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await updateCompany((c) => matchDifference(c, item.id, entryId));
+    } catch (e) {
+      setError(errorMessage(e));
+      setBusy(false);
+    }
+  }
+
   async function exclude() {
     setBusy(true);
     setError(null);
@@ -409,10 +421,15 @@ function ReviewCard({
             {dust && <> · goes in the books as <Money cents={cents} /> (a fraction of a cent isn&apos;t kept)</>}
           </p>
           {earlier && (
-            <p role="status" className="rounded-md border border-dashed px-3 py-2 text-xs">
-              You recorded a <Money cents={earlier.cents < 0n ? -earlier.cents : earlier.cents} /> difference from the Dashboard on {longDate(earlier.date)}. If
-              this is that money, exclude it here so it isn&apos;t counted twice.
-            </p>
+            <div role="status" className="flex flex-col gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
+              <p>
+                You recorded a <Money cents={earlier.cents < 0n ? -earlier.cents : earlier.cents} /> difference from the Dashboard on {longDate(earlier.date)}.
+                If this is that money, say so: nothing is posted again, and it counts once.
+              </p>
+              <Button variant="outline" size="sm" className="min-h-11 self-start sm:min-h-8" disabled={busy} onClick={() => void sameMoney(earlier.entryId)}>
+                Yes, it&apos;s that money
+              </Button>
+            </div>
           )}
         </>
       )}
@@ -548,6 +565,7 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
     const numbers = payment?.applications.map((a) => sales.invoices.find((i) => i.id === a.invoiceId)?.number).filter(Boolean) ?? [];
     return payment ? (numbers.length ? `Paid through ${BRAND.name} · ${numbers.join(", ")}` : `Paid through ${BRAND.name}`) : null;
   };
+  const isDifference = (entryId: string | undefined) => !!entryId && recordedDifferences(books).some((d) => d.entryId === entryId);
   const accountName = (entryId: string | undefined) => {
     const entry = books.entries.find((e) => e.id === entryId);
     const other = entry?.lines.find((l) => !isShieldFamily({ books }, l.accountId));
@@ -557,7 +575,7 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
     i.status === "accepted"
       ? `Posted to ${accountName(i.entryId) ?? "the books"}`
       : i.status === "recorded"
-        ? (paidFor(i.entryId) ?? "Already in the books (paid from the app)")
+        ? (paidFor(i.entryId) ?? (isDifference(i.entryId) ? "Already in the books: the difference recorded from the Dashboard" : "Already in the books (paid from the app)"))
         : i.status === "internal"
           ? `Nothing to post: the money stayed in the ${RAIL_ACCOUNT_NAME}`
           : "Kept out of the books";

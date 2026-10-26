@@ -283,7 +283,7 @@ function StartBooks({ usdcx }: { usdcx: bigint | null }) {
 function ShieldCheck({ usdcx }: { usdcx: bigint | null }) {
   const company = useOpenBooks();
   const result = reconcileShield({ ...company, review: company.review ?? undefined, funds: company.funds ?? undefined, rail: company.rail ?? undefined }, usdcx);
-  return <ShieldCheckView result={result} record={result.kind === "off" && result.shield !== result.books ? <RecordDifference cents={result.shield - result.books} /> : undefined} />;
+  return <ShieldCheckView result={result} record={result.kind === "off" && result.waiting === 0 && result.shield !== result.books ? <RecordDifference cents={result.shield - result.books} /> : undefined} />;
 }
 
 const part = (label: string, minor: bigint | null) => (

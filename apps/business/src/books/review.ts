@@ -26,7 +26,7 @@ export type ReviewStatus =
   | "accepted"
   /** Kept out of the books on purpose. */
   | "excluded"
-  /** Already in the books: a payment the app made itself (a paycheck, say). */
+  /** Already in the books: a payment the app made itself (a paycheck, say), or a difference recorded from the Dashboard (`matchDifference`). */
   | "recorded"
   /** A move inside the account (public to private, say), as the business marked it: nothing to post. */
   | "internal";
@@ -221,6 +221,18 @@ export function keepWithin(company: Company, id: string): Company {
   const item = itemOf(company, id);
   if (item.status !== "new") throw new ReviewError("That transaction has already been reviewed");
   return withItem(company, { ...item, within: true, status: "internal" });
+}
+
+/**
+ * Says a waiting item is money already in the books as a difference recorded from the Dashboard
+ * (books/reconcile.ts): nothing is posted, and it's tied to that entry, so it counts once. Not
+ * "excluded": that would mean the money is in Shield and not in the books.
+ */
+export function matchDifference(company: Company, id: string, entryId: string): Company {
+  const item = itemOf(company, id);
+  if (item.status !== "new") throw new ReviewError("That transaction has already been reviewed");
+  findEntry(company.books, entryId);
+  return withItem(company, { ...item, status: "recorded", entryId });
 }
 
 /** Keeps a waiting item out of the books. */
