@@ -7,6 +7,7 @@ import { ArrowLeftRight, Briefcase, ChartColumn, Clock, CreditCard, Download, Fi
 import { cn } from "@pnw/ui/utils";
 import { useBooks, useOpenBooks } from "@/books/BooksProvider";
 import { SETUP_PATH, setupRedirect, setupStep } from "@/books/setup";
+import { syncAgreementProjects } from "@/books/agreement_projects";
 import { unreadCount } from "@/books/mailbox";
 import { unreadIn } from "@/books/thread";
 import { unreadPosts } from "@/books/channels";
@@ -273,7 +274,7 @@ function PublicShell({ children }: { children: ReactNode }) {
 function OpenShell({ children }: { children: ReactNode }) {
   const pathname = canonicalPath(usePathname());
   const router = useRouter();
-  const { books, role, rail, work, customer, lock, downloadBackup } = useOpenBooks();
+  const { books, role, rail, work, customer, clients, lock, downloadBackup, currentCompany, updateCompany } = useOpenBooks();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // A worker's vault lives under /work, a customer's under /customer, and a business's everywhere else;
@@ -288,6 +289,13 @@ function OpenShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (redirect) router.replace(redirect);
   }, [redirect, router]);
+
+  // An agreed job gets its project, and its end closes it (books/agreement_projects.ts), whichever screen the agreement moved on.
+  useEffect(() => {
+    const c = currentCompany();
+    if (role !== "business" || !c || syncAgreementProjects(c) === c) return;
+    void updateCompany((latest) => syncAgreementProjects(latest)).catch(() => {});
+  }, [role, clients, currentCompany, updateCompany]);
 
   // Close the mobile drawer on navigation and on Escape.
   useEffect(() => setDrawerOpen(false), [pathname]);

@@ -36,6 +36,7 @@ import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { itemsOf } from "@/books/connections";
 import { invoiceableAgreements } from "@/books/service";
+import { projectForAgreement } from "@/books/agreement_projects";
 import { AccountSelect, Money, todayIso } from "@/books/display";
 import { TagFields, pickedTags } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
@@ -87,7 +88,7 @@ export function DocumentEditor({ kind }: { kind: DocumentKind }) {
 }
 
 function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoice | Estimate }) {
-  const { books, sales, dimensions, clients, updateCompany } = useOpenBooks();
+  const { books, sales, dimensions, clients, agreementProjects, updateCompany } = useOpenBooks();
   const router = useRouter();
   const invoice = kind === "invoice" ? (existing as Invoice | undefined) : undefined;
   const estimate = kind === "estimate" ? (existing as Estimate | undefined) : undefined;
@@ -243,7 +244,16 @@ function DocumentForm({ kind, existing }: { kind: DocumentKind; existing?: Invoi
           </Field>
           {jobs.length > 0 && (
             <Field label="For agreement" hint="Optional: the job this invoice is for.">
-              <select className={inputClass} value={agreementId} onChange={(e) => setAgreementId(e.target.value)}>
+              <select
+                className={inputClass}
+                value={agreementId}
+                onChange={(e) => {
+                  setAgreementId(e.target.value);
+                  // The job's project goes on every line that has none yet, so its income follows the job.
+                  const project = e.target.value ? projectForAgreement({ agreementProjects: agreementProjects ?? undefined, dimensions }, e.target.value) : undefined;
+                  if (project) setRows((rs) => rs.map((r) => (r.tags.project ? r : { ...r, tags: { ...r.tags, project } })));
+                }}
+              >
                 <option value="">No agreement</option>
                 {jobs.map((j) => (
                   <option key={j.terms.id} value={j.terms.id}>

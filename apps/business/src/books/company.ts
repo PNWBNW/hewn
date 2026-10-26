@@ -24,6 +24,7 @@ import { type Schedule, scheduleFromJson, scheduleToJson } from "./schedule";
 import { type Role, type Work, workFromJson, workToJson } from "./work";
 import { type CustomerSide, validateCustomer } from "./customer";
 import { type Connections, validateConnections } from "./connections";
+import { type AgreementProjects, validateAgreementProjects } from "./agreement_projects";
 import { type PersonalEvent, validateEvents } from "./events";
 import { type SharedCalendar, calendarFromJson, calendarToJson } from "./shared_events";
 import { type ChainState, validateChainState } from "./books_backup";
@@ -50,6 +51,8 @@ export type Company = {
   work?: Work;
   /** The customers this business is connected with, by their account (books/connections.ts). Only once one said hello. */
   clients?: Connections;
+  /** The project each agreed job has (books/agreement_projects.ts). Only once there is one. */
+  agreementProjects?: AgreementProjects;
   /** A client's side (books/customer.ts): their name, and later bills and payments. Only on a customer's file. */
   customer?: CustomerSide;
   /** Personal events (books/events.ts): only on this account's own calendar. Absent before the first. */
@@ -86,6 +89,7 @@ export function companyToJson(c: Company): string {
     ...(c.work ? { work: workToJson(c.work) } : {}),
     ...(c.customer ? { customer: JSON.stringify(validateCustomer(c.customer)) } : {}),
     ...(c.clients && Object.keys(c.clients).length > 0 ? { clients: JSON.stringify(validateConnections(c.clients)) } : {}),
+    ...(c.agreementProjects && Object.keys(c.agreementProjects).length > 0 ? { agreementProjects: JSON.stringify(validateAgreementProjects(c.agreementProjects)) } : {}),
     ...(c.events && c.events.length > 0 ? { events: JSON.stringify(c.events) } : {}),
     ...(c.calendar ? { calendar: calendarToJson(c.calendar) } : {}),
     ...(c.username ? { username: c.username } : {}),
@@ -112,6 +116,7 @@ export function companyFromJson(text: string): Company {
     work?: string;
     customer?: string;
     clients?: string;
+    agreementProjects?: string;
     events?: string;
     calendar?: string;
     username?: string;
@@ -140,6 +145,7 @@ export function companyFromJson(text: string): Company {
     if (typeof doc.work === "string") company.work = workFromJson(doc.work);
     if (typeof doc.customer === "string") company.customer = validateCustomer(JSON.parse(doc.customer));
     if (typeof doc.clients === "string") company.clients = validateConnections(JSON.parse(doc.clients));
+    if (typeof doc.agreementProjects === "string") company.agreementProjects = validateAgreementProjects(JSON.parse(doc.agreementProjects));
     if (typeof doc.events === "string") company.events = validateEvents(JSON.parse(doc.events));
     if (typeof doc.calendar === "string") company.calendar = calendarFromJson(doc.calendar);
     const username = typeof doc.username === "string" && doc.username ? doc.username : typeof doc.email === "string" && doc.email ? doc.email : null;
