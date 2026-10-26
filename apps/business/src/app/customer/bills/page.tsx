@@ -1,8 +1,9 @@
 "use client";
 
 // A customer's bills: every invoice their connected businesses sent them, and
-// one opened in full, paid from Shield there. They come from the vault;
-// checking for new ones and paying load their Shield code only here.
+// one opened in full, paid from Shield there; and paying a business without a
+// bill, by its registered name. They come from the vault; checking for new
+// ones and paying load their Shield code only here.
 
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
@@ -20,6 +21,7 @@ import { BRAND } from "@/brand";
 import { PageHeader } from "@/shell/SectionView";
 
 const BillsCheck = dynamic(() => import("@/chain/customer/BillsCheck"), { ssr: false });
+const PayBusiness = dynamic(() => import("@/chain/customer/PayBusiness"), { ssr: false });
 const PayBill = dynamic(() => import("@/chain/customer/PayBill"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
 
 export default function BillsPage() {
@@ -37,7 +39,8 @@ const billKey = (b: BillView) => `${b.address}:${b.bill.id}`;
 
 function Bills() {
   const { customer } = useCustomer();
-  const selected = useSearchParams().get("bill");
+  const params = useSearchParams();
+  const selected = params.get("bill");
   const bills = billsIn(customer.businesses, customer.payments);
   const open = bills.find((b) => billKey(b) === selected);
   const today = todayIso();
@@ -49,6 +52,7 @@ function Bills() {
     <div className="flex flex-col gap-6">
       <PageHeader title="Bills" summary={bills.length === 0 ? "Invoices from the businesses you're connected with." : openLine(owed, bills.filter((b) => b.status === "open").length)} />
       <BillsCheck />
+      <PayBusiness preset={params.get("pay") ?? undefined} />
       <Card>
         <CardContent className="pt-6">
           {bills.length === 0 ? (

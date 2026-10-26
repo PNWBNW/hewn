@@ -25,6 +25,8 @@ Moved here from `BUILD_PLAN.md` on 2026-10-25; tick items here.
   2026-10-26.
 - [x] Bills paid from the customer's Shield account, the business told, and recorded on the
   business's side once its own account shows the transfer (Step 1, no new Leo). Built 2026-10-26.
+- [x] Paying a business without a bill (decision 24): by its registered name, any amount, with
+  what it's for; a connected business is told and records it. Built 2026-10-26.
 - [x] A printable invoice, for a customer who isn't on the app (Joshua, 2026-10-26): Sales →
   Invoices → Print, then the browser's Print or Save as PDF (a phone's own browser can share it;
   Shield's browser may not print). Built 2026-10-26.
@@ -102,6 +104,10 @@ everything about them private. A customer can:
     named after the job and tied to the customer, closed when the job is marked complete or
     cancelled (once; a project the business reopens stays open). Invoices under the agreement are
     tagged to it (2026-10-26).
+24. A customer can pay a business through the app without an invoice, finding it by its
+    registered `.hewn` name so the money goes to the account the registry says the name is, not
+    to an address typed by hand (2026-10-26). No connection needed; a connected business is also
+    told what it's for. See Step 1, item 7.
 
 ## Accounts (decision 17)
 
@@ -177,6 +183,19 @@ stablecoin's own private transfer, the registry):
    (receivable to the Shield account) and marks the review item recorded, so it isn't counted
    twice.
 6. **Messages** between the two are letters, a conversation like a team member's.
+7. **Paying without a bill** (decision 24, built 2026-10-26): Bills → **Pay without a bill**.
+   The customer picks a connected business, or finds any business by its registered name (the
+   registry's lookup, businesses only, showing the account the name points at), enters the amount
+   and, optionally, what it's for, and reviews it: the name, the registry's account, the amount.
+   It goes through the same pay queue as a bill (never twice). A connected business then gets a
+   `payment` message naming no invoice, with the note (a second approval); its Sales → Invoices
+   lists it with **Record against INV-0012** (the customer's open invoices, oldest due first) or
+   **Record as their credit** when nothing is owed, again only once its own account shows the
+   transfer. A business the customer isn't connected with sees a private payment arrive in its
+   Shield account and files it under For review like any deposit; the note stays with the
+   customer. Every such payment stays in the customer's list as their receipt; one that surely
+   never went (failed, or never handed to Shield) can be removed. Connected businesses also show
+   **Pay** under Businesses.
 
 **What's public:** the same as any letter and private transfer: that the letters program and the
 stablecoin's private transfer ran, plus the fee payer when the fee is public. Not the amount, the

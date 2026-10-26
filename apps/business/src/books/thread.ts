@@ -92,8 +92,11 @@ export type ThreadBody =
   | { type: "agreement_close"; id: string; reason: CloseReason; note?: string }
   /** Either side ends the connection: no more invoices or messages until both connect again. */
   | { type: "disconnect" }
-  /** A customer paid an invoice from Shield: which one, how much (cents), and the transfer. The business checks it against its own account. */
-  | { type: "payment"; invoiceId: string; number: string; amount: string; transactionId: string }
+  /**
+   * A customer paid from Shield: how much (cents), the transfer, and the invoice it paid, or none
+   * when they paid without one, with what it's for. The business checks it against its own account.
+   */
+  | { type: "payment"; amount: string; transactionId: string; invoiceId?: string; number?: string; note?: string }
   /** The business publishes the person's week (books/schedule.ts): shift blocks and on-call days, and an optional note. */
   | { type: "schedule"; week: ScheduleWeek; note: string }
   /** The person confirms the week published in message `scheduleId`, or asks for a change, with a note. */
@@ -117,6 +120,9 @@ export type ThreadBody =
    * itself inside, sealed under the new pair's key, so only the two sides open even this one.
    */
   | { type: "sealed"; inner: string };
+
+/** What a payment without an invoice is for, at most this long. */
+export const MAX_PAYMENT_NOTE = 200;
 
 /** A guest's answer to an invitation. */
 export const EVENT_ANSWERS = ["yes", "maybe", "no"] as const;
@@ -420,11 +426,21 @@ function validateBody(raw: unknown): ThreadBody {
     case "disconnect":
       return { type: "disconnect" };
     case "payment": {
-      if (typeof raw.invoiceId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(raw.invoiceId)) throw new ThreadError("A payment needs the invoice's id");
-      if (typeof raw.number !== "string" || !raw.number.trim() || [...raw.number].length > 40) throw new ThreadError("A payment needs the invoice's number");
       if (typeof raw.amount !== "string" || !/^[1-9]\d{0,14}$/.test(raw.amount)) throw new ThreadError("A payment needs its amount");
       if (typeof raw.transactionId !== "string" || !/^at1[02-9ac-hj-np-z]{58}$/.test(raw.transactionId)) throw new ThreadError("A payment needs its transaction");
-      return { type: "payment", invoiceId: raw.invoiceId, number: raw.number, amount: raw.amount, transactionId: raw.transactionId };
+      const out: Extract<ThreadBody, { type: "payment" }> = { type: "payment", amount: raw.amount, transactionId: raw.transactionId };
+      // An invoice is named by both its id and its number, or not at all.
+      if (raw.invoiceId !== undefined || raw.number !== undefined) {
+        if (typeof raw.invoiceId !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(raw.invoiceId)) throw new ThreadError("A payment needs the invoice's id");
+        if (typeof raw.number !== "string" || !raw.number.trim() || [...raw.number].length > 40) throw new ThreadError("A payment needs the invoice's number");
+        out.invoiceId = raw.invoiceId;
+        out.number = raw.number;
+      }
+      if (raw.note !== undefined) {
+        if (typeof raw.note !== "string" || [...raw.note].length > MAX_PAYMENT_NOTE) throw new ThreadError(`What a payment is for is at most ${MAX_PAYMENT_NOTE} characters`);
+        if (raw.note.trim()) out.note = raw.note;
+      }
+      return out;
     }
     case "text": {
       if (typeof raw.text !== "string" || !raw.text.trim()) throw new ThreadError("A message can't be empty");
@@ -695,7 +711,10 @@ export function preview(item: ThreadItem | undefined): string {
   if (b.type === "sealed") return "A sealed message";
   if (b.type === "invoice") return item.mine ? `You sent invoice ${b.bill.number}` : `Sent you invoice ${b.bill.number}`;
   if (b.type === "invoice_void") return item.mine ? `You voided invoice ${b.number}` : `Voided invoice ${b.number}`;
-  if (b.type === "payment") return item.mine ? `You paid invoice ${b.number}` : `Paid invoice ${b.number}`;
+  if (b.type === "payment") {
+    const what = b.number ? `invoice ${b.number}` : `$${formatCents(BigInt(b.amount))}`;
+    return item.mine ? `You paid ${what}` : `Paid ${what}`;
+  }
   if (b.type === "agreement_offer") return `${item.mine ? "You proposed" : "Proposed"} “${b.terms.title}”${b.terms.rev > 1 ? " (revised)" : ""}`;
   if (b.type === "agreement_answer") {
     const what = b.answer === "accept" ? "accepted the agreement" : b.answer === "changes" ? "asked for changes to the agreement" : "declined the agreement";

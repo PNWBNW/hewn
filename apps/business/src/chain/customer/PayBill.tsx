@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // Paying a bill from Shield (docs/CUSTOMERS.md, Step 1): exactly the bill's
 // amount as a private USDCx transfer to the business's account, through the
-// same pay queue payroll uses (@pnw/rail), so a reload resumes and a payment
-// whose outcome isn't known is never sent again on its own. Once it settles,
+// same pay queue payroll uses (pay_shield.ts), so a reload resumes and a
+// payment whose outcome isn't known is never sent again on its own. Once it settles,
 // a payment message tells the business which invoice it paid and with which
 // transfer (one more approval); the business records it only when its own
 // account shows the transfer. The customer brings their own USDCx.
@@ -14,7 +14,6 @@
 import { useRef, useState } from "react";
 import { formatCents } from "@pnw/ledger";
 import type { Settlement } from "@pnw/payroll";
-import { type PayQueueEvent, type RailWallet, explorerNetwork, runPayQueue } from "@pnw/rail";
 import { Button } from "@pnw/ui/button";
 import { readFeeMode } from "@pnw/wallet/fee-mode";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
@@ -32,6 +31,7 @@ import { useLetters } from "../letter_reader";
 import { letterThread } from "../letters";
 import { postToThread } from "../thread";
 import { useShield } from "../shield";
+import { payOne, railWalletOf } from "./pay_shield";
 
 export default function PayBill({ view }: { view: BillView }) {
   return (
@@ -39,19 +39,6 @@ export default function PayBill({ view }: { view: BillView }) {
       <Pay view={view} />
     </AleoWalletProviderWrapper>
   );
-}
-
-function railWalletOf(wallet: ReturnType<typeof useShield>["wallet"], address: string): RailWallet {
-  return {
-    address,
-    requestRecords: (program, all) => wallet.requestRecords(program, all),
-    executeTransaction: async (opts) => {
-      const r = await wallet.executeTransaction(opts);
-      if (!r?.transactionId) throw new Error("Shield didn't take the payment");
-      return r;
-    },
-    transactionStatus: (id) => wallet.transactionStatus(id),
-  };
 }
 
 function Pay({ view }: { view: BillView }) {
@@ -79,26 +66,9 @@ function Pay({ view }: { view: BillView }) {
       // Start (or resume) from what the vault holds, so a payment already on its way is watched, not sent again.
       const latest = (await updateCustomer((c) => setBillPayment(c, start, c.payments?.[key]?.settlement.status === "failed" ? { status: "pending" } : (c.payments?.[key]?.settlement ?? { status: "pending" }))))
         .payments![key]!;
-      const onProgress = (e: PayQueueEvent) => {
-        if (e.kind === "sent") void write({ status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}) });
-        if (e.kind === "settled") void write({ status: "settled", reference: e.transactionId, settledAt: new Date().toISOString(), ...(e.height !== undefined ? { height: e.height } : {}) });
-        if (e.kind === "failed") void write({ status: "failed", failure: e.failure, ...(e.attempt ? { attempt: e.attempt } : {}) });
-        if (e.kind === "unconfirmed") void write({ status: "pending", failure: e.failure, ...(e.reference ? { reference: e.reference } : {}), ...(e.attempt ? { attempt: e.attempt } : {}) });
-      };
-      const result = await runPayQueue({
-        wallet: railWalletOf(shield.wallet, letters.address),
-        network: explorerNetwork(),
-        run: { id: key, mode: "rail", paychecks: [{ workerId: key, net: BigInt(latest.cents), settlement: latest.settlement }] },
-        links: new Map([[key, view.address]]),
-        onProgress,
-        beforeSend: async (_who, attempt) => {
-          await write({ status: "pending", attempt });
-        },
-      });
-      const settled = result.settled[0];
-      if (settled) await tell(settled.transactionId);
-      else if (result.failed[0]) setError(result.failed[0].failure);
-      else if (result.unconfirmed[0]) setError(result.unconfirmed[0].failure);
+      const r = await payOne({ wallet: railWalletOf(shield.wallet, letters.address), key, to: view.address, cents: BigInt(latest.cents), settlement: latest.settlement, write });
+      if (r.transactionId) await tell(r.transactionId);
+      else if (r.failure) setError(r.failure);
     } catch (e) {
       setError(errorMessage(e));
     } finally {

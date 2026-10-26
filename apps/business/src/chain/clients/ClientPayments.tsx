@@ -1,7 +1,8 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Payments customers made from Shield (books/client_payments.ts): reads each
+// Payments customers made from Shield (books/client_payments.ts), for an
+// invoice or without one: reads each
 // connected customer's conversation for payment messages, and this account's
 // own USDCx records, then lists the payments not in the books yet. One is
 // recorded only once this business's own Shield account shows the transfer
@@ -18,7 +19,7 @@ import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
-import { type Arrived, paymentsToRecord, recordClientPayment } from "@/books/client_payments";
+import { type Arrived, type ClientPayment, paymentsToRecord, recordClientPayment } from "@/books/client_payments";
 import { updateConnectionThread } from "@/books/connections";
 import { addToThread, emptyThread, skipIncoming } from "@/books/thread";
 import { BRAND } from "@/brand";
@@ -27,6 +28,13 @@ import { useLetters } from "../letter_reader";
 import { receivedRecords } from "../review_feed";
 import { checkConnections } from "./checkConnections";
 import { ShieldNeeded } from "./ShieldNeeded";
+
+/** What recording it does, said on its button. */
+function recordLabel(p: ClientPayment): string {
+  if (p.number) return `Record payment for ${p.number}`;
+  if (p.applies?.length) return `Record against ${p.applies.map((a) => a.number).join(", ")}`;
+  return "Record as their credit";
+}
 
 export default function ClientPayments() {
   return (
@@ -110,19 +118,20 @@ function Payments() {
       </div>
       {!letters && <ShieldNeeded {...shield} linked={rail.address} what="check for customers' payments" />}
       {waiting.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{said ?? "When a customer pays a bill from Shield, it shows here to record against its invoice."}</p>
+        <p className="text-xs text-muted-foreground">{said ?? "When a customer pays a bill from Shield, or pays you without one, it shows here to record."}</p>
       ) : (
         <ul className="divide-y rounded-md border">
           {waiting.map((p) => (
             <li key={p.transactionId} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center">
               <span className="min-w-0 flex-1 text-sm">
-                {names.get(p.customerId) ?? "A customer"} paid {p.number} · ${formatCents(p.cents)}
+                {names.get(p.customerId) ?? "A customer"} paid {p.number ?? "you, without an invoice"} · ${formatCents(p.cents)}
+                {p.note && <span className="block text-muted-foreground">For: {p.note}</span>}
                 <span className="block break-all font-mono text-xs text-muted-foreground">{p.transactionId}</span>
                 {p.problem && <span className="block text-xs text-muted-foreground">{p.problem}</span>}
               </span>
               {p.seen ? (
                 <Button size="sm" className="min-h-11 sm:min-h-8" disabled={busy !== null} onClick={() => void record(p.transactionId)}>
-                  {busy === p.transactionId ? "Recording…" : `Record payment for ${p.number}`}
+                  {busy === p.transactionId ? "Recording…" : recordLabel(p)}
                 </Button>
               ) : null}
             </li>

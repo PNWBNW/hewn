@@ -159,12 +159,15 @@ function List() {
       {connected.length > 0 && (
         <ul className="divide-y overflow-hidden rounded-lg border bg-card">
           {connected.map((c) => (
-            <li key={c.address}>
-              <Link href={`/customer/messages?with=${encodeURIComponent(c.address)}`} className="flex min-h-14 items-center gap-3 px-4 py-3">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {c.name}.{BRAND.nameSuffix}
-                </span>
-                <span className="text-xs underline underline-offset-4">Agreements and messages</span>
+            <li key={c.address} className="flex min-h-14 items-center gap-3 px-4 py-3">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {c.name}.{BRAND.nameSuffix}
+              </span>
+              <Link href={`/customer/messages?with=${encodeURIComponent(c.address)}`} className="inline-flex min-h-11 items-center text-xs underline underline-offset-4 sm:min-h-0">
+                Agreements and messages
+              </Link>
+              <Link href={`/customer/bills?pay=${encodeURIComponent(c.address)}`} className="inline-flex min-h-11 items-center text-xs underline underline-offset-4 sm:min-h-0">
+                Pay
               </Link>
             </li>
           ))}
