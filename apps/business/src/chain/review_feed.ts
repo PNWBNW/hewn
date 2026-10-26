@@ -9,8 +9,9 @@
 //            view key.
 //   records  the account's USDCx records: a private payment received shows up
 //            here, with its amount and Shield's `sender`. Shield's history
-//            lists it too, but only the sender can open it there, so a
-//            transaction the history can't read is taken from its record.
+//            lists it too, but only the sender's view key opens it there, so
+//            the record it made for this account is opened with Shield's own
+//            decrypt; failing that, it is taken from the record list.
 //
 // Every movement in the account comes in (Joshua, 2026-10-26). When the books
 // were started from the Shield balance, only movements after the start do:
@@ -28,6 +29,8 @@ export type FeedWallet = {
   requestRecords(program: string, includePlaintext?: boolean): Promise<unknown[]>;
   requestTransactionHistory(program: string): Promise<{ transactions?: unknown }>;
   transitionViewKeys(transactionId: string): Promise<string[]>;
+  /** Shield's own decrypt: a record this account owns, as plain text; throws for anyone else's. */
+  decryptRecord?(cipherText: string): Promise<string>;
 };
 
 export type FeedDeps = {
@@ -172,6 +175,12 @@ export async function findMovements(args: { me: string; start: RailStart | null 
           }
         }
       }
+      if (read.minor === null && deps.wallet.decryptRecord) {
+        // Someone else's private payment to this account: its view key is the sender's, but the
+        // record it made is this account's own, and Shield opens that (Joshua's test, 2026-10-26).
+        const mine = await ownRecordIn(transfer, me, deps.wallet.decryptRecord);
+        if (mine !== null) read = { fn: read.fn, to: me, minor: mine, from: read.from === me ? null : read.from };
+      }
       if (read.minor === null) {
         later(id);
         continue;
@@ -193,6 +202,20 @@ export async function findMovements(args: { me: string; start: RailStart | null 
   }
 
   return { items, unread: unread + notYet.size };
+}
+
+/** The amount of the record a transition made for this account, opened with Shield; null when none of its records is this account's. */
+async function ownRecordIn(transition: Obj, me: string, decrypt: (cipherText: string) => Promise<string>): Promise<bigint | null> {
+  const outputs = Array.isArray(transition.outputs) ? transition.outputs.filter(isObj) : [];
+  for (const o of outputs) {
+    if (o.type !== "record" || typeof o.value !== "string" || !o.value.startsWith("record1")) continue;
+    const plain = await decrypt(o.value).catch(() => null);
+    if (typeof plain !== "string") continue;
+    const owner = /\bowner:\s*(aleo1[a-z0-9]{58})/.exec(plain)?.[1];
+    const amount = /\bamount:\s*(\d+)u128\b/.exec(plain)?.[1];
+    if (owner === me && amount) return BigInt(amount);
+  }
+  return null;
 }
 
 /** A USDCx record this account holds: the transaction that made it, when, how much, and who sent it when Shield says. */
