@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { addAccount, balanceOf, createBooks } from "@pnw/ledger";
+import { addAccount, balanceOf, createBooks, postEntry, systemAccount } from "@pnw/ledger";
 import { findRailAccount } from "@pnw/payroll";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
-import { closeFund, createFund, defaultSource, fundBalances, isShieldFamily, moveFund, updateFund, validateFunds } from "./funds";
+import { closeFund, createFund, defaultSource, freeToSpend, fundBalances, isShieldFamily, moveFund, taxesOwed, updateFund, validateFunds } from "./funds";
 import { startFromShield } from "./opening";
 import type { Rail } from "./rail";
 import { acceptItem, addReviewItems, changeItem, choicesOf } from "./review";
@@ -83,5 +83,29 @@ describe("set-asides", () => {
     for (const bad of [{ version: 2, funds: [] }, { version: 1, funds: [{ vendorIds: [] }] }, { version: 1, funds: [{ accountId: "a", vendorIds: [3] }] }]) {
       expect(() => validateFunds(bad)).toThrow();
     }
+  });
+});
+
+describe("taxes owed, set aside on their own (Joshua, 2026-10-26)", () => {
+  it("holds sales tax and payroll taxes back from what's free to spend, until they're paid", () => {
+    const { c } = company();
+    const shield = findRailAccount(c.books)!.id;
+    const salesTax = systemAccount(c.books, "sales_tax_payable").id;
+    const payroll = systemAccount(c.books, "payroll_liabilities").id;
+    const owe = (books: typeof c.books, account: string, cents: bigint) =>
+      postEntry(books, { date: "2026-10-16", lines: [{ accountId: shield, debit: cents }, { accountId: account, credit: cents }] }).books;
+    let books = owe(owe(c.books, salesTax, 244n), payroll, 1000n);
+    const made = createFund({ ...c, books }, { name: "Equipment" });
+    const withFund = moveFund(made.company, { accountId: made.accountId, cents: 200n, direction: "into", date: "2026-10-16" });
+    expect(taxesOwed(withFund.books)).toBe(1244n);
+    // $20.00 opening + $12.44 in, $2.00 set aside: General 30.44, free 30.44 - 12.44 = 18.00; the total doesn't change.
+    expect(fundBalances(withFund)).toMatchObject({ general: 3044n, total: 3244n });
+    expect(freeToSpend(withFund, 0n)).toEqual({ cents: 1800n, taxes: 1244n, from: "general" });
+    // Paying the sales tax brings it back.
+    books = postEntry(withFund.books, { date: "2026-10-17", lines: [{ accountId: salesTax, debit: 244n }, { accountId: shield, credit: 244n }] }).books;
+    expect(freeToSpend({ ...withFund, books }, 0n)).toEqual({ cents: 1800n, taxes: 1000n, from: "general" });
+    // Before the books follow Shield, it's the bank accounts' cash less the taxes; never a negative tax.
+    const plain = createBooks({ businessName: "T", fiscalYearStartMonth: 1 });
+    expect(freeToSpend({ books: plain }, 5000n)).toEqual({ cents: 5000n, taxes: 0n, from: "cash" });
   });
 });

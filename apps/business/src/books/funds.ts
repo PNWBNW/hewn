@@ -11,6 +11,11 @@
 // equipment supplier, say): when such a vendor is paid, the payment comes out
 // of that set-aside by default. Everything else comes out of General.
 //
+// Taxes owed (sales tax collected, payroll withholding and employer taxes not
+// yet paid to the agencies) are set aside on their own (Joshua, 2026-10-26):
+// not an account or an entry, just held back from what's free to spend, so
+// the figure moves the moment a tax is collected or paid.
+//
 // Pure: no network, no React, no storage.
 // ---------------------------------------------------------------------------
 
@@ -80,6 +85,26 @@ export function fundBalances(company: Pick<Company, "books" | "funds">): { gener
   const funds = children.map((a) => ({ accountId: a.id, name: a.name, cents: balanceOf(company.books, a.id), vendorIds: records.get(a.id)?.vendorIds ?? [] }));
   const general = balanceOf(company.books, shield.id);
   return { general, funds, total: funds.reduce((t, f) => t + f.cents, general) };
+}
+
+const TAX_ROLES = new Set(["sales_tax_payable", "payroll_liabilities"]);
+
+/** Taxes the books owe and haven't paid: Sales Tax Payable and Payroll Liabilities, with any accounts under them. Never below zero. */
+export function taxesOwed(books: Company["books"]): Cents {
+  const roots = new Set(books.accounts.filter((a) => a.system && TAX_ROLES.has(a.system)).map((a) => a.id));
+  let owed = 0n;
+  for (const a of books.accounts) if (roots.has(a.id) || (a.parentId && roots.has(a.parentId))) owed -= balanceOf(books, a.id);
+  return owed > 0n ? owed : 0n;
+}
+
+/**
+ * What's free to spend: General in the Shield account (or, before the books follow one, the bank
+ * accounts' total `cash`), less the taxes owed. Can go below zero, which says the taxes aren't covered.
+ */
+export function freeToSpend(company: Pick<Company, "books" | "funds">, cash: Cents): { cents: Cents; taxes: Cents; from: "general" | "cash" } {
+  const shield = findRailAccount(company.books);
+  const taxes = taxesOwed(company.books);
+  return shield ? { cents: fundBalances(company).general - taxes, taxes, from: "general" } : { cents: cash - taxes, taxes, from: "cash" };
 }
 
 /** Where a payment to `vendorId` comes out of by default: the first set-aside that names the vendor, else General. */
