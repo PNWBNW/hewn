@@ -36,6 +36,7 @@ import {
   choicesOf,
   ensureNetworkFees,
   excludeItem,
+  keepWithin,
   knownIds,
   undoReview,
 } from "@/books/review";
@@ -238,12 +239,15 @@ const Empty = ({ text }: { text: string }) => <div className="rounded-lg border 
 /** "Sent 4.625 USDCx to PNW DAO", "Received 4.25 USDCx from Employer 1", "Received 20 USDCx (minted)". */
 function sentence(item: ReviewItem, who: string | null): string {
   const amount = `${formatSixDecimals(BigInt(item.minor))} USDCx`;
-  if (item.status === "internal") return `Moved ${amount} within your Shield account`;
+  if (item.status === "internal" || item.within) return `Moved ${amount} within your Shield account`;
   if (item.direction === "in") return who ? `Received ${amount} from ${who}` : item.kind.startsWith("mint") ? `Received ${amount} (minted)` : `Received ${amount}`;
   return who ? `Sent ${amount} to ${who}` : `Sent ${amount}`;
 }
 
-type Kind = "income" | "expense" | "owner" | "swap" | "other";
+type Kind = "income" | "expense" | "owner" | "swap" | "other" | "within";
+
+/** A move inside the account offers "it stayed here" first; the business can still call it anything else. */
+const WITHIN: { id: Kind; label: string } = { id: "within", label: "Stayed in the account" };
 
 const CHOICES: Record<ReviewItem["direction"], { id: Kind; label: string }[]> = {
   in: [
@@ -307,7 +311,7 @@ function ReviewCard({
   const { books, sales, dimensions, rail, funds, updateCompany } = useOpenBooks();
   const shieldId = findRailAccount(books)?.id;
   const fundView = fundBalances({ books, funds: funds ?? undefined });
-  const startKind: Kind = editing ? kindOf(books, editing.accountId) : item.direction === "in" ? "income" : "expense";
+  const startKind: Kind = editing ? kindOf(books, editing.accountId) : item.within ? "within" : item.direction === "in" ? "income" : "expense";
   const [kind, setKind] = useState<Kind>(startKind);
   const [accountId, setAccountId] = useState(() => editing?.accountId ?? defaultAccount(books, startKind, item.direction, shieldId));
   const parties = item.direction === "in" ? sales.customers : sales.vendors;
@@ -336,6 +340,7 @@ function ReviewCard({
     setError(null);
     try {
       await updateCompany((c) => {
+        if (kind === "within" && !editing) return keepWithin(c, item.id);
         let company = c;
         let target = accountId;
         if (kind === "swap") {
@@ -377,8 +382,8 @@ function ReviewCard({
         <>
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <p className="font-medium">{sentence(item, who)}</p>
-            <span className={cn("text-sm font-semibold tabular-nums", item.direction === "in" ? "text-money-positive" : "text-money-negative")}>
-              {item.direction === "in" ? "+" : "−"}
+            <span className={cn("text-sm font-semibold tabular-nums", item.within ? "" : item.direction === "in" ? "text-money-positive" : "text-money-negative")}>
+              {item.within ? "" : item.direction === "in" ? "+" : "−"}
               <Money cents={cents} />
             </span>
           </div>
@@ -393,7 +398,7 @@ function ReviewCard({
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-medium">What was this?</legend>
         <div className="flex flex-wrap gap-2">
-          {CHOICES[item.direction].map((c) => (
+          {[...(item.within && !editing ? [WITHIN] : []), ...CHOICES[item.direction]].map((c) => (
             <button
               key={c.id}
               type="button"
@@ -407,7 +412,12 @@ function ReviewCard({
         </div>
       </fieldset>
 
-      {kind === "swap" ? (
+      {kind === "within" ? (
+        <p className="text-xs text-muted-foreground">
+          Nothing is posted: the money moved between this account&apos;s public and private balances, or its records were combined, and stayed in the{" "}
+          {RAIL_ACCOUNT_NAME}. If it went somewhere else of yours, choose Other and the account it went to.
+        </p>
+      ) : kind === "swap" ? (
         <p className="text-xs text-muted-foreground">
           {item.direction === "out"
             ? `Posted to ${NETWORK_FEES}: buying ALEO is buying fee money, so the cost counts when it's bought.`
@@ -447,7 +457,7 @@ function ReviewCard({
         </div>
       )}
 
-      {fundView.funds.length > 0 && (
+      {kind !== "within" && fundView.funds.length > 0 && (
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium">{item.direction === "out" ? "Paid from" : "Went into"}</span>
           <select
@@ -489,7 +499,7 @@ function ReviewCard({
 
       <FormError message={error} />
       <div className="flex flex-wrap gap-3">
-        <Button className="min-h-11 sm:min-h-9" disabled={busy || (kind !== "swap" && !accountId)} onClick={() => void accept()}>
+        <Button className="min-h-11 sm:min-h-9" disabled={busy || (kind !== "swap" && kind !== "within" && !accountId)} onClick={() => void accept()}>
           {editing ? "Save change" : "Accept"}
         </Button>
         {editing ? (
@@ -557,7 +567,7 @@ function DoneList({ items, nameOf }: { items: ReviewItem[]; nameOf: (a: string |
                   Change
                 </Button>
               )}
-              {(i.status === "accepted" || i.status === "excluded") && changing !== i.id && (
+              {(i.status === "accepted" || i.status === "excluded" || i.status === "internal") && changing !== i.id && (
                 <Button variant="link" size="sm" className="h-auto min-h-11 p-0 sm:min-h-0" onClick={() => void undo(i.id)}>
                   {i.status === "accepted" ? "Undo" : "Review again"}
                 </Button>

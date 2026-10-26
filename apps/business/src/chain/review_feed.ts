@@ -13,10 +13,11 @@
 //            the record it made for this account is opened with Shield's own
 //            decrypt; failing that, it is taken from the record list.
 //
-// Every movement in the account comes in (Joshua, 2026-10-26). When the books
+// Every movement in the account comes in to be reviewed (Joshua, 2026-10-26),
+// a move inside the account (public to private and back, records combined)
+// too: it is marked as one, and the business says what it was. When the books
 // were started from the Shield balance, only movements after the start do:
-// the ones before are in the opening balance. Fees are ALEO and never counted. A move inside the
-// account (public to private and back) is marked internal. Nothing is
+// the ones before are in the opening balance. Fees are ALEO and never counted. Nothing is
 // logged, posted or stored here: the caller adds what this returns.
 // ---------------------------------------------------------------------------
 
@@ -119,9 +120,9 @@ export function classify(input: {
   if (minor === 0n) return null;
   if (fn.startsWith("mint")) return { ...base, direction: "in", status: "new" };
   if (fn.startsWith("burn")) return { ...base, direction: "out", status: "new" };
-  // Moving between the account's public and private halves changes nothing in the books.
-  if (to === me && (from === me || from === null) && INTERNAL.has(fn)) return { ...base, direction: "in", status: "internal" };
-  if (to === me) return { ...base, direction: "in", ...(from && from !== me ? { counterparty: from } : {}), status: from === me ? "internal" : "new" };
+  // Moving between the account's public and private halves: reviewed like the rest, marked as a move within.
+  if (to === me && (from === me || from === null) && INTERNAL.has(fn)) return { ...base, direction: "in", within: true, status: "new" };
+  if (to === me) return { ...base, direction: "in", ...(from && from !== me ? { counterparty: from } : {}), ...(from === me ? { within: true as const } : {}), status: "new" };
   if (to) return { ...base, direction: "out", counterparty: to, status: "new" };
   return null;
 }

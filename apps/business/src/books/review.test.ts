@@ -12,6 +12,7 @@ import {
   changeItem,
   choicesOf,
   excludeItem,
+  keepWithin,
   knownIds,
   undoReview,
   validateReview,
@@ -108,7 +109,31 @@ describe("the review list", () => {
     expect(item.entryId).toBeUndefined();
     expect(next.books.entries).toHaveLength(entries + 1);
     expect(balanceOf(next.books, expense)).toBe(0n);
-    expect(() => undoReview(next, tx(1), "2026-10-17")).toThrow(/Only accepted or excluded/);
+    expect(() => undoReview(next, tx(1), "2026-10-17")).toThrow(/Only accepted, excluded or kept/);
+  });
+
+  it("reviews a move within the account like any other: kept with nothing posted, sent back, or posted elsewhere (Joshua, 2026-10-26)", () => {
+    const { c, expense } = company();
+    const move: ReviewItem = { id: tx(3), date: "2026-10-16", direction: "in", minor: "37190000", kind: "join", within: true, status: "new" };
+    const listed = addReviewItems(c, [move]);
+    expect(waitingCount(listed.review)).toBe(1);
+    const entries = listed.books.entries.length;
+    const kept = keepWithin(listed, tx(3));
+    expect(kept.review!.items[0]).toMatchObject({ status: "internal", within: true });
+    expect(kept.books.entries).toHaveLength(entries);
+    expect(() => keepWithin(kept, tx(3))).toThrow(/already been reviewed/);
+    const back = undoReview(kept, tx(3), "2026-10-17");
+    expect(back.review!.items[0]).toMatchObject({ status: "new", within: true });
+    // The business may call it something else: it went to another of its accounts, say.
+    expect(acceptItem(back, tx(3), { accountId: expense }).review!.items[0]!.status).toBe("accepted");
+  });
+
+  it("brings back a move the app kept out of review on its own before (Joshua, 2026-10-26)", () => {
+    const old = validateReview({ version: 1, items: [{ id: tx(4), date: "2026-10-16", direction: "in", minor: "1", kind: "join", status: "internal" }] });
+    expect(old.items[0]).toMatchObject({ status: "new", within: true });
+    const kept = validateReview({ version: 1, items: [{ id: tx(4), date: "2026-10-16", direction: "in", minor: "1", kind: "join", within: true, status: "internal" }] });
+    expect(kept.items[0]!.status).toBe("internal");
+    expect(() => validateReview({ version: 1, items: [{ ...kept.items[0], within: "yes" }] })).toThrow(/marked true/);
   });
 
   it("keeps the list through a save and reload, and refuses malformed items", () => {
