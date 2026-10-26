@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
+import { freeToSpend } from "@/books/funds";
 import { waitingCount } from "@/books/review";
 import { SetAsides } from "@/books/SetAsides";
 import { BackupReminder } from "@/books/BackupReminder";
@@ -30,14 +31,21 @@ function totalOf(books: Books, types: AccountType[]): bigint {
 }
 
 export default function DashboardPage() {
-  const { books, payroll, sales, rail, review } = useOpenBooks();
+  const { books, payroll, sales, rail, review, funds } = useOpenBooks();
   const waiting = waitingCount(review);
   const today = todayIso();
   const hasEntries = books.entries.length > 0;
   const hasCustomAccounts = books.accounts.some((a) => !a.system);
 
+  const cash = totalOf(books, ["bank"]);
+  const free = freeToSpend({ books, funds: funds ?? undefined }, cash);
   const figures = [
-    { label: "Cash in the bank", hint: "Bank accounts", cents: totalOf(books, ["bank"]) },
+    { label: "Cash in the bank", hint: "Bank accounts", cents: cash },
+    {
+      label: "Free to spend",
+      hint: free.from === "general" ? `Shield account, less set-asides${free.taxes > 0n ? " and taxes owed" : ""}` : `Bank accounts${free.taxes > 0n ? ", less taxes owed" : ""}`,
+      cents: free.cents,
+    },
     { label: "Owed to you", hint: "Accounts receivable", cents: totalOf(books, ["accounts_receivable"]) },
     {
       label: "You owe",
@@ -63,9 +71,9 @@ export default function DashboardPage() {
 
       <BackupReminder account={rail ? <ChainBackup /> : undefined} />
 
-      <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {figures.map((f) => (
-          <Card key={f.label}>
+      <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {figures.map((f, i) => (
+          <Card key={f.label} className={cn(i === figures.length - 1 && figures.length % 2 === 1 && "col-span-2 lg:col-span-1")}>
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{f.label}</CardTitle>
             </CardHeader>

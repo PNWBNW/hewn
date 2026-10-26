@@ -1,8 +1,9 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// The dashboard's set-asides card: General (free to spend) and each set-aside
-// in the Shield account, with ways to make one, move money into or out of it,
+// The dashboard's set-asides card: General (free to spend, after the taxes
+// owed, which are set aside on their own) and each set-aside in the Shield
+// account, with ways to make one, move money into or out of it,
 // rename it, choose the vendors it pays, and close it (books/funds.ts). Every
 // change is a book entry; no money moves in the Shield account.
 // ---------------------------------------------------------------------------
@@ -15,11 +16,12 @@ import { cn } from "@pnw/ui/utils";
 import { FormError, errorMessage, inputClass } from "./AuthCard";
 import { useOpenBooks } from "./BooksProvider";
 import { Money, todayIso } from "./display";
-import { type FundView, GENERAL, closeFund, createFund, fundBalances, moveFund, updateFund } from "./funds";
+import { type FundView, GENERAL, closeFund, createFund, freeToSpend, fundBalances, moveFund, updateFund } from "./funds";
 
 export function SetAsides() {
   const { books, funds, sales } = useOpenBooks();
   const view = fundBalances({ books, funds: funds ?? undefined });
+  const free = freeToSpend({ books, funds: funds ?? undefined }, 0n);
   const [open, setOpen] = useState<string | null>(null); // a fund id, or "new"
   const vendorName = new Map(sales.vendors.map((v) => [v.id, v.name]));
 
@@ -37,10 +39,19 @@ export function SetAsides() {
           <li className="flex items-center gap-3 px-3 py-2">
             <span className="flex-1">
               <span className="font-medium">{GENERAL}</span>
-              <span className="block text-xs text-muted-foreground">Free to spend</span>
+              <span className="block text-xs text-muted-foreground">Free to spend{free.taxes > 0n ? ", after taxes owed" : ""}</span>
             </span>
-            <Money cents={view.general} className="font-semibold" />
+            <Money cents={free.cents} className={cn("font-semibold", free.cents < 0n && "text-money-negative")} />
           </li>
+          {free.taxes > 0n && (
+            <li className="flex items-center gap-3 px-3 py-2">
+              <span className="flex-1">
+                <span className="font-medium">Taxes owed</span>
+                <span className="block text-xs text-muted-foreground">Set aside on their own until they&apos;re paid: sales tax and payroll taxes</span>
+              </span>
+              <Money cents={free.taxes} className="font-semibold" />
+            </li>
+          )}
           {view.funds.map((f) => (
             <li key={f.accountId} className="flex flex-col gap-2 px-3 py-2">
               <div className="flex items-center gap-3">
