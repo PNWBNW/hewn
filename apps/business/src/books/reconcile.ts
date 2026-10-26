@@ -26,11 +26,12 @@
 // minor units so nothing is rounded twice.
 // ---------------------------------------------------------------------------
 
-import { type Cents, type IsoDate, type NameRef, postEntry } from "@pnw/ledger";
+import { type Books, type Cents, type IsoDate, type NameRef, postEntry } from "@pnw/ledger";
 import { RAIL_ACCOUNT_NAME, ensureRailAccount } from "@pnw/payroll";
 import type { Company } from "./company";
 import { fundBalances, isShieldFamily } from "./funds";
 import { MINOR_PER_CENT, minorToCents } from "./opening";
+import type { ReviewItem } from "./review";
 
 export type Reconciliation =
   /** The books don't follow a Shield account yet: nothing to compare. */
@@ -131,4 +132,28 @@ export function recordShieldDifference(company: Company, input: DifferenceInput)
     lines: inbound ? [{ accountId: shield, debit: amount }, { ...other, credit: amount }] : [{ ...other, debit: amount }, { accountId: shield, credit: amount }],
   });
   return { ...company, books };
+}
+
+const DIFFERENCE = /^reconcile:/;
+
+/** The differences recorded from the Dashboard and still standing (not reversed): when, and how much (more than zero is money in). */
+export function recordedDifferences(books: Pick<Books, "entries">): { entryId: string; date: string; cents: Cents }[] {
+  const reversed = new Set(books.entries.flatMap((e) => (e.reverses ? [e.reverses] : [])));
+  return books.entries.flatMap((e) => {
+    if (!e.source?.ref || !DIFFERENCE.test(e.source.ref) || reversed.has(e.id)) return [];
+    const amount = e.lines.reduce((n, l) => n + l.debit, 0n);
+    return [{ entryId: e.id, date: e.date, cents: e.source.kind === "deposit" ? amount : -amount }];
+  });
+}
+
+/**
+ * A difference recorded from the Dashboard that a movement waiting in For review may be: same
+ * direction, same amount, recorded on or after the day it moved. Only a reminder; the business
+ * decides (a match by amount alone can be a coincidence).
+ */
+export function differenceFor(books: Pick<Books, "entries">, item: ReviewItem): { entryId: string; date: string; cents: Cents } | null {
+  if (item.status !== "new" || item.within) return null;
+  const cents = minorToCents(BigInt(item.minor)) * (item.direction === "in" ? 1n : -1n);
+  if (cents === 0n) return null;
+  return recordedDifferences(books).find((d) => d.cents === cents && d.date >= item.date) ?? null;
 }

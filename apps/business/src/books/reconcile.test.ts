@@ -5,7 +5,7 @@ import { type Company, emptyCompany } from "./company";
 import { createFund, moveFund } from "./funds";
 import { startFromShield } from "./opening";
 import type { Rail } from "./rail";
-import { reconcileShield, recordShieldDifference } from "./reconcile";
+import { differenceFor, reconcileShield, recordShieldDifference } from "./reconcile";
 import { type ReviewItem, acceptItem, addReviewItems, excludeItem, keepWithin } from "./review";
 
 const ADDR = "aleo1" + "q".repeat(58);
@@ -129,6 +129,20 @@ describe("reconciling the Shield account", () => {
     expect(() => recordShieldDifference(c, { cents: 0n, accountId: income, date: "2026-10-26" })).toThrow(/no difference/);
     expect(() => recordShieldDifference(c, { cents: 575n, accountId: findRailAccount(c.books)!.id, date: "2026-10-26" })).toThrow(/other than/);
     expect(() => recordShieldDifference(c, { cents: 575n, accountId: "nope", date: "2026-10-26" })).toThrow(/Choose an account/);
+  });
+
+  it("reminds the business when a payment waiting in For review may be a difference it already recorded", () => {
+    const { c, income } = company();
+    const recorded = recordShieldDifference(c, { cents: 575n, accountId: income, date: "2026-10-26" });
+    const birch: ReviewItem = { ...item(20, "in", "5750000"), date: "2026-10-26" };
+    expect(differenceFor(recorded.books, birch)).toMatchObject({ date: "2026-10-26", cents: 575n });
+    // Not another amount, not the other way, not a move within, not one already reviewed, not one after the difference was recorded.
+    expect(differenceFor(recorded.books, { ...birch, minor: "1000000" })).toBeNull();
+    expect(differenceFor(recorded.books, { ...birch, direction: "out" })).toBeNull();
+    expect(differenceFor(recorded.books, { ...birch, within: true })).toBeNull();
+    expect(differenceFor(recorded.books, { ...birch, status: "excluded" })).toBeNull();
+    expect(differenceFor(recorded.books, { ...birch, date: "2026-10-27" })).toBeNull();
+    expect(differenceFor(c.books, birch)).toBeNull();
   });
 
   it("holds off while rail pay is settling, and judges again once it has", () => {

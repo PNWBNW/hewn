@@ -43,6 +43,7 @@ import {
 import { BRAND } from "@/brand";
 import { longDate } from "./agreement_draft";
 import { formatSixDecimals } from "./balances";
+import { differenceFor } from "@/books/reconcile";
 import { decryptTransition, fetchExplorerTransaction, openOwnRecord } from "./decrypt";
 import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
@@ -340,6 +341,7 @@ function ReviewCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const earlier = editing ? null : differenceFor(books, item);
   const cents = minorToCents(BigInt(item.minor));
   const dust = BigInt(item.minor) % 10_000n !== 0n;
   const projects = dimensions.projects.filter((p) => p.status === "active");
@@ -406,6 +408,12 @@ function ReviewCard({
             {item.counterparty && who !== shortAddress(item.counterparty) && <> · {shortAddress(item.counterparty)}</>}
             {dust && <> · goes in the books as <Money cents={cents} /> (a fraction of a cent isn&apos;t kept)</>}
           </p>
+          {earlier && (
+            <p role="status" className="rounded-md border border-dashed px-3 py-2 text-xs">
+              You recorded a <Money cents={earlier.cents < 0n ? -earlier.cents : earlier.cents} /> difference from the Dashboard on {longDate(earlier.date)}. If
+              this is that money, exclude it here so it isn&apos;t counted twice.
+            </p>
+          )}
         </>
       )}
 
