@@ -176,10 +176,11 @@ describe("finding what moved in the account", () => {
     expect(r).toEqual({ items: [], unread: 1 });
   });
 
-  it("marks a move between the account's public and private halves as internal", () => {
+  it("sends a move between the account's public and private halves to review, marked as one (Joshua, 2026-10-26)", () => {
     const when = new Date("2026-10-16T09:00:00Z");
-    expect(classify({ me: ME, id: tx(8), when, fn: "transfer_public_to_private", to: ME, from: ME, minor: 4_750_000n })?.status).toBe("internal");
-    expect(classify({ me: ME, id: tx(8), when, fn: "transfer_private", to: ME, from: ME, minor: 1n })?.status).toBe("internal");
+    expect(classify({ me: ME, id: tx(8), when, fn: "transfer_public_to_private", to: ME, from: ME, minor: 4_750_000n })).toMatchObject({ status: "new", within: true });
+    expect(classify({ me: ME, id: tx(8), when, fn: "transfer_private", to: ME, from: ME, minor: 1n })).toMatchObject({ status: "new", within: true });
+    expect(classify({ me: ME, id: tx(8), when, fn: "transfer_private", to: ME, from: BOSS, minor: 1n })).not.toHaveProperty("within");
     expect(classify({ me: ME, id: tx(8), when, fn: "mint_public", to: ME, from: null, minor: 5n })).toMatchObject({ direction: "in", status: "new" });
     expect(classify({ me: ME, id: tx(8), when, fn: "transfer_public", to: DAO, from: ME, minor: 0n })).toBeNull();
   });

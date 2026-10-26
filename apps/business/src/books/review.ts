@@ -28,7 +28,7 @@ export type ReviewStatus =
   | "excluded"
   /** Already in the books: a payment the app made itself (a paycheck, say). */
   | "recorded"
-  /** A move inside the account (public to private, say): nothing to post. */
+  /** A move inside the account (public to private, say), as the business marked it: nothing to post. */
   | "internal";
 
 export type ReviewItem = {
@@ -45,6 +45,8 @@ export type ReviewItem = {
   counterparty?: string;
   /** What the network calls the movement; kept for the record, never shown. */
   kind: string;
+  /** A move inside the account (public to private and back, records combined), as the feed saw it. Still reviewed. */
+  within?: true;
   status: ReviewStatus;
   /** Set once accepted. */
   entryId?: string;
@@ -90,6 +92,13 @@ function validateItem(raw: unknown): ReviewItem {
     if (typeof r.entryId !== "string" || !r.entryId) throw new ReviewError("An entry id must be text");
     item.entryId = r.entryId;
   }
+  if (r.within !== undefined) {
+    if (r.within !== true) throw new ReviewError("A move within the account is marked true");
+    item.within = true;
+  }
+  // Before 2026-10-26 a move within the account was kept out of review on its own (status internal,
+  // no `within`); now the business reviews every movement, so those come back to it (Joshua).
+  if (item.status === "internal" && !item.within) return { ...item, within: true, status: "new" };
   if (item.status === "accepted" && !item.entryId) throw new ReviewError("An accepted item needs its entry");
   return item;
 }
@@ -207,6 +216,13 @@ export function acceptItem(company: Company, id: string, input: AcceptInput): Co
   return withItem({ ...company, books }, { ...item, status: "accepted", entryId: entry.id });
 }
 
+/** Marks a waiting item as money that stayed in the Shield account: nothing is posted. */
+export function keepWithin(company: Company, id: string): Company {
+  const item = itemOf(company, id);
+  if (item.status !== "new") throw new ReviewError("That transaction has already been reviewed");
+  return withItem(company, { ...item, within: true, status: "internal" });
+}
+
 /** Keeps a waiting item out of the books. */
 export function excludeItem(company: Company, id: string): Company {
   const item = itemOf(company, id);
@@ -215,13 +231,15 @@ export function excludeItem(company: Company, id: string): Company {
 }
 
 /**
- * Sends a reviewed item back to the list: an excluded one simply returns; an accepted one has its
- * entry reversed first (the books keep both, as with any correction). Automatic ones stay put.
+ * Sends a reviewed item back to the list: an excluded one, or one kept as a move within the
+ * account, simply returns (the latter still marked as a move); an accepted one has its entry
+ * reversed first (the books keep both, as with any correction). Payments the app recorded stay put.
  */
 export function undoReview(company: Company, id: string, date: IsoDate): Company {
   const item = itemOf(company, id);
   if (item.status === "excluded") return withItem(company, { ...item, status: "new" });
-  if (item.status !== "accepted" || !item.entryId) throw new ReviewError("Only accepted or excluded transactions can go back");
+  if (item.status === "internal") return withItem(company, { ...item, within: true, status: "new" });
+  if (item.status !== "accepted" || !item.entryId) throw new ReviewError("Only accepted, excluded or kept transactions can go back");
   findEntry(company.books, item.entryId);
   const { books } = reverseEntry(company.books, item.entryId, { date, memo: "Sent back for review" });
   const { entryId: _gone, ...rest } = item;
