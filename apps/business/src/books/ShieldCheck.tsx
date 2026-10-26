@@ -54,10 +54,18 @@ export function ShieldCheckView({ result, record }: { result: Reconciliation; re
           <div className="flex flex-col gap-1">
             <p className="font-medium">The books don&apos;t match Shield</p>
             <p className="text-xs text-muted-foreground">
-              The books&apos; Shield account shows <Money cents={result.books} />; Shield holds <Money cents={result.shield} />. Nothing waiting
-              or settling explains it. Check{" "}
-              <ReviewLink />{" "}
-              for anything new, and any entry posted to the Shield account by hand. Cash and other bank accounts aren&apos;t part of this.
+              The books&apos; Shield account shows <Money cents={result.books} />; Shield holds <Money cents={result.shield} />.{" "}
+              {result.waiting > 0 ? (
+                <>
+                  {result.waiting} {result.waiting === 1 ? "transaction is" : "transactions are"} waiting in <ReviewLink />, but{" "}
+                  {result.waiting === 1 ? "it doesn't" : "they don't"} account for all of it. Review {result.waiting === 1 ? "it" : "them"} first.
+                </>
+              ) : (
+                <>
+                  Nothing waiting or settling explains it. Check <ReviewLink /> for anything new, and any entry posted to the Shield account by hand.
+                </>
+              )}{" "}
+              Cash and other bank accounts aren&apos;t part of this.
             </p>
             {record}
           </div>
