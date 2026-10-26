@@ -98,6 +98,10 @@ everything about them private. A customer can:
 22. No cards for clients (2026-10-26): a customer's name is a person's name, a person who also
     works keeps their one card, and a public card for a client would say little but that they
     hire businesses here.
+23. An agreed job becomes a project in the business's books: made when the customer accepts it,
+    named after the job and tied to the customer, closed when the job is marked complete or
+    cancelled (once; a project the business reopens stays open). Invoices under the agreement are
+    tagged to it (2026-10-26).
 
 ## Accounts (decision 17)
 

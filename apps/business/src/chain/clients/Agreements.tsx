@@ -10,11 +10,14 @@
 // ---------------------------------------------------------------------------
 
 import { useState } from "react";
+import Link from "next/link";
 import { formatCents, parseCents } from "@pnw/ledger";
 import { Button } from "@pnw/ui/button";
 import { readFeeMode } from "@pnw/wallet/fee-mode";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { type Connection, itemsOf } from "@/books/connections";
+import { useBooks } from "@/books/BooksProvider";
+import { projectForAgreement } from "@/books/agreement_projects";
 import { todayIso } from "@/books/display";
 import {
   MAX_SCOPE,
@@ -54,6 +57,12 @@ export function Agreements({
   update: (change: (t: Thread) => Thread) => Promise<void>;
 }) {
   const { letters, wallet } = useLetters();
+  const books = useBooks();
+  const projectName = (id: string) => {
+    if (!business || !books.dimensions) return undefined;
+    const pid = projectForAgreement({ agreementProjects: books.agreementProjects ?? undefined, dimensions: books.dimensions }, id);
+    return books.dimensions.projects.find((p) => p.id === pid);
+  };
   const [drafting, setDrafting] = useState<ServiceTerms | "new" | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +118,7 @@ export function Agreements({
         <AgreementCard
           key={a.terms.id}
           view={a}
+          project={projectName(a.terms.id)}
           business={business}
           busy={busy}
           disabled={!letters || busy !== null}
@@ -152,8 +162,11 @@ function AgreementCard({
   onRevise,
   onAnswer,
   onClose,
+  project,
 }: {
   view: ServiceView;
+  /** On the business's side: the project the agreed job has in the books. */
+  project?: { name: string; status: string };
   business: boolean;
   busy: string | null;
   disabled: boolean;
@@ -177,6 +190,15 @@ function AgreementCard({
         {priceLine(terms)} · from {terms.startDate}
         {terms.endDate ? ` to ${terms.endDate}` : ""} · ends when: {terms.closesWhen.toLowerCase()}
       </p>
+      {project && (
+        <p className="text-xs text-muted-foreground">
+          Project:{" "}
+          <Link href="/projects" className="underline underline-offset-4">
+            {project.name}
+          </Link>
+          {project.status === "closed" ? " (closed)" : ""}
+        </p>
+      )}
       {view.note && (
         <p className="rounded bg-muted px-2 py-1 text-xs">
           {view.note.mine ? "You" : business ? "They" : "The business"}: {view.note.text}
