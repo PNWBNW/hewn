@@ -43,6 +43,7 @@ index is out of date.
 - [Record a difference the books can't explain; the check stops asking Shield to decrypt](progress/2026-10-26.md#2026-10-26--record-a-difference-the-books-cant-explain-the-check-stops-asking-shield-to-decrypt)
 - [The business's view key: every private payment read on its own](progress/2026-10-26.md#2026-10-26--the-businesss-view-key-every-private-payment-read-on-its-own)
 - [For review reminds about a difference already recorded](progress/2026-10-26.md#2026-10-26--for-review-reminds-about-a-difference-already-recorded)
+- [View key tested; a payment tied to a recorded difference counts once](progress/2026-10-26.md#2026-10-26--view-key-tested-a-payment-tied-to-a-recorded-difference-counts-once)
 - [Free to spend on the Dashboard, taxes owed set aside on their own](progress/2026-10-26.md#2026-10-26--free-to-spend-on-the-dashboard-taxes-owed-set-aside-on-their-own)
 
 ## [2026-10-25](progress/2026-10-25.md)

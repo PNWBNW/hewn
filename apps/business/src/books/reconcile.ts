@@ -45,7 +45,7 @@ export type Reconciliation =
   /** They differ, and pay is still settling: check again once it has. */
   | { kind: "settling"; books: Cents; shield: Cents; count: number }
   /** They differ by an amount nothing explains: `gap` is Shield minus the books, in minor units. */
-  | { kind: "off"; books: Cents; shield: Cents; gap: bigint };
+  | { kind: "off"; books: Cents; shield: Cents; gap: bigint; waiting: number };
 
 /** Signed: money in adds to Shield, money out takes from it. */
 const signed = (direction: "in" | "out", minor: bigint) => (direction === "in" ? minor : -minor);
@@ -98,7 +98,7 @@ export function reconcileShield(
   }
   if (settling > 0) return { kind: "settling", books, shield, count: settling };
 
-  return { kind: "off", books, shield, gap: residual - waitingMinor };
+  return { kind: "off", books, shield, gap: residual - waitingMinor, waiting: waitingCount };
 }
 
 export type DifferenceInput = {
