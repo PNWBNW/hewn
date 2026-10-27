@@ -24,7 +24,8 @@ const nextConfig: NextConfig = {
   ],
   poweredByHeader: false,
   // The client bundle reads this to find the server pieces (src/api_base.ts).
-  env: { NEXT_PUBLIC_HEWN_STATIC: STATIC ? "1" : "" },
+  // The build's commit, shown small while the books open, so a stuck screen says which version it is.
+  env: { NEXT_PUBLIC_HEWN_STATIC: STATIC ? "1" : "", NEXT_PUBLIC_HEWN_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) },
   pageExtensions: STATIC ? ["tsx", "ts"] : ["server.tsx", "server.ts", "tsx", "ts"],
   ...(STATIC
     ? {

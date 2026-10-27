@@ -11,6 +11,7 @@ index is out of date.
 ## [2026-10-27](progress/2026-10-27.md)
 
 - [Opening never hangs on the browser's storage](progress/2026-10-27.md#2026-10-27--opening-never-hangs-on-the-browsers-storage)
+- [Opening says where it is; `?fresh` skips the remembered login](progress/2026-10-27.md#2026-10-27--opening-says-where-it-is-fresh-skips-the-remembered-login)
 
 ## [2026-10-26](progress/2026-10-26.md)
 
