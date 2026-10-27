@@ -8,6 +8,10 @@ them (`scripts/progress_index.py`): never edit it by hand. To log something, add
 entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
 index is out of date.
 
+## [2026-10-27](progress/2026-10-27.md)
+
+- [Opening never hangs on the browser's storage](progress/2026-10-27.md#2026-10-27--opening-never-hangs-on-the-browsers-storage)
+
 ## [2026-10-26](progress/2026-10-26.md)
 
 - [A link checker for the documents (ICM Step 7, part 1)](progress/2026-10-26.md#2026-10-26--a-link-checker-for-the-documents-icm-step-7-part-1)
