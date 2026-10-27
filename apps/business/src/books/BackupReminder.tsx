@@ -14,6 +14,7 @@
 // (Shield's did, 2026-10-26).
 // ---------------------------------------------------------------------------
 
+import { drawingStep } from "./drawing_step";
 import { type ReactNode, useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@pnw/ui/button";
@@ -91,6 +92,7 @@ function DidItSave({ asking, busy, answer }: { asking: "saved?" | "not_saved" | 
  */
 export function BackupReminder({ account }: { account?: ReactNode }) {
   const { backedUpAt, books, payroll } = useOpenBooks();
+  drawingStep("the backup reminder");
   const { save, answer, asking, busy, error } = useSaveBackup();
   const due = backupDue({ backedUpAt: backedUpAt ?? undefined, books, payroll });
   if (!due.due) return null;

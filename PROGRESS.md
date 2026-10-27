@@ -12,6 +12,7 @@ index is out of date.
 
 - [Opening never hangs on the browser's storage](progress/2026-10-27.md#2026-10-27--opening-never-hangs-on-the-browsers-storage)
 - [Opening says where it is; `?fresh` skips the remembered login](progress/2026-10-27.md#2026-10-27--opening-says-where-it-is-fresh-skips-the-remembered-login)
+- [A probe names the step that freezes drawing the books](progress/2026-10-27.md#2026-10-27--a-probe-names-the-step-that-freezes-drawing-the-books)
 
 ## [2026-10-26](progress/2026-10-26.md)
 

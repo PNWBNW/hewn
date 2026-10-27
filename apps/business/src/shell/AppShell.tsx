@@ -1,5 +1,6 @@
 "use client";
 
+import { drawingStep, drawn } from "@/books/drawing_step";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -149,6 +150,7 @@ function Rail({
   onLock: () => void;
 }) {
   const { mailbox, review, work, calendar, customer, clients } = useOpenBooks();
+  drawingStep("the menu's counts");
   const unread = unreadCount(mailbox);
   // Invitations waiting for an answer: on Schedule for a person, on Payroll (where Schedule is) for a business.
   const invites = waitingInvites(calendar, myAnswerIn({ mailbox, work }), todayIso()).length;
@@ -276,6 +278,7 @@ function OpenShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { books, role, rail, work, customer, clients, viewKeyChoice, lock, downloadBackup, currentCompany, updateCompany } = useOpenBooks();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  drawingStep("the menu and setup check");
 
   // A worker's vault lives under /work, a customer's under /customer, and a business's everywhere else;
   // landing on the other side (a stale link, a typed URL) goes home.
@@ -287,12 +290,20 @@ function OpenShell({ children }: { children: ReactNode }) {
   // Before setup is finished Settings isn't open yet, so it downloads there and then (not counted).
   const backup = () => (setupDone ? router.push("/settings#backups") : void downloadBackup());
   useEffect(() => {
-    if (redirect) router.replace(redirect);
+    if (!redirect) return;
+    drawingStep("moving to the right page");
+    router.replace(redirect);
   }, [redirect, router]);
+  // Drawn: the probe's note is cleared (books/drawing_step.ts). Effects that stick run before this can.
+  useEffect(() => {
+    const timer = setTimeout(drawn, 2_000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // An agreed job gets its project, and its end closes it (books/agreement_projects.ts), whichever screen the agreement moved on.
   useEffect(() => {
     const c = currentCompany();
+    drawingStep("the jobs' projects");
     if (role !== "business" || !c || syncAgreementProjects(c) === c) return;
     void updateCompany((latest) => syncAgreementProjects(latest)).catch(() => {});
   }, [role, clients, currentCompany, updateCompany]);

@@ -1,5 +1,6 @@
 "use client";
 
+import { drawingStep } from "@/books/drawing_step";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowRight, CircleCheck, Circle } from "lucide-react";
@@ -32,11 +33,13 @@ function totalOf(books: Books, types: AccountType[]): bigint {
 
 export default function DashboardPage() {
   const { books, payroll, sales, rail, review, funds } = useOpenBooks();
+  drawingStep("the dashboard");
   const waiting = waitingCount(review);
   const today = todayIso();
   const hasEntries = books.entries.length > 0;
   const hasCustomAccounts = books.accounts.some((a) => !a.system);
 
+  drawingStep("the dashboard's figures");
   const cash = totalOf(books, ["bank"]);
   const free = freeToSpend({ books, funds: funds ?? undefined }, cash);
   const figures = [

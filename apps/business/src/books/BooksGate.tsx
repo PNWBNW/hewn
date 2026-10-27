@@ -16,7 +16,7 @@ const ChainRestore = dynamic(() => import("@/chain/ChainRestore"), { ssr: false 
 
 /** Nothing inside renders until the books are open, apart from public pages. Until then: the front page, or the screen it leads to. */
 export function BooksGate({ children }: { children: ReactNode }) {
-  const { status, opening } = useBooks();
+  const { status, opening, stuck } = useBooks();
   const pathname = canonicalPath(usePathname());
   const [view, setView] = useState<View>("front");
   const [start, setStart] = useState<RestoreStart>({ from: "file" });
@@ -42,6 +42,7 @@ export function BooksGate({ children }: { children: ReactNode }) {
             {opening}
             {process.env.NEXT_PUBLIC_HEWN_BUILD ? ` · ${process.env.NEXT_PUBLIC_HEWN_BUILD}` : ""}
           </p>
+          {stuck && <p className="text-xs opacity-70">Last time the screen stopped at: {stuck}</p>}
         </div>
       </div>
     );
