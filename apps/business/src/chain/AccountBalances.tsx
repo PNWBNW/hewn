@@ -21,6 +21,7 @@
 // nothing explains it.
 // ---------------------------------------------------------------------------
 
+import { drawingStep, drawn } from "@/books/drawing_step";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@pnw/ui/button";
@@ -55,6 +56,12 @@ import { ShieldAway } from "./ShieldStatus";
 export type AccountBalancesProps = { address: string };
 
 export default function AccountBalances(props: AccountBalancesProps) {
+  drawingStep("the Shield balances");
+  // Loaded after the rest of the dashboard: drawn once its own effects have run (books/drawing_step.ts).
+  useEffect(() => {
+    const timer = setTimeout(drawn, 2_000);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <AleoWalletProviderWrapper>
       <BalancesCard {...props} />
@@ -282,6 +289,7 @@ function StartBooks({ usdcx }: { usdcx: bigint | null }) {
 /** The books' Shield account against the USDCx Shield holds (books/ShieldCheck.tsx shows the result). */
 function ShieldCheck({ usdcx }: { usdcx: bigint | null }) {
   const company = useOpenBooks();
+  drawingStep("the Shield check");
   const result = reconcileShield({ ...company, review: company.review ?? undefined, funds: company.funds ?? undefined, rail: company.rail ?? undefined }, usdcx);
   return <ShieldCheckView result={result} record={result.kind === "off" && result.waiting === 0 && result.shield !== result.books ? <RecordDifference cents={result.shield - result.books} /> : undefined} />;
 }

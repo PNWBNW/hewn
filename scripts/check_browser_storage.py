@@ -2,12 +2,13 @@
 """Browser storage is not a book of record (docs/INVARIANTS.md, INV-10; T2).
 
 The books, and everything else that lasts, go in the encrypted vault (`@pnw/vault`, IndexedDB).
-Plain web storage holds four flags and nothing else, each written by one file:
+Plain web storage holds five flags and nothing else, each written by one file:
 
   pnw:has-account        localStorage    apps/business/src/books/BooksProvider.tsx   "1": an account exists here, never whose
   hewn-visitor-counted   localStorage    apps/business/src/traction/VisitCounter.tsx "1": this device was counted once
   hewn-visit-counted     sessionStorage  apps/business/src/traction/VisitCounter.tsx "1": this session was counted
   hewn.fee-mode          localStorage    packages/wallet/src/fee_mode.ts            "private" or absent: this device's fee switch
+  hewn.drawing-step      localStorage    apps/business/src/books/drawing_step.ts    a step's name from a fixed list, or absent: where drawing the books stuck
 
 Outside tests and comments, this fails when:
   - a file not listed above touches localStorage or sessionStorage;
@@ -29,6 +30,7 @@ ALLOWED = {
     "apps/business/src/books/BooksProvider.tsx": {"HAS_ACCOUNT_FLAG": "pnw:has-account"},
     "apps/business/src/traction/VisitCounter.tsx": {"DEVICE_KEY": "hewn-visitor-counted", "SESSION_KEY": "hewn-visit-counted"},
     "packages/wallet/src/fee_mode.ts": {"FEE_MODE_KEY": "hewn.fee-mode"},
+    "apps/business/src/books/drawing_step.ts": {"DRAWING_STEP_KEY": "hewn.drawing-step"},
 }
 WEB_STORAGE = re.compile(r"\b(?:localStorage|sessionStorage)\b")
 OTHER = re.compile(r"\bindexedDB\b|\bdocument\.cookie\b|\bcaches\.(?:open|match|keys|delete|has)\b")
@@ -62,7 +64,7 @@ def main() -> int:
         if WEB_STORAGE.search(code):
             keys = ALLOWED.get(rel)
             if keys is None:
-                problems.append(f"{rel}: uses web storage; durable data goes in the vault (only the four flags may live there)")
+                problems.append(f"{rel}: uses web storage; durable data goes in the vault (only the five flags may live there)")
             else:
                 for name, literal in keys.items():
                     if not re.search(rf"\b{name}\s*=\s*[\"']{re.escape(literal)}[\"']", code):
@@ -80,7 +82,7 @@ def main() -> int:
         for p in problems:
             print(f"  - {p}", file=sys.stderr)
         return 1
-    print(f"browser-storage check: PASS - {count} source files; web storage holds only the four flags")
+    print(f"browser-storage check: PASS - {count} source files; web storage holds only the five flags")
     return 0
 
 

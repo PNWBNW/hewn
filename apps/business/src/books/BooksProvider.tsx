@@ -23,6 +23,7 @@
 // record and every sealed file.
 // ---------------------------------------------------------------------------
 
+import { type DrawingStep, drawingStep, stuckAt } from "./drawing_step";
 import type { ViewKeyChoice } from "./view_key";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type Books, type Dimensions, type Settings, type TemplateId, applyTemplate, createBooks } from "@pnw/ledger";
@@ -125,6 +126,8 @@ type BooksContextValue = {
   status: BooksStatus;
   /** While opening: the step it's on, in a few words, so a screen that sticks says where. */
   opening: string;
+  /** The step of drawing the books the last load never finished (books/drawing_step.ts), if any. */
+  stuck: DrawingStep | null;
   /** True when books from before accounts are on this device (they open with a passphrase alone). */
   legacyAvailable: boolean;
   /** The open account's vault id (a hash of its username and role, or the old "default"); null while locked. */
@@ -338,6 +341,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const pending = useRef<{ role: Role; session: VaultSession }[]>([]);
   const [status, setStatus] = useState<BooksStatus>("loading");
   const [opening, setOpening] = useState("starting");
+  const [stuck, setStuck] = useState<DrawingStep | null>(null);
   const [legacyAvailable, setLegacyAvailable] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [vaultId, setVaultId] = useState<string | null>(null);
@@ -358,6 +362,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     setRecoveryMadeAt(s.record.recovery?.createdAt ?? null);
     setVaultId(s.id);
     setCompany(loaded);
+    drawingStep("opening the books");
     setStatus("open");
   }, []);
 
@@ -387,6 +392,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   // looks for them once the username is typed.
   useEffect(() => {
     let live = true;
+    // Read before this load notes a step of its own.
+    setStuck(stuckAt());
     (async () => {
       // Never stuck on "Opening…" (Joshua, 2026-10-27): a step that doesn't answer in time gives way
       // to the front page, where logging in works as usual. Nothing is forgotten on a timeout.
@@ -769,6 +776,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       opening,
+      stuck,
       legacyAvailable,
       vaultId,
       username: company?.username ?? null,
@@ -820,6 +828,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [
       status,
       opening,
+      stuck,
       legacyAvailable,
       vaultId,
       company,

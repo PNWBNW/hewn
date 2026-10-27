@@ -8,6 +8,7 @@
 // change is a book entry; no money moves in the Shield account.
 // ---------------------------------------------------------------------------
 
+import { drawingStep } from "./drawing_step";
 import { useState } from "react";
 import { formatCents, parseCents } from "@pnw/ledger";
 import { Button } from "@pnw/ui/button";
@@ -20,6 +21,7 @@ import { type FundView, GENERAL, closeFund, createFund, freeToSpend, fundBalance
 
 export function SetAsides() {
   const { books, funds, sales } = useOpenBooks();
+  drawingStep("the set-asides");
   const view = fundBalances({ books, funds: funds ?? undefined });
   const free = freeToSpend({ books, funds: funds ?? undefined }, 0n);
   const [open, setOpen] = useState<string | null>(null); // a fund id, or "new"
