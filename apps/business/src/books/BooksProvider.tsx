@@ -311,6 +311,20 @@ function newAttachmentId(): string {
   return `att-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** How long opening may wait on the browser's storage before showing the front page instead. */
+const STARTUP_WAIT_MS = 8_000;
+
+class StartupTimeout extends Error {}
+
+/** `p`, or a StartupTimeout after `ms`. */
+function withinTime<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new StartupTimeout("Opening took too long")), ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 export function BooksProvider({ children }: { children: ReactNode }) {
   const store = useMemo(() => new IndexedDbStore(), []);
   const session = useRef<VaultSession | null>(null);
@@ -367,18 +381,20 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let live = true;
     (async () => {
-      const resumed = await resumeSession(store).catch(() => null);
+      // Never stuck on "Opening…" (Joshua, 2026-10-27): a step that doesn't answer in time gives way
+      // to the front page, where logging in works as usual. Nothing is forgotten on a timeout.
+      const resumed = await withinTime(resumeSession(store), STARTUP_WAIT_MS).catch(() => null);
       if (resumed && live) {
         try {
-          await show(resumed.session);
+          await withinTime(show(resumed.session), STARTUP_WAIT_MS);
           setStayUntil(resumed.expiresAt);
           return;
-        } catch {
-          await forgetSession(store).catch(() => {});
+        } catch (e) {
+          if (!(e instanceof StartupTimeout)) await forgetSession(store).catch(() => {});
         }
       }
       if (!live) return;
-      await hasLegacyVault(store).then(
+      await withinTime(hasLegacyVault(store), STARTUP_WAIT_MS).then(
         (legacy) => {
           setLegacyAvailable(legacy);
           setStatus(legacy || readAccountFlag() ? "locked" : "new");
