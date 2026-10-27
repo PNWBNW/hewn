@@ -16,7 +16,7 @@ const ChainRestore = dynamic(() => import("@/chain/ChainRestore"), { ssr: false 
 
 /** Nothing inside renders until the books are open, apart from public pages. Until then: the front page, or the screen it leads to. */
 export function BooksGate({ children }: { children: ReactNode }) {
-  const { status } = useBooks();
+  const { status, opening } = useBooks();
   const pathname = canonicalPath(usePathname());
   const [view, setView] = useState<View>("front");
   const [start, setStart] = useState<RestoreStart>({ from: "file" });
@@ -33,7 +33,18 @@ export function BooksGate({ children }: { children: ReactNode }) {
   // The job board is public: it renders without the books (the shell shows a way in instead of the rail).
   if (status !== "open" && isPublicPath(pathname)) return <>{children}</>;
   if (status === "loading") {
-    return <div className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Opening…</div>;
+    // The step and the build: a screen that sticks says where, and which version it is.
+    return (
+      <div className="grid min-h-dvh place-items-center text-center text-sm text-muted-foreground">
+        <div className="flex flex-col gap-1">
+          <p>Opening…</p>
+          <p className="text-xs opacity-70">
+            {opening}
+            {process.env.NEXT_PUBLIC_HEWN_BUILD ? ` · ${process.env.NEXT_PUBLIC_HEWN_BUILD}` : ""}
+          </p>
+        </div>
+      </div>
+    );
   }
   if (status === "open") return <>{children}</>;
   if (view === "setup") return <SetupScreen onBack={() => setView("front")} onRestore={() => restoreFrom()} />;

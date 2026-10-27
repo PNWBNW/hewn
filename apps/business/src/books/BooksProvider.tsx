@@ -123,6 +123,8 @@ function writeAccountFlag(): void {
 
 type BooksContextValue = {
   status: BooksStatus;
+  /** While opening: the step it's on, in a few words, so a screen that sticks says where. */
+  opening: string;
   /** True when books from before accounts are on this device (they open with a passphrase alone). */
   legacyAvailable: boolean;
   /** The open account's vault id (a hash of its username and role, or the old "default"); null while locked. */
@@ -335,6 +337,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const savedIv = useRef<string | null>(null);
   const pending = useRef<{ role: Role; session: VaultSession }[]>([]);
   const [status, setStatus] = useState<BooksStatus>("loading");
+  const [opening, setOpening] = useState("starting");
   const [legacyAvailable, setLegacyAvailable] = useState(false);
   const [company, setCompany] = useState<Company | null>(null);
   const [vaultId, setVaultId] = useState<string | null>(null);
@@ -343,7 +346,11 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const stayChoice = useRef(true);
 
   const show = useCallback(async (s: VaultSession) => {
+    setOpening("reading your books");
     const loaded = companyFromJson(await s.read());
+    // Painted before the books are drawn: if drawing them sticks, the screen says so.
+    setOpening("drawing your books");
+    await new Promise((r) => setTimeout(r, 60));
     pending.current = [];
     session.current = s;
     savedIv.current = s.record.payload.iv;
@@ -383,6 +390,16 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     (async () => {
       // Never stuck on "Opening…" (Joshua, 2026-10-27): a step that doesn't answer in time gives way
       // to the front page, where logging in works as usual. Nothing is forgotten on a timeout.
+      // `?fresh` skips the remembered login: the front page, to log in by hand (Joshua, 2026-10-27).
+      const params = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
+      if (params?.has("fresh")) {
+        params.delete("fresh");
+        const rest = params.toString();
+        window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+        setOpening("forgetting the remembered login");
+        await withinTime(forgetSession(store), STARTUP_WAIT_MS).catch(() => {});
+      }
+      setOpening("looking for a remembered login");
       const resumed = await withinTime(resumeSession(store), STARTUP_WAIT_MS).catch(() => null);
       if (resumed && live) {
         try {
@@ -394,6 +411,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
         }
       }
       if (!live) return;
+      setOpening("looking for books on this device");
       await withinTime(hasLegacyVault(store), STARTUP_WAIT_MS).then(
         (legacy) => {
           setLegacyAvailable(legacy);
@@ -750,6 +768,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       status,
+      opening,
       legacyAvailable,
       vaultId,
       username: company?.username ?? null,
@@ -800,6 +819,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     }),
     [
       status,
+      opening,
       legacyAvailable,
       vaultId,
       company,
