@@ -12,6 +12,6 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "fake-indexeddb": "6.2.5"
+    "fake-indexeddb": "6.2.6"
   }
 }
