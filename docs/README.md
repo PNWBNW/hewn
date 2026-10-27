@@ -22,6 +22,7 @@ day, indexed by `PROGRESS.md`) are at the repository root; this folder holds the
 | [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | Reference | Who the app is for and the principles its screens follow. Clean-room: from what bookkeepers do, not from any other product. |
 | [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | Report, 2026-10-14 | The network's limits checked against the settlement design before it was built. |
 | [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | Report, 2026-10-14 | The read-only pass over the three codebases that decided what to keep, what to rebuild and in what order. Most of its list is done. |
+| [`incidents/`](incidents/) | Record | Problems seen in use and what was found. [`2026-10-27-stuck-on-opening.md`](incidents/2026-10-27-stuck-on-opening.md): the app stuck on "Opening…" in Brave and Shield, resolved by itself, cause unknown. |
 | [`grants/`](grants/) | Reference | The Aleo SCALE grant proposals: PNW's, as submitted, and Hewn's (`SCALE_GRANT_PROPOSAL_HEWN.md`, 2026-10-24). |
 
 The Leo programs' own documents (the architecture spec, migration notes) live with the programs
