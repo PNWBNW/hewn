@@ -18,7 +18,7 @@
 import { useState } from "react";
 import { CloudUpload } from "lucide-react";
 import { Button } from "@pnw/ui/button";
-import { readFeeMode } from "@pnw/wallet/fee-mode";
+import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
@@ -41,6 +41,15 @@ export function costLine(plan: Pick<BackupPlan, "letters" | "fullPages" | "fee" 
   const parts = [plan.letters ? `${plan.letters} ${plan.letters === 1 ? "letter" : "letters"}` : "", plan.fullPages ? `${plan.fullPages} ${plan.fullPages === 1 ? "page" : "pages"}` : ""].filter(Boolean);
   const approvals = plan.pages.length;
   return `${parts.join(" and ")}, ${approvals} ${approvals === 1 ? "approval" : "approvals"} in Shield, about ${plan.fee} ALEO in fees (none when Shield's sponsor pays)`;
+}
+
+/**
+ * The note for backing up on testnet with private fees on (Joshua, 2026-10-27): Shield's sponsor pays
+ * every fee there, and asking it for a private one stops the backup before it's sent. Null otherwise.
+ */
+export function privateFeeNote(network: string, feeMode: FeeMode): string | null {
+  if (network !== "testnet" || feeMode !== "private") return null;
+  return "On testnet Shield covers the network fee, and a backup won't go through while \"Pay network fees privately\" is on. Turn it off on the Dashboard (Shield account card) before backing up.";
 }
 
 type Step = { kind: "idle" } | { kind: "planning" } | { kind: "ready"; plan: BackupPlan } | { kind: "sending"; plan: BackupPlan; sent: number } | { kind: "done"; what: string };
@@ -145,8 +154,10 @@ function Backup() {
     );
   }
 
+  const note = privateFeeNote(rail.network, readFeeMode());
   return (
     <div className="flex flex-col gap-2">
+      {note && <p className="text-xs text-muted-foreground">{note}</p>}
       {body}
       <FormError message={error} />
     </div>

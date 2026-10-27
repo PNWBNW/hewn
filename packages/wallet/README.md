@@ -46,6 +46,11 @@ the transaction then carries a public `fee_public` paid by Shield's own account,
 is ignored. The user's address isn't the fee payer then, so it isn't exposed; the app must never
 take that payer for the sender (`apps/business/src/chain/review_feed.ts`).
 
+`privateFee` isn't always ignored, though: with the switch on, a `hewn_letters_v2` backup in Shield's
+Android app failed before signing ("RemoteProvingService: Failed to send proving request …
+ERR_NAME_NOT_RESOLVED", 2026-10-27), and went through, covered by Shield, with the switch off. On
+testnet the backup card says to turn the switch off (`apps/business/src/chain/ChainBackup.tsx`).
+
 Shield's in-browser prover drops proofs that span several programs, so nothing Hewn sends is one:
 payroll is one `transfer_private` per payee (`packages/rail`), and the paystub goes as a letter,
 rather than `payroll_core_v2`'s one-proof `execute_payroll`, which stays deployed and unused.
