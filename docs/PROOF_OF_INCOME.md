@@ -1,7 +1,7 @@
 # Proof of income: paystubs a worker can prove from
 
 **Status:** design, for Joshua's review (2026-10-29; reworked the same day around paystub
-records, Joshua). Nothing is built. It needs a new Leo program, so before any Leo is written the
+records, and the paystub letter kept beside them, Joshua). Nothing is built. It needs a new Leo program, so before any Leo is written the
 session switches to Fable 5.1 at high effort (INV-22), and the program ships with negative tests.
 
 ## What we want
@@ -30,13 +30,16 @@ Today a paystub travels as a sealed letter (`docs/LETTERS.md`, `chain/usePaystub
 one Shield approval per worker per pay run. It is readable only by the app, so no program can
 check anything in it.
 
-The change: **a paystub becomes a private record issued by a new program,
-`hewn_paystubs_v1.aleo`**, in place of that letter. It takes the same approval, so the business
-signs no more than it does today.
+The change: **every paystub also becomes a private record issued by a new program,
+`hewn_paystubs_v1.aleo`**, sent beside the letter. **The paystub letter stays as it is** (Joshua,
+2026-10-29): the full paystub, sealed under the pair's key and drawn by the app, is still what the
+worker opens. The record is its provable twin. That is one more approval per worker per pay run
+(two in all), which Joshua accepted.
 
 ### The record
 
-The numbers a proof may need are plain fields, which only the record's owner can read:
+The record carries only the numbers a proof may need, as plain fields only its owner can read.
+The rest of the paystub (each tax and deduction, rates, overtime, callouts) stays in the letter:
 
 | Field | What it holds |
 |---|---|
@@ -47,17 +50,13 @@ The numbers a proof may need are plain fields, which only the record's owner can
 | `hours` | Hours paid, in hundredths (0 for salaried pay) |
 | `ytd_gross`, `ytd_net` | Year to date, in cents |
 | `kind` | Employee or contractor |
-| `detail` | The rest of the paystub (each tax and deduction, rates, overtime, callouts), sealed under the pair's key as letters are today |
-| `doc_hash` | The paystub document's hash, the one already in the books (`Paycheck.paystubHash`) |
+| `doc_hash` | The paystub document's hash, the one already in the books (`Paycheck.paystubHash`) and in the letter |
 | `nonce` | Random and private |
 
-The worker's app reads the record and shows the paystub as it does today. `doc_hash` ties the
-record to the document in the business's books, so the two can't drift apart.
-
-**Does the sealed `detail` fit?** A record holds at most 32 entries (`docs/ALEO_CONSTRAINTS.md`),
-and the detail is sealed bytes. If it fits, one transaction carries the whole paystub. If not,
-the detail stays a letter and the record carries only the numbers, which costs a second
-approval. Measure this before writing the program (question 2).
+`doc_hash` ties the record to the letter and to the paystub document in the business's books: the
+worker's app checks that a record and its letter carry the same hash, and that the record's
+numbers match the letter's, and flags any paystub where they don't. The record is about a dozen
+fields, well inside a record's 32 (`docs/ALEO_CONSTRAINTS.md`).
 
 ### Who may issue
 
@@ -70,7 +69,7 @@ approval. Measure this before writing the program (question 2).
   - **A Shield test first.** It is a call into a second program, which Shield's prover has had
     trouble with; credentials make the same call and haven't been tried in Shield yet.
 
-  Question 3 asks whether it's worth it.
+  Question 2 asks whether it's worth it.
 
 ### Public state
 
@@ -136,7 +135,7 @@ A printable version, a one-page letter with a QR code for the link, suits a rent
 
 **Who is in front of the verifier:** a link can be forwarded. If the verifier wants to know the
 applicant is the worker, the verify page can ask the applicant to sign the verifier's code in
-Shield on the spot (question 6).
+Shield on the spot (question 5).
 
 ## What each side learns
 
@@ -150,10 +149,11 @@ Shield on the spot (question 6).
 Wages stay private in every mode (INV-01). The claim isn't public: the worker shares it privately
 with one verifier.
 
-**A trade-off to know:** today a paystub letter, after the handshake, is sealed under the pair's
-key (`docs/TWIN_CURVE_CONVERSATIONS.md`). A record's plain fields are readable by anyone holding
-the worker's **view key**. So a worker who shares their view key with an accountant also shows
-their paystub numbers, though not the sealed `detail`. Hewn never asks a worker for their view key.
+**A trade-off to know:** the paystub letter, after the handshake, is sealed under the pair's key
+(`docs/TWIN_CURVE_CONVERSATIONS.md`). A record's plain fields are readable by anyone holding the
+worker's **view key**. So a worker who shares their view key with an accountant also shows their
+paystub numbers (gross, net, hours, year to date), though not the deductions, which stay in the
+letter. Hewn never asks a worker for their view key.
 
 ## Limits, said plainly
 
@@ -166,19 +166,20 @@ their paystub numbers, though not the sealed `detail`. Hewn never asks a worker 
   paystub is the employer's word, as it is on paper, only one the worker can't forge.
 - **Fishing.** A verifier could ask for proof after proof at rising amounts to close in on the
   wage. Only the worker can make a proof, so they can refuse; the app could also offer round
-  amounts only (question 7).
+  amounts only (question 6).
 - **Voids after the fact.** A business can void a paystub after a proof used it. The proof stays
   on chain as made, and the verify page re-checks and would say a paystub was voided since.
 - **Paystubs from before this.** Pay runs paid before the program exists have letters, not
-  records. The business could reissue past paystubs as records (question 8).
+  records. The business could reissue past paystubs as records (question 7).
 
 ## How it would be built
 
 1. **The program**, `hewn_paystubs_v1.aleo` (new Leo; Fable 5.1, high effort; negative tests):
    the paystub record and its business copy, `issue`, `void`, `summarize`, `prove`, and two
    mappings (`voided`, claim height). Deployed on testnet with a migration note.
-2. **Paystubs as records.** Payroll's paystub step issues the record instead of the letter. The
-   worker's and the business's paystub views read records, and keep reading the old letters.
+2. **Paystub records beside the letters.** Payroll's paystub step sends the letter as today and
+   issues the record after it (the second approval). The paystub views show whether each
+   paystub's record is in and matches its letter.
 3. **Prove my income** on the worker's Pay page.
 4. **The verify page.** Public, no account, like `/card`.
 
@@ -188,18 +189,15 @@ Each step is its own PR. Steps 2 to 4 change or add screens and need Joshua's gr
 
 1. **Which claims in v1?** "Every month at least $X", "at least $X in total", "year to date at
    least $X", "paid in each of the last N months": all four, or start with one?
-2. **One transaction per paystub,** if the sealed detail fits in the record. If it doesn't, is a
-   second approval per worker per pay run acceptable, or should the record carry only the
-   numbers and the detail stay a letter?
-3. **The agreement check on issue:** worth the public pay rhythm and the Shield test, or is
+2. **The agreement check on issue:** worth the public pay rhythm and the Shield test, or is
    "issuer isn't the owner", plus showing the employer when the worker chooses, enough?
-4. **Fiat-mode businesses:** may a business that pays through its bank issue paystub records too?
+3. **Fiat-mode businesses:** may a business that pays through its bank issue paystub records too?
    A paystub is the employer's word either way.
-5. **Employer shown by default** on a proof, or hidden unless the worker turns it on?
-6. **The live signature check** (the applicant signs the verifier's code in Shield): in v1, or
+4. **Employer shown by default** on a proof, or hidden unless the worker turns it on?
+5. **The live signature check** (the applicant signs the verifier's code in Shield): in v1, or
    later?
-7. **Round amounts only** (e.g. $100 steps) to blunt fishing, or any amount?
-8. **Past paystubs:** offer the business a one-time reissue of earlier pay runs as records, or
+6. **Round amounts only** (e.g. $100 steps) to blunt fishing, or any amount?
+7. **Past paystubs:** offer the business a one-time reissue of earlier pay runs as records, or
    only from now on?
-9. **A fee?** Free while on testnet. On mainnet: free for workers, a small fee per proof, or a
+8. **A fee?** Free while on testnet. On mainnet: free for workers, a small fee per proof, or a
    premium-tier feature (`docs/PREMIUM_TIER.md`)?

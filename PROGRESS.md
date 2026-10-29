@@ -12,6 +12,7 @@ index is out of date.
 
 - [Proof of income, the design](progress/2026-10-29.md#2026-10-29--proof-of-income-the-design)
 - [Proof of income, reworked around paystub records](progress/2026-10-29.md#2026-10-29--proof-of-income-reworked-around-paystub-records)
+- [Proof of income: the paystub letter stays](progress/2026-10-29.md#2026-10-29--proof-of-income-the-paystub-letter-stays)
 
 ## [2026-10-28](progress/2026-10-28.md)
 
