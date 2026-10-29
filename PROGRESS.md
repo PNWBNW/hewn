@@ -14,6 +14,7 @@ index is out of date.
 - [Proof of income, reworked around paystub records](progress/2026-10-29.md#2026-10-29--proof-of-income-reworked-around-paystub-records)
 - [Proof of income: the paystub letter stays](progress/2026-10-29.md#2026-10-29--proof-of-income-the-paystub-letter-stays)
 - [No session links in commits or PRs](progress/2026-10-29.md#2026-10-29--no-session-links-in-commits-or-prs)
+- [Proof of income: the agreement checked once per worker](progress/2026-10-29.md#2026-10-29--proof-of-income-the-agreement-checked-once-per-worker)
 
 ## [2026-10-28](progress/2026-10-28.md)
 

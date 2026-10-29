@@ -60,21 +60,42 @@ fields, well inside a record's 32 (`docs/ALEO_CONSTRAINTS.md`).
 
 ### Who may issue
 
-- **The issuer is never the owner.** The program refuses a paystub to oneself.
-- **Optionally, an agreement check.** The issuer is the employer of an agreement with the worker:
-  `employer_agreement_v5.aleo::assert_pair_agreed`, as `hewn_credentials_v1` checks. It adds
-  less than it seems, since a fake business can make an agreement too. It costs two things:
-  - **Pay rhythm, in public.** The pair tag (a pseudonym) becomes public at every pay run, so an
-    observer could see that one pair is paid every two weeks, though never how much.
-  - **A Shield test first.** It is a call into a second program, which Shield's prover has had
-    trouble with; credentials make the same call and haven't been tried in Shield yet.
+Only the employer of an agreement with the worker may issue them a paystub, and the program
+refuses a paystub to oneself. The agreement is checked **once per worker, not at every pay run**
+(Joshua, 2026-10-29):
 
-  Question 2 asks whether it's worth it.
+1. **Authorize once.** Before a worker's first paystub record, the business signs `authorize`. It
+   checks the agreement through `employer_agreement_v5.aleo::assert_pair_agreed` (active, paused
+   or ended), as `hewn_credentials_v1` does, and gives the business a private **paystub right**:
+   a record of this program, owned by the business, naming the worker.
+2. **Then every paystub shows the right, privately.** `issue` takes the business's right, checks
+   it names the worker the paystub is for, and gives the right back unchanged as a fresh record.
+   A program can check its own private records inside the proof, so issuing needs no public
+   step at all.
+
+**Why only once:** the agreement's status lives in v5's public state, and a program can read public
+state only in the public part of a transaction (finalize). The pair tag (a pseudonym made from the
+two accounts and the agreement's private key, never a name or an amount) goes in as a public
+input. If every paystub checked it, every paystub would carry the same tag, and anyone could line
+them up: that pair's pay rhythm (every other Friday, say) and how many paychecks it has had.
+Checked once, the tag shows once per worker, close to the agreement's own public moments.
+
+**What the right can't do:** it can't be given to another account (the program has no transfer),
+and it names one worker, so it can't issue paystubs to anyone else. It stays when the agreement
+ends, so a final paycheck still gets its paystub (question 2).
+
+**A Shield test first:** `authorize` calls into a second program, which Shield's prover has had
+trouble with (`packages/wallet/README.md`). `hewn_credentials_v1`'s `issue` makes the same call; it
+passed from a script on 2026-10-25 but hasn't been tried in Shield yet. **Before any Leo here, try
+issuing a credential from the Team page in Shield.** It's one call per worker, so if Shield can't
+prove it, a slower path for that one step is acceptable.
 
 ### Public state
 
 **Issuing a paystub writes nothing public.** A business paying 7 people would otherwise leave 7
 anchors at one block, which is its headcount. Instead:
+
+- **Authorizing a worker shows the pair tag once** (above), and writes nothing.
 
 - **Corrections are the only public mark.** A wrong paystub is never edited: the business voids it
   with its own copy, and only then is the paystub's commitment (a hash over its fields and the
@@ -144,7 +165,7 @@ Shield on the spot (question 5).
 | The verifier | The claim the worker chose, the period, the extras the worker turned on, and when it was proven. Not the wage, the paychecks, the hours or the deductions. |
 | The employer | Nothing about proofs. Proving uses only the worker's copies. |
 | Hewn | Nothing. No server is involved, and the link's data never leaves the browser. |
-| Anyone watching the chain | A paystub was issued (a transaction, nothing public written), a correction was made (a commitment), a claim exists (a commitment and its height). Not whose, how much or for whom. |
+| Anyone watching the chain | A worker was authorized (one pair tag, once), a paystub was issued (a transaction, nothing public written or shown), a correction was made (a commitment), a claim exists (a commitment and its height). Not whose, how much or for whom. |
 
 Wages stay private in every mode (INV-01). The claim isn't public: the worker shares it privately
 with one verifier.
@@ -169,14 +190,20 @@ letter. Hewn never asks a worker for their view key.
   amounts only (question 6).
 - **Voids after the fact.** A business can void a paystub after a proof used it. The proof stays
   on chain as made, and the verify page re-checks and would say a paystub was voided since.
+- **The fee payer is public.** Every transaction shows who paid its fee. On testnet Shield covers
+  the fee, so the payer is Shield and nothing leaks. On mainnet, a business paying public fees
+  would show up as the payer of every paystub transaction, which tells an observer how many
+  paystubs it issues and when: its headcount and pay rhythm, though never amounts. Private fees
+  fix that; they're the setting that fails in Shield on testnet today (`packages/wallet/README.md`,
+  Fees), and they need to work before mainnet.
 - **Paystubs from before this.** Pay runs paid before the program exists have letters, not
   records. The business could reissue past paystubs as records (question 7).
 
 ## How it would be built
 
 1. **The program**, `hewn_paystubs_v1.aleo` (new Leo; Fable 5.1, high effort; negative tests):
-   the paystub record and its business copy, `issue`, `void`, `summarize`, `prove`, and two
-   mappings (`voided`, claim height). Deployed on testnet with a migration note.
+   the paystub record and its business copy, the paystub right, `authorize`, `issue`, `void`,
+   `summarize`, `prove`, and two mappings (`voided`, claim height). Deployed on testnet with a migration note.
 2. **Paystub records beside the letters.** Payroll's paystub step sends the letter as today and
    issues the record after it (the second approval). The paystub views show whether each
    paystub's record is in and matches its letter.
@@ -189,8 +216,9 @@ Each step is its own PR. Steps 2 to 4 change or add screens and need Joshua's gr
 
 1. **Which claims in v1?** "Every month at least $X", "at least $X in total", "year to date at
    least $X", "paid in each of the last N months": all four, or start with one?
-2. **The agreement check on issue:** worth the public pay rhythm and the Shield test, or is
-   "issuer isn't the owner", plus showing the employer when the worker chooses, enough?
+2. **When the agreement ends:** keep the paystub right (so final paychecks get paystubs, and a
+   business that rehires needn't authorize again), or let the business give it up with a
+   `release` step when someone leaves?
 3. **Fiat-mode businesses:** may a business that pays through its bank issue paystub records too?
    A paystub is the employer's word either way.
 4. **Employer shown by default** on a proof, or hidden unless the worker turns it on?
