@@ -136,6 +136,8 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   commit, open a PR, stop.
 - Joshua mostly works from his phone: lead with the result, keep reports short, put detail in
   `progress/` rather than chat.
+- Commit messages and PR descriptions never carry a `https://claude.ai/...` session link (Joshua,
+  2026-10-29), as in `pnw_mvp_v2`.
 - If something in the existing code contradicts this file or the build plan, stop and ask. Don't
   silently pick one.
 
