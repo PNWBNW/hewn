@@ -8,6 +8,10 @@ them (`scripts/progress_index.py`): never edit it by hand. To log something, add
 entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
 index is out of date.
 
+## [2026-10-29](progress/2026-10-29.md)
+
+- [Proof of income, the design](progress/2026-10-29.md#2026-10-29--proof-of-income-the-design)
+
 ## [2026-10-28](progress/2026-10-28.md)
 
 - [Dependency updates merged; the test config warning fixed](progress/2026-10-28.md#2026-10-28--dependency-updates-merged-the-test-config-warning-fixed)
