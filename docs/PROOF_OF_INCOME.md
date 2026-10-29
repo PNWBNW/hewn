@@ -1,176 +1,205 @@
-# Proof of income: a worker proves what they earn without showing it
+# Proof of income: paystubs a worker can prove from
 
-**Status:** design, for Joshua's review (2026-10-29). Nothing is built. It needs a new Leo program,
-so before any Leo is written the session switches to Fable 5.1 at high effort (INV-22), and the
-program ships with negative tests.
+**Status:** design, for Joshua's review (2026-10-29; reworked the same day around paystub
+records, Joshua). Nothing is built. It needs a new Leo program, so before any Leo is written the
+session switches to Fable 5.1 at high effort (INV-22), and the program ships with negative tests.
 
 ## What we want
 
-A worker paid through Hewn can prove a statement about their income to someone who asks (a
-landlord, a lender, a car dealer, a benefits office) without handing over paystubs or showing a
-wage:
+The paystubs a business issues are the source of truth for what a worker earns. The worker should
+be able to prove to a third party they choose (a landlord, a lender, a car dealer, a benefits
+office) **exactly what that party needs, and nothing more**.
 
-- "I earned at least **$3,000 every month** for the last **6 months**."
-- "I earned at least **$20,000 in total** over the last **12 months**."
-- "I have been employed continuously for **8 months**." (no amount at all)
+Joshua's example: a worker makes about $7,500 a month. The landlord asks for income of at least
+3× the rent, and the rent is $1,200. The worker proves **"at least $3,600 a month for the last
+6 months"**. The landlord learns that and only that: not the $7,500, not the hours, not the
+deductions.
 
-The person checking learns that the statement is true, and nothing else: not the wage, not the
-paychecks, not the hours. Nobody else learns anything, not even that a proof was made for them.
+So:
 
-This is something only private payroll on a zero-knowledge chain can offer. It makes being paid
-through Hewn worth something to the worker, not just to the business.
+- **The employer is the source.** Each paystub is issued by the business, and the worker can't
+  make one up or change one.
+- **The worker extends it.** A proof is the worker's own signed statement *about* their paystubs,
+  checked against them by the program. It adds nothing the paystubs don't support.
+- **The worker chooses what's shown.** The threshold, gross or net, the period, and whether to
+  name the employer: each is their choice, per proof.
 
-## What it rests on, and what it can't use
+## The integrated paystub
 
-A proof is only as good as the numbers under it, and the worker must not be able to make those
-numbers up.
+Today a paystub travels as a sealed letter (`docs/LETTERS.md`, `chain/usePaystubDelivery.ts`):
+one Shield approval per worker per pay run. It is readable only by the app, so no program can
+check anything in it.
 
-- **Not the USDCx records.** A received payment is an owner and an amount, nothing more
-  (`transfer_private` carries no memo; `docs/ALEO_CONSTRAINTS.md`). It doesn't say who paid or
-  that it was wages, and Shield joins received records within a minute, so they don't survive as
-  paychecks.
-- **Not the paystub letters.** Paystubs travel as sealed letters (`docs/LETTERS.md`): the wages
-  are inside an envelope the app opens, not fields a Leo program can read.
-- **Not `paystub_receipts.aleo`.** It is deployed, but anyone may call `mint_paystub_receipts`
-  with any accounts and amounts, so a worker could mint their own. It can't be the source.
+The change: **a paystub becomes a private record issued by a new program,
+`hewn_paystubs_v1.aleo`**, in place of that letter. It takes the same approval, so the business
+signs no more than it does today.
 
-So the source has to be new: **earnings statements**, private records that only an employer can
-create, and only for a person it has an agreement with.
+### The record
 
-## The design
-
-### 1. Earnings statements (the employer's side)
-
-Once a month, after the month's last pay run, the business issues each worker an **earnings
-statement**: a private record owned by the worker, with the business keeping its own copy.
+The numbers a proof may need are plain fields, which only the record's owner can read:
 
 | Field | What it holds |
 |---|---|
-| `owner` | The worker |
-| `month` | The month it covers, as `yyyymm` |
-| `gross` | Gross pay for the month, in cents |
-| `net` | Net pay for the month, in cents |
+| `owner` | The worker (the business keeps its own copy) |
+| `issuer` | The business's account, private |
+| `period_start`, `period_end`, `pay_date` | The pay period and pay date, as day numbers |
+| `gross`, `net` | This paycheck, in cents |
+| `hours` | Hours paid, in hundredths (0 for salaried pay) |
+| `ytd_gross`, `ytd_net` | Year to date, in cents |
 | `kind` | Employee or contractor |
-| `pair` | The agreement's pair tag (a pseudonym from `employer_agreement_v5`, not a name) |
-| `nonce` | Random and private, so the statement's commitment can't be guessed |
+| `detail` | The rest of the paystub (each tax and deduction, rates, overtime, callouts), sealed under the pair's key as letters are today |
+| `doc_hash` | The paystub document's hash, the one already in the books (`Paycheck.paystubHash`) |
+| `nonce` | Random and private |
 
-**Who may issue:** the signer must be the employer of an agreement the two did make. That is the
-same check `hewn_credentials_v1` makes when a business vouches for a worker:
-`employer_agreement_v5.aleo::assert_pair_agreed`, which takes the parties key and the worker's
-account privately. A worker can't issue a statement to themselves, because v5 refuses an
-agreement with yourself.
+The worker's app reads the record and shows the paystub as it does today. `doc_hash` ties the
+record to the document in the business's books, so the two can't drift apart.
 
-That check is a call into a second program, and Shield's prover drops proofs that span several
-programs (`packages/wallet/README.md`). `hewn_credentials_v1`'s `issue` makes the same call; it
-passed from a script on 2026-10-25 but hasn't been tried in Shield yet. **Before any Leo here, try
-issuing a credential from the Team page in Shield.** If Shield can't prove it, the check moves to
-finalize as a read of `employer_agreement_v5`'s public state, if that state allows it, which keeps
-each proof to one program.
+**Does the sealed `detail` fit?** A record holds at most 32 entries (`docs/ALEO_CONSTRAINTS.md`),
+and the detail is sealed bytes. If it fits, one transaction carries the whole paystub. If not,
+the detail stays a letter and the record carries only the numbers, which costs a second
+approval. Measure this before writing the program (question 2).
 
-**Public:** one commitment per statement (a hash over its fields and the nonce) with its status
-and the block it was issued at. Nothing else, so INV-03 holds.
+### Who may issue
 
-**Corrections:** a statement is never edited. The business revokes a wrong one with its own copy
-(its status becomes REVOKED) and issues a corrected one. A proof checks every statement it uses
-is still active.
+- **The issuer is never the owner.** The program refuses a paystub to oneself.
+- **Optionally, an agreement check.** The issuer is the employer of an agreement with the worker:
+  `employer_agreement_v5.aleo::assert_pair_agreed`, as `hewn_credentials_v1` checks. It adds
+  less than it seems, since a fake business can make an agreement too. It costs two things:
+  - **Pay rhythm, in public.** The pair tag (a pseudonym) becomes public at every pay run, so an
+    observer could see that one pair is paid every two weeks, though never how much.
+  - **A Shield test first.** It is a call into a second program, which Shield's prover has had
+    trouble with; credentials make the same call and haven't been tried in Shield yet.
 
-**Approvals:** monthly, not per paycheck, and batched: one transition can carry up to 15
-statements (16 outputs), so a business with 15 workers approves once a month. Statements are
-issued by the business that ran payroll, from the payroll records it already has.
+  Question 3 asks whether it's worth it.
 
-### 2. Making a proof (the worker's side)
+### Public state
 
-On their Pay page the worker picks a claim and the months it covers. The app passes the
-statements for those months to a `prove` transition, signed in the worker's Shield:
+**Issuing a paystub writes nothing public.** A business paying 7 people would otherwise leave 7
+anchors at one block, which is its headcount. Instead:
 
-- It takes up to 15 statements and gives each back unchanged as a fresh record (a record is
-  spent when it's used, so the worker keeps them), which leaves room for 12 months comfortably.
-- It checks each statement belongs to the signer, that the months are distinct and fall in the
-  range claimed, and that the claim holds (every month at least $X, or the total at least $X, or
-  every month in the range present).
-- In finalize it checks every statement's commitment is still active, then records one **claim
-  commitment** with the block height: a hash over the claim's text, the months, the verifier's
-  code (below) and a random salt. No amounts, no names, no accounts.
+- **Corrections are the only public mark.** A wrong paystub is never edited: the business voids it
+  with its own copy, and only then is the paystub's commitment (a hash over its fields and the
+  nonce) written to a `voided` mapping. Then the business issues a corrected one.
+- **A proof checks none of its paystubs are voided.**
+- **Proofs leave a claim commitment** with its block height (below).
 
-The proof says nothing the worker didn't choose to say: "at least $3,000" doesn't reveal $3,412.
+No amounts, no names, no accounts: INV-03 holds.
 
-### 3. Checking a proof (the verifier's side)
+## Proving: the worker chooses what's shown
 
-The verifier needs no wallet and no Hewn account.
+The worker's Pay page gets **Prove my income**. They choose:
+
+| Choice | Examples |
+|---|---|
+| The claim | Every month at least $X; at least $X in total; year to date at least $X; paid in each of the last N months (employed, no amount) |
+| The threshold | Any amount they like, as long as their paystubs support it |
+| Gross or net | Gross is what landlords usually ask for |
+| The period | The last 3, 6 or 12 months, or a range |
+| Extras, each off by default | The employer's registered name and how long it has been on Hewn; how long they've been paid by that employer; pay frequency |
+| Who it's for | The verifier's code (below) |
+
+The app picks the paystubs the claim needs and passes them to a `prove` transition, signed in the
+worker's Shield. The program:
+
+1. Checks each paystub belongs to the signer and that no two are the same paystub.
+2. Checks they fall in the claimed period and that the claim holds, e.g. that each calendar
+   month's gross, summed by pay date, is at least the threshold.
+3. Gives every paystub back unchanged as a fresh record. A record is spent when it's used, so this
+   is how the worker keeps them.
+4. In finalize, checks none is voided, then records one **claim commitment** with the block
+   height. The commitment is a hash over the claim, the period, the extras the worker chose to
+   show, the verifier's code and a random salt.
+
+**What the proof never shows:** the actual amounts, any single paycheck, hours, deductions, or
+anything the worker didn't choose.
+
+**Cheap claims.** A year-to-date claim needs only the latest paystub, since `ytd_gross` is on it:
+one record, one approval.
+
+**Long periods.** A transition takes at most 16 inputs, and 15 paystubs plus the outputs is about
+the limit; that covers 6 months of biweekly pay. For longer periods, a `summarize` transition
+rolls up to 15 paystubs into one **monthly summary** record. Only the program can create one, so
+it's as trustworthy as the paystubs it came from, and a 12-month proof then reads 12 summaries.
+The app does the rolling up quietly, as paystubs arrive.
+
+## Checking: the verifier needs no wallet
 
 1. The verifier gives the worker a short **code**, for example their business name and the date.
    It goes into the claim commitment, so a proof made for one landlord can't be reused for another.
-2. The worker makes the proof and sends a link: `hewnaccounting.com/verify#…`. Everything after
-   the `#` stays in the browser and never reaches a server: the claim, the months, the code, the
-   salt and the worker's registered name.
-3. The verify page recomputes the commitment and checks it exists on chain. It then shows the
-   claim, when it was proven, the worker's `name.hewn`, and how many employers the statements
-   came from.
+2. The worker sends a link: `hewnaccounting.com/verify#…`. Everything after the `#` stays in the
+   browser and never reaches a server: the claim, the period, the code, the salt, and any extras
+   the worker chose to show.
+3. The verify page recomputes the commitment and checks it exists on chain. It shows the claim,
+   when it was proven, and the extras: nothing else.
 
 A printable version, a one-page letter with a QR code for the link, suits a rental application.
 
 **Who is in front of the verifier:** a link can be forwarded. If the verifier wants to know the
 applicant is the worker, the verify page can ask the applicant to sign the verifier's code in
-Shield on the spot, which proves they control the account behind `name.hewn`. This step is
-optional (question 5).
+Shield on the spot (question 6).
 
 ## What each side learns
 
 | Who | Learns |
 |---|---|
-| The verifier | The claim the worker chose to prove, the months, the worker's `name.hewn`, how many employers, and when it was proven. Not the wage, paychecks or hours. |
-| The employer | Nothing. Proving spends only the worker's own copies; the employer's copies are untouched. |
+| The verifier | The claim the worker chose, the period, the extras the worker turned on, and when it was proven. Not the wage, the paychecks, the hours or the deductions. |
+| The employer | Nothing about proofs. Proving uses only the worker's copies. |
 | Hewn | Nothing. No server is involved, and the link's data never leaves the browser. |
-| Anyone watching the chain | That a statement commitment exists, and later that a claim commitment exists, with their block heights. Not whose, not how much, not for whom. |
+| Anyone watching the chain | A paystub was issued (a transaction, nothing public written), a correction was made (a commitment), a claim exists (a commitment and its height). Not whose, how much or for whom. |
 
-Wages stay private in every mode (INV-01). The claim isn't public: the worker shares it
-privately with one verifier.
+Wages stay private in every mode (INV-01). The claim isn't public: the worker shares it privately
+with one verifier.
+
+**A trade-off to know:** today a paystub letter, after the handshake, is sealed under the pair's
+key (`docs/TWIN_CURVE_CONVERSATIONS.md`). A record's plain fields are readable by anyone holding
+the worker's **view key**. So a worker who shares their view key with an accountant also shows
+their paystub numbers, though not the sealed `detail`. Hewn never asks a worker for their view key.
 
 ## Limits, said plainly
 
-- **A proof is as good as its employers.** A worker who registers a fake business and "pays"
-  themselves can issue real statements. The verify page shows how many employers there were, and
-  can show each employer's registered name and how long it has been on Hewn (its card's issue
-  height, `hewn_cards_v1`), so the verifier can judge. It can't prove the employer is a real
-  business; nothing on chain can.
-- **Statements aren't tied to the USDCx that moved.** Binding them would mean one proof spanning
-  two programs (the stablecoin and this one), and Shield's prover drops those
-  (`packages/wallet/README.md`). A statement is the employer's word, as a paystub is today, only
-  one the worker can't forge.
+- **A proof is as good as its employer.** A worker who registers a business and "pays" themselves
+  can issue real paystubs. If the worker shows the employer, the verifier sees its registered
+  name and how long it has been on Hewn (its card, `hewn_cards_v1`) and can judge. Nothing on
+  chain can prove a business is real.
+- **Paystubs aren't tied to the USDCx that moved.** Binding them would mean one proof spanning the
+  stablecoin and this program, and Shield's prover drops those (`packages/wallet/README.md`). A
+  paystub is the employer's word, as it is on paper, only one the worker can't forge.
 - **Fishing.** A verifier could ask for proof after proof at rising amounts to close in on the
-  wage. Only the worker can make a proof, so they can refuse; the app could also offer amounts
-  in round steps only (question 6).
-- **Revocation after the fact.** An employer can revoke a statement after a proof used it. The
-  proof stays on chain as made, but the verify page re-checks the statements' status and would
-  show that one was revoked since.
+  wage. Only the worker can make a proof, so they can refuse; the app could also offer round
+  amounts only (question 7).
+- **Voids after the fact.** A business can void a paystub after a proof used it. The proof stays
+  on chain as made, and the verify page re-checks and would say a paystub was voided since.
+- **Paystubs from before this.** Pay runs paid before the program exists have letters, not
+  records. The business could reissue past paystubs as records (question 8).
 
 ## How it would be built
 
-1. **The program**, `hewn_income_v1.aleo` (new Leo; Fable 5.1, high effort; negative tests): a
-   statement record, `issue`, `revoke`, `prove`, and two mappings (statement status and height,
-   claim height). Deployed on testnet with a migration note, like every program.
-2. **The employer side:** "Issue earnings statements" after a month's last pay run, on Payroll,
-   from the pay runs already in the books.
-3. **The worker side:** "Prove your income" on the worker's Pay page: pick a claim, enter the
-   verifier's code, sign, get the link and the printable letter.
-4. **The verify page:** public, no account, like `/card`.
+1. **The program**, `hewn_paystubs_v1.aleo` (new Leo; Fable 5.1, high effort; negative tests):
+   the paystub record and its business copy, `issue`, `void`, `summarize`, `prove`, and two
+   mappings (`voided`, claim height). Deployed on testnet with a migration note.
+2. **Paystubs as records.** Payroll's paystub step issues the record instead of the letter. The
+   worker's and the business's paystub views read records, and keep reading the old letters.
+3. **Prove my income** on the worker's Pay page.
+4. **The verify page.** Public, no account, like `/card`.
 
-Each step is its own PR. Steps 2 to 4 are new screens and need Joshua's greenlight.
+Each step is its own PR. Steps 2 to 4 change or add screens and need Joshua's greenlight.
 
 ## Questions for Joshua
 
-1. **Gross, net, or both?** Landlords usually ask about gross. Should the worker choose which
-   one a claim uses?
-2. **Monthly statements**, or one per paycheck? Monthly means far fewer approvals; per paycheck
-   would allow claims like "paid every two weeks".
-3. **Fiat-mode businesses:** may a business that pays through its bank issue statements too? The
-   statement is the employer's word either way.
-4. **Employer names on the verify page:** shown by default, hidden by default, or the worker's
-   choice per proof?
-5. **The live signature check** (the applicant signs the verifier's code in Shield): in v1, or
+1. **Which claims in v1?** "Every month at least $X", "at least $X in total", "year to date at
+   least $X", "paid in each of the last N months": all four, or start with one?
+2. **One transaction per paystub,** if the sealed detail fits in the record. If it doesn't, is a
+   second approval per worker per pay run acceptable, or should the record carry only the
+   numbers and the detail stay a letter?
+3. **The agreement check on issue:** worth the public pay rhythm and the Shield test, or is
+   "issuer isn't the owner", plus showing the employer when the worker chooses, enough?
+4. **Fiat-mode businesses:** may a business that pays through its bank issue paystub records too?
+   A paystub is the employer's word either way.
+5. **Employer shown by default** on a proof, or hidden unless the worker turns it on?
+6. **The live signature check** (the applicant signs the verifier's code in Shield): in v1, or
    later?
-6. **Round amounts only** (e.g. $250 steps) to blunt fishing, or any amount?
-7. **Which claims in v1?** "At least $X every month", "at least $X in total" and "employed for N
-   months", or start with the first one alone?
-8. **A fee?** Free while on testnet. On mainnet: free for workers, a small fee per proof, or a
+7. **Round amounts only** (e.g. $100 steps) to blunt fishing, or any amount?
+8. **Past paystubs:** offer the business a one-time reissue of earlier pay runs as records, or
+   only from now on?
+9. **A fee?** Free while on testnet. On mainnet: free for workers, a small fee per proof, or a
    premium-tier feature (`docs/PREMIUM_TIER.md`)?
