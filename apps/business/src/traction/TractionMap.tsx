@@ -22,10 +22,12 @@ type Published = {
 type World = { width: number; height: number; sphere: string; countries: Record<string, string> };
 
 /** Visitor bins, low to high; the lowest starts at one visitor, the publishing floor on testnet. */
-export const BINS = [1, 5, 25, 100] as const;
+export const BINS = [1, 2, 5, 10, 25, 50, 100] as const;
+// Seven steps of one green (OKLCH hue 153), lightness evenly spaced 0.08 apart, light to dark on a
+// light page and the reverse on a dark one (Joshua, 2026-10-30: more than four bands).
 const RAMP = {
-  light: ["#79c491", "#4a9e6b", "#2a7d52", "#0f5a3c"],
-  dark: ["#2a6650", "#3d8f68", "#5fb886", "#a6e3bd"],
+  light: ["#afdfbc", "#84ca99", "#5db47a", "#439b63", "#32814f", "#25673e", "#1d4e2f"],
+  dark: ["#2d5138", "#366b48", "#408558", "#4ea06a", "#64ba80", "#84d39c", "#aae9bc"],
 };
 const LAND = { light: "#e4e9e4", dark: "#1c2924" };
 const STROKE = { light: "#ffffff", dark: "#111a17" };
@@ -35,7 +37,8 @@ export function binOf(visitors: number): number {
   for (let i = 0; i < BINS.length; i++) if (visitors >= BINS[i]!) b = i;
   return b;
 }
-export const binLabel = (i: number): string => (i === BINS.length - 1 ? `${BINS[i]}+` : `${BINS[i]}–${BINS[i + 1]! - 1}`);
+export const binLabel = (i: number): string =>
+  i === BINS.length - 1 ? `${BINS[i]}+` : BINS[i + 1]! - 1 === BINS[i] ? `${BINS[i]}` : `${BINS[i]}–${BINS[i + 1]! - 1}`;
 
 function useDark(): boolean {
   const [dark, setDark] = useState(false);
