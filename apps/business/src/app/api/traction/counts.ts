@@ -9,15 +9,18 @@
 // the device itself (it remembers it was counted), so the server never has to
 // recognise anyone.
 //
-// What is published: only countries with at least MIN_VISITORS visitors, so a
-// country with one or two people never points at them; the page's numbers are
-// cached for a day, so watching it can't time anyone's visit.
+// What is published: every country with at least MIN_VISITORS visitors. While
+// Hewn is on testnet that is every country with one (Joshua, 2026-10-30: the
+// smaller groups are worth seeing, and testnet visitors are few and known); the
+// floor of 5, which keeps a country with one or two people from pointing at
+// them, comes back before mainnet. The page's numbers are cached for a day, so
+// watching it can't time anyone's visit.
 //
 // The country comes from the header Vercel sets on every request; the request's
 // address is never read. Pure apart from the injected store.
 // ---------------------------------------------------------------------------
 
-export const MIN_VISITORS = 5;
+export const MIN_VISITORS = 1;
 export const VISITS_KEY = "hewn:traction:visits";
 export const VISITORS_KEY = "hewn:traction:visitors";
 export const COUNTRY_HEADER = "x-vercel-ip-country";

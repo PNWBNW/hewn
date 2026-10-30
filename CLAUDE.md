@@ -61,7 +61,8 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 - **One exception: testnet traction counts (Joshua, 2026-10-19).** Two totals per country since launch
   (visits, visitors) in a small Upstash store, nothing else: no dates, no addresses, no ids. A
   visitor is decided on the device (it remembers it was counted) and only yes/no is sent. Published
-  on `/traction` only for countries with at least 5 visitors, cached for a day
+  on `/traction`, cached for a day; while on testnet every country with a visitor shows (Joshua,
+  2026-10-30), and the floor of 5 visitors per country comes back before mainnet
   (`apps/business/src/app/api/traction/counts.ts`). Nothing else may be stored this way. (INV-05)
 
 **Keys and storage**

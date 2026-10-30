@@ -66,8 +66,8 @@ export default function Privacy() {
             <li>
               For the public map of where {BRAND.name} is used, we also keep two running totals per
               country: visits and visitors since launch. No dates, no addresses, nothing per person. Your
-              device remembers it has been counted and sends only yes or no. A country appears on the map
-              only once it has five visitors.
+              device remembers it has been counted and sends only yes or no. While {BRAND.name} is on
+              testnet, every country with a visitor appears on the map, even one with a single visitor.
             </li>
             <li>No tracking across sites, no advertising, no profiles. We do not know who you are.</li>
             <li>No cookies.</li>

@@ -363,8 +363,10 @@ Upstash store (`apps/business/src/app/api/traction/`), and shows them on the pub
   Vercel's `x-vercel-ip-country` header; the request's address is never read.
 - **Visitor:** decided on the device (local storage remembers it was counted); only `{first: bool}`
   is sent. Nothing lets the server tell two visitors apart. One count per browser session.
-- **Published:** only countries with at least 5 visitors, cached a day at the edge, so a small
-  country never points at a person and watching the page can't time a visit.
+- **Published:** cached a day at the edge, so watching the page can't time a visit. While on
+  testnet every country with a visitor shows (Joshua, 2026-10-30): a country with one or two
+  visitors can point at a person who someone knows opened the link, an accepted risk for testnet's
+  few, mostly known visitors. The floor of 5 visitors per country comes back before mainnet.
 - **If the store leaks:** per-country totals, nothing about anyone. **If someone spams the counter:**
   inflated totals; the endpoint takes same-origin requests only and caps the body, and the numbers
   are presented as rough. It never touches the vault, keys, wallets or the chain.
