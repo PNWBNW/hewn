@@ -295,7 +295,8 @@ Results: [#163](https://github.com/PNWBNW/hewn/issues/163)
   views with no query strings. Nothing else, and nothing personal.
 - **PRIV-3 The device.** Look at local storage and IndexedDB. *Expect:* no books in local storage,
   and the vault encrypted.
-- **PRIV-4 Traction.** `/traction` shows totals only, and no country under 5 visitors.
+- **PRIV-4 Traction.** `/traction` shows totals only. On testnet every country with a visitor
+  shows; before mainnet, no country under 5 visitors.
 
 ## 15. The web side (`WEB`)
 

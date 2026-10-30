@@ -68,8 +68,14 @@ describe("counting a visit", () => {
 });
 
 describe("what is published", () => {
-  it("names only countries with at least five visitors, totals everything, and counts the rest as hidden", () => {
-    const p = publish({ visits: { US: 40, NG: 9, DE: 6, FR: 3 }, visitors: { US: 12, NG: 5, DE: 4, FR: 1 } });
+  it("names every country with a visitor while on testnet, and nothing that isn't a country", () => {
+    const p = publish({ visits: { US: 40, NG: 9, DE: 6, FR: 3, GB: 2 }, visitors: { US: 12, NG: 5, DE: 4, FR: 1, GB: 0 } });
+    expect(p.countries.map((c) => c.country)).toEqual(["US", "NG", "DE", "FR"]);
+    expect(p).toMatchObject({ visitors: 22, visits: 60, hidden: 0, minVisitors: 1 });
+    expect(publish({ visits: { "<b>": 9 }, visitors: { "<b>": 9, US: -3 } }).countries).toEqual([]);
+  });
+  it("with a floor (5 before mainnet), names only countries at or above it, totals everything, and counts the rest as hidden", () => {
+    const p = publish({ visits: { US: 40, NG: 9, DE: 6, FR: 3 }, visitors: { US: 12, NG: 5, DE: 4, FR: 1 } }, 5);
     expect(p.countries).toEqual([
       { country: "US", visitors: 12, visits: 40 },
       { country: "NG", visitors: 5, visits: 9 },

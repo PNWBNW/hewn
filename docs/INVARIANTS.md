@@ -22,7 +22,7 @@ fails the build), *review* (only a person reading the change), *not yet* (nothin
 | INV-02 | No private data on any server, ever; no database; plaintext only in the browser session | structure, CI | `packages/vault/src/boundary.test.ts` · "never touches the network"; `apps/business/src/security/headers.test.ts` · "talks to its own origin, the explorer and the Shield relay, nothing else" | T1, T3 |
 | INV-03 | Public Aleo mappings hold only hashes, commitments and block heights; never a plaintext amount, account name, memo or identity | circuit, CI | `pnw_mvp_v2/scripts/check_public_state.py`; `pnw_mvp_v2/docs/PUBLIC_STATE.md` (reviewed by a person: the check proves the list complete, not each reason) | T6, T15, T17 |
 | INV-04 | Aggregates publish only as proofs, with a minimum group size | not yet | none (no aggregate is published yet; `docs/AUDIT_DESIGN.md` step 6) | T6 |
-| INV-05 | The one server exception: two traction totals per country, no dates, addresses or ids; a country shown only from 5 visitors; cached a day | code, CI | `apps/business/src/app/api/traction/counts.test.ts` · "names only countries with at least five visitors…", "is cached for a day at the edge, and carries no dates" | T11 |
+| INV-05 | The one server exception: two traction totals per country, no dates, addresses or ids; every country shown while on testnet (Joshua, 2026-10-30), a country shown only from 5 visitors before mainnet; cached a day | code, CI | `apps/business/src/app/api/traction/counts.test.ts` · "names every country with a visitor while on testnet…", "with a floor (5 before mainnet)…", "is cached for a day at the edge, and carries no dates" | T11 |
 
 ## Keys and storage
 

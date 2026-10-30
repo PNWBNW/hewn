@@ -21,11 +21,13 @@ type Published = {
 };
 type World = { width: number; height: number; sphere: string; countries: Record<string, string> };
 
-/** Visitor bins, low to high; the lowest starts at the publishing floor. */
-export const BINS = [5, 10, 25, 100] as const;
+/** Visitor bins, low to high; the lowest starts at one visitor, the publishing floor on testnet. */
+export const BINS = [1, 2, 5, 10, 25, 50, 100] as const;
+// Seven steps of one green (OKLCH hue 153), lightness evenly spaced 0.08 apart, light to dark on a
+// light page and the reverse on a dark one (Joshua, 2026-10-30: more than four bands).
 const RAMP = {
-  light: ["#79c491", "#4a9e6b", "#2a7d52", "#0f5a3c"],
-  dark: ["#2a6650", "#3d8f68", "#5fb886", "#a6e3bd"],
+  light: ["#afdfbc", "#84ca99", "#5db47a", "#439b63", "#32814f", "#25673e", "#1d4e2f"],
+  dark: ["#2d5138", "#366b48", "#408558", "#4ea06a", "#64ba80", "#84d39c", "#aae9bc"],
 };
 const LAND = { light: "#e4e9e4", dark: "#1c2924" };
 const STROKE = { light: "#ffffff", dark: "#111a17" };
@@ -35,7 +37,8 @@ export function binOf(visitors: number): number {
   for (let i = 0; i < BINS.length; i++) if (visitors >= BINS[i]!) b = i;
   return b;
 }
-export const binLabel = (i: number): string => (i === BINS.length - 1 ? `${BINS[i]}+` : `${BINS[i]}–${BINS[i + 1]! - 1}`);
+export const binLabel = (i: number): string =>
+  i === BINS.length - 1 ? `${BINS[i]}+` : BINS[i + 1]! - 1 === BINS[i] ? `${BINS[i]}` : `${BINS[i]}–${BINS[i + 1]! - 1}`;
 
 function useDark(): boolean {
   const [dark, setDark] = useState(false);
@@ -145,7 +148,7 @@ export function TractionMap() {
                     {n(hovered.visitors)} visitors · {n(hovered.visits)} visits
                   </div>
                 ) : (
-                  <div className="mt-1 text-muted-foreground">Fewer than {data.minVisitors} visitors, or none yet</div>
+                  <div className="mt-1 text-muted-foreground">{data.minVisitors > 1 ? `Fewer than ${data.minVisitors} visitors, or none yet` : "No visitors yet"}</div>
                 )}
               </div>
             )}
@@ -165,7 +168,7 @@ export function TractionMap() {
               <svg width="14" height="10" aria-hidden>
                 <rect width="14" height="10" rx="2" fill={LAND[mode]} />
               </svg>
-              Under {data.minVisitors}, or none yet
+              {data.minVisitors > 1 ? `Under ${data.minVisitors}, or none yet` : "None yet"}
             </span>
           </div>
         </CardContent>
@@ -175,7 +178,9 @@ export function TractionMap() {
         <CardContent className="pt-6">
           {shown === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No country has {data.minVisitors} visitors yet. Countries appear once they do, so a place with one or two people never points at them.
+              {data.minVisitors > 1
+                ? `No country has ${data.minVisitors} visitors yet. Countries appear once they do, so a place with one or two people never points at them.`
+                : "No visitors yet."}
             </p>
           ) : (
             <table className="w-full text-sm">
@@ -203,8 +208,9 @@ export function TractionMap() {
 
       <p className="text-xs leading-relaxed text-muted-foreground">
         A visit is one browser session; a visitor is a device&apos;s first visit. Each device decides that for itself and sends only yes or no, so nobody is
-        recognised. We keep two totals per country and nothing else: no dates, no addresses, no ids. A country shows once it has {data.minVisitors} visitors, and
-        these numbers refresh once a day. Counted while Hewn is on testnet.
+        recognised. We keep two totals per country and nothing else: no dates, no addresses, no ids.{" "}
+        {data.minVisitors > 1 ? `A country shows once it has ${data.minVisitors} visitors, and these` : "Every country with a visitor shows while on testnet, and these"} numbers refresh
+        once a day. Counted while Hewn is on testnet.
       </p>
     </div>
   );

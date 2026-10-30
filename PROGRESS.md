@@ -11,6 +11,7 @@ index is out of date.
 ## [2026-10-30](progress/2026-10-30.md)
 
 - [Proof of income: an income letter, no verifier's code](progress/2026-10-30.md#2026-10-30--proof-of-income-an-income-letter-no-verifiers-code)
+- [Traction shows every country while on testnet](progress/2026-10-30.md#2026-10-30--traction-shows-every-country-while-on-testnet)
 
 ## [2026-10-29](progress/2026-10-29.md)
 

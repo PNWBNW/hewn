@@ -1,8 +1,8 @@
 "use client";
 
 // Traction: where people have opened Hewn since launch, by country (Joshua,
-// 2026-10-19). Public, with or without an account. Totals only: countries
-// appear from five visitors, and the numbers refresh once a day
+// 2026-10-19). Public, with or without an account. Totals only: on testnet
+// every country with a visitor appears, and the numbers refresh once a day
 // (app/api/traction/counts.ts).
 
 import { TractionMap } from "@/traction/TractionMap";
