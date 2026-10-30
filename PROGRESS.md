@@ -8,6 +8,10 @@ them (`scripts/progress_index.py`): never edit it by hand. To log something, add
 entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
 index is out of date.
 
+## [2026-10-30](progress/2026-10-30.md)
+
+- [Proof of income: an income letter, no verifier's code](progress/2026-10-30.md#2026-10-30--proof-of-income-an-income-letter-no-verifiers-code)
+
 ## [2026-10-29](progress/2026-10-29.md)
 
 - [Proof of income, the design](progress/2026-10-29.md#2026-10-29--proof-of-income-the-design)
