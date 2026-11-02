@@ -12,6 +12,7 @@
 // that calls it `email` (made before usernames, 2026-10-21).
 // ---------------------------------------------------------------------------
 
+import { type Closing, validateClosing } from "./close";
 import { type Books, type Dimensions, booksFromJson, booksToJson, dimensionsFromJson, dimensionsToJson, emptyDimensions } from "@pnw/ledger";
 import { type Payroll, emptyPayroll, payrollFromJson, payrollToJson } from "@pnw/payroll";
 import { type Sales, emptySales, salesFromJson, salesToJson } from "@pnw/sales";
@@ -70,6 +71,8 @@ export type Company = {
   viewKey?: string;
   /** Whether the business added its view key or chose to go without. Absent until asked. */
   viewKeyChoice?: ViewKeyChoice;
+  /** Closes of the books, with their roots and anchors, and the secret behind the roots (books/close.ts). Absent before the first close. */
+  closing?: Closing;
 };
 
 const ROLES: Role[] = ["business", "worker", "customer"];
@@ -102,6 +105,7 @@ export function companyToJson(c: Company): string {
     ...(c.chainBackup ? { chainBackup: JSON.stringify(validateChainState(c.chainBackup)) } : {}),
     ...(c.viewKey ? { viewKey: cleanViewKey(c.viewKey) } : {}),
     ...(c.viewKeyChoice ? { viewKeyChoice: c.viewKeyChoice } : {}),
+    ...(c.closing ? { closing: JSON.stringify(validateClosing(c.closing)) } : {}),
   });
 }
 
@@ -131,6 +135,7 @@ export function companyFromJson(text: string): Company {
     chainBackup?: string;
     viewKey?: string;
     viewKeyChoice?: string;
+    closing?: string;
     /** What the username was called before usernames (2026-10-21). */
     email?: string;
   };
@@ -163,6 +168,7 @@ export function companyFromJson(text: string): Company {
     if (typeof doc.chainBackup === "string") company.chainBackup = validateChainState(JSON.parse(doc.chainBackup));
     if (typeof doc.viewKey === "string") company.viewKey = cleanViewKey(doc.viewKey);
     if (doc.viewKeyChoice === "added" || doc.viewKeyChoice === "skipped") company.viewKeyChoice = doc.viewKeyChoice;
+    if (typeof doc.closing === "string") company.closing = validateClosing(JSON.parse(doc.closing));
     return company;
   }
   // Earlier saves held only the books.

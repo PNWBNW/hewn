@@ -164,12 +164,12 @@ guard is planned: it would wrap the transfer in a two-call function, which Shiel
 
 ## Order of work (one PR each)
 
-1. **Ledger: period roots** (Opus). `periodRoot(...)` over entries and settlements, the
+1. **Ledger: period roots** (Opus; done 2026-11-02, #272, `packages/ledger/src/period_root.ts`). `periodRoot(...)` over entries and settlements, the
    salts, and inclusion proofs, with tests: tampering, a removed or duplicated entry, a
    settlement pointing at the wrong transfer or person, a wrong salt, odd-sized and empty
    periods. The settlement list is built from the payroll paychecks; the ledger takes it as
    input and never imports payroll or chain code.
-2. **App: anchor on close** (Opus). **Close period** offers "Anchor this period on Aleo" (one
+2. **App: anchor on close** (Opus; done 2026-11-02, Transactions → Close the books, `docs/CLOSE_PERIOD.md`). **Close period** offers "Anchor this period on Aleo" (one
    Shield tap through `payroll_audit_log::anchor_event`). The tx id and height are kept on the
    period mark. This is the anchored mode's first real step and needs Joshua's greenlight for
    the screen.

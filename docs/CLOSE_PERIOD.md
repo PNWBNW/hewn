@@ -1,7 +1,9 @@
 # Closing a period
 
-**Status:** decided (Joshua, 2026-11-02). Being built: the ledger side (closing by date, the
-period root) is in; the screen, the anchor and the reminder are next. No new Leo: it anchors through
+**Status:** decided (Joshua, 2026-11-02) and built, except the period proof export: closing by
+date and the period root (#272); Transactions → Close the books, the checklist, the anchor, reopen,
+lock and the Dashboard reminder (`books/close.ts`, `books/ClosePanel.tsx`,
+`chain/CloseShield.tsx`). The export comes next. No new Leo: it anchors through
 the deployed `payroll_audit_log.aleo`. It adds a screen, so building it needs Joshua's
 greenlight. It finishes Phase 1's last criterion (a month fed, categorized, reconciled and
 sealed) and steps 24 to 29 of the sealed-month test (#224).
@@ -19,7 +21,7 @@ is anchored (one `anchor_event`). This document is about **when and how a busine
 
 ## The close, step by step
 
-**Accounting → Close a period**, any day after the range's last day:
+**Transactions → Close the books**, any day after the range's last day:
 
 1. **Pick the range.** It starts the day after the last close (or the day the books start, for
    the first close) and can't skip or overlap. The business picks the **end date, any day before

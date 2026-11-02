@@ -35,6 +35,7 @@ import {
   todayIso,
   typeLabel,
 } from "@/books/display";
+import { ClosePanel } from "@/books/ClosePanel";
 import { waitingCount } from "@/books/review";
 import { tagNameMap, tagSummary } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
@@ -45,7 +46,12 @@ const ReviewPanel = dynamic(() => import("@/chain/ReviewPanel"), {
   loading: () => <p className="text-sm text-muted-foreground">Loading…</p>,
 });
 
-const TABS = ["register", "accounts", "review"] as const;
+const TABS = ["register", "accounts", "review", "close"] as const;
+
+// Closing: the Shield check and the anchor are the chain side's; loaded only when the tab opens.
+const CloseWithShield = dynamic(() => import("@/chain/CloseShield").then((m) => m.CloseWithShield), { ssr: false });
+const AnchorWithShield = dynamic(() => import("@/chain/CloseShield").then((m) => m.AnchorWithShield), { ssr: false });
+const TxLink = dynamic(() => import("@/chain/TxLink").then((m) => m.TxLink), { ssr: false });
 
 const SOURCE_LABELS: Record<Entry["source"]["kind"], string> = {
   manual: "Journal entry",
@@ -100,6 +106,7 @@ export default function TransactionsPage() {
             <TabsTrigger value="review" className="min-h-9">
               For review{waiting > 0 ? ` (${waiting})` : ""}
             </TabsTrigger>
+            <TabsTrigger value="close" className="min-h-9">Close the books</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="register">
@@ -110,6 +117,9 @@ export default function TransactionsPage() {
         </TabsContent>
         <TabsContent value="review">
           <ReviewPanel />
+        </TabsContent>
+        <TabsContent value="close">
+          <ClosePanel closeAction={(p) => <CloseWithShield {...p} />} anchorAction={(p) => <AnchorWithShield {...p} />} txLink={(id) => <TxLink id={id} />} />
         </TabsContent>
       </Tabs>
     </div>
