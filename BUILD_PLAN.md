@@ -16,8 +16,8 @@ whenever the work moves.
   calls, a lighter Session start, a link checker (`progress/2026-10-25.md`, `2026-10-26.md`); a
   cold Session start is walked at the end of each phase and kept in that day's log.
 - **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
-  anchored through `payroll_audit_log`). Reconciliation is in (2026-10-26); Close period's decisions
-  are in `docs/CLOSE_PERIOD.md`, waiting on Joshua, then it gets built (2026-11-02).
+  anchored through `payroll_audit_log`). Reconciliation is in (2026-10-26); Close period is decided
+  (`docs/CLOSE_PERIOD.md`, Joshua 2026-11-02) and is next to build.
 - **Blocked on Joshua:** archiving the old portal repository on GitHub (Phase 0); two phones with
   Shield for the wallet scenarios in the manual tests and Phase 2's three-worker run.
 

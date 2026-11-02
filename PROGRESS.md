@@ -11,6 +11,7 @@ index is out of date.
 ## [2026-11-02](progress/2026-11-02.md)
 
 - [Close period, the decisions](progress/2026-11-02.md#2026-11-02--close-period-the-decisions)
+- [Close period, decided](progress/2026-11-02.md#2026-11-02--close-period-decided)
 
 ## [2026-10-30](progress/2026-10-30.md)
 
