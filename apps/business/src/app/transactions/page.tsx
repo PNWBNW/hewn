@@ -155,9 +155,9 @@ function Journal() {
     try {
       await update((b) => reverseEntry(b, entry.id).books);
     } catch (e) {
-      // Original's month is closed: offer to post the reversal today instead.
+      // Original's date is closed: offer to post the reversal today instead.
       if (e instanceof Error && "code" in e && e.code === "PERIOD_CLOSED") {
-        if (window.confirm(`Entry #${entry.seq}'s month is closed. Post the reversal dated today instead?`)) {
+        if (window.confirm(`Entry #${entry.seq} is dated in a closed period. Post the reversal dated today instead?`)) {
           try {
             await update((b) => reverseEntry(b, entry.id, { date: todayIso() }).books);
           } catch (e2) {

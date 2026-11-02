@@ -18,6 +18,7 @@ import {
 import { SYSTEM_ACCOUNTS } from "./accounts";
 import type { Entry } from "./books";
 import { hashEntry } from "./hash";
+import { booksFromJson, booksToJson } from "./serialize";
 import { clock, sampleBooks } from "./test_helpers";
 
 const code = (c: string) => expect.objectContaining({ code: c });
@@ -200,45 +201,65 @@ describe("periods", () => {
     return { books: b, ids, septId: entry.id };
   }
 
-  it("a closed period rejects new postings", () => {
+  it("a closed day rejects new postings, and the day after is open", () => {
     const { books, ids } = withSeptember();
-    const closed = closeThrough(books, "2026-09", clock);
+    const closed = closeThrough(books, "2026-09-30", clock);
     expect(() => postEntry(closed, rentPaid(ids, "2026-09-30"))).toThrow(code("PERIOD_CLOSED"));
     expect(() => postEntry(closed, rentPaid(ids, "2025-12-31"))).toThrow(code("PERIOD_CLOSED"));
     expect(postEntry(closed, rentPaid(ids, "2026-10-01")).entry.date).toBe("2026-10-01");
   });
 
-  it("reversing an entry in a closed period posts the reversal in an open one", () => {
+  it("closes part of a month (Joshua, 2026-11-02)", () => {
+    const { books, ids } = withSeptember();
+    const closed = closeThrough(books, "2026-09-15", clock);
+    expect(() => postEntry(closed, rentPaid(ids, "2026-09-15"))).toThrow(code("PERIOD_CLOSED"));
+    expect(postEntry(closed, rentPaid(ids, "2026-09-16")).entry.date).toBe("2026-09-16");
+    expect(closeThrough(closed, "2026-09-30", clock).marks.closedThrough).toBe("2026-09-30");
+  });
+
+  it("reversing an entry on a closed day posts the reversal on an open one", () => {
     const { books, septId } = withSeptember();
-    const closed = closeThrough(books, "2026-09", clock);
+    const closed = closeThrough(books, "2026-09-30", clock);
     expect(() => reverseEntry(closed, septId)).toThrow(code("PERIOD_CLOSED"));
     expect(reverseEntry(closed, septId, { date: "2026-10-01" }, clock).entry.date).toBe("2026-10-01");
   });
 
-  it("reopening is deliberate, logged, and reopens every later month", () => {
+  it("reopening is deliberate, logged, and reopens every later day", () => {
     const { books, ids } = withSeptember();
-    const closed = closeThrough(books, "2026-10", clock);
-    const reopened = reopenFrom(closed, "2026-09", clock);
-    expect(reopened.marks.closedThrough).toBe("2026-08");
+    const closed = closeThrough(books, "2026-10-31", clock);
+    const reopened = reopenFrom(closed, "2026-09-10", clock);
+    expect(reopened.marks.closedThrough).toBe("2026-09-09");
+    expect(() => postEntry(reopened, rentPaid(ids, "2026-09-09"))).toThrow(code("PERIOD_CLOSED"));
     expect(postEntry(reopened, rentPaid(ids, "2026-09-15")).entry).toBeDefined();
     expect(reopened.events.map((e) => e.kind)).toEqual(["closed", "reopened"]);
-    expect(() => reopenFrom(reopened, "2026-11")).toThrow(code("BAD_CLOSE"));
+    expect(() => reopenFrom(reopened, "2026-11-01")).toThrow(code("BAD_CLOSE"));
   });
 
-  it("a locked period can't be reopened, posted to, or have entries reversed", () => {
+  it("a locked day can't be reopened, posted to, or have entries reversed", () => {
     const { books, ids, septId } = withSeptember();
-    const locked = lockThrough(closeThrough(books, "2026-09", clock), "2026-09", clock);
-    expect(() => reopenFrom(locked, "2026-09")).toThrow(code("PERIOD_LOCKED"));
+    const locked = lockThrough(closeThrough(books, "2026-09-30", clock), "2026-09-30", clock);
+    expect(() => reopenFrom(locked, "2026-09-30")).toThrow(code("PERIOD_LOCKED"));
     expect(() => postEntry(locked, rentPaid(ids, "2026-09-02"))).toThrow(code("PERIOD_LOCKED"));
     expect(() => reverseEntry(locked, septId, { date: "2026-10-01" })).toThrow(code("PERIOD_LOCKED"));
   });
 
   it("locks only what's closed, and the close mark only moves forward", () => {
     const { books } = withSeptember();
-    expect(() => lockThrough(books, "2026-09")).toThrow(code("BAD_CLOSE"));
-    const closed = closeThrough(books, "2026-09", clock);
-    expect(() => closeThrough(closed, "2026-08")).toThrow(code("BAD_CLOSE"));
-    expect(() => closeThrough(closed, "2026-13")).toThrow(code("BAD_PERIOD"));
+    expect(() => lockThrough(books, "2026-09-30")).toThrow(code("BAD_CLOSE"));
+    const closed = closeThrough(books, "2026-09-30", clock);
+    expect(() => closeThrough(closed, "2026-09-30")).toThrow(code("BAD_CLOSE"));
+    expect(() => closeThrough(closed, "2026-08-31")).toThrow(code("BAD_CLOSE"));
+    expect(() => closeThrough(closed, "2026-10-32")).toThrow(code("BAD_DATE"));
+    expect(() => lockThrough(closed, "2026-10-01")).toThrow(code("BAD_CLOSE"));
+  });
+
+  it("reads month marks from older books as each month's last day", () => {
+    const { books, ids } = withSeptember();
+    const old = { ...books, marks: { closedThrough: "2026-09", lockedThrough: "2026-02" } } as unknown as Books;
+    const loaded = booksFromJson(booksToJson(old));
+    expect(loaded.marks).toEqual({ closedThrough: "2026-09-30", lockedThrough: "2026-02-28" });
+    expect(() => postEntry(loaded, rentPaid(ids, "2026-09-30"))).toThrow(code("PERIOD_CLOSED"));
+    expect(postEntry(loaded, rentPaid(ids, "2026-10-01")).entry.date).toBe("2026-10-01");
   });
 });
 

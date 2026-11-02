@@ -243,7 +243,7 @@ describe("pay runs", () => {
 
   it("is refused whole in a closed month: nothing posts", () => {
     const s = setup();
-    const closed = closeThrough(s.books, "2026-10");
+    const closed = closeThrough(s.books, "2026-10-31");
     expect(() => postPayRun(closed, s.payroll(), run(s))).toThrow(expect.objectContaining({ code: "PERIOD_CLOSED" }));
     expect(closed.entries).toHaveLength(0);
   });

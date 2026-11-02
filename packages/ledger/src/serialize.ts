@@ -8,6 +8,7 @@
 
 import { type Books, verifyChain } from "./books";
 import { fail } from "./errors";
+import { normalizeMarks } from "./periods";
 
 const FORMAT = "pnw-ledger-books";
 
@@ -35,5 +36,6 @@ export function booksFromJson(text: string): Books {
   }
   const check = verifyChain(doc.books);
   if (!check.ok) fail("BAD_LINE", `Saved books failed the integrity check at entry ${check.seq}: ${check.reason}`);
-  return doc.books;
+  // Books saved before closing by date carry month marks; they read as each month's last day.
+  return { ...doc.books, marks: normalizeMarks(doc.books.marks ?? {}) };
 }

@@ -20,7 +20,8 @@ export type LedgerErrorCode =
   | "SYSTEM_ACCOUNT"
   | "ACCOUNT_IN_USE"
   | "BAD_CLOSE"
-  | "BAD_DOC";
+  | "BAD_DOC"
+  | "BAD_ROOT";
 
 export class LedgerError extends Error {
   readonly code: LedgerErrorCode;

@@ -26,8 +26,13 @@ The journal is append-only. **Edit** = reverse the original + post the correctio
 
 ## Periods
 
-One mark, `closedThrough`, like a closing date, but enforced; and `lockedThrough`, permanent.
-Reopening is an explicit, logged event. Year-end needs no closing entry: prior-year income and
+One mark, `closedThrough`, a closing date, enforced; and `lockedThrough`, permanent. Both are
+dates (2026-11-02: a business may close part of a month); month marks in older books read as the
+month's last day. Reopening is an explicit, logged event.
+
+A close commits to a **period root** (`period_root.ts`, `docs/AUDIT_DESIGN.md` §1): one hash over
+the range's entries and settlements, salted from a secret kept in the books, chained to the
+previous close's root, with inclusion proofs for single entries. Year-end needs no closing entry: prior-year income and
 expense roll into Retained Earnings when a report runs.
 
 ## API sketch
@@ -39,7 +44,7 @@ let books = applyTemplate(createBooks({ businessName: "Acme", fiscalYearStartMon
   { accountId: ownerInvestment, credit: parseCents("1500") },
 ]}));
 trialBalance(books, "2026-10-31");   // rows + totals; totals always equal
-books = closeThrough(books, "2026-09");
+books = closeThrough(books, "2026-09-30");
 ```
 
 Every function takes books and returns new books; inputs are never mutated.
