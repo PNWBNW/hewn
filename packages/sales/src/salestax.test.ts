@@ -46,7 +46,7 @@ describe("sales tax payments", () => {
     const ok = { date: "2026-10-31", amount: 100n, bankAccountId: t.s.bank };
     expect(() => recordSalesTaxPayment(t.books(), { ...ok, amount: 0n })).toThrow(/amount/);
     expect(() => recordSalesTaxPayment(t.books(), { ...ok, bankAccountId: t.s.income })).toThrow(/bank account/);
-    expect(() => recordSalesTaxPayment(closeThrough(t.books(), "2026-10"), ok)).toThrow(expect.objectContaining({ code: "PERIOD_CLOSED" }));
+    expect(() => recordSalesTaxPayment(closeThrough(t.books(), "2026-10-31"), ok)).toThrow(expect.objectContaining({ code: "PERIOD_CLOSED" }));
   });
 });
 

@@ -1,6 +1,7 @@
 # Closing a period
 
-**Status:** decided (Joshua, 2026-11-02). Nothing is built yet. No new Leo: it anchors through
+**Status:** decided (Joshua, 2026-11-02). Being built: the ledger side (closing by date, the
+period root) is in; the screen, the anchor and the reminder are next. No new Leo: it anchors through
 the deployed `payroll_audit_log.aleo`. It adds a screen, so building it needs Joshua's
 greenlight. It finishes Phase 1's last criterion (a month fed, categorized, reconciled and
 sealed) and steps 24 to 29 of the sealed-month test (#224).

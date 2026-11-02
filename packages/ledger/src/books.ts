@@ -27,14 +27,11 @@ import { GENESIS_HASH, hashEntry } from "./hash";
 import { type Cents, sumCents } from "./money";
 import {
   type IsoDate,
-  type PeriodId,
   type PeriodMarks,
   assertDate,
   assertOpen,
-  assertPeriod,
-  periodOf,
-  previousPeriod,
-  statusOf,
+  previousDay,
+  statusOn,
 } from "./periods";
 
 // ---- Types -----------------------------------------------------------------
@@ -99,10 +96,11 @@ export type Entry = {
   hash: string;
 };
 
+/** `through` and `from` are dates; events logged before closing by date carry months. */
 export type BooksEvent =
-  | { kind: "closed"; through: PeriodId; at: string }
-  | { kind: "reopened"; from: PeriodId; at: string }
-  | { kind: "locked"; through: PeriodId; at: string };
+  | { kind: "closed"; through: string; at: string }
+  | { kind: "reopened"; from: string; at: string }
+  | { kind: "locked"; through: string; at: string };
 
 export type Settings = {
   businessName: string;
@@ -333,8 +331,8 @@ export function reverseEntry(
   const original = findEntry(books, id);
   if (original.reverses) fail("ALREADY_REVERSED", `${id} is itself a reversal; post a new entry instead`);
   if (reversalOf(books, id)) fail("ALREADY_REVERSED", `${id} has already been reversed`);
-  if (statusOf(books.marks, periodOf(original.date)) === "locked") {
-    fail("PERIOD_LOCKED", `${id} is in locked period ${periodOf(original.date)} and can't be reversed`);
+  if (statusOn(books.marks, original.date) === "locked") {
+    fail("PERIOD_LOCKED", `${id} is dated ${original.date}, which is locked, and can't be reversed`);
   }
   const date = assertDate(options.date ?? original.date);
   assertOpen(books.marks, date);
@@ -396,39 +394,39 @@ export function verifyChain(books: Books): { ok: true } | { ok: false; seq: numb
 
 // ---- Periods ---------------------------------------------------------------
 
-/** Closes every period up to and including `period`. */
-export function closeThrough(books: Books, period: PeriodId, clock?: Clock): Books {
-  assertPeriod(period);
-  if (books.marks.closedThrough && period <= books.marks.closedThrough) {
+/** Closes every day up to and including `date`. The close mark only moves forward. */
+export function closeThrough(books: Books, date: IsoDate, clock?: Clock): Books {
+  assertDate(date);
+  if (books.marks.closedThrough && date <= books.marks.closedThrough) {
     fail("BAD_CLOSE", `Books are already closed through ${books.marks.closedThrough}`);
   }
   return {
     ...books,
-    marks: { ...books.marks, closedThrough: period },
-    events: [...books.events, { kind: "closed", through: period, at: stamp(clock) }],
+    marks: { ...books.marks, closedThrough: date },
+    events: [...books.events, { kind: "closed", through: date, at: stamp(clock) }],
   };
 }
 
-/** Reopens `period` and everything after it. Locked periods stay shut. */
-export function reopenFrom(books: Books, period: PeriodId, clock?: Clock): Books {
-  assertPeriod(period);
+/** Reopens `date` and every day after it. Locked days stay shut. */
+export function reopenFrom(books: Books, date: IsoDate, clock?: Clock): Books {
+  assertDate(date);
   const { closedThrough, lockedThrough } = books.marks;
-  if (!closedThrough || period > closedThrough) fail("BAD_CLOSE", `${period} isn't closed`);
-  if (lockedThrough && period <= lockedThrough) fail("PERIOD_LOCKED", `${period} is locked and can't be reopened`);
-  // "Closed through" is a single mark, so reopening a month reopens every month after it.
-  const marks: PeriodMarks = { ...books.marks, closedThrough: previousPeriod(period) };
-  return { ...books, marks, events: [...books.events, { kind: "reopened", from: period, at: stamp(clock) }] };
+  if (!closedThrough || date > closedThrough) fail("BAD_CLOSE", `${date} isn't closed`);
+  if (lockedThrough && date <= lockedThrough) fail("PERIOD_LOCKED", `${date} is locked and can't be reopened`);
+  // "Closed through" is a single mark, so reopening a day reopens every day after it.
+  const marks: PeriodMarks = { ...books.marks, closedThrough: previousDay(date) };
+  return { ...books, marks, events: [...books.events, { kind: "reopened", from: date, at: stamp(clock) }] };
 }
 
-/** Locks every period up to `period`. They must already be closed. Permanent. */
-export function lockThrough(books: Books, period: PeriodId, clock?: Clock): Books {
-  assertPeriod(period);
+/** Locks every day up to `date`. They must already be closed. Permanent. */
+export function lockThrough(books: Books, date: IsoDate, clock?: Clock): Books {
+  assertDate(date);
   const { closedThrough, lockedThrough } = books.marks;
-  if (!closedThrough || period > closedThrough) fail("BAD_CLOSE", `Close ${period} before locking it`);
-  if (lockedThrough && period <= lockedThrough) fail("BAD_CLOSE", `Already locked through ${lockedThrough}`);
+  if (!closedThrough || date > closedThrough) fail("BAD_CLOSE", `Close ${date} before locking it`);
+  if (lockedThrough && date <= lockedThrough) fail("BAD_CLOSE", `Already locked through ${lockedThrough}`);
   return {
     ...books,
-    marks: { ...books.marks, lockedThrough: period },
-    events: [...books.events, { kind: "locked", through: period, at: stamp(clock) }],
+    marks: { ...books.marks, lockedThrough: date },
+    events: [...books.events, { kind: "locked", through: date, at: stamp(clock) }],
   };
 }

@@ -1,13 +1,16 @@
 // ---------------------------------------------------------------------------
 // Dates and accounting periods.
 //
-// Periods are calendar months ("2026-10"). The books keep two marks:
-//   closedThrough — every period up to and including this one is closed:
-//                   no new postings dated in it. Can be moved back (reopened)
-//                   as a deliberate, logged action.
+// Periods are calendar months ("2026-10"), for reports. Closing is by date
+// (Joshua, 2026-11-02: a business may close part of a month). The books keep
+// two marks, each a date:
+//   closedThrough — every day up to and including this one is closed: no new
+//                   postings dated in it. Can be moved back (reopened) as a
+//                   deliberate, logged action.
 //   lockedThrough — closed for good: can't be reopened, and entries dated in
 //                   it can't be reversed either. Never moves back.
-// lockedThrough ≤ closedThrough always.
+// lockedThrough ≤ closedThrough always. Books saved before closing by date
+// carry month marks ("2026-10"); they read as that month's last day.
 // ---------------------------------------------------------------------------
 
 import { fail } from "./errors";
@@ -62,20 +65,45 @@ export function fiscalYearStart(date: IsoDate, startMonth: number): IsoDate {
 
 // ISO strings of the same shape compare correctly as plain strings.
 
-export type PeriodMarks = { closedThrough?: PeriodId; lockedThrough?: PeriodId };
+export type PeriodMarks = { closedThrough?: IsoDate; lockedThrough?: IsoDate };
 
 export type PeriodStatus = "open" | "closed" | "locked";
 
-export function statusOf(marks: PeriodMarks, period: PeriodId): PeriodStatus {
-  if (marks.lockedThrough && period <= marks.lockedThrough) return "locked";
-  if (marks.closedThrough && period <= marks.closedThrough) return "closed";
+/** A mark as a date: a month mark from older books reads as the month's last day. */
+export function markDate(mark: string): IsoDate {
+  return PERIOD.test(mark) ? periodEnd(mark) : assertDate(mark);
+}
+
+/** The marks with any month mark read as its last day. */
+export function normalizeMarks(marks: { closedThrough?: string; lockedThrough?: string }): PeriodMarks {
+  return {
+    ...(marks.closedThrough ? { closedThrough: markDate(marks.closedThrough) } : {}),
+    ...(marks.lockedThrough ? { lockedThrough: markDate(marks.lockedThrough) } : {}),
+  };
+}
+
+/** Whether `date` is open, closed or locked. */
+export function statusOn(marks: PeriodMarks, date: IsoDate): PeriodStatus {
+  if (marks.lockedThrough && date <= marks.lockedThrough) return "locked";
+  if (marks.closedThrough && date <= marks.closedThrough) return "closed";
   return "open";
+}
+
+/** The day after `date`. */
+export function nextDay(date: IsoDate): IsoDate {
+  const [y, m, d] = assertDate(date).split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+/** The day before `date`. */
+export function previousDay(date: IsoDate): IsoDate {
+  const [y, m, d] = assertDate(date).split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
 }
 
 /** Throws unless entries may be dated on `date`. */
 export function assertOpen(marks: PeriodMarks, date: IsoDate): void {
-  const period = periodOf(date);
-  const status = statusOf(marks, period);
-  if (status === "locked") fail("PERIOD_LOCKED", `${period} is locked; nothing can be posted to it`);
-  if (status === "closed") fail("PERIOD_CLOSED", `${period} is closed; date the entry in an open period or reopen ${period}`);
+  const status = statusOn(marks, date);
+  if (status === "locked") fail("PERIOD_LOCKED", `The books are locked through ${marks.lockedThrough}; nothing can be posted on ${date}`);
+  if (status === "closed") fail("PERIOD_CLOSED", `The books are closed through ${marks.closedThrough}; date the entry after that, or reopen from ${date}`);
 }

@@ -399,7 +399,7 @@ describe("voiding invoices", () => {
   it("in a closed month needs a date in an open month", () => {
     const s = setup();
     const r = issue(s, s.books, s.sales, s.acme.id, [line(s, "1", 10_000n)], 0, "2026-09-15");
-    const closed = closeThrough(r.books, "2026-09");
+    const closed = closeThrough(r.books, "2026-09-30");
     expect(() => voidInvoice(closed, r.sales, r.invoice.id)).toThrow(/closed/);
     const v = voidInvoice(closed, r.sales, r.invoice.id, { date: "2026-10-01" }, clock);
     expect(v.books.entries.at(-1)!.date).toBe("2026-10-01");
@@ -546,7 +546,7 @@ describe("aging", () => {
 describe("ledger rules reject the whole operation", () => {
   it("a closed month leaves books and sales unchanged", () => {
     const s = setup();
-    const books = closeThrough(s.books, "2026-09");
+    const books = closeThrough(s.books, "2026-09-30");
     const d = createInvoice(books, s.sales, { customerId: s.acme.id, date: "2026-09-15", lines: [line(s, "1", 10_000n)] });
     const beforeBooks = booksToJson(books);
     const beforeSales = salesToJson(d.sales);

@@ -99,7 +99,7 @@ export function tryMoney(text: string): Cents {
 }
 
 /**
- * Runs a void. If the original's month is closed, offers to date the
+ * Runs a void. If the original's date is closed, offers to date the
  * reversal today instead, the same way the journal does.
  */
 export async function voidWithFallback(label: string, run: (options: { date?: string }) => Promise<unknown>): Promise<void> {
@@ -107,7 +107,7 @@ export async function voidWithFallback(label: string, run: (options: { date?: st
     await run({});
   } catch (e) {
     if (e instanceof Error && "code" in e && e.code === "PERIOD_CLOSED") {
-      if (window.confirm(`${label} is dated in a closed month. Post the void dated today instead?`)) {
+      if (window.confirm(`${label} is dated in a closed period. Post the void dated today instead?`)) {
         await run({ date: todayIso() });
       }
       return;

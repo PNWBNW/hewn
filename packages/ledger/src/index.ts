@@ -12,3 +12,4 @@ export * from "./statements";
 export * from "./dimensions";
 export * from "./templates";
 export * from "./serialize";
+export * from "./period_root";
