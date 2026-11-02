@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";
+import { closeReminder } from "@/books/close";
 import { freeToSpend } from "@/books/funds";
 import { waitingCount } from "@/books/review";
 import { SetAsides } from "@/books/SetAsides";
@@ -31,6 +32,8 @@ function totalOf(books: Books, types: AccountType[]): bigint {
   return total;
 }
 
+const monthName = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+
 export default function DashboardPage() {
   const { books, payroll, sales, rail, review, funds } = useOpenBooks();
   drawingStep("the dashboard");
@@ -38,6 +41,8 @@ export default function DashboardPage() {
   const today = todayIso();
   const hasEntries = books.entries.length > 0;
   const hasCustomAccounts = books.accounts.some((a) => !a.system);
+  // From the 5th, last month waits to be closed (Joshua, 2026-11-02; books/close.ts).
+  const closeDue = closeReminder({ books }, today);
 
   drawingStep("the dashboard's figures");
   const cash = totalOf(books, ["bank"]);
@@ -73,6 +78,19 @@ export default function DashboardPage() {
       <PageHeader title="Dashboard" summary="Where your business stands today." />
 
       <BackupReminder account={rail ? <ChainBackup /> : undefined} />
+
+      {closeDue && (
+        <Card className="border-warning/40 bg-warning/10">
+          <CardContent className="flex flex-wrap items-center gap-3 py-3 text-sm">
+            <span className="flex-1">
+              Time to close {monthName(closeDue.through)}: the books aren&apos;t closed through {closeDue.through} yet.
+            </span>
+            <Link href="/transactions?tab=close" className="font-medium underline underline-offset-2">
+              Close the books
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <section aria-label="Key figures" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {figures.map((f, i) => (

@@ -13,6 +13,7 @@ index is out of date.
 - [Close period, the decisions](progress/2026-11-02.md#2026-11-02--close-period-the-decisions)
 - [Close period, decided](progress/2026-11-02.md#2026-11-02--close-period-decided)
 - [Close period, part 1: closing by date, and the period root](progress/2026-11-02.md#2026-11-02--close-period-part-1-closing-by-date-and-the-period-root)
+- [Close period, part 2: the Close the books tab, the anchor, the reminder](progress/2026-11-02.md#2026-11-02--close-period-part-2-the-close-the-books-tab-the-anchor-the-reminder)
 
 ## [2026-10-30](progress/2026-10-30.md)
 

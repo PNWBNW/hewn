@@ -23,6 +23,7 @@
 // record and every sealed file.
 // ---------------------------------------------------------------------------
 
+import type { Closing } from "./close";
 import { type DrawingStep, drawingStep, stuckAt } from "./drawing_step";
 import type { ViewKeyChoice } from "./view_key";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -166,6 +167,8 @@ type BooksContextValue = {
   viewKey: string | null;
   /** Whether the business added its view key or went without; null until asked. */
   viewKeyChoice: ViewKeyChoice | null;
+  /** Closes of the books (books/close.ts); null before the first. */
+  closing: Closing | null;
   /** Personal events on this account's own calendar (books/events.ts); empty before the first. */
   events: readonly PersonalEvent[];
   /** Shared events: the ones this account organizes and its invitations (books/shared_events.ts); null before the first. */
@@ -798,6 +801,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       agreementProjects: company?.agreementProjects ?? null,
       viewKey: company?.viewKey ?? null,
       viewKeyChoice: company?.viewKeyChoice ?? null,
+      closing: company?.closing ?? null,
       events: company?.events ?? NO_EVENTS,
       calendar: company?.calendar ?? null,
       create,
