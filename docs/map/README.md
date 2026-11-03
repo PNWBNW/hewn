@@ -91,3 +91,6 @@ companion that drifts from its graph, can't merge.
   model, so the map can't claim a rule that doesn't exist.
 - **Self-contained.** The page loads three.js from beside itself, never from a CDN, and sends
   nothing anywhere.
+- **Size is connections.** A point's size follows the number of edges at it, on a log scale: a
+  file nothing points at or from (an archived one, an image) is next to nothing; one edge is a
+  small point; the hubs everything flows through are planets. The same curve draws the still.

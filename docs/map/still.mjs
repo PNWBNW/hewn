@@ -29,7 +29,6 @@ export function stillSvg(graph, laid, meta = {}) {
   const ox = (W - (maxX - minX) * scale) / 2 - minX * scale;
   const oy = (H - 30 - (maxY - minY) * scale) / 2 - minY * scale;
   const sx = (p) => n2(p[0] * scale + ox), sy = (p) => n2(p[1] * scale + oy);
-  const maxDegree = Math.max(1, ...laid.nodes.map((n) => n.degree ?? 0));
   const index = new Map(laid.nodes.map((n, i) => [n.id, i]));
 
   const out = [];
@@ -60,9 +59,9 @@ export function stillSvg(graph, laid, meta = {}) {
   pts.sort((a, b) => b.p[2] - a.p[2]);
   const halo = [], dots = [];
   for (const { n, p } of pts) {
-    const r = 1.1 + 2.6 * Math.sqrt((n.degree ?? 0) / maxDegree);
+    const r = 0.25 + 0.62 * Math.log2(1 + (n.degree ?? 0)); // the same log scale as the page: no edges, almost nothing; hubs, planets
     const c = regions.get(n.region)?.colour ?? "#f5f0e3";
-    halo.push(`<circle cx="${sx(p)}" cy="${sy(p)}" r="${n2(r * 2.2)}" fill="${c}" opacity=".35"/>`);
+    halo.push(`<circle cx="${sx(p)}" cy="${sy(p)}" r="${n2(r * 1.8)}" fill="${c}" opacity=".3"/>`);
     dots.push(`<circle cx="${sx(p)}" cy="${sy(p)}" r="${n2(r)}" fill="${c}"/>`);
   }
   out.push(`<g filter="url(#b)">${halo.join("")}</g>`, `<g>${dots.join("")}</g>`);
