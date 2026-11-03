@@ -253,6 +253,7 @@ How the team remembers, and the map it navigates by.
 - 2026-11-03 · The map of the whole tree lives on GitHub (Pages and the README), never on the website; one page with the data-flow view; redrawn on every push; a point's size continuous in its connections and lines; nothing overlaps · Joshua · `docs/map/` · `progress/2026-11-03.md`
 - 2026-11-03 · Ask the map before grepping; `show` and `impact` on a file before changing it · Joshua · `CLAUDE.md` · `progress/2026-11-03.md`
 - 2026-11-03 · Memory in three scopes; frontmatter on every document with a generated index; a weekly out-of-band dreaming pass; the first dream by hand; this ledger in two levels · Joshua · `docs/MEMORY.md` · its Decisions
+- 2026-11-03 · The dream runs as a weekly Routine (Sunday evening Pacific) that starts a fresh session on `main` and reads its instruction from `scripts/dreaming/PROMPT.md`; its first run is fired by hand and reviewed before the schedule stands; it never merges · Joshua · `scripts/dreaming/` · `docs/MEMORY.md`
 - 2026-11-03 · The marketing reel of the map is not kept in the repository · Joshua · session scratch · `progress/2026-11-03.md`
 
 ### Sessions and tooling

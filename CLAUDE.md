@@ -140,7 +140,9 @@ The dates and who decided each rule are in `memory/decisions.md`.
   (`progress/`, `docs/`, `memory/`) is yours to append; working notes stay in the scratchpad.
   Every document under `docs/` carries frontmatter (status, updated, summary) and
   `docs/README.md` is generated from it (`python3 -I scripts/docs_index.py --write`): when
-  something ships, its status changes in the same PR.
+  something ships, its status changes in the same PR. A weekly dreaming pass
+  (`scripts/dreaming/PROMPT.md`) verifies and consolidates team memory in a PR of its own; it
+  never touches code, never rewords a rule, never merges.
 - Joshua mostly works from his phone: lead with the result, keep reports short, put detail in
   `progress/` rather than chat.
 - Ask the map before grepping (2026-11-03): `node docs/map/query.mjs show <file>` says what a

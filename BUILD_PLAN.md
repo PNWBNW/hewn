@@ -13,9 +13,9 @@ whenever the work moves.
 - **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
 - **In flight:** the manual tests (issues #150–#164); the Audit-Ready Plan's Steps 8 to 14
   (`docs/COMPLIANCE_MAP.md`: the control list and the data-flow diagram are done, the policies,
-  risk register and inventory next, then the Fable deep review); memory (`docs/MEMORY.md`: scopes
-  and the generated index done, the first dream and the weekly one next). The map of the whole
-  tree is live (`docs/map/`, pnwbnw.github.io/hewn).
+  risk register and inventory next, then the Fable deep review); memory (`docs/MEMORY.md`) is
+  built, the weekly dream's first run under review. The map of the whole tree is live
+  (`docs/map/`, pnwbnw.github.io/hewn).
 - **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
   anchored through `payroll_audit_log`). Reconciliation (2026-10-26) and Close period (2026-11-02,
   `docs/CLOSE_PERIOD.md`) are built; what's left is Joshua's real close of October and the period
