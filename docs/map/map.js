@@ -93,7 +93,9 @@ nodes.forEach((n, i) => {
   positions.set([n.x, n.y, n.z], i * 3);
   const c = new THREE.Color(regions.get(n.region).colour);
   colours.set([c.r, c.g, c.b], i * 3);
-  sizes[i] = BIG ? 2.4 + 6 * Math.sqrt(n.degree / maxDegree) : 5 + 8 * Math.sqrt(n.degree / maxDegree);
+  // A point's size is its connections, on a log scale: nothing pointing at it or from it, next to nothing;
+  // one edge, a small point; the hubs everything flows through, planets (Joshua, 2026-11-03).
+  sizes[i] = BIG ? 0.6 + 2.4 * Math.log2(1 + n.degree) : 1.5 + 2.6 * Math.log2(1 + n.degree);
 });
 const pointGeometry = new THREE.BufferGeometry();
 pointGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -101,13 +103,15 @@ pointGeometry.setAttribute("colour", new THREE.BufferAttribute(colours, 3));
 pointGeometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
 pointGeometry.setAttribute("dim", new THREE.BufferAttribute(dims, 1));
 const pointMaterial = new THREE.ShaderMaterial({
-  uniforms: { scale: { value: 1 } },
+  // `reach` is how far a point keeps its size: a dense graph is looked at from further away, so its
+  // points shrink more slowly with distance, or every planet is a pixel at the overview.
+  uniforms: { scale: { value: 1 }, reach: { value: BIG ? 560 : 240 } },
   vertexShader: `
     attribute vec3 colour; attribute float size; attribute float dim;
-    varying vec3 vColour; varying float vDim; uniform float scale;
+    varying vec3 vColour; varying float vDim; uniform float scale; uniform float reach;
     void main() {
       vec4 mv = modelViewMatrix * vec4(position, 1.0);
-      gl_PointSize = size * scale * (240.0 / -mv.z);
+      gl_PointSize = size * scale * (reach / -mv.z);
       gl_Position = projectionMatrix * mv;
       vColour = colour; vDim = dim;
     }`,

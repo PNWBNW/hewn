@@ -137,6 +137,13 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   commit, open a PR, stop.
 - Joshua mostly works from his phone: lead with the result, keep reports short, put detail in
   `progress/` rather than chat.
+- Ask the map before grepping (2026-11-03): `node docs/map/query.mjs show <file>` says what a
+  file is, what it imports and what imports or loads it, the documents that mention it and the
+  rules it cites; `impact <file>` what a change there can reach; `path <a> <b>` how two points
+  connect; `rule INV-07` a rule's checks, threats and citations. It reads the tree itself
+  (`docs/map/README.md`), so it is current and sees what grep misses: dynamic loads, the `@/`
+  alias, program names resolved through `packages/config`. Run `show` and `impact` on a file
+  before changing it.
 - Commit messages and PR descriptions never carry a `https://claude.ai/...` session link (Joshua,
   2026-10-29), as in `pnw_mvp_v2`.
 - A PR merges only after Joshua approves it in the chat session (2026-11-03); the merge commit's

@@ -17,8 +17,22 @@ The views, on one page (the switch at the top right; the address names one, `#pr
 The README's picture at the top of the repository is `still.svg`, the project view from one fixed
 angle, drawn in Node at build time, so it is as current as the page.
 
-Next: a query script for agents (neighbours, paths, search over the graph) and a Session-start
-rule to use it before grepping.
+**For agents and anyone at a terminal**, the same graph answers questions without the page
+(`query.mjs`; it runs the extractor fresh, so it is never stale):
+
+```bash
+node docs/map/query.mjs show books/close.ts      # what it is, its rules, every edge grouped by kind and direction
+node docs/map/query.mjs impact books/close.ts    # what reaches it through code within 2 hops: what a change can break
+node docs/map/query.mjs path app/transactions/page.tsx payroll_audit_log.aleo/src/main.leo
+node docs/map/query.mjs rule INV-07              # its checks, its threats, who cites it
+node docs/map/query.mjs find "close the books"   # points whose path, name or description match
+node docs/map/query.mjs hubs chain 10            # the most-connected points, overall or in a region
+node docs/map/query.mjs regions
+```
+
+A name may be a full id or the end of a path; one that matches several points is refused with
+the candidates listed (exit 3), never guessed; nothing found is exit 4. `CLAUDE.md` asks agents
+to run `show` and `impact` on a file before changing it, and to ask the map before grepping.
 
 ## What's here
 
@@ -26,7 +40,8 @@ rule to use it before grepping.
 |---|---|
 | `data/*.json` | One graph per hand-written view: `regions` (with a position `at`, like the lobes of a brain, and a colour), `nodes` (in a region, with a kind, a class, what it holds and the rules it cites), `edges` (from, to, what crosses, class, rules), `classes` (with a colour each). The source of truth for `data-flow`. |
 | `extract.mjs` | The `project` view, read from the tree: `git ls-files` in both repositories, a region per path (the table at its top, first match wins), each file's own first comment or paragraph as its description, and the edges listed above. It resolves TypeScript imports the way the build does (relative, `@/`, workspace `exports`, declared dependencies), Leo imports to the program's `main.leo` (live first, then stubs and the archive), and refuses to run without the submodule rather than draw a map with a hole in it. |
-| `extract.test.mjs` | Known facts the extractor must find (an import, a dynamic load, a program named by the app, a program importing another, a rule's check, a workflow's step), run by `node --test docs/map/extract.test.mjs` in CI. |
+| `extract.test.mjs` | Known facts the extractor must find (an import, a dynamic load, a program named by the app, a program importing another, a rule's check, a workflow's step), run by `node --test docs/map/*.test.mjs` in CI. |
+| `query.mjs`, `query.test.mjs` | The questions above, as functions over the extracted graph plus a command line; the test pins their answers on known facts (who imports `close.ts`, the path from a screen to a program, a rule's checks, an ambiguous name refused). |
 | `still.mjs` | The still: a laid-out graph projected from one angle to SVG, deterministic, no scripts or external references. |
 | `layout.mjs` | Where every point sits: regions where the data puts them, points settled inside their region by a small seeded force simulation. Pure, deterministic. |
 | `build.mjs` | Checks the graphs (a dangling edge, an unknown region or class, a rule id not in `INVARIANTS.md` or `THREAT_MODEL.md` all fail), lays them out, writes the generated tables into each companion (`--doc`), and builds `dist/`: the viewer, the laid-out graphs, three.js and the few addons the viewer imports, copied from the art package's dependency so the page loads nothing from any other host. |
@@ -38,7 +53,7 @@ rule to use it before grepping.
 ```bash
 git submodule update --init pnw_mvp_v2   # once: the extractor reads the programs' repository
 node docs/map/build.mjs --check   # what CI runs: the graphs and the companions are sound
-node --test docs/map/extract.test.mjs   # the extractor finds the known facts
+node --test docs/map/extract.test.mjs docs/map/query.test.mjs   # the extractor and the queries find the known facts
 node docs/map/build.mjs --doc     # after editing data/: rewrite the companions' generated tables
 pnpm map                          # build dist/ (needs pnpm install, for three.js)
 python3 -m http.server 8765 -d docs/map/dist   # then open http://localhost:8765
@@ -76,3 +91,6 @@ companion that drifts from its graph, can't merge.
   model, so the map can't claim a rule that doesn't exist.
 - **Self-contained.** The page loads three.js from beside itself, never from a CDN, and sends
   nothing anywhere.
+- **Size is connections.** A point's size follows the number of edges at it, on a log scale: a
+  file nothing points at or from (an archived one, an image) is next to nothing; one edge is a
+  small point; the hubs everything flows through are planets. The same curve draws the still.

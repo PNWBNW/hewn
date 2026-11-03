@@ -14,6 +14,7 @@ index is out of date.
 - [The control list is the invariants table, not a new file (Step 9, part 1)](progress/2026-11-03.md#2026-11-03--the-control-list-is-the-invariants-table-not-a-new-file-step-9-part-1)
 - [The map, part 1: the data-flow view on GitHub Pages, and its written companion (Step 9)](progress/2026-11-03.md#2026-11-03--the-map-part-1-the-data-flow-view-on-github-pages-and-its-written-companion-step-9)
 - [The map, part 2: the whole tree, both repositories, read from the files themselves](progress/2026-11-03.md#2026-11-03--the-map-part-2-the-whole-tree-both-repositories-read-from-the-files-themselves)
+- [The map, part 3: questions to the map from the command line, and the rule to ask it](progress/2026-11-03.md#2026-11-03--the-map-part-3-questions-to-the-map-from-the-command-line-and-the-rule-to-ask-it)
 
 ## [2026-11-02](progress/2026-11-02.md)
 
