@@ -5,6 +5,8 @@
 // external references: GitHub's image proxy can serve it as it is.
 // ---------------------------------------------------------------------------
 
+import { weight } from "./bodies.mjs";
+
 const W = 1200, H = 630, PAD = 56;
 
 /** Rotates a point about Y then X, then drops depth: an orthographic look from front-right, slightly above. */
@@ -59,7 +61,7 @@ export function stillSvg(graph, laid, meta = {}) {
   pts.sort((a, b) => b.p[2] - a.p[2]);
   const halo = [], dots = [];
   for (const { n, p } of pts) {
-    const r = 0.25 + 0.62 * Math.log2(1 + (n.degree ?? 0)); // the same log scale as the page: no edges, almost nothing; hubs, planets
+    const r = 0.3 + 0.42 * weight(n.degree ?? 0, n.lines ?? 0); // the page's scale (bodies.mjs): dust a glint, a supergiant big
     const c = regions.get(n.region)?.colour ?? "#f5f0e3";
     halo.push(`<circle cx="${sx(p)}" cy="${sy(p)}" r="${n2(r * 1.8)}" fill="${c}" opacity=".3"/>`);
     dots.push(`<circle cx="${sx(p)}" cy="${sy(p)}" r="${n2(r)}" fill="${c}"/>`);

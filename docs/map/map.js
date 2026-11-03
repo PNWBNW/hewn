@@ -12,6 +12,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { BODIES, body, heat } from "./bodies.mjs";
 
 const SOURCE = "https://github.com/PNWBNW/hewn/blob/main";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -54,6 +55,8 @@ edges.forEach((e, i) => {
   incident[e.b].push(i);
 });
 const maxDegree = Math.max(1, ...nodes.map((n) => n.degree));
+// What each point is, from its connections and its length (bodies.mjs): its size, its glow, its name.
+const bodies = nodes.map((n) => body(n.degree, n.lines ?? 0));
 
 // ---- State -----------------------------------------------------------------
 let selected = -1;
@@ -62,7 +65,8 @@ let labels = "regions";
 let flowing = !REDUCED && !BIG;
 const hiddenPoints = new Set(); // node kinds switched off
 const hiddenLines = new Set(); // edge kinds switched off
-const shown = (i) => !hiddenPoints.has(nodes[i].kind);
+const hiddenBodies = new Set(); // bodies switched off
+const shown = (i) => !hiddenPoints.has(nodes[i].kind) && !hiddenBodies.has(bodies[i].name);
 const edgeShown = (e) => !hiddenLines.has(e.kind) && shown(e.a) && shown(e.b);
 let interacted = false;
 
@@ -88,42 +92,46 @@ const nodeCount = nodes.length;
 const positions = new Float32Array(nodeCount * 3);
 const colours = new Float32Array(nodeCount * 3);
 const sizes = new Float32Array(nodeCount);
+const heats = new Float32Array(nodeCount);
 const dims = new Float32Array(nodeCount).fill(1);
 nodes.forEach((n, i) => {
   positions.set([n.x, n.y, n.z], i * 3);
   const c = new THREE.Color(regions.get(n.region).colour);
   colours.set([c.r, c.g, c.b], i * 3);
-  // A point's size is its connections, on a log scale: nothing pointing at it or from it, next to nothing;
-  // one edge, a small point; the hubs everything flows through, planets (Joshua, 2026-11-03).
-  sizes[i] = BIG ? 0.6 + 2.4 * Math.log2(1 + n.degree) : 1.5 + 2.6 * Math.log2(1 + n.degree);
+  // Size is continuous in connections and lines (bodies.mjs): dust is a glint, a supergiant is big and hot.
+  sizes[i] = BIG ? 0.5 + 1.5 * bodies[i].weight : 1.5 + 3 * bodies[i].weight;
+  heats[i] = heat(bodies[i].weight);
 });
 const pointGeometry = new THREE.BufferGeometry();
 pointGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 pointGeometry.setAttribute("colour", new THREE.BufferAttribute(colours, 3));
 pointGeometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
 pointGeometry.setAttribute("dim", new THREE.BufferAttribute(dims, 1));
+pointGeometry.setAttribute("heat", new THREE.BufferAttribute(heats, 1));
 const pointMaterial = new THREE.ShaderMaterial({
   // `reach` is how far a point keeps its size: a dense graph is looked at from further away, so its
   // points shrink more slowly with distance, or every planet is a pixel at the overview.
   uniforms: { scale: { value: 1 }, reach: { value: BIG ? 560 : 240 } },
   vertexShader: `
-    attribute vec3 colour; attribute float size; attribute float dim;
-    varying vec3 vColour; varying float vDim; uniform float scale; uniform float reach;
+    attribute vec3 colour; attribute float size; attribute float dim; attribute float heat;
+    varying vec3 vColour; varying float vDim; varying float vHeat; uniform float scale; uniform float reach;
     void main() {
       vec4 mv = modelViewMatrix * vec4(position, 1.0);
       gl_PointSize = size * scale * (reach / -mv.z);
       gl_Position = projectionMatrix * mv;
-      vColour = colour; vDim = dim;
+      vColour = colour; vDim = dim; vHeat = heat;
     }`,
   fragmentShader: `
-    varying vec3 vColour; varying float vDim;
+    varying vec3 vColour; varying float vDim; varying float vHeat;
     void main() {
       float d = length(gl_PointCoord - 0.5);
       if (d > 0.5) discard;
-      float halo = smoothstep(0.5, 0.12, d);
-      float core = smoothstep(0.22, 0.0, d);
-      vec3 c = vColour * (0.55 + 0.9 * core) + vec3(0.25) * core;
-      gl_FragColor = vec4(c * vDim, (halo * 0.85 + core) * vDim);
+      // A hot body has a wide halo and a white-hot core; dust is a tight, dim speck.
+      float halo = smoothstep(0.5, 0.1 + 0.2 * (1.0 - vHeat), d);
+      float core = smoothstep(0.2 + 0.08 * vHeat, 0.0, d);
+      vec3 c = vColour * (0.45 + 0.9 * core) + vec3(0.1 + 0.5 * vHeat) * core;
+      float a = (halo * (0.5 + 0.45 * vHeat) + core) * vDim;
+      gl_FragColor = vec4(c * vDim, a);
     }`,
   transparent: true,
   depthWrite: false,
@@ -152,6 +160,7 @@ const motePositions = new Float32Array(moteCount * 3);
 const moteColours = new Float32Array(moteCount * 3);
 const moteSizes = new Float32Array(moteCount).fill(1.3);
 const moteDims = new Float32Array(moteCount).fill(1);
+const moteHeats = new Float32Array(moteCount).fill(0.6);
 const moteT = new Float32Array(moteCount);
 edges.forEach((e, i) => {
   const c = new THREE.Color(CLASS_COLOUR[e.class]);
@@ -165,6 +174,7 @@ moteGeometry.setAttribute("position", new THREE.BufferAttribute(motePositions, 3
 moteGeometry.setAttribute("colour", new THREE.BufferAttribute(moteColours, 3));
 moteGeometry.setAttribute("size", new THREE.BufferAttribute(moteSizes, 1));
 moteGeometry.setAttribute("dim", new THREE.BufferAttribute(moteDims, 1));
+moteGeometry.setAttribute("heat", new THREE.BufferAttribute(moteHeats, 1));
 const motes = new THREE.Points(moteGeometry, pointMaterial);
 scene.add(motes);
 
@@ -367,7 +377,7 @@ function select(i) {
   const r = regions.get(n.region);
   $("d-region").textContent = r.name;
   $("d-region-dot").style.color = r.colour;
-  $("d-kind").textContent = n.kind;
+  $("d-kind").textContent = `${n.kind} · ${bodies[i].name} · ${n.degree} ${n.degree === 1 ? "connection" : "connections"}`;
   $("d-label").textContent = n.label;
   $("d-holds").textContent = n.holds ?? "";
   const cls = graph.classes[n.class];
@@ -501,14 +511,15 @@ const pointKinds = [...nodes.reduce((m, n) => m.set(n.kind, (m.get(n.kind) ?? 0)
 const lineKinds = [...edges.reduce((m, e) => m.set(e.kind, (m.get(e.kind) ?? 0) + 1), new Map())].sort((p, q) => q[1] - p[1]).map(([k, c]) => [k, c, CLASS_COLOUR[edges.find((e) => e.kind === k).class]]);
 chips($("point-kinds"), pointKinds, hiddenPoints, false);
 chips($("line-kinds"), lineKinds, hiddenLines, true);
+const bodyKinds = BODIES.map((name) => [name, bodies.filter((b) => b.name === name).length, "#f5f0e3"]).filter(([, c]) => c > 0);
+chips($("body-kinds"), bodyKinds, hiddenBodies, false);
+const GROUPS = { points: [hiddenPoints, pointKinds, "point-kinds"], lines: [hiddenLines, lineKinds, "line-kinds"], bodies: [hiddenBodies, bodyKinds, "body-kinds"] };
 for (const b of $("filters").querySelectorAll("[data-all],[data-none]")) {
   b.addEventListener("click", () => {
-    const points = (b.dataset.all ?? b.dataset.none) === "points";
-    const hidden = points ? hiddenPoints : hiddenLines;
-    const kinds = (points ? pointKinds : lineKinds).map(([k]) => k);
+    const [hidden, kinds, list] = GROUPS[b.dataset.all ?? b.dataset.none];
     hidden.clear();
-    if (b.dataset.none !== undefined) for (const k of kinds) hidden.add(k);
-    for (const chip of (points ? $("point-kinds") : $("line-kinds")).querySelectorAll("button")) chip.setAttribute("aria-pressed", String(!hidden.has(chip.dataset.kind)));
+    if (b.dataset.none !== undefined) for (const [k] of kinds) hidden.add(k);
+    for (const chip of $(list).querySelectorAll("button")) chip.setAttribute("aria-pressed", String(!hidden.has(chip.dataset.kind)));
     relight();
   });
 }
