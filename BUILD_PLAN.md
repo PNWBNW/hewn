@@ -27,13 +27,16 @@ whenever the work moves.
 
 Target: functional parity with QuickBooks Advanced (small-business tier), minus Intuit Intelligence and support, built clean-room on the existing PNW stack. Same mental model bookkeepers already know; our own screens, our own code.
 
-One codebase, three operating modes, selectable per business and overridable per transaction type:
+One codebase, three operating modes, selectable per business and overridable per transaction type.
+The app runs on Aleo: a Shield account is required to use it at all (2026-10-15), and fiat
+bookkeeping is a bonus for what happens off chain, never the way in (Joshua, 2026-11-03;
+`memory/decisions.md`, "Modes and the way in"):
 
 | Mode | Where money moves | Where the proof lives | Who it's for |
 | --- | --- | --- | --- |
-| Fiat (default) | Bank, as today | Encrypted local vault only | Intuit refugees, day one |
-| Anchored | Bank, as today | BLAKE3 period roots anchored on Aleo | Almost everyone, eventually |
-| Settled | USDCx on Aleo (existing payroll stack) | Private records + anchors | Businesses that want on-chain payroll or AP |
+| Settled (the way in) | USDCx on Aleo (existing payroll stack), through Shield | Private records + anchors | Every business: payroll and AP on chain |
+| Anchored | Bank, for what happens off chain | BLAKE3 period roots anchored on Aleo | The same businesses, for their off-chain side |
+| Fiat | Bank, as today | Encrypted local vault only | Reference entries only; a bonus, not a mode to start in |
 
 The double-entry core, the invariants and the reports are identical in every mode. Only the settlement adapter and the anchor adapter change.
 
@@ -347,14 +350,17 @@ they raise stay in Decisions below.
 ## Decisions
 
 - [x] Feed, reconcile, seal replaces `gl_core.aleo` (Joshua, 2026-10-25): the chain is the bank feed, the vault is the books, a monthly root seals each closed period; on chain later only a period's status, never postings.
-- [x] Default mode on first launch: fiat (2026-10-13). Anchored and settled are opt-in upgrades.
+- [x] ~~Default mode on first launch: fiat (2026-10-13). Anchored and settled are opt-in upgrades.~~
+  Superseded: a Shield account is required to get in (2026-10-15) and the app runs on Aleo; fiat
+  bookkeeping is a bonus, never the way in (Joshua, 2026-11-03).
 - [x] Repo layout: monorepo — `apps/business`, `apps/worker`, `packages/`, `programs/` (2026-10-13).
   As built: the worker side lives inside `apps/business` (one app, two kinds of account), and the
   programs stay in `pnw_mvp_v2`, attached as a submodule.
 - [x] Reference wallet for vault key derivation: Shield (2026-10-13).
 - [x] Tax engine: TypeScript only; Julia service retired (2026-10-13).
 - [x] Wallet is the only signing path for new code; the CLI adapter / private-key fallback stays in `coordinator` until its tests are rewritten, then is removed (2026-10-13).
-- [x] Fiat is the primary product; chain rails are optional adapters the fiat path never imports (2026-10-13).
+- [x] ~~Fiat is the primary product; chain rails are optional adapters the fiat path never imports (2026-10-13).~~
+  Superseded 2026-11-03 (above); what stays is the boundary: the ledger core never imports the chain packages (INV-16).
 - [x] Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed (2026-10-13).
 - [x] The Mailbox page is retired (2026-10-19, Joshua): Messages is the line of communication. Offers
   and the conversation around each live under Jobs → Offers; the weeks of hours a team sends land under

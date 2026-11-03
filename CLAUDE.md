@@ -9,9 +9,11 @@ Joshua Day's existing Aleo ZK payroll stack (PNW — Proven National Workers). S
 bookkeepers already know, our own screens and code. Never copy QuickBooks screens, icons, text or
 layouts; match what it *does*, not how it *looks*.
 
-Three operating modes on one codebase: **fiat** (default, encrypted local vault, bank does the money),
-**anchored** (same, plus period roots anchored on Aleo), **settled** (USDCx on Aleo, the existing payroll
-stack). The double-entry core is identical in all three.
+The app runs on Aleo: a Shield account is required to use it at all, money moves through it
+(**settled**: USDCx, the existing payroll stack) and closed periods anchor their roots there
+(**anchored**). Fiat bookkeeping (**fiat**: bank reference entries in the encrypted local vault) is a
+bonus for what happens off chain, never the way in (Joshua, 2026-11-03; it was the default until
+2026-10-15). The double-entry core is identical in all three modes.
 
 Brand: **Hewn** (hewnaccounting.com; the app at www.hewnaccounting.com, since
 app.hewnaccounting.com doesn't resolve yet), tagline "honest books, grounded and true." The name, tagline, colours, asset paths and the app/site URLs live only in `packages/brand`

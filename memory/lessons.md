@@ -6,7 +6,7 @@ being true.
 
 ## Working in the cloud session
 
-- **Force-push is refused by the session's safety classifier.** After a squash merge, bring the branch back to a plain push with `git merge -s ours --no-edit -m "…" origin/main`, then push; never `--force`. Commit first: `merge -s ours` fails on uncommitted changes. (`progress/2026-11-03.md`)
+- **A refused command stays refused.** Force-push is blocked in the session, and that block is right: never force-push, and never look for a way around a command the harness refuses. After a squash merge, bring the branch back with a plain merge of `origin/main` and a plain push; the next PR then shows only new work. Commit before merging: a merge fails on uncommitted changes. (`progress/2026-11-03.md`; Joshua, 2026-11-03)
 - **`pkill` can kill the shell itself** (exit 144) when its pattern matches the running command. Kill by PID from `ps` with a bracketed grep pattern (`grep "[r]ender"`), and don't put a `pkill` in the same command as the thing you then start. (`progress/2026-11-03.md`)
 - **`uv tool install` and `pip install` are refused by the classifier** in this sandbox; Node tooling from the repo's own `node_modules` works. (`progress/2026-11-03.md`)
 - **The sandbox has no GPU**: WebGL runs on SwiftShader, about 80× slower than a GPU for 3D. A 60 s film with a live three.js set renders at ~0.6 fps with no sub-frame blur at 30 fps; plan ~40 minutes, not 5. (`progress/2026-11-03.md`)
