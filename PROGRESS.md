@@ -8,6 +8,10 @@ them (`scripts/progress_index.py`): never edit it by hand. To log something, add
 entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
 index is out of date.
 
+## [2026-11-03](progress/2026-11-03.md)
+
+- [The Audit-Ready Plan checked against the security frameworks](progress/2026-11-03.md#2026-11-03--the-audit-ready-plan-checked-against-the-security-frameworks)
+
 ## [2026-11-02](progress/2026-11-02.md)
 
 - [Close period, the decisions](progress/2026-11-02.md#2026-11-02--close-period-the-decisions)
