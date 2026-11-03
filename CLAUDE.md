@@ -13,9 +13,8 @@ Three operating modes on one codebase: **fiat** (default, encrypted local vault,
 **anchored** (same, plus period roots anchored on Aleo), **settled** (USDCx on Aleo, the existing payroll
 stack). The double-entry core is identical in all three.
 
-Brand: **Hewn** (hewnaccounting.com; the app at www.hewnaccounting.com for now, since
-app.hewnaccounting.com doesn't resolve yet, 2026-10-21), tagline "honest books, grounded and
-true." The name, tagline, colours, asset paths and the app/site URLs live only in `packages/brand`
+Brand: **Hewn** (hewnaccounting.com; the app at www.hewnaccounting.com, since
+app.hewnaccounting.com doesn't resolve yet), tagline "honest books, grounded and true." The name, tagline, colours, asset paths and the app/site URLs live only in `packages/brand`
 (`@pnw/brand`; `apps/business/src/brand.ts` is a re-export of it); never hard-code the product name
 elsewhere (packages say "this app"). Source art and the asset build script live in `brand/`; never
 hand-edit the generated files in `apps/*/public/brand/` (the app and the marketing site
@@ -23,7 +22,9 @@ hand-edit the generated files in `apps/*/public/brand/` (the app and the marketi
 company and protocol namespace).
 
 `BUILD_PLAN.md` (repo root) is the spec: phases, deliverables, exit criteria. The log is one file
-per day in `progress/`; `PROGRESS.md` is its generated index.
+per day in `progress/`; `PROGRESS.md` is its generated index. What has been decided and learned
+is consolidated in `memory/` (`decisions.md`, `lessons.md`); the rules below carry no history,
+the ledger does.
 
 ## Session start
 
@@ -58,60 +59,54 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 - Public Aleo mappings hold only hashes, commitments and block heights. Never a plaintext amount,
   account name, memo or identity. (INV-03)
 - Aggregates publish only as proofs, with a minimum group size (no single-worker inference). (INV-04)
-- **One exception: testnet traction counts (Joshua, 2026-10-19).** Two totals per country since launch
-  (visits, visitors) in a small Upstash store, nothing else: no dates, no addresses, no ids. A
-  visitor is decided on the device (it remembers it was counted) and only yes/no is sent. Published
-  on `/traction`, cached for a day; while on testnet every country with a visitor shows (Joshua,
-  2026-10-30), and the floor of 5 visitors per country comes back before mainnet
+- **One exception: testnet traction counts.** Two totals per country since launch (visits,
+  visitors) in a small Upstash store, nothing else: no dates, no addresses, no ids. A visitor is
+  decided on the device (it remembers it was counted) and only yes/no is sent. Published on
+  `/traction`, cached for a day; while on testnet every country with a visitor shows, and the
+  floor of 5 visitors per country comes back before mainnet
   (`apps/business/src/app/api/traction/counts.ts`). Nothing else may be stored this way. (INV-05)
 
 **Keys and storage**
 - Never commit private keys, view keys, `.env` files or seed phrases. Never print them in logs. (INV-06)
-  One exception to keeping keys out of the app: a business's own **view key**, entered by the
-  business in setup or Settings, is kept inside its encrypted books to read its incoming private
-  payments (Joshua, 2026-10-26; `books/view_key.ts`). It is checked against the linked account,
-  never sent, logged or shown back, and never in the backup kept as letters.
-- The vault key is derived from the user's unlock secret: **username + passphrase** together in
-  fiat mode (no wallet needed; `apps/business/src/books/account.ts`: the secret is the normalised
-  username and the passphrase, the vault id a hash of role + username; one username holds a
-  business, or a person's worker and customer accounts, never a business with either (Joshua,
-  2026-10-26; older business + worker pairs keep opening); usernames replaced emails on 2026-10-21 (Joshua), and an email is
-  still a valid username, so accounts made with one open unchanged), and, later, a Shield wallet
-  signature over a domain-separated message once a wallet is linked. It is never stored in plaintext and never leaves the vault module; the one
-  exception is "stay logged in" (Joshua, 2026-10-15): the open data key, as a non-extractable
-  `CryptoKey`, kept in IndexedDB for at most 24 hours from login, forgotten on Log out
-  (`@pnw/vault` `remember` / `resumeSession` / `forgetSession`). There is no
-  server account: nothing is sent anywhere, nothing is verified remotely, and a lost passphrase is
-  replaced only with the account's recovery key (2026-10-24, Settings; `@pnw/vault` `addRecovery`,
-  `resetWithRecovery`), if one was made. Scheme (`@pnw/vault`): a random AES-256-GCM
-  data key encrypts the books; the unlock secret (PBKDF2-SHA256, 600k rounds) only wraps that key,
-  so a recovery key, a wallet unlock or per-member access later just adds another wrapped copy.
-  (INV-07, INV-08, INV-09)
+  The one key the app may hold: a business's own **view key**, entered in setup or Settings and
+  kept inside its encrypted books to read its incoming private payments (`books/view_key.ts`);
+  checked against the linked account, never sent, logged or shown back, never in the letters
+  backup.
+- The vault key is derived from the unlock secret, **username + passphrase**
+  (`apps/business/src/books/account.ts`:
+  the normalised username and the passphrase; the vault id a hash of role + username; an email
+  is a valid username). One username holds a business, or a person's worker and customer
+  accounts, never a business with either. The key is never stored in plaintext and never leaves
+  the vault module; the one exception is "stay logged in": the open data key, as a
+  non-extractable `CryptoKey`, kept in IndexedDB for at most 24 hours from login, forgotten on Log
+  out (`@pnw/vault` `remember` / `resumeSession` / `forgetSession`). There is no server account:
+  nothing is sent or verified remotely, and a lost passphrase is replaced only with the account's
+  recovery key (Settings; `@pnw/vault` `addRecovery`, `resetWithRecovery`), if one was made.
+  Scheme (`@pnw/vault`): a random AES-256-GCM data key encrypts the books; the unlock secret
+  (PBKDF2-SHA256, 600k rounds) only wraps that key, so a recovery key or a wallet unlock adds
+  another wrapped copy. (INV-07, INV-08, INV-09)
 - localStorage is not a book of record. Durable data goes in the encrypted IndexedDB vault. (INV-10)
 
 **Boundaries**
 - Every on-chain write is signed in the user's wallet through the `wallet` package's executor, so
   the wallet shows what is being signed. Program and transition names come from `pnw-adapter`
-  (never hard-coded elsewhere). The CLI adapter / Path B (pasted private key) is legacy: the
-  `coordinator` package that carried it is gone (2026-10-14; the pay queue in `rail` is the wallet
-  path), and no new code or screen may use `pnw-adapter`'s CLI adapter. Nothing calls `snarkos` or the SDK execute path directly.
-  (INV-11, INV-12)
-- **Every account is on the registry (Joshua, 2026-10-15).** Setup links a Shield account and
-  registers a `name.hewn` (a worker also creates the profile behind it; a customer uses the
-  person's name if the wallet has one); the app shell keeps an
-  unfinished account on `/settings/setup` (`books/setup.ts`). Team members, customers and vendors are
-  added only by finding their registered name (on mainnet, by Aleo address too: free-tier names are
-  random, though public, `docs/MAINNET_NAMES.md`). **One kind of account per Shield account** (Joshua,
-  2026-10-15): a wallet holding a business's name can't link to or register a person's account
-  (worker or customer), and the reverse (business and personal money never share a wallet); a
-  person's worker and customer accounts may share one (2026-10-26; `chain/account_kind.ts`; the
-  mainnet registrar will enforce it on chain). Customers have their own login and portal
-  (`/customer`, `docs/CUSTOMERS.md`). This replaces "fiat first": a wallet is now required
-  to get in. What stays: the ledger core, vault, reports and payroll never import `wallet`,
-  `pnw-adapter`, `rail` or `records`; chain code lives in `src/chain` and loads only on the pages
-  that need it (`fiat_boundary.test.ts`; the CSP is one policy for the whole app since 2026-10-15,
-  `docs/THREAT_MODEL.md` T3). The books keep working offline
-  once an account is set up. (INV-13, INV-14, INV-15, INV-16, INV-17)
+  and `@pnw/config`, never hard-coded elsewhere. The CLI adapter (a pasted private key) is
+  legacy: no new code or screen may use it, and the pay queue in `rail` is the wallet path.
+  Nothing calls `snarkos` or the SDK execute path directly. (INV-11, INV-12)
+- **Every account is on the registry.** Setup links a Shield account and registers a
+  `name.hewn` (a worker also creates the profile behind it; a customer uses the person's name if
+  the wallet has one); the app shell keeps an unfinished account on `/settings/setup`
+  (`books/setup.ts`). Team members, customers and vendors are added only by finding their
+  registered name (on mainnet, by Aleo address too, `docs/MAINNET_NAMES.md`). **One kind of
+  account per Shield account:** a wallet holding a business's name can't link to or register a
+  person's account, and the reverse (business and personal money never share a wallet); a
+  person's worker and customer accounts may share one (`chain/account_kind.ts`; the mainnet
+  registrar will enforce it on chain). Customers have their own login and portal (`/customer`,
+  `docs/CUSTOMERS.md`). A wallet is required to get in; what stays of "fiat first": the ledger
+  core, vault, reports and payroll never import `wallet`, `pnw-adapter`, `rail` or `records`;
+  chain code lives in `src/chain` and loads only on the pages that need it
+  (`fiat_boundary.test.ts`; one CSP for the whole app, `docs/THREAT_MODEL.md` T3). The books keep
+  working offline once an account is set up. (INV-13, INV-14, INV-15, INV-16, INV-17)
 - Extension modules may never touch posting logic or the vault key. (INV-18)
 - Mode upgrades (fiat → anchored → settled) are one-way, show exactly what goes on-chain, and require
   a second wallet signature after a review screen. Never flip a mode as a side effect. (INV-19)
@@ -123,6 +118,8 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   `pnw_mvp_v2`, unchanged, with a row in that folder's README. (INV-21)
 - Any new or changed Leo program: say so explicitly before starting, so Joshua can switch the session
   to Fable 5.1 at high effort. Include negative tests (inputs that must fail). (INV-22)
+
+The dates and who decided each rule are in `memory/decisions.md`.
 
 ## Working agreement
 
