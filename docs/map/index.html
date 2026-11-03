@@ -30,6 +30,10 @@
 </section>
 
 <div id="controls" class="bar">
+  <div id="search" class="group" role="search">
+    <input id="q" type="search" placeholder="Find a file, rule or program…" autocomplete="off" spellcheck="false" aria-label="Find a point" aria-controls="q-results" aria-expanded="false">
+    <ul id="q-results" class="panel" hidden role="listbox"></ul>
+  </div>
   <div class="group" role="group" aria-label="Labels">
     <span class="group-name">Labels</span>
     <button data-labels="all">All</button><button data-labels="regions" class="on">Regions</button><button data-labels="none">None</button>
@@ -61,6 +65,16 @@
   <p id="d-holds"></p>
   <p id="d-class" class="badge"></p>
   <p id="d-rules" class="rules"></p>
+  <h3>Ask the map</h3>
+  <div id="d-ask" class="ask">
+    <button id="ask-impact" title="Everything that reaches this point through code: what a change here can break">What reaches this</button>
+    <button id="ask-path" title="The shortest chain of edges to another point: tap it, or find it">Path to…</button>
+    <button id="ask-rule" hidden title="Its check, the threats it answers, and who cites it">Evidence</button>
+  </div>
+  <section id="d-answer" hidden>
+    <div class="answer-head"><span id="d-answer-title"></span><button id="d-answer-clear" class="link">clear</button></div>
+    <ul id="d-answer-list"></ul>
+  </section>
   <h3>Flows</h3>
   <ul id="d-edges"></ul>
 </aside>

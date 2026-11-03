@@ -61,6 +61,9 @@ const bodies = nodes.map((n) => body(n.degree, n.lines ?? 0));
 // ---- State -----------------------------------------------------------------
 let selected = -1;
 let focus = null; // a region id
+// An answer lit on the map: the points of an impact or a path, and the edges of a path.
+let highlight = null; // { nodes: Set<index>, edges: Set<edge index> } | null
+let pendingPath = -1; // "Path to…" pressed on this point; the next point chosen is the other end
 let labels = "regions";
 let flowing = !REDUCED && !BIG;
 const hiddenPoints = new Set(); // node kinds switched off
@@ -300,6 +303,7 @@ function relight() {
   const lit = (i) => {
     const n = nodes[i];
     if (!shown(i)) return 0;
+    if (highlight) return highlight.nodes.has(i) ? 1 : 0.08;
     const inRegion = !focus || n.region === focus;
     if (selected < 0) return inRegion ? 1 : 0.18;
     if (i === selected) return 1;
@@ -312,6 +316,7 @@ function relight() {
     const c = new THREE.Color(CLASS_COLOUR[e.class]);
     let k = 0.5;
     if (!edgeShown(e)) k = 0;
+    else if (highlight) k = highlight.edges.has(i) ? (BIG ? 5 : 1.2) : highlight.nodes.has(e.a) && highlight.nodes.has(e.b) ? (BIG ? 2 : 0.8) : BIG ? 0.08 : 0.04;
     else if (selected >= 0) k = e.a === selected || e.b === selected ? (BIG ? 4 : 1) : BIG ? 0.25 : 0.1;
     else if (focus) k = nodes[e.a].region === focus || nodes[e.b].region === focus ? (BIG ? 1.6 : 0.8) : 0.1;
     lineColours.set([c.r * k, c.g * k, c.b * k, c.r * k, c.g * k, c.b * k], i * 6);
@@ -325,7 +330,8 @@ function relight() {
   for (let i = 0; i < nodeCount; i++) {
     const n = nodes[i];
     const near = selected >= 0 && (i === selected || incident[selected].some((ei) => edgeShown(edges[ei]) && (edges[ei].a === i || edges[ei].b === i)));
-    const wanted = shown(i) && (labels === "all" ? (focus ? n.region === focus : n.degree >= hubs) || near : near);
+    const lit = highlight ? highlight.nodes.has(i) : near;
+    const wanted = shown(i) && (highlight ? lit : labels === "all" ? (focus ? n.region === focus : n.degree >= hubs) || near : near);
     if (!wanted && !nodeLabels.has(i)) continue;
     const s = nodeLabel(i);
     s.visible = wanted;
@@ -366,6 +372,19 @@ function ruleLink(id) {
   return el("a", { href: `${SOURCE}/${file}`, target: "_blank", rel: "noopener" }, id);
 }
 function select(i) {
+  if (pendingPath >= 0 && i >= 0 && i !== pendingPath) {
+    // The other end of a "Path to…": show the path from the first point, keep that point's panel.
+    const from = pendingPath;
+    pendingPath = -1;
+    $("ask-path").classList.remove("on");
+    selected = from;
+    showPath(from, i);
+    return;
+  }
+  pendingPath = -1;
+  $("ask-path").classList.remove("on");
+  highlight = null;
+  $("d-answer").hidden = true;
   selected = i;
   relight();
   const panel = $("details");
@@ -374,6 +393,7 @@ function select(i) {
     return;
   }
   const n = nodes[i];
+  $("ask-rule").hidden = !["invariant", "operating rule", "threat"].includes(n.kind);
   const r = regions.get(n.region);
   $("d-region").textContent = r.name;
   $("d-region-dot").style.color = r.colour;
@@ -418,7 +438,177 @@ function select(i) {
   if (!REDUCED) flyTo(target, distance, 600);
 }
 
+// ---- Ask the map: the same questions as docs/map/query.mjs, answered here, lit on the map --------
+const CODE = new Set(["imports", "loads", "depends", "names", "runs", "reads", "checks"]);
+const codeEdge = (e) => e.kind === undefined || CODE.has(e.kind); // the data-flow view has no kinds: every flow counts
+function answer(title, items) {
+  $("d-answer-title").textContent = title;
+  $("d-answer-list").replaceChildren(...items);
+  $("d-answer").hidden = false;
+  relight();
+}
+const pointButton = (i, via) => el("li", {}, ...(via ? [el("span", { class: "via" }, via)] : []), el("button", { onclick: () => select(i) }, nodes[i].label));
+function showImpact(i, hops = 2) {
+  const seen = new Map([[i, 0]]);
+  let frontier = [i];
+  const rings = [];
+  for (let h = 1; h <= hops && frontier.length; h++) {
+    const next = [];
+    for (const id of frontier) for (const ei of incident[id]) {
+      const e = edges[ei];
+      if (e.b !== id || !codeEdge(e) || !edgeShown(e) || seen.has(e.a)) continue;
+      seen.set(e.a, h);
+      next.push(e.a);
+    }
+    rings.push(next.sort((p, q) => nodes[p].label.localeCompare(nodes[q].label)));
+    frontier = next;
+  }
+  highlight = { nodes: new Set(seen.keys()), edges: new Set() };
+  const total = rings.reduce((s, r) => s + r.length, 0);
+  const items = [];
+  if (!total) items.push(el("li", { class: "hint" }, "Nothing reaches this point through code."));
+  rings.forEach((ring, h) => {
+    if (!ring.length) return;
+    items.push(el("li", { class: "group" }, `${h + 1} hop${h ? "s" : ""} · ${ring.length}`));
+    for (const j of ring.slice(0, 40)) items.push(pointButton(j));
+    if (ring.length > 40) items.push(el("li", { class: "hint" }, `and ${ring.length - 40} more`));
+  });
+  answer(`${total} ${total === 1 ? "point reaches" : "points reach"} this within ${hops} hops`, items);
+  if (!REDUCED) fitTo([...seen.keys()]);
+}
+function showPath(a, b) {
+  const prev = new Map([[a, null]]);
+  const queue = [a];
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === b) break;
+    for (const ei of incident[id]) {
+      const e = edges[ei];
+      if (!edgeShown(e)) continue;
+      const next = e.a === id ? e.b : e.a;
+      if (prev.has(next)) continue;
+      prev.set(next, { id, ei });
+      queue.push(next);
+    }
+  }
+  if (!prev.has(b)) {
+    highlight = { nodes: new Set([a, b]), edges: new Set() };
+    answer("Not connected", [el("li", { class: "hint" }, `${nodes[a].label} and ${nodes[b].label} aren't connected on the map (with the filters as they are).`)]);
+    return;
+  }
+  const chain = [];
+  for (let cur = b; prev.get(cur); cur = prev.get(cur).id) chain.unshift(prev.get(cur));
+  highlight = { nodes: new Set([a, ...chain.map((s) => (edges[s.ei].a === s.id ? edges[s.ei].b : edges[s.ei].a))]), edges: new Set(chain.map((s) => s.ei)) };
+  const items = [pointButton(a)];
+  for (const s of chain) {
+    const e = edges[s.ei];
+    const out = e.a === s.id;
+    items.push(pointButton(out ? e.b : e.a, `${out ? "→" : "←"} ${e.kind ?? e.what}`));
+  }
+  answer(`${chain.length} ${chain.length === 1 ? "edge" : "edges"} to ${nodes[b].label}`, items);
+  if (!REDUCED) fitTo([...highlight.nodes]);
+}
+function showEvidence(i) {
+  const groups = [["checked by", (e) => e.a === i && e.kind === "checks", (e) => e.b], ["answers", (e) => e.a === i && e.kind === "answers", (e) => e.b], ["answered by", (e) => e.b === i && e.kind === "answers", (e) => e.a], ["cited by", (e) => e.b === i && e.kind === "cites", (e) => e.a]];
+  const items = [];
+  const lit = new Set([i]);
+  for (const [label, test, other] of groups) {
+    const hits = incident[i].map((ei) => edges[ei]).filter((e) => edgeShown(e) && test(e)).map(other).sort((p, q) => nodes[p].label.localeCompare(nodes[q].label));
+    if (!hits.length) continue;
+    items.push(el("li", { class: "group" }, `${label} · ${hits.length}`));
+    for (const j of hits) { items.push(pointButton(j)); lit.add(j); }
+  }
+  highlight = { nodes: lit, edges: new Set(incident[i]) };
+  answer(`The evidence for ${nodes[i].label}`, items.length ? items : [el("li", { class: "hint" }, "No check, threat or citation is drawn for it yet.")]);
+  if (!REDUCED) fitTo([...lit]);
+}
+/** Frames a set of points: flies to their centre, far enough to hold them all. */
+function fitTo(ids) {
+  const box = new THREE.Box3();
+  for (const i of ids) box.expandByPoint(new THREE.Vector3(nodes[i].x, nodes[i].y, nodes[i].z));
+  const c = box.getCenter(new THREE.Vector3());
+  const r = Math.max(30, box.getBoundingSphere(new THREE.Sphere()).radius);
+  flyTo(c, Math.max(80, (r / Math.sin((camera.fov * Math.PI) / 360)) * 1.15), 700);
+}
+$("ask-impact").addEventListener("click", () => selected >= 0 && showImpact(selected));
+$("ask-rule").addEventListener("click", () => selected >= 0 && showEvidence(selected));
+$("ask-path").addEventListener("click", () => {
+  if (selected < 0) return;
+  pendingPath = pendingPath === selected ? -1 : selected;
+  $("ask-path").classList.toggle("on", pendingPath >= 0);
+  if (pendingPath >= 0) {
+    answer(`Path from ${nodes[selected].label}`, [el("li", { class: "hint" }, "Now tap the other point on the map, or find it in the search box.")]);
+    $("q").placeholder = "Path to… find the other point";
+    if (innerWidth >= 760) $("q").focus();
+  } else $("d-answer").hidden = true;
+});
+$("d-answer-clear").addEventListener("click", () => {
+  highlight = null;
+  pendingPath = -1;
+  $("ask-path").classList.remove("on");
+  $("d-answer").hidden = true;
+  $("q").placeholder = "Find a file, rule or program…";
+  relight();
+});
+
+// ---- Search: a name, a path, a word from a description; the best-connected matches first -----
+const q = $("q"), results = $("q-results");
+let picked = -1;
+function search(text) {
+  const t = text.trim().toLowerCase();
+  if (!t) { results.hidden = true; q.setAttribute("aria-expanded", "false"); return; }
+  const hits = [];
+  for (let i = 0; i < nodeCount; i++) {
+    const n = nodes[i];
+    const id = n.id.toLowerCase(), label = n.label.toLowerCase();
+    let score = 0;
+    if (label === t || id === t) score = 4;
+    else if (label.startsWith(t)) score = 3;
+    else if (id.includes(t) || label.includes(t)) score = 2;
+    else if ((n.holds ?? "").toLowerCase().includes(t)) score = 1;
+    if (score) hits.push([i, score]);
+  }
+  hits.sort((p, qq) => qq[1] - p[1] || nodes[qq[0]].degree - nodes[p[0]].degree);
+  const top = hits.slice(0, 12);
+  picked = top.length ? 0 : -1;
+  results.replaceChildren(
+    ...(top.length ? top : [null]).map(([i] = [], k) =>
+      i === undefined
+        ? el("li", { class: "none" }, "Nothing on the map matches that.")
+        : el("li", { role: "option" }, el("button", { "aria-selected": String(k === 0), onclick: () => choose(i) }, el("span", { class: "swatch", style: `color:${regions.get(nodes[i].region).colour}` }), el("span", { class: "name" }, nodes[i].label), el("span", { class: "path" }, nodes[i].path ?? `${regions.get(nodes[i].region).name} · ${nodes[i].kind}`))),
+    ),
+  );
+  results.hidden = false;
+  q.setAttribute("aria-expanded", "true");
+}
+function choose(i) {
+  results.hidden = true;
+  q.setAttribute("aria-expanded", "false");
+  q.value = "";
+  q.placeholder = "Find a file, rule or program…";
+  q.blur();
+  select(i);
+}
+q.addEventListener("input", () => search(q.value));
+q.addEventListener("focus", () => q.value && search(q.value));
+q.addEventListener("keydown", (e) => {
+  const options = [...results.querySelectorAll("[role=option] button")];
+  if (e.key === "Escape") { results.hidden = true; q.blur(); return; }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (!options.length) return;
+    e.preventDefault();
+    picked = (picked + (e.key === "ArrowDown" ? 1 : options.length - 1)) % options.length;
+    options.forEach((b, k) => b.setAttribute("aria-selected", String(k === picked)));
+    options[picked].scrollIntoView({ block: "nearest" });
+  }
+  if (e.key === "Enter" && options[picked]) { e.preventDefault(); options[picked].click(); }
+});
+document.addEventListener("pointerdown", (e) => { if (!$("search").contains(e.target)) results.hidden = true; });
+
 function focusRegion(id) {
+  highlight = null;
+  pendingPath = -1;
+  $("d-answer").hidden = true;
   focus = focus === id ? null : id;
   for (const b of $("regions").querySelectorAll("button")) b.classList.toggle("on", b.dataset.region === focus);
   select(-1);

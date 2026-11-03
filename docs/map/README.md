@@ -65,6 +65,14 @@ The address can name a view and a point to open: `#data-flow:d.vault`,
 submodule's file at the commit the map was built from), lists its lines, the rules it cites and
 every edge, and walks to the other end of any of them.
 
+**Find** (the search box at the top): a name, part of a path, or a word from a description; the
+best-connected matches first; Enter or a tap opens the point. **Ask the map** (in a point's panel)
+answers the tool's questions on the page itself, lit on the map: *What reaches this* (everything
+that reaches the point through code within two hops, a hop at a time), *Path to…* (tap another
+point, or find it: the shortest chain of edges, each with its kind and direction), and, for a
+rule or a threat, *Evidence* (its check, the threats it answers, who cites it). *Clear* puts
+the map back.
+
 **Filters** (top right) switch kinds of points and lines on and off: code, tests, documents,
 images, Leo programs, rules, threats, dependencies; imports, loads, links, mentions, checks,
 cites and the rest, each with its count. A hidden point takes its lines with it; the legend

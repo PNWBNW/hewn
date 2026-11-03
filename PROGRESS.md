@@ -16,6 +16,7 @@ index is out of date.
 - [The map, part 2: the whole tree, both repositories, read from the files themselves](progress/2026-11-03.md#2026-11-03--the-map-part-2-the-whole-tree-both-repositories-read-from-the-files-themselves)
 - [The map, part 3: questions to the map from the command line, and the rule to ask it](progress/2026-11-03.md#2026-11-03--the-map-part-3-questions-to-the-map-from-the-command-line-and-the-rule-to-ask-it)
 - [The map: bodies, from connections and lines](progress/2026-11-03.md#2026-11-03--the-map-bodies-from-connections-and-lines)
+- [Ask the map, on the page: find, what reaches this, path to, evidence](progress/2026-11-03.md#2026-11-03--ask-the-map-on-the-page-find-what-reaches-this-path-to-evidence)
 
 ## [2026-11-02](progress/2026-11-02.md)
 
