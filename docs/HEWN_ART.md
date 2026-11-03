@@ -1,3 +1,9 @@
+---
+status: built
+updated: 2026-10-24
+summary: The art drawn for every credential and paystub: a worker's land in 3D, a business's topographic map, the constellation, the paystub rings; in the app, the credential card (question 1) still open.
+---
+
 # Hewn art: credential cards and paystub rings
 
 **Status:** design, for review (Joshua, 2026-10-24). Concept sketches and 3D renders only

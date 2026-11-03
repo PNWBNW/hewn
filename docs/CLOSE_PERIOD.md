@@ -1,3 +1,9 @@
+---
+status: built
+updated: 2026-11-02
+summary: Closing a period through any date after it ends, once every check passes, the root anchored through `payroll_audit_log`, reopening and locking; the period proof export is still open.
+---
+
 # Closing a period
 
 **Status:** decided (Joshua, 2026-11-02) and built, except the period proof export: closing by

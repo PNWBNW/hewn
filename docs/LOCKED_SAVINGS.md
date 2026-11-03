@@ -1,3 +1,9 @@
+---
+status: idea
+updated: 2026-10-24
+summary: Locked savings with an employer match, private and unpooled: one Aleo account per enrollment whose key is split between the two apps; questions for Aleo developers.
+---
+
 # Locked savings: a split-key escrow account
 
 **Status:** an idea, for outside review (2026-10-24). Nothing is built. We'd like Aleo developers

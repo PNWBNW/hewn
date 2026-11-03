@@ -132,9 +132,16 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 - Production revisions get a decimal version in the filename (v1.1, v1.2, …). Joshua decides when the
   whole number bumps.
 - End of every task: run the tests, append a dated entry to that day's file in `progress/` (what
-  changed, test counts, tx hashes if any) and regenerate the index
-  (`python3 -I scripts/progress_index.py --write`), tick any exit criteria met in `BUILD_PLAN.md`,
-  commit, open a PR, stop.
+  changed, test counts, tx hashes if any), ending with the bare id of this session
+  (`— session_…`, never a link: only Joshua can open the transcript; `docs/MEMORY.md`, 2026-11-03),
+  regenerate the index (`python3 -I scripts/progress_index.py --write`), tick any exit criteria
+  met in `BUILD_PLAN.md`, commit, open a PR, stop.
+- Memory lives in three scopes of plain files (`docs/MEMORY.md`): org knowledge (this file, the
+  invariants, the threat model, the READMEs) changes only by a PR about it; team memory
+  (`progress/`, `docs/`, `memory/`) is yours to append; working notes stay in the scratchpad.
+  Every document under `docs/` carries frontmatter (status, updated, summary) and
+  `docs/README.md` is generated from it (`python3 -I scripts/docs_index.py --write`): when
+  something ships, its status changes in the same PR.
 - Joshua mostly works from his phone: lead with the result, keep reports short, put detail in
   `progress/` rather than chat.
 - Ask the map before grepping (2026-11-03): `node docs/map/query.mjs show <file>` says what a

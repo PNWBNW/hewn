@@ -1,3 +1,9 @@
+---
+status: living
+updated: 2026-10-19
+summary: The public job board on `hewn_jobs_v1.aleo`: what is public on purpose, how applications stay sealed, fees.
+---
+
 # The job board: design
 
 Status: **`hewn_jobs_v1.aleo` deployed on testnet** (Joshua, 2026-10-19): deploy transaction

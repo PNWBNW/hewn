@@ -1,3 +1,9 @@
+---
+status: living
+updated: 2026-10-30
+summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it.
+---
+
 # Hewn — Threat Model
 
 Living document. Every phase's PR checks its changes against this list; new features add rows.

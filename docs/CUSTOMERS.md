@@ -1,3 +1,9 @@
+---
+status: built
+updated: 2026-10-26
+summary: Customers as their own accounts with a portal: invoices sent as letters, bills paid from Shield, agreements with a clear end; Step 1 built, the directory of businesses and reviews still open.
+---
+
 # Customers: design
 
 **Status:** design, for review (Joshua, 2026-10-23; accounts revised 2026-10-26). Nothing is

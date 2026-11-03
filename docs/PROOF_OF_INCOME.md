@@ -1,3 +1,9 @@
+---
+status: design
+updated: 2026-10-30
+summary: Paystubs as private records a worker proves from: a one-page income letter checked by a QR code, under the employer-vouched name; new Leo; questions open.
+---
+
 # Proof of income: paystubs a worker can prove from
 
 **Status:** design, for Joshua's review (2026-10-29; reworked the same day around paystub

@@ -1,3 +1,9 @@
+---
+status: built
+updated: 2026-10-27
+summary: The books backed up as letters to your own account: compressed, then encrypted; a snapshot, then only changes; restored on any device with the wallet and the passphrase or recovery key.
+---
+
 # The books backed up on chain: design
 
 **Status:** design, approved by Joshua on 2026-10-26 (decisions at the end). Being built in the order below. No new Leo: it uses the
