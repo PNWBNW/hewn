@@ -97,4 +97,6 @@ companion that drifts from its graph, can't merge.
   square-root curve), so nothing jumps and no hub swallows the map. A file nothing connects to
   stays a glint however long it is. The same scale names each point for its panel and the
   Bodies filter (dust, comet, moon, planet, giant, star, bright star, supergiant) and draws the
-  still; the hotter the body, the wider and whiter its glow.
+  still; the hotter the body, the wider and whiter its glow. In 3D the drawn size grows faster
+  than the weight (a power curve), so the spread reads at a glance: a supergiant is some 25 times
+  a comet.

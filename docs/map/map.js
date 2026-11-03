@@ -99,7 +99,9 @@ nodes.forEach((n, i) => {
   const c = new THREE.Color(regions.get(n.region).colour);
   colours.set([c.r, c.g, c.b], i * 3);
   // Size is continuous in connections and lines (bodies.mjs): dust is a glint, a supergiant is big and hot.
-  sizes[i] = BIG ? 0.5 + 1.5 * bodies[i].weight : 1.5 + 3 * bodies[i].weight;
+  // In 3D the size grows faster than the weight (a power curve), so the spread reads: a supergiant is
+  // some 25 times a comet, not 4 (Joshua, 2026-11-03).
+  sizes[i] = BIG ? 0.5 + 0.9 * Math.pow(bodies[i].weight, 1.4) : 1.5 + 3 * bodies[i].weight;
   heats[i] = heat(bodies[i].weight);
 });
 const pointGeometry = new THREE.BufferGeometry();
@@ -554,7 +556,7 @@ function resize() {
   camera.updateProjectionMatrix();
   // A dense graph on a narrow screen piles its points and lines up; draw both fainter there.
   const narrow = BIG ? Math.min(1, w / 900) : 1;
-  pointMaterial.uniforms.scale.value = renderer.getPixelRatio() * Math.min(1, h / 700) * narrow;
+  pointMaterial.uniforms.scale.value = renderer.getPixelRatio() * Math.min(1, h / 700) * (BIG ? Math.max(0.75, narrow) : 1);
   lines.material.opacity = LINE_OPACITY * (BIG ? Math.max(0.4, narrow) : 1);
   pxToWorld = (2 * Math.tan((camera.fov * Math.PI) / 360)) / h;
   sizeLabels();
