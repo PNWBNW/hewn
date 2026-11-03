@@ -139,6 +139,8 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   `progress/` rather than chat.
 - Commit messages and PR descriptions never carry a `https://claude.ai/...` session link (Joshua,
   2026-10-29), as in `pnw_mvp_v2`.
+- A PR merges only after Joshua approves it in the chat session (2026-11-03); the merge commit's
+  message says "Approved by Joshua in session, <date>" (`docs/COMPLIANCE_MAP.md`).
 - If something in the existing code contradicts this file or the build plan, stop and ask. Don't
   silently pick one.
 

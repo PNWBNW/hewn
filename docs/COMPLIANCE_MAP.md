@@ -128,13 +128,16 @@ Steps 8 to 13 are what turn "the code is careful" into "the company can show it 
 the code review Joshua asked for next: it should run against the refreshed rules, so its findings
 land in the right place.
 
-## Questions for Joshua
+## Decisions (Joshua, 2026-11-03)
 
-1. **Agent merges:** should every merge to `main` need Joshua's approval, or may an agent merge
-   docs-only or test-only PRs on its own? This is the biggest single change to how we work.
-2. **Which settings can I see?** Branch protection, 2FA on the GitHub organization, Vercel's team
-   and deploy settings: they're outside the repository, so Joshua checks them or shares
-   screenshots.
-3. **SOC 2 target:** a Type I first (a point in time, a few weeks of preparation), then a Type II
+1. **Agent merges:** while Hewn is being built, an agent merges a PR only after Joshua approves
+   it in the chat session, on his own device. The merge commit's message says so ("Approved by
+   Joshua in session, <date>"), so the approval is on record where an auditor looks. Required
+   GitHub approvals can come later, before a SOC 2 period starts.
+2. **Access:** Joshua is the only person with access to GitHub and Vercel, and both have 2FA on.
+   Still to list: Upstash, the domain registrar, npm, and the agent sessions' GitHub access.
+
+## Questions for Joshua
+1. **SOC 2 target:** a Type I first (a point in time, a few weeks of preparation), then a Type II
    period starting once Steps 8 to 12 are in?
-4. **SOC 1:** in scope from the start, given payroll?
+2. **SOC 1:** in scope from the start, given payroll?
