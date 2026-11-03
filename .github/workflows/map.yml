@@ -39,7 +39,7 @@ jobs:
       - name: Check the graphs and their companions, then build
         run: node docs/map/build.mjs --check && node docs/map/build.mjs
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/map/dist
 
