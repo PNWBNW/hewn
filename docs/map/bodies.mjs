@@ -38,5 +38,14 @@ export function body(degree, lines = 0) {
   return { weight: w, name: BODIES[i] };
 }
 
+/**
+ * The size a body is drawn at (the point's size on the page): on a dense graph a power curve, so a
+ * supergiant is some 25 times a comet (Joshua, 2026-11-03); on a small graph a straight line.
+ */
+export const drawnSize = (w, dense) => (dense ? 0.5 + 0.9 * Math.pow(w, 1.4) : 1.5 + 3 * w);
+
+/** The room a body takes in the layout, in world units: about what its drawn size covers on screen. */
+export const bodyRadius = (w, dense) => 0.29 * drawnSize(w, dense);
+
 /** How hot a body glows, 0 to 1: dust barely, a supergiant fully. */
 export const heat = (w) => Math.min(1, w / 12);
