@@ -43,6 +43,7 @@ to run `show` and `impact` on a file before changing it, and to ask the map befo
 | `extract.test.mjs` | Known facts the extractor must find (an import, a dynamic load, a program named by the app, a program importing another, a rule's check, a workflow's step), run by `node --test docs/map/*.test.mjs` in CI. |
 | `query.mjs`, `query.test.mjs` | The questions above, as functions over the extracted graph plus a command line; the test pins their answers on known facts (who imports `close.ts`, the path from a screen to a program, a rule's checks, an ambiguous name refused). |
 | `still.mjs` | The still: a laid-out graph projected from one angle to SVG, deterministic, no scripts or external references. |
+| `bodies.mjs` | A point's size, glow and name from its connections and lines, shared by the page and the still. |
 | `layout.mjs` | Where every point sits: regions where the data puts them, points settled inside their region by a small seeded force simulation. Pure, deterministic. |
 | `build.mjs` | Checks the graphs (a dangling edge, an unknown region or class, a rule id not in `INVARIANTS.md` or `THREAT_MODEL.md` all fail), lays them out, writes the generated tables into each companion (`--doc`), and builds `dist/`: the viewer, the laid-out graphs, three.js and the few addons the viewer imports, copied from the art package's dependency so the page loads nothing from any other host. |
 | `index.html`, `map.css`, `map.js` | The viewer. three.js with bloom; an import map points `three` at `./vendor`. It keeps nothing: no storage, no cookies, no requests to any other host. |
@@ -91,6 +92,9 @@ companion that drifts from its graph, can't merge.
   model, so the map can't claim a rule that doesn't exist.
 - **Self-contained.** The page loads three.js from beside itself, never from a CDN, and sends
   nothing anywhere.
-- **Size is connections.** A point's size follows the number of edges at it, on a log scale: a
-  file nothing points at or from (an archived one, an image) is next to nothing; one edge is a
-  small point; the hubs everything flows through are planets. The same curve draws the still.
+- **Size is connections and length** (`bodies.mjs`). A point's size is continuous: every edge at
+  it adds to it, and so does every line of the file, with increments that shrink as it grows (a
+  square-root curve), so nothing jumps and no hub swallows the map. A file nothing connects to
+  stays a glint however long it is. The same scale names each point for its panel and the
+  Bodies filter (dust, comet, moon, planet, giant, star, bright star, supergiant) and draws the
+  still; the hotter the body, the wider and whiter its glow.

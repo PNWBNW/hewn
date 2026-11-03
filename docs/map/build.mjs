@@ -196,7 +196,7 @@ for (const g of all) {
 }
 // The README's picture is the whole tree.
 cpSync(join(OUT, "still-project.svg"), join(OUT, "still.svg"));
-for (const f of ["index.html", "map.css", "map.js", "layout.mjs"]) cpSync(join(HERE, f), join(OUT, f));
+for (const f of ["index.html", "map.css", "map.js", "layout.mjs", "bodies.mjs"]) cpSync(join(HERE, f), join(OUT, f));
 const three = vendor(OUT);
 const project = all.find((g) => g.id === "project");
 writeFileSync(join(OUT, "meta.json"), JSON.stringify({ ...built, views, three: three.version, submodule: project?.submodule ?? null }));
