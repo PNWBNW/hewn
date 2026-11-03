@@ -1,3 +1,9 @@
+---
+status: plan
+updated: 2026-10-25
+summary: Running Hewn without a subscription: what costs money, the small fee on what moves money, name sales, hosting; estimates.
+---
+
 # Operating costs, fees and hosting
 
 **Status:** plan (Joshua, 2026-10-16), moved here from `BUILD_PLAN.md` on 2026-10-25. The open

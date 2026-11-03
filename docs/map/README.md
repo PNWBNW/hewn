@@ -1,3 +1,9 @@
+---
+status: living
+updated: 2026-11-03
+summary: The map of Hewn in 3D on GitHub Pages: every file in both repositories, every rule and dependency, how they connect; its extractor, layout, viewer, query tool and build.
+---
+
 # docs/map
 
 The map of Hewn, drawn in 3D: glowing points in regions, lines between them coloured by what

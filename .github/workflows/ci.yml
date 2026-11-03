@@ -43,8 +43,10 @@ jobs:
         run: python3 -I scripts/check_browser_storage.py
       - name: Rules tied to their checks (docs/INVARIANTS.md)
         run: python3 -I scripts/check_invariants.py
-      - name: The progress index matches the day files
+      - name: The progress index matches the day files, and every entry is signed
         run: python3 -I scripts/progress_index.py
+      - name: Every document has frontmatter and the documents' index matches it (docs/MEMORY.md)
+        run: python3 -I scripts/docs_index.py
       - name: Links between the documents point at something
         run: python3 -I scripts/check_links.py
       - name: The map's graphs are sound and their companions current (docs/map)

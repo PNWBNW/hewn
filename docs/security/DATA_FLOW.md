@@ -1,3 +1,9 @@
+---
+status: living
+updated: 2026-11-03
+summary: Where the data lives and what crosses between places: every store and flow classed private, sealed, public or control, each citing its rule; the map's data-flow view in writing.
+---
+
 # Data flow: where the data lives and what crosses between places
 
 **Status:** living, generated in part (2026-11-03). The written companion of the **data-flow view

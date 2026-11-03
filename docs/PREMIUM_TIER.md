@@ -1,3 +1,9 @@
+---
+status: idea
+updated: 2026-10-25
+summary: What could sit behind a paid tier on mainnet, and what the free product never loses; candidates, not decided.
+---
+
 # Premium tier candidates
 
 **Status:** candidates for mainnet, not decided (Joshua, 2026-10-16), moved here from

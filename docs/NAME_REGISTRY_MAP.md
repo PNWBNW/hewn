@@ -1,3 +1,9 @@
+---
+status: plan
+updated: 2026-10-25
+summary: Where the app depends on the name registry, and how mainnet names under the Aleo Name Service slot in.
+---
+
 # Name registry map
 
 Oct 15, 2026 · planning, no code changed

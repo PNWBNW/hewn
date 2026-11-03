@@ -28,8 +28,10 @@ submodule over HTTPS; you only need it to work on the chain side.
   dated log of every change, one file per day, indexed by `PROGRESS.md`. **`CLAUDE.md`** holds
   the rules everyone follows, person or agent.
 - One task, one exit criterion, one pull request. A PR ends with the tests run, a dated entry in
-  that day's `progress/` file (then `python3 -I scripts/progress_index.py --write`), and any exit
-  criterion it met ticked in the plan.
+  that day's `progress/` file, signed with the session or person that wrote it (then
+  `python3 -I scripts/progress_index.py --write`), any exit criterion it met ticked in the plan,
+  and the status of any document it finished changed in its frontmatter (then
+  `python3 -I scripts/docs_index.py --write`). How memory is kept: `docs/MEMORY.md`.
 - CI (`.github/workflows/ci.yml`) runs the tests, a strict typecheck and build of every package,
   the static bundle of the app, and a dependency audit that fails on anything moderate or worse.
   New dependencies must be at least a week old (`pnpm-workspace.yaml`).

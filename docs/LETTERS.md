@@ -1,3 +1,9 @@
+---
+status: living
+updated: 2026-10-26
+summary: How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs.
+---
+
 # Letters on chain (`hewn_letters_v1.aleo`): design
 
 Status: **`hewn_letters_v2.aleo` deployed on testnet** (2026-10-18): deploy transaction

@@ -1,3 +1,9 @@
+---
+status: reference
+updated: 2026-10-14
+summary: Who the app is for and the principles its screens follow; clean-room, from what bookkeepers do.
+---
+
 # Hewn — Design Brief (business shell)
 
 Phase 0, deliverable 3. Clean-room: written from what bookkeepers need to *do*, not from any

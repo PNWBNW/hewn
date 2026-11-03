@@ -11,7 +11,9 @@ its day's file, then run
 Without --write it checks, and fails when:
   - PROGRESS.md isn't what the day files would generate (an entry added without the index);
   - a day file is misnamed, has no entry, or holds an entry dated another day;
-  - an entry heading isn't `## YYYY-MM-DD — Title` (older entries may use `: ` for the dash).
+  - an entry heading isn't `## YYYY-MM-DD — Title` (older entries may use `: ` for the dash);
+  - an entry dated 2026-11-03 or later doesn't end with the session that wrote it, as a bare
+    `session_…` id or `— written by Joshua` (docs/MEMORY.md; never a link).
 
 `--split` was used once (2026-10-25) to cut the old single PROGRESS.md into day files; kept so
 the move can be read and repeated.
@@ -28,6 +30,9 @@ INDEX = ROOT / "PROGRESS.md"
 # Entries before 2026-10-25 used either "— " or ": " after the date; both are read as written.
 HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2})(?: — |: )(.+)$")
 DAY_FILE = re.compile(r"^\d{4}-\d{2}-\d{2}\.md$")
+# From this day on, every entry ends with who wrote it: the session's bare id, or Joshua by hand.
+SIGNED_FROM = "2026-11-03"
+SIGNATURE = re.compile(r"^(?:— )?(session_[A-Za-z0-9]{10,}|written by Joshua)\s*$")
 
 INTRO = """# Hewn — Progress Log
 
@@ -69,6 +74,19 @@ def entries(path: Path):
     return out
 
 
+def unsigned(path: Path):
+    """Titles of entries whose last non-blank line isn't a signature (`session_…` or `written by Joshua`)."""
+    out, title, last = [], None, None
+    for line in path.read_text(encoding="utf-8").splitlines() + ["## end"]:
+        if line.startswith("## "):
+            if title is not None and not (last and SIGNATURE.match(last)):
+                out.append(title)
+            title, last = line[3:], None
+        elif line.strip():
+            last = line.strip()
+    return out
+
+
 def build_index():
     problems = []
     lines = [INTRO]
@@ -86,6 +104,9 @@ def build_index():
         found = entries(path)
         if not found:
             problems.append(f"{rel}: no `## {day} — Title` entry")
+        if day >= SIGNED_FROM:
+            for title in unsigned(path):
+                problems.append(f"{rel}: entry isn't signed with its session id (docs/MEMORY.md): {title}")
         links = []
         for date, title, slug in found:
             if date is None:

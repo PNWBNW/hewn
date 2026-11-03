@@ -1,3 +1,9 @@
+---
+status: built
+updated: 2026-10-23
+summary: The business ↔ team member conversation on key exchange (the handshake), and backups both people agree to.
+---
+
 # Twin-curve conversations between a business and its people
 
 **Status:** approved by Joshua (2026-10-23) and built: the handshake for the conversation's

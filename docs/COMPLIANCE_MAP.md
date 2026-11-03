@@ -1,3 +1,9 @@
+---
+status: review
+updated: 2026-11-03
+summary: The Audit-Ready Plan checked against SOC 2, ISO 27001, HITRUST, FedRAMP and CMMC (and SOC 1): what's met, what's missing, Steps 8 to 14, and the internal audit that stands in for a Type I and Type II until mainnet.
+---
+
 # Compliance map: the Audit-Ready Plan against SOC 2, ISO 27001, HITRUST, FedRAMP and CMMC
 
 **Status:** review, for Joshua (2026-11-03). Nothing is built or changed. It checks the

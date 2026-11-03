@@ -1,3 +1,9 @@
+---
+status: plan
+updated: 2026-11-02
+summary: How a paycheck, a run or a period is provable to an auditor without the chain ever showing a wage; steps 1 and 2 (the period root, the anchor) done.
+---
+
 # Audit design: proof without receipts
 
 Oct 16, 2026 · design (Joshua approved the direction), no code changed

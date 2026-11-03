@@ -1,34 +1,49 @@
 # docs/
 
 Hewn's design documents. The build plan (`BUILD_PLAN.md`) and the progress log (`progress/`, one file per
-day, indexed by `PROGRESS.md`) are at the repository root; this folder holds the thinking behind particular pieces.
+day, indexed by `PROGRESS.md`) are at the repository root; this folder holds the thinking behind particular pieces. The table is generated from each
+document's frontmatter (`scripts/docs_index.py`, checked in CI; `docs/MEMORY.md`): change a
+document's `status`, `updated` or `summary` line, then run `python3 -I scripts/docs_index.py --write`.
 
-| File | Status | What it answers |
+<!-- docs-index:start -->
+
+| File | Status · updated | What it answers |
 |---|---|---|
-| [`INVARIANTS.md`](INVARIANTS.md) | Living, checked in CI | Every non-negotiable rule with an id (INV-01…), where it is enforced, the check that proves it, the threats it answers, and the SOC 2 and ISO 27001 items it satisfies; then the operating rules (OPS-01…: merge approval, access, dependencies, incidents) with where each is set and the evidence it leaves. The control list; where an auditor starts. |
-| [`COMPLIANCE_MAP.md`](COMPLIANCE_MAP.md) | Review, for Joshua | The Audit-Ready Plan checked against SOC 2, ISO 27001, HITRUST, FedRAMP and CMMC (and SOC 1): which fit, what the plan already meets, what's missing (mostly organizational: change approval, policies, access, vendors, incidents), and Steps 8 to 14 to add. |
-| [`security/DATA_FLOW.md`](security/DATA_FLOW.md) | Living, generated in part | Where the data lives and what crosses between places: every store and flow classed private, sealed, public or control, each citing its rule; the written companion of the map's data-flow view. |
-| [`map/`](map/README.md) | Living, built on every push | The map of Hewn in 3D on GitHub Pages ([pnwbnw.github.io/hewn](https://pnwbnw.github.io/hewn)): the whole tree (every file here and in the Leo programs' repository, every rule, every dependency, and how they connect, read from the files themselves) and the data-flow view. Its extractor, data, layout, viewer, still and build. |
-| [`THREAT_MODEL.md`](THREAT_MODEL.md) | Living | What Hewn protects, from whom, how, and what it can't. Every PR checks its changes against it; new features add rows. |
-| [`LETTERS.md`](LETTERS.md) | Living | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
-| [`CHAIN_BACKUP.md`](CHAIN_BACKUP.md) | Design, approved; being built | The books backed up as letters to your own account: compressed, then encrypted; a snapshot, then only changes, in a hash chain; restored on any device with the wallet and the passphrase or recovery key. |
-| [`TWIN_CURVE_CONVERSATIONS.md`](TWIN_CURVE_CONVERSATIONS.md) | Design, for review | Moving the business ↔ team member conversation to key exchange, and backups both people agree to. |
-| [`CUSTOMERS.md`](CUSTOMERS.md) | Design, for review | Bringing customers in: the directory of businesses taking clients, requests only a field can read, service agreements with a clear end (complete, warranty, closed), payment in USDCx, reviews at each payment that post when the job ends. |
-| [`LOCKED_SAVINGS.md`](LOCKED_SAVINGS.md) | Idea, for outside review | Locked savings with an employer match, kept private and unpooled: one Aleo account per enrollment whose key is split between the worker's and the business's apps, the business's half time-locked with drand. Questions for Aleo developers at the end. |
-| [`CLOSE_PERIOD.md`](CLOSE_PERIOD.md) | Decided, being built | Closing a period: any time after it ends, through any date the business picks, only once everything is reviewed, with a checklist (review empty, Shield matches, nothing settling), the root anchored through `payroll_audit_log`, reopening and locking. Builds on `AUDIT_DESIGN.md`. |
-| [`PROOF_OF_INCOME.md`](PROOF_OF_INCOME.md) | Design, for review | Paystubs as private records the business issues, which a worker proves from: a one-page income letter showing a third party exactly what it needs ("at least $3,600 a month for 6 months") under the employer-vouched name, checked by scanning a QR code, no account. New Leo; questions for Joshua at the end. |
-| [`HEWN_ART.md`](HEWN_ART.md) | Design, for review | The art drawn for every credential and paystub: a Northwest scene, the pine that grows with time on Hewn, a constellation that fingerprints the record and carries the person's own star, a log's rings for the year's paychecks. |
-| [`JOB_BOARD.md`](JOB_BOARD.md) | Living | The public job board: what is public on purpose, how applications stay sealed, fees. |
-| [`AUDIT_DESIGN.md`](AUDIT_DESIGN.md) | Plan, approved | How a paycheck, a run or a period is provable to an auditor without the chain ever showing a wage. |
-| [`MAINNET_NAMES.md`](MAINNET_NAMES.md) | Design, with its checklist | `.hewn` names under the Aleo Name Service on mainnet: the two tiers, pricing, reserved names, one kind of name per wallet, and the steps to get there. |
-| [`OPERATING_COSTS.md`](OPERATING_COSTS.md) | Plan, estimates | Running Hewn without a monthly subscription: what costs money, the small fee on what moves money, name sales, hosting. |
-| [`PREMIUM_TIER.md`](PREMIUM_TIER.md) | Candidates, not decided | What could sit behind a paid tier on mainnet, and what the free product never loses. |
-| [`NAME_REGISTRY_MAP.md`](NAME_REGISTRY_MAP.md) | Plan | Where the app depends on the name registry, and how mainnet names under the Aleo Name Service slot in. |
-| [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | Reference | Who the app is for and the principles its screens follow. Clean-room: from what bookkeepers do, not from any other product. |
-| [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | Report, 2026-10-14 | The network's limits checked against the settlement design before it was built. |
-| [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | Report, 2026-10-14 | The read-only pass over the three codebases that decided what to keep, what to rebuild and in what order. Most of its list is done. |
-| [`incidents/`](incidents/) | Record | Problems seen in use and what was found. [`2026-10-27-stuck-on-opening.md`](incidents/2026-10-27-stuck-on-opening.md): the app stuck on "Opening…" in Brave and Shield, resolved by itself, cause unknown. |
-| [`grants/`](grants/) | Reference | The Aleo SCALE grant proposals: PNW's, as submitted, and Hewn's (`SCALE_GRANT_PROPOSAL_HEWN.md`, 2026-10-24). |
+| [`JOB_BOARD.md`](JOB_BOARD.md) | living · 2026-10-19 | The public job board on `hewn_jobs_v1.aleo`: what is public on purpose, how applications stay sealed, fees. |
+| [`LETTERS.md`](LETTERS.md) | living · 2026-10-26 | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
+| [`THREAT_MODEL.md`](THREAT_MODEL.md) | living · 2026-10-30 | What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it. |
+| [`INVARIANTS.md`](INVARIANTS.md) | living · 2026-11-03 | Every non-negotiable rule with an id, where it is enforced, its check, its threats and the SOC 2 and ISO 27001 items it satisfies; then the operating rules. The control list. |
+| [`map/`](map/README.md) | living · 2026-11-03 | The map of Hewn in 3D on GitHub Pages: every file in both repositories, every rule and dependency, how they connect; its extractor, layout, viewer, query tool and build. |
+| [`security/DATA_FLOW.md`](security/DATA_FLOW.md) | living · 2026-11-03 | Where the data lives and what crosses between places: every store and flow classed private, sealed, public or control, each citing its rule; the map's data-flow view in writing. |
+| [`TWIN_CURVE_CONVERSATIONS.md`](TWIN_CURVE_CONVERSATIONS.md) | built · 2026-10-23 | The business ↔ team member conversation on key exchange (the handshake), and backups both people agree to. |
+| [`HEWN_ART.md`](HEWN_ART.md) | built · 2026-10-24 | The art drawn for every credential and paystub: a worker's land in 3D, a business's topographic map, the constellation, the paystub rings; in the app, the credential card (question 1) still open. |
+| [`CUSTOMERS.md`](CUSTOMERS.md) | built · 2026-10-26 | Customers as their own accounts with a portal: invoices sent as letters, bills paid from Shield, agreements with a clear end; Step 1 built, the directory of businesses and reviews still open. |
+| [`CHAIN_BACKUP.md`](CHAIN_BACKUP.md) | built · 2026-10-27 | The books backed up as letters to your own account: compressed, then encrypted; a snapshot, then only changes; restored on any device with the wallet and the passphrase or recovery key. |
+| [`CLOSE_PERIOD.md`](CLOSE_PERIOD.md) | built · 2026-11-02 | Closing a period through any date after it ends, once every check passes, the root anchored through `payroll_audit_log`, reopening and locking; the period proof export is still open. |
+| [`MAINNET_NAMES.md`](MAINNET_NAMES.md) | design · 2026-10-25 | `.hewn` names under the Aleo Name Service on mainnet: the two tiers, pricing, reserved names, one kind of name per wallet, and the steps to get there. |
+| [`PROOF_OF_INCOME.md`](PROOF_OF_INCOME.md) | design · 2026-10-30 | Paystubs as private records a worker proves from: a one-page income letter checked by a QR code, under the employer-vouched name; new Leo; questions open. |
+| [`MEMORY.md`](MEMORY.md) | design · 2026-11-03 | How Hewn's agents remember across sessions, in three scopes of plain files, with a weekly out-of-band "dreaming" pass that verifies, consolidates and enriches the memory so each session starts small and current. |
+| [`COMPLIANCE_MAP.md`](COMPLIANCE_MAP.md) | review · 2026-11-03 | The Audit-Ready Plan checked against SOC 2, ISO 27001, HITRUST, FedRAMP and CMMC (and SOC 1): what's met, what's missing, Steps 8 to 14, and the internal audit that stands in for a Type I and Type II until mainnet. |
+| [`NAME_REGISTRY_MAP.md`](NAME_REGISTRY_MAP.md) | plan · 2026-10-25 | Where the app depends on the name registry, and how mainnet names under the Aleo Name Service slot in. |
+| [`OPERATING_COSTS.md`](OPERATING_COSTS.md) | plan · 2026-10-25 | Running Hewn without a subscription: what costs money, the small fee on what moves money, name sales, hosting; estimates. |
+| [`AUDIT_DESIGN.md`](AUDIT_DESIGN.md) | plan · 2026-11-02 | How a paycheck, a run or a period is provable to an auditor without the chain ever showing a wage; steps 1 and 2 (the period root, the anchor) done. |
+| [`LOCKED_SAVINGS.md`](LOCKED_SAVINGS.md) | idea · 2026-10-24 | Locked savings with an employer match, private and unpooled: one Aleo account per enrollment whose key is split between the two apps; questions for Aleo developers. |
+| [`PREMIUM_TIER.md`](PREMIUM_TIER.md) | idea · 2026-10-25 | What could sit behind a paid tier on mainnet, and what the free product never loses; candidates, not decided. |
+| [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | reference · 2026-10-14 | Who the app is for and the principles its screens follow; clean-room, from what bookkeepers do. |
+| [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | report · 2026-10-14 | The network's limits checked against the settlement design before it was built (2026-10-14). |
+| [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | report · 2026-10-14 | The read-only pass over the three codebases that decided what to keep, what to rebuild and in what order; most of its list is done. |
+
+Status means: **idea**, an idea, nothing decided or built; **design**, a design waiting for Joshua's decision; **review**, a review or analysis for Joshua, nothing to build; **decided**, decided by Joshua, not yet built; **built**, built and in the app (open items, if any, are named in the summary); **plan**, a plan with its checklist; items tick here; **living**, kept current as the code changes; CI checks it where it can; **report**, a dated report of what was found; history, not current; **reference**, background that doesn't change: who it's for, how it was made.
+
+<!-- docs-index:end -->
+
+Folders without a page of their own:
+
+| Folder | What |
+|---|---|
+| [`incidents/`](incidents/) | Problems seen in use and what was found, one write-up each, dated. |
+| [`grants/`](grants/) | The Aleo SCALE grant proposals: PNW's, as submitted, and Hewn's (`SCALE_GRANT_PROPOSAL_HEWN.md`, 2026-10-24). |
+| [`art/`](art/) | The art prototypes and renders behind `HEWN_ART.md`. |
 
 The Leo programs' own documents (the architecture spec, migration notes) live with the programs
 in [`pnw_mvp_v2/docs`](https://github.com/PNWBNW/pnw_mvp_v2/tree/main/docs).

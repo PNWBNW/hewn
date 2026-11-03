@@ -1,3 +1,9 @@
+---
+status: report
+updated: 2026-10-14
+summary: The network's limits checked against the settlement design before it was built (2026-10-14).
+---
+
 # Aleo constraints check (2026-10-14)
 
 Joshua hit boundaries building batched payroll in early 2026. Before designing the settlement path

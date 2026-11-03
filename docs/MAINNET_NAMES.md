@@ -1,3 +1,9 @@
+---
+status: design
+updated: 2026-10-25
+summary: `.hewn` names under the Aleo Name Service on mainnet: the two tiers, pricing, reserved names, one kind of name per wallet, and the steps to get there.
+---
+
 # Mainnet names: `.hewn` under the Aleo Name Service
 
 **Status:** design (Joshua, 2026-10-15), moved here from `BUILD_PLAN.md` on 2026-10-25. Its

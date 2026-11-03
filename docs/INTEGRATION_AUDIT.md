@@ -1,3 +1,9 @@
+---
+status: report
+updated: 2026-10-14
+summary: The read-only pass over the three codebases that decided what to keep, what to rebuild and in what order; most of its list is done.
+---
+
 # Integration audit: tying the books to the chain stack
 
 Date: 2026-10-14. Read-only pass over three codebases: this monorepo (`main` @ c560231), the
