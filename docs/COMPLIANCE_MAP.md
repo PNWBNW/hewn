@@ -104,7 +104,10 @@ The gaps an auditor would raise first, by priority:
    certificates.
 8. **Asset inventory, data classification and a data-flow diagram (CC2.1, C1; ISO 5.9 to 5.13).**
    One diagram of what lives on the device, what crosses to Shield, to the chain, to Vercel and
-   to Upstash, with each item classed as private, internal or public.
+   to Upstash, with each item classed as private, internal or public. **Done 2026-11-03:**
+   `docs/security/DATA_FLOW.md` (four classes: private, sealed, public, control; every point and
+   flow citing its rule; generated from the map's data, checked in CI) and the map's data-flow
+   view on GitHub Pages (`docs/map/`). The asset inventory stays open (Step 9).
 9. **People (CC1.4; ISO 6.1 to 6.6).** Security training, an acceptable-use acknowledgement, and
    for anyone with access later, background checks and offboarding. Small now, but it has to exist.
 10. **Evidence over time (SOC 2 Type II).** Auditors sample months of records:
@@ -121,7 +124,7 @@ Steps 1 to 7 stay as they are. Proposed additions, each one PR or one settings c
 | Step | What | Where |
 |---|---|---|
 | 8 | Change control: branch protection on `main`, CODEOWNERS, Joshua's approval required, a written rule for agent merges, signed commits | GitHub settings + `docs/` |
-| 9 | Governance pack: the control list (done, `docs/INVARIANTS.md`, 2026-11-03), the short policies, a risk register built from the threat model (likelihood, impact, owner, treatment), the asset and vendor inventory, the data-flow diagram | `docs/INVARIANTS.md`, `docs/security/` |
+| 9 | Governance pack: the control list (done, `docs/INVARIANTS.md`, 2026-11-03), the data-flow diagram (done, `docs/security/DATA_FLOW.md` and the map, 2026-11-03), the short policies, a risk register built from the threat model (likelihood, impact, owner, treatment), the asset and vendor inventory | `docs/INVARIANTS.md`, `docs/security/` |
 | 10 | Access: the account inventory with 2FA confirmed, the first access review, the admin key's custody and rotation | `docs/security/` + settings |
 | 11 | Security testing in CI: static analysis, dependency review, an SBOM | `.github/workflows/` |
 | 12 | Incident response and recovery runbooks, with a restore drill | `docs/security/` |
