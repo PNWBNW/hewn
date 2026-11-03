@@ -1,14 +1,14 @@
 ---
-status: design
+status: built
 updated: 2026-11-03
 summary: How Hewn's agents remember across sessions, in three scopes of plain files, with a weekly out-of-band "dreaming" pass that verifies, consolidates and enriches the memory so each session starts small and current.
 ---
 
 # Memory: three scopes, and dreaming
 
-**Status:** design, decided by Joshua on 2026-11-03; parts 1 and 2 built the same day (scopes,
-frontmatter and the generated index, session attribution; the first dream by hand), the weekly
-dream next. Prompted by
+**Status:** built. Decided by Joshua on 2026-11-03 and built the same day in three parts (scopes,
+frontmatter and the generated index, session attribution; the first dream by hand; the weekly
+dream as a Routine, its first run reviewed before the schedule stands). Prompted by
 Anthropic's AI DevCon talk on agent memory (Lamis Mukta, 2026-11), whose four stages Hewn had
 already walked without naming them: a single file (`CLAUDE.md`), procedural memory (the READMEs and
 `docs/`), files agents read and write (`progress/`). What it lacked was the last part of the talk:
@@ -70,8 +70,10 @@ the `merge -s ours` trick, Shield's testnet fee); and memories go stale with con
 line, the Now block, a CI step's label). The answer is a periodic batch process whose only job is
 to curate memory. For Hewn:
 
-- **When:** once a week, as a scheduled Routine that starts a fresh session on `main`. Out of
-  band, so no working session pays for it; bounded, so its cost is known.
+- **When:** once a week (Sunday evening Pacific), as a scheduled Routine that starts a fresh
+  session on `main` and reads its whole instruction from `scripts/dreaming/PROMPT.md`, so a change
+  to how the team dreams is a pull request like any other. Out of band, so no working session
+  pays for it; bounded, so its cost is known.
 - **Input:** the week's `progress/` entries, the pull requests merged, the transcripts those
   entries name (by session id), the map's diff, and the memory store as it is.
 - **Verify:** every document's status against the code and the merged pull requests; the Now
@@ -99,8 +101,9 @@ semantic half.
    the documents' own Decisions sections, which stay as the record of the moment) and
    `memory/lessons.md` populated from the documents, `CLAUDE.md` and the progress log;
    `CLAUDE.md` slimmed to rules with the dates and provenance moved to the ledger.
-3. **The recurring dream:** the weekly Routine, its prompt kept in the repository
-   (`scripts/dreaming/PROMPT.md`), its first run reviewed before the schedule stands.
+3. **The recurring dream** (built 2026-11-03): the weekly Routine, its prompt kept in the
+   repository (`scripts/dreaming/PROMPT.md`), its first run fired by hand and reviewed before the
+   schedule stands.
 
 ## Decisions (Joshua, 2026-11-03)
 
