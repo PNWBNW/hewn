@@ -6,6 +6,7 @@ day, indexed by `PROGRESS.md`) are at the repository root; this folder holds the
 | File | Status | What it answers |
 |---|---|---|
 | [`INVARIANTS.md`](INVARIANTS.md) | Living, checked in CI | Every non-negotiable rule with an id (INV-01…), where it is enforced, the check that proves it, and the threats it answers. Where an auditor starts. |
+| [`COMPLIANCE_MAP.md`](COMPLIANCE_MAP.md) | Review, for Joshua | The Audit-Ready Plan checked against SOC 2, ISO 27001, HITRUST, FedRAMP and CMMC (and SOC 1): which fit, what the plan already meets, what's missing (mostly organizational: change approval, policies, access, vendors, incidents), and Steps 8 to 14 to add. |
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Living | What Hewn protects, from whom, how, and what it can't. Every PR checks its changes against it; new features add rows. |
 | [`LETTERS.md`](LETTERS.md) | Living | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
 | [`CHAIN_BACKUP.md`](CHAIN_BACKUP.md) | Design, approved; being built | The books backed up as letters to your own account: compressed, then encrypted; a snapshot, then only changes, in a hash chain; restored on any device with the wallet and the passphrase or recovery key. |
