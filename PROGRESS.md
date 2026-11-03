@@ -12,6 +12,7 @@ index is out of date.
 
 - [The Audit-Ready Plan checked against the security frameworks](progress/2026-11-03.md#2026-11-03--the-audit-ready-plan-checked-against-the-security-frameworks)
 - [The control list is the invariants table, not a new file (Step 9, part 1)](progress/2026-11-03.md#2026-11-03--the-control-list-is-the-invariants-table-not-a-new-file-step-9-part-1)
+- [The map, part 1: the data-flow view on GitHub Pages, and its written companion (Step 9)](progress/2026-11-03.md#2026-11-03--the-map-part-1-the-data-flow-view-on-github-pages-and-its-written-companion-step-9)
 
 ## [2026-11-02](progress/2026-11-02.md)
 

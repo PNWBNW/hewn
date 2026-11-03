@@ -1,0 +1,93 @@
+{
+  "id": "data-flow",
+  "title": "Where the data lives and what crosses between places",
+  "description": "Every place Hewn's data can be, and every flow between them, each classed by what it exposes. The written companion is docs/security/DATA_FLOW.md.",
+  "classes": {
+    "private": { "label": "Private", "description": "Plaintext about a person or a business. Never leaves the device, never on a server." },
+    "sealed": { "label": "Sealed", "description": "Ciphertext that may travel: a backup, a letter, a record. Opened only with a key the person holds." },
+    "public": { "label": "Public", "description": "Hashes, commitments, block heights, code, two counts a country. Public on purpose; nothing about a person." },
+    "control": { "label": "Control", "description": "Not data: a request to sign, a deploy, a fee. Shown or logged where it happens." }
+  },
+  "regions": [
+    { "id": "person", "name": "The person", "description": "What only the person holds: the passphrase, the recovery key, a backup they saved.", "colour": "#f8d084", "at": [-150, 70, 40] },
+    { "id": "device", "name": "The device", "description": "The browser that holds the books: the encrypted vault, the books open in memory for one session, the app's code.", "colour": "#f5f0e3", "at": [-30, 30, 0] },
+    { "id": "shield", "name": "Shield", "description": "The wallet app on the phone. It holds the account's keys, signs every transaction and shows what is being signed.", "colour": "#18dccb", "at": [110, 90, 20] },
+    { "id": "aleo", "name": "Aleo", "description": "The network: private records only their owner can open, and public mappings that hold hashes, commitments and heights.", "colour": "#9fe3d8", "at": [190, -20, -40] },
+    { "id": "explorer", "name": "Explorer API", "description": "Provable's public read API: mappings and transaction status. The only chain reads the app makes.", "colour": "#7cc8b8", "at": [80, -90, -30] },
+    { "id": "vercel", "name": "Vercel", "description": "Serves the app's code. One API route, for the traction counts. Sees requests like any host; holds no data.", "colour": "#c9c3b3", "at": [-80, -110, 30] },
+    { "id": "upstash", "name": "Upstash", "description": "Two counts per country since launch: visits and visitors. Nothing else.", "colour": "#a8a090", "at": [-150, -150, 70] },
+    { "id": "github", "name": "GitHub", "description": "The source, the CI gate, this map, and the one secret that deploys programs (in the chain repository).", "colour": "#d8cfa8", "at": [-190, -40, -60] },
+    { "id": "observers", "name": "Observers", "description": "Who sees what regardless of Hewn: anyone reading public state, and the stablecoin issuer's compliance record.", "colour": "#8a9ab0", "at": [250, -110, 40] }
+  ],
+  "nodes": [
+    { "id": "p.secret", "region": "person", "label": "Username + passphrase", "kind": "key", "class": "private", "holds": "Typed at login, held in memory only. Never stored, never sent, never verified anywhere.", "rules": ["INV-07", "INV-09"] },
+    { "id": "p.recovery", "region": "person", "label": "Recovery key", "kind": "key", "class": "private", "holds": "Shown once when made, kept by the person. The only way back from a lost passphrase.", "rules": ["INV-09"] },
+    { "id": "p.backup", "region": "person", "label": "Backup file", "kind": "artifact", "class": "sealed", "holds": "The vault's ciphertext as a file, saved through the phone's share sheet or a download. Useless without the username and passphrase.", "rules": ["T2", "T19"] },
+    { "id": "p.viewkey", "region": "person", "label": "View key (a business)", "kind": "key", "class": "private", "holds": "Typed once in setup or Settings so the books can read the business's incoming private payments. Kept only inside the encrypted books; never sent, logged or shown back.", "rules": ["INV-06", "T20"] },
+
+    { "id": "d.page", "region": "device", "label": "The app, in this tab", "kind": "process", "class": "control", "holds": "The ledger, payroll, sales and reports, running in the page. Code only; it carries no data of its own.", "rules": ["INV-16"] },
+    { "id": "d.books", "region": "device", "label": "The books (open)", "kind": "store", "class": "private", "holds": "The plaintext books: entries, team, wages, invoices. In memory for this session only.", "rules": ["INV-01", "INV-02"] },
+    { "id": "d.datakey", "region": "device", "label": "Data key", "kind": "key", "class": "private", "holds": "A random AES-256-GCM key, non-extractable, that encrypts the books. Wrapped by the unlock secret; never stored in plaintext.", "rules": ["INV-07"] },
+    { "id": "d.vault", "region": "device", "label": "The vault (IndexedDB)", "kind": "store", "class": "sealed", "holds": "The books as ciphertext. The one durable store on the device.", "rules": ["INV-10", "T2"] },
+    { "id": "d.session", "region": "device", "label": "Stay logged in", "kind": "store", "class": "private", "holds": "The open data key, non-extractable, for at most 24 hours from login. Forgotten on Log out.", "rules": ["INV-08"] },
+    { "id": "d.flags", "region": "device", "label": "Web storage flags", "kind": "store", "class": "public", "holds": "Five flags and nothing else: an account exists here, this device was counted, the step a load stuck at. Never a name, a number or an id.", "rules": ["INV-10"] },
+    { "id": "d.chain", "region": "device", "label": "Chain code", "kind": "process", "class": "control", "holds": "The part of the app that talks to Shield and the explorer. Loads only on the pages that need it.", "rules": ["INV-16", "INV-17"] },
+    { "id": "d.adapter", "region": "device", "label": "The one door to Shield", "kind": "process", "class": "control", "holds": "The single module that touches the wallet adapter. Nothing else in the app can send a transaction.", "rules": ["INV-11"] },
+
+    { "id": "s.wallet", "region": "shield", "label": "Shield wallet", "kind": "key", "class": "private", "holds": "The account's private key and view key, in Shield. Every transaction is signed here, with what it does shown first.", "rules": ["INV-11"] },
+    { "id": "s.records", "region": "shield", "label": "Records Shield opens", "kind": "store", "class": "private", "holds": "The account's private records (letters, backups, USDCx), decrypted by Shield with its view key and handed to the page on request.", "rules": ["INV-01"] },
+    { "id": "s.fees", "region": "shield", "label": "Fee service (testnet)", "kind": "service", "class": "public", "holds": "On testnet Shield pays the network fee, publicly. A private fee fails there (the backup note in Settings).", "rules": ["T3"] },
+
+    { "id": "a.records", "region": "aleo", "label": "Private records", "kind": "store", "class": "sealed", "holds": "Letters (paystubs, invoices, messages), backups of the books, agreements, credentials, USDCx. Only the owner can open them.", "rules": ["INV-01", "INV-03"] },
+    { "id": "a.mappings", "region": "aleo", "label": "Public mappings", "kind": "store", "class": "public", "holds": "Name hashes, commitments, statuses, block heights, anchored period roots. Never an amount, a name or a memo; never a running total.", "rules": ["INV-03", "INV-23"] },
+    { "id": "a.programs", "region": "aleo", "label": "The programs", "kind": "process", "class": "public", "holds": "Deployed and immutable. A change is a new version with a migration note.", "rules": ["INV-20", "INV-22"] },
+
+    { "id": "e.api", "region": "explorer", "label": "Explorer API", "kind": "service", "class": "public", "holds": "Mapping reads and transaction status, public data. It can see which names and addresses a page looks up.", "rules": ["T3"] },
+
+    { "id": "v.static", "region": "vercel", "label": "The app's code", "kind": "artifact", "class": "public", "holds": "The website build, served with one security policy for the whole app. No database, no API that sees plaintext.", "rules": ["INV-02", "INV-17"] },
+    { "id": "v.traction", "region": "vercel", "label": "Traction route", "kind": "process", "class": "public", "holds": "The one server function. It receives a country and a yes/no and adds to two counts. No date, address or id.", "rules": ["INV-05"] },
+
+    { "id": "u.counts", "region": "upstash", "label": "Two counts a country", "kind": "store", "class": "public", "holds": "Visits and visitors per country since launch. The only data Hewn keeps on any server, and the only exception to INV-02.", "rules": ["INV-05", "T11"] },
+
+    { "id": "g.source", "region": "github", "label": "The source", "kind": "artifact", "class": "public", "holds": "AGPL-3.0. Every change is one pull request, merged after Joshua approves it in session.", "rules": ["OPS-01", "OPS-08"] },
+    { "id": "g.ci", "region": "github", "label": "The CI gate", "kind": "process", "class": "control", "holds": "Tests, the rule checks, the build, the dependency audit, on every pull request. Read-only, no secrets.", "rules": ["OPS-04", "OPS-05"] },
+    { "id": "g.pages", "region": "github", "label": "This map", "kind": "artifact", "class": "public", "holds": "Built from the tree on every push to main and published on GitHub Pages.", "rules": ["OPS-05"] },
+    { "id": "g.secret", "region": "github", "label": "The admin key", "kind": "key", "class": "private", "holds": "The key that deploys and upgrades the programs, only in the chain repository's environment secret, read by manual workflows that print a redacted form.", "rules": ["OPS-03", "T18"] },
+
+    { "id": "o.anyone", "region": "observers", "label": "Anyone reading the chain", "kind": "service", "class": "public", "holds": "Sees every public mapping and the shape of every transaction: which program, when, the fee. Not who, not how much.", "rules": ["INV-03", "T6"] },
+    { "id": "o.issuer", "region": "observers", "label": "The stablecoin issuer", "kind": "service", "class": "public", "holds": "Receives a compliance record of every private USDCx transfer, by the token's own design. The one party outside the two accounts that sees a payment.", "rules": ["T6"] }
+  ],
+  "edges": [
+    { "from": "p.secret", "to": "d.datakey", "what": "PBKDF2-SHA256, 600k rounds, wraps and unwraps the data key", "class": "private", "rules": ["INV-07"] },
+    { "from": "p.recovery", "to": "d.datakey", "what": "a second wrapped copy of the data key, for a lost passphrase", "class": "private", "rules": ["INV-09"] },
+    { "from": "d.datakey", "to": "d.vault", "what": "encrypts the books into the vault and opens them from it", "class": "private", "rules": ["INV-07"] },
+    { "from": "d.vault", "to": "d.books", "what": "the books, opened in memory for this session", "class": "private", "rules": ["INV-02"] },
+    { "from": "d.datakey", "to": "d.session", "what": "kept non-extractable for at most 24 hours", "class": "private", "rules": ["INV-08"] },
+    { "from": "d.books", "to": "d.page", "what": "the ledger, payroll and reports read and post entries", "class": "private", "rules": ["INV-16"] },
+    { "from": "d.books", "to": "d.flags", "what": "five yes/no flags, never data", "class": "public", "rules": ["INV-10"] },
+    { "from": "d.vault", "to": "p.backup", "what": "the sealed record itself, written out through the share sheet", "class": "sealed", "rules": ["T19"] },
+    { "from": "p.backup", "to": "d.vault", "what": "restored on any device, opened with the username and passphrase", "class": "sealed", "rules": ["T2"] },
+    { "from": "p.viewkey", "to": "d.books", "what": "typed once, kept inside the encrypted books", "class": "private", "rules": ["T20"] },
+    { "from": "d.books", "to": "d.chain", "what": "what to send: a payment, a letter, a backup, an anchor", "class": "private", "rules": ["INV-16"] },
+    { "from": "d.chain", "to": "d.adapter", "what": "a transaction to sign", "class": "control", "rules": ["INV-11"] },
+    { "from": "d.adapter", "to": "s.wallet", "what": "the request, shown in Shield before it is signed", "class": "control", "rules": ["INV-11", "INV-12"] },
+    { "from": "s.wallet", "to": "a.records", "what": "signed transactions that make or consume private records: letters, backups, payments", "class": "sealed", "rules": ["INV-01"] },
+    { "from": "s.wallet", "to": "a.mappings", "what": "signed transactions that write a hash, a commitment or a status", "class": "public", "rules": ["INV-03"] },
+    { "from": "s.wallet", "to": "s.fees", "what": "the network fee, paid publicly on testnet", "class": "public", "rules": ["T3"] },
+    { "from": "s.records", "to": "d.chain", "what": "the account's records, opened by Shield, read on request: letters, the backup, the balance", "class": "private", "rules": ["INV-01"] },
+    { "from": "a.records", "to": "s.records", "what": "records Shield scans and decrypts for the account", "class": "sealed", "rules": ["INV-01"] },
+    { "from": "d.chain", "to": "e.api", "what": "mapping reads and transaction status; the lookups themselves are visible to the API", "class": "public", "rules": ["T3"] },
+    { "from": "e.api", "to": "d.chain", "what": "public state: name hashes, statuses, heights, confirmations", "class": "public", "rules": ["INV-03"] },
+    { "from": "d.chain", "to": "d.books", "what": "the feed: payments to review, letters opened, a backup restored", "class": "private", "rules": ["INV-02"] },
+    { "from": "v.static", "to": "d.page", "what": "the app's code, and nothing back", "class": "public", "rules": ["INV-02", "INV-17"] },
+    { "from": "d.page", "to": "v.traction", "what": "once per device: a country and a yes/no, no id", "class": "public", "rules": ["INV-05"] },
+    { "from": "v.traction", "to": "u.counts", "what": "adds one to two counts", "class": "public", "rules": ["INV-05"] },
+    { "from": "g.source", "to": "g.ci", "what": "every pull request", "class": "control", "rules": ["OPS-08"] },
+    { "from": "g.source", "to": "v.static", "what": "a deploy on every merge", "class": "control", "rules": ["OPS-01"] },
+    { "from": "g.source", "to": "g.pages", "what": "this map, rebuilt on every push to main", "class": "control", "rules": ["OPS-05"] },
+    { "from": "g.secret", "to": "a.programs", "what": "a deploy or an upgrade, run by hand", "class": "control", "rules": ["OPS-03", "INV-20"] },
+    { "from": "a.programs", "to": "a.mappings", "what": "the only writer of public state", "class": "public", "rules": ["INV-03"] },
+    { "from": "a.mappings", "to": "o.anyone", "what": "hashes, commitments, heights; the shape of each transaction", "class": "public", "rules": ["INV-03"] },
+    { "from": "a.records", "to": "o.issuer", "what": "a compliance record of each private USDCx transfer", "class": "sealed", "rules": ["T6"] }
+  ]
+}

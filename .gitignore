@@ -39,3 +39,5 @@ apps/business/out/
 # The art prototypes' generated check page and its output (docs/art/prototype/README.md)
 docs/art/prototype/check.html
 docs/art/prototype/out/
+# The map's built site (docs/map/README.md): published by .github/workflows/map.yml
+docs/map/dist/

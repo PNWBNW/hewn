@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex">
+<title>Hewn map</title>
+<link rel="stylesheet" href="./map.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<canvas id="scene" aria-label="The map, drawn in 3D"></canvas>
+
+<div id="top" class="bar">
+  <div class="line"><span class="dot"></span><span id="crumb">HEWN — MAP</span></div>
+  <div class="hint">drag · rotate &nbsp; pinch · zoom &nbsp; tap · a point</div>
+</div>
+
+<section id="legend" class="panel" aria-label="Regions">
+  <button id="legend-toggle" class="toggle" aria-expanded="true">REGIONS <span class="caret">▾</span></button>
+  <div id="legend-body">
+    <h1 id="title"></h1>
+    <p id="description"></p>
+    <ul id="regions"></ul>
+    <ul id="classes" aria-label="What a line's colour means"></ul>
+  </div>
+</section>
+
+<div id="controls" class="bar">
+  <div class="group" role="group" aria-label="Labels">
+    <span class="group-name">Labels</span>
+    <button data-labels="all">All</button><button data-labels="regions" class="on">Regions</button><button data-labels="none">None</button>
+  </div>
+  <div class="group">
+    <button id="flow" class="on" aria-pressed="true">Flow</button>
+    <button id="fit">Fit</button>
+  </div>
+  <div id="views" class="group" hidden></div>
+</div>
+
+<aside id="details" class="panel" hidden aria-live="polite">
+  <button id="close" class="close" aria-label="Close">×</button>
+  <div class="eyebrow"><span id="d-region-dot" class="swatch"></span><span id="d-region"></span> · <span id="d-kind"></span></div>
+  <h2 id="d-label"></h2>
+  <p id="d-holds"></p>
+  <p id="d-class" class="badge"></p>
+  <p id="d-rules" class="rules"></p>
+  <h3>Flows</h3>
+  <ul id="d-edges"></ul>
+</aside>
+
+<footer id="foot"></footer>
+
+<script type="module" src="./map.js"></script>
+</body>
+</html>

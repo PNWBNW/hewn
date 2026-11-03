@@ -1,0 +1,54 @@
+name: Map
+
+# The map (docs/map/README.md): built from the tree on every push to main and published on
+# GitHub Pages, so it always shows the current tree and nothing generated is committed. This is
+# the one automatic workflow with a write permission, and it writes to Pages alone (OPS-05 in
+# docs/INVARIANTS.md). No secrets are used. The CI gate (ci.yml) checks the map's data on every
+# pull request; this only builds and publishes it.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the map
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6 # version comes from package.json "packageManager"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install the art package's dependencies (three.js is copied from them)
+        run: pnpm install --frozen-lockfile --filter @pnw/art
+      - name: Check the graphs and their companions, then build
+        run: node docs/map/build.mjs --check && node docs/map/build.mjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/map/dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
