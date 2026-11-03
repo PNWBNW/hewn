@@ -22,6 +22,7 @@ index is out of date.
 - [The ledger in two levels; the default mode set straight](progress/2026-11-03.md#2026-11-03--the-ledger-in-two-levels-the-default-mode-set-straight)
 - [The README and the site say the way in is Aleo](progress/2026-11-03.md#2026-11-03--the-readme-and-the-site-say-the-way-in-is-aleo)
 - [Memory part 3: the weekly dream as a Routine](progress/2026-11-03.md#2026-11-03--memory-part-3-the-weekly-dream-as-a-routine)
+- [Dreaming: week of 2026-11-03, the first run](progress/2026-11-03.md#2026-11-03--dreaming-week-of-2026-11-03-the-first-run)
 
 ## [2026-11-02](progress/2026-11-02.md)
 
