@@ -57,7 +57,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #controls .group-name { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); padding: 0 6px; }
 #controls button { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; padding: 7px 9px; min-height: 30px; border-radius: 6px; color: var(--muted); }
 #controls button.on { background: rgba(245, 240, 227, 0.1); color: var(--cream); }
-#controls select { font: 11px var(--mono); color: var(--cream); background: transparent; border: 0; padding: 6px; }
+#controls select { font: 10px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--cream); background: transparent; border: 0; padding: 7px 6px; min-height: 30px; }
+#controls select option { color: #000; }
 
 #details { right: calc(var(--pad) + env(safe-area-inset-right)); bottom: calc(var(--pad) + env(safe-area-inset-bottom)); left: calc(var(--pad) + env(safe-area-inset-left)); max-height: 46vh; overflow: auto; padding: 14px 16px 16px; }
 #details[hidden] { display: none; }
@@ -75,6 +76,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #d-edges button { text-align: left; color: var(--cream); font-weight: 500; }
 #d-edges button:hover { color: var(--cyan); }
 #d-edges .what { color: var(--muted); font-size: 12px; }
+#d-edges .more { display: block; color: var(--faint); font-family: var(--mono); font-size: 11px; }
+#details .muted { color: var(--faint); font-family: var(--mono); font-size: 11px; }
 #d-edges .cls { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
 
 #foot { left: calc(var(--pad) + env(safe-area-inset-left)); bottom: calc(var(--pad) + env(safe-area-inset-bottom)); font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; color: var(--faint); pointer-events: none; }

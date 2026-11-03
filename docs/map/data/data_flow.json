@@ -3,10 +3,10 @@
   "title": "Where the data lives and what crosses between places",
   "description": "Every place Hewn's data can be, and every flow between them, each classed by what it exposes. The written companion is docs/security/DATA_FLOW.md.",
   "classes": {
-    "private": { "label": "Private", "description": "Plaintext about a person or a business. Never leaves the device, never on a server." },
-    "sealed": { "label": "Sealed", "description": "Ciphertext that may travel: a backup, a letter, a record. Opened only with a key the person holds." },
-    "public": { "label": "Public", "description": "Hashes, commitments, block heights, code, two counts a country. Public on purpose; nothing about a person." },
-    "control": { "label": "Control", "description": "Not data: a request to sign, a deploy, a fee. Shown or logged where it happens." }
+    "private": { "colour": "#f5f0e3", "label": "Private", "description": "Plaintext about a person or a business. Never leaves the device, never on a server." },
+    "sealed": { "colour": "#18dccb", "label": "Sealed", "description": "Ciphertext that may travel: a backup, a letter, a record. Opened only with a key the person holds." },
+    "public": { "colour": "#f8d084", "label": "Public", "description": "Hashes, commitments, block heights, code, two counts a country. Public on purpose; nothing about a person." },
+    "control": { "colour": "#7f93b3", "label": "Control", "description": "Not data: a request to sign, a deploy, a fee. Shown or logged where it happens." }
   },
   "regions": [
     { "id": "person", "name": "The person", "description": "What only the person holds: the passphrase, the recovery key, a backup they saved.", "colour": "#f8d084", "at": [-150, 70, 40] },

@@ -107,7 +107,9 @@ The gaps an auditor would raise first, by priority:
    to Upstash, with each item classed as private, internal or public. **Done 2026-11-03:**
    `docs/security/DATA_FLOW.md` (four classes: private, sealed, public, control; every point and
    flow citing its rule; generated from the map's data, checked in CI) and the map's data-flow
-   view on GitHub Pages (`docs/map/`). The asset inventory stays open (Step 9).
+   view on GitHub Pages (`docs/map/`). The map's project view (same day) lists every file in both
+   repositories and every declared dependency and action, which is the raw material of the asset
+   inventory; the classified inventory itself stays open (Step 9).
 9. **People (CC1.4; ISO 6.1 to 6.6).** Security training, an acceptable-use acknowledgement, and
    for anyone with access later, background checks and offboarding. Small now, but it has to exist.
 10. **Evidence over time (SOC 2 Type II).** Auditors sample months of records:
