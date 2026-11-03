@@ -67,7 +67,7 @@ const CLASS_OF = { imports: "code", loads: "code", depends: "code", links: "docs
 
 const KIND_OF_EXT = { ts: "code", tsx: "code", mjs: "code", js: "code", cjs: "code", css: "style", md: "doc", json: "data", yml: "workflow", yaml: "workflow", py: "script", sh: "script", leo: "leo", jl: "code", png: "image", jpg: "image", webp: "image", ico: "image", svg: "image", pdf: "document", txt: "text", html: "page", toml: "config", lock: "config", example: "config" };
 
-for (const r of REGIONS) r.at = r.at.map((v) => Math.round(v * 2.2)); // room for the big lobes
+for (const r of REGIONS) r.at = r.at.map((v) => Math.round(v * 2.6)); // room for the big lobes
 const regionOf = (path) => REGIONS.find((r) => r.prefixes.some((p) => path.startsWith(p)))?.id ?? "config";
 const ext = (path) => (path.includes(".") ? path.slice(path.lastIndexOf(".") + 1).toLowerCase() : "");
 const kindOf = (path) => {

@@ -12,7 +12,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { BODIES, body, heat } from "./bodies.mjs";
+import { BODIES, body, drawnSize, heat } from "./bodies.mjs";
 
 const SOURCE = "https://github.com/PNWBNW/hewn/blob/main";
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -99,9 +99,7 @@ nodes.forEach((n, i) => {
   const c = new THREE.Color(regions.get(n.region).colour);
   colours.set([c.r, c.g, c.b], i * 3);
   // Size is continuous in connections and lines (bodies.mjs): dust is a glint, a supergiant is big and hot.
-  // In 3D the size grows faster than the weight (a power curve), so the spread reads: a supergiant is
-  // some 25 times a comet, not 4 (Joshua, 2026-11-03).
-  sizes[i] = BIG ? 0.5 + 0.9 * Math.pow(bodies[i].weight, 1.4) : 1.5 + 3 * bodies[i].weight;
+  sizes[i] = drawnSize(bodies[i].weight, BIG);
   heats[i] = heat(bodies[i].weight);
 });
 const pointGeometry = new THREE.BufferGeometry();
