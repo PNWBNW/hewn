@@ -56,8 +56,8 @@ export default function Home() {
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
             {BRAND.name} is bookkeeping and payroll for a small business, and it runs entirely in your
-            browser. Your books are encrypted on your own computer or phone; there is no account to
-            create, nothing is uploaded, and nobody but you can read them.
+            browser. Your books are encrypted on your own computer or phone; there is no account with us
+            to create, nothing is uploaded, and nobody but you can read them.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <a href={BRAND.appUrl} className={buttonClass}>
@@ -92,13 +92,17 @@ export default function Home() {
             <ProductTiles />
           </Section>
 
-          <Section icon={<HandCoins className="size-5" />} title="Pay your team directly, if you want to">
+          <Section icon={<HandCoins className="size-5" />} title="Your wallet is your bank feed">
             <p>
-              The books work with your bank as usual: you pay people however you pay them today and
-              record it. Optionally, you can also send pay as private payments straight from the
-              app, so the amount and who received it stay between you and them.
+              {BRAND.name} runs on Aleo, a privacy blockchain, and you come in with a Shield wallet.
+              Money moves through that wallet: the app reads its history and asks you what each
+              payment was for. Pay your team from the app as private payments, so the amount and who
+              received it stay between you and them.
             </p>
-            <p>This is a choice you make later, per business. Nothing depends on it.</p>
+            <p>
+              What happens off chain, at the bank, you can record too. The books are the same
+              double-entry books either way.
+            </p>
           </Section>
 
           <Section icon={<BadgeDollarSign className="size-5" />} title="No monthly subscription">

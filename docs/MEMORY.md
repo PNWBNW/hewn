@@ -6,8 +6,9 @@ summary: How Hewn's agents remember across sessions, in three scopes of plain fi
 
 # Memory: three scopes, and dreaming
 
-**Status:** design, decided by Joshua on 2026-11-03 (the first part built the same day: scopes
-named, frontmatter on every document, the generated index, session attribution). Prompted by
+**Status:** design, decided by Joshua on 2026-11-03; parts 1 and 2 built the same day (scopes,
+frontmatter and the generated index, session attribution; the first dream by hand), the weekly
+dream next. Prompted by
 Anthropic's AI DevCon talk on agent memory (Lamis Mukta, 2026-11), whose four stages Hewn had
 already walked without naming them: a single file (`CLAUDE.md`), procedural memory (the READMEs and
 `docs/`), files agents read and write (`progress/`). What it lacked was the last part of the talk:
@@ -94,9 +95,10 @@ semantic half.
 
 1. **Scopes, frontmatter, the generated index, session attribution** (this document; built
    2026-11-03).
-2. **The first dream, by hand:** `memory/decisions.md` and `memory/lessons.md` populated from
-   the documents and `CLAUDE.md`, `CLAUDE.md` slimmed to rules, every stale status fixed. One pull
-   request Joshua reads closely, since it sets the shape.
+2. **The first dream, by hand** (built 2026-11-03): `memory/decisions.md` (the ledger across
+   the documents' own Decisions sections, which stay as the record of the moment) and
+   `memory/lessons.md` populated from the documents, `CLAUDE.md` and the progress log;
+   `CLAUDE.md` slimmed to rules with the dates and provenance moved to the ledger.
 3. **The recurring dream:** the weekly Routine, its prompt kept in the repository
    (`scripts/dreaming/PROMPT.md`), its first run reviewed before the schedule stands.
 
