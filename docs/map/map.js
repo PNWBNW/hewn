@@ -14,7 +14,6 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 const SOURCE = "https://github.com/PNWBNW/hewn/blob/main";
-const CLASS_COLOUR = { private: "#f5f0e3", sealed: "#18dccb", public: "#f8d084", control: "#7f93b3" };
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const $ = (id) => document.getElementById(id);
@@ -30,6 +29,19 @@ const meta = await (await fetch("./meta.json")).json();
 const [wanted, wantedNode] = location.hash.slice(1).split(":");
 const view = meta.views.find((v) => v.id === wanted) ?? meta.views[0];
 const graph = await (await fetch(`./data/${view.id}.json`)).json();
+const CLASS_COLOUR = Object.fromEntries(Object.entries(graph.classes).map(([id, c]) => [id, c.colour]));
+const BIG = graph.edges.length > 800;
+// A dense graph is drawn quieter, or bloom turns it into one white cloud.
+const LINE_OPACITY = BIG ? 0.07 : 0.3;
+const LOBE_OPACITY = BIG ? 0.07 : 0.16;
+/** Where a point's file lives on GitHub: Hewn's tree, or the submodule's at its pinned commit. */
+function sourceUrl(n) {
+  if (!n.path) return null;
+  const sub = meta.submodule;
+  if (sub && n.path.startsWith(`${sub.path}/`)) return `https://github.com/PNWBNW/${sub.path}/blob/${sub.commit}/${n.path.slice(sub.path.length + 1)}`;
+  if (n.kind === "submodule") return `https://github.com/PNWBNW/${n.path}`;
+  return `${SOURCE}/${n.path}`;
+}
 
 // ---- The data, indexed -----------------------------------------------------
 const nodes = graph.nodes;
@@ -47,7 +59,11 @@ const maxDegree = Math.max(1, ...nodes.map((n) => n.degree));
 let selected = -1;
 let focus = null; // a region id
 let labels = "regions";
-let flowing = !REDUCED;
+let flowing = !REDUCED && !BIG;
+const hiddenPoints = new Set(); // node kinds switched off
+const hiddenLines = new Set(); // edge kinds switched off
+const shown = (i) => !hiddenPoints.has(nodes[i].kind);
+const edgeShown = (e) => !hiddenLines.has(e.kind) && shown(e.a) && shown(e.b);
 let interacted = false;
 
 // ---- Scene -----------------------------------------------------------------
@@ -77,7 +93,7 @@ nodes.forEach((n, i) => {
   positions.set([n.x, n.y, n.z], i * 3);
   const c = new THREE.Color(regions.get(n.region).colour);
   colours.set([c.r, c.g, c.b], i * 3);
-  sizes[i] = 5 + 8 * Math.sqrt(n.degree / maxDegree);
+  sizes[i] = BIG ? 2.4 + 6 * Math.sqrt(n.degree / maxDegree) : 5 + 8 * Math.sqrt(n.degree / maxDegree);
 });
 const pointGeometry = new THREE.BufferGeometry();
 pointGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -107,7 +123,8 @@ const pointMaterial = new THREE.ShaderMaterial({
     }`,
   transparent: true,
   depthWrite: false,
-  blending: THREE.AdditiveBlending,
+  // Additive glow for a small graph; a dense one would pile up to white, so it blends normally.
+  blending: BIG ? THREE.NormalBlending : THREE.AdditiveBlending,
 });
 const points = new THREE.Points(pointGeometry, pointMaterial);
 scene.add(points);
@@ -121,7 +138,7 @@ edges.forEach((e, i) => {
 const lineGeometry = new THREE.BufferGeometry();
 lineGeometry.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
 lineGeometry.setAttribute("color", new THREE.BufferAttribute(lineColours, 3));
-const lines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
+const lines = new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: LINE_OPACITY, blending: THREE.AdditiveBlending, depthWrite: false }));
 scene.add(lines);
 
 // Flow: a few motes travelling along each edge, from its source to its target.
@@ -164,7 +181,7 @@ const glowTexture = (() => {
 })();
 const lobes = new Map();
 for (const r of regions.values()) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: r.colour, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: r.colour, transparent: true, opacity: LOBE_OPACITY, depthWrite: false, blending: THREE.AdditiveBlending }));
   s.position.set(...r.at);
   s.scale.setScalar(r.radius * 3.2);
   s.renderOrder = -1;
@@ -217,19 +234,25 @@ for (const r of regions.values()) {
   regionLabels.set(r.id, s);
   allLabels.push(s);
 }
-const nodeLabels = nodes.map((n) => {
-  const s = labelSprite(n.label, { size: 18, px: 11 });
-  s.position.set(n.x, n.y + 2.5, n.z);
-  s.visible = false;
-  scene.add(s);
-  allLabels.push(s);
-  return s;
-});
+// A point's label is drawn the first time it is shown (a big graph has more points than a phone wants textures for).
+const nodeLabels = new Map();
+function nodeLabel(i) {
+  if (!nodeLabels.has(i)) {
+    const n = nodes[i];
+    const s = labelSprite(n.label, { size: 18, px: 11 });
+    s.position.set(n.x, n.y + 2.5, n.z);
+    scene.add(s);
+    allLabels.push(s);
+    sizeLabels();
+    nodeLabels.set(i, s);
+  }
+  return nodeLabels.get(i);
+}
 
 // Bloom, so the points glow the way a lit thing does.
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.9, 0.55, 0.12);
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), BIG ? 0.4 : 0.9, BIG ? 0.35 : 0.55, BIG ? 0.5 : 0.12);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -262,10 +285,11 @@ function fit(instant = false) {
 function relight() {
   const lit = (i) => {
     const n = nodes[i];
+    if (!shown(i)) return 0;
     const inRegion = !focus || n.region === focus;
     if (selected < 0) return inRegion ? 1 : 0.18;
     if (i === selected) return 1;
-    const near = incident[selected].some((e) => edges[e].a === i || edges[e].b === i);
+    const near = incident[selected].some((ei) => edgeShown(edges[ei]) && (edges[ei].a === i || edges[ei].b === i));
     return near ? 0.95 : inRegion ? 0.3 : 0.12;
   };
   for (let i = 0; i < nodeCount; i++) dims[i] = lit(i);
@@ -273,21 +297,36 @@ function relight() {
   edges.forEach((e, i) => {
     const c = new THREE.Color(CLASS_COLOUR[e.class]);
     let k = 0.5;
-    if (selected >= 0) k = e.a === selected || e.b === selected ? 1 : 0.1;
-    else if (focus) k = nodes[e.a].region === focus || nodes[e.b].region === focus ? 0.8 : 0.1;
+    if (!edgeShown(e)) k = 0;
+    else if (selected >= 0) k = e.a === selected || e.b === selected ? (BIG ? 4 : 1) : BIG ? 0.25 : 0.1;
+    else if (focus) k = nodes[e.a].region === focus || nodes[e.b].region === focus ? (BIG ? 1.6 : 0.8) : 0.1;
     lineColours.set([c.r * k, c.g * k, c.b * k, c.r * k, c.g * k, c.b * k], i * 6);
     for (let m = 0; m < PER_EDGE; m++) moteDims[i * PER_EDGE + m] = k;
   });
   lineGeometry.getAttribute("color").needsUpdate = true;
   moteGeometry.getAttribute("dim").needsUpdate = true;
-  nodeLabels.forEach((s, i) => {
+  // Which points carry a label: "All" means every point of the focused region, or the best-connected ones
+  // of the whole map; a selected point and its neighbours always do.
+  const hubs = BIG ? Math.max(3, Math.ceil(maxDegree * 0.35)) : 0;
+  for (let i = 0; i < nodeCount; i++) {
     const n = nodes[i];
-    const near = selected >= 0 && (i === selected || incident[selected].some((e) => edges[e].a === i || edges[e].b === i));
-    s.visible = labels === "all" ? (!focus || n.region === focus) : near;
+    const near = selected >= 0 && (i === selected || incident[selected].some((ei) => edgeShown(edges[ei]) && (edges[ei].a === i || edges[ei].b === i)));
+    const wanted = shown(i) && (labels === "all" ? (focus ? n.region === focus : n.degree >= hubs) || near : near);
+    if (!wanted && !nodeLabels.has(i)) continue;
+    const s = nodeLabel(i);
+    s.visible = wanted;
     s.material.opacity = i === selected ? 1 : 0.85;
-  });
+  }
   for (const [id, s] of regionLabels) s.visible = labels !== "none" && (!focus || id === focus);
-  for (const [id, s] of lobes) s.material.opacity = !focus || id === focus ? 0.16 : 0.04;
+  for (const [id, s] of lobes) s.material.opacity = !focus || id === focus ? LOBE_OPACITY : LOBE_OPACITY / 4;
+  // The legend counts what is shown.
+  const visible = new Map();
+  for (let i = 0; i < nodeCount; i++) if (shown(i)) visible.set(nodes[i].region, (visible.get(nodes[i].region) ?? 0) + 1);
+  for (const b of $("regions").querySelectorAll("button")) {
+    const r = regions.get(b.dataset.region);
+    const v = visible.get(r.id) ?? 0;
+    b.querySelector(".count").textContent = v === r.count ? String(r.count) : `${v} of ${r.count}`;
+  }
 }
 
 // ---- Picking -----------------------------------------------------------------
@@ -331,10 +370,16 @@ function select(i) {
   $("d-class").textContent = cls.label;
   $("d-class").style.color = CLASS_COLOUR[n.class];
   $("d-class").title = cls.description;
-  $("d-rules").replaceChildren(...(n.rules ?? []).map(ruleLink));
+  const url = sourceUrl(n);
+  $("d-rules").replaceChildren(
+    ...(n.rules ?? []).filter((id) => id !== n.id).map(ruleLink),
+    ...(url ? [el("a", { href: url, target: "_blank", rel: "noopener" }, n.kind === "submodule" ? "open the repository" : "open on GitHub")] : []),
+    ...(n.lines ? [el("span", { class: "muted" }, ` ${n.lines} lines`)] : []),
+  );
   const list = $("d-edges");
+  const listed = incident[i].filter((ei) => edgeShown(edges[ei])).slice(0, 80);
   list.replaceChildren(
-    ...incident[i].map((ei) => {
+    ...listed.map((ei) => {
       const e = edges[ei];
       const out = e.a === i;
       const other = out ? e.b : e.a;
@@ -350,6 +395,7 @@ function select(i) {
         ),
       );
     }),
+    ...(incident[i].length > listed.length ? [el("li", { class: "more" }, `and ${incident[i].length - listed.length} more${hiddenLines.size || hiddenPoints.size ? ", some behind the filters" : ""}`)] : []),
   );
   panel.hidden = false;
   // Close enough to read the neighbours; on a phone the sheet covers the lower half, so aim a little below the point.
@@ -370,7 +416,7 @@ function focusRegion(id) {
 
 $("title").textContent = graph.title;
 $("description").textContent = graph.description;
-$("crumb").textContent = `HEWN — MAP · ${view.id.replace("-", " ")} · ${graph.regions.length} regions`;
+$("crumb").textContent = `HEWN — MAP · ${view.id.replace("-", " ")} · ${nodes.length} points`;
 document.title = `Hewn map · ${graph.title}`;
 $("regions").replaceChildren(
   ...graph.regions.map((r) =>
@@ -418,15 +464,66 @@ $("fit").addEventListener("click", () => {
   fit();
 });
 $("close").addEventListener("click", () => select(-1));
+
+// Filters: a chip per kind of point and per kind of line, with counts, built from this graph.
+function chips(list, items, hidden, colourOf) {
+  list.replaceChildren(
+    ...items.map(([kind, count, colour]) =>
+      el(
+        "li",
+        {},
+        el(
+          "button",
+          {
+            "data-kind": kind,
+            "aria-pressed": String(!hidden.has(kind)),
+            onclick: (ev) => {
+              const b = ev.currentTarget;
+              if (hidden.has(kind)) hidden.delete(kind);
+              else hidden.add(kind);
+              b.setAttribute("aria-pressed", String(!hidden.has(kind)));
+              relight();
+            },
+          },
+          el("span", { class: colourOf ? "bar-swatch" : "swatch", style: `color:${colour}` }),
+          kind,
+          el("span", { class: "count" }, String(count)),
+        ),
+      ),
+    ),
+  );
+}
+const pointKinds = [...nodes.reduce((m, n) => m.set(n.kind, (m.get(n.kind) ?? 0) + 1), new Map())].sort((p, q) => q[1] - p[1]).map(([k, c]) => [k, c, "#f5f0e3"]);
+const lineKinds = [...edges.reduce((m, e) => m.set(e.kind, (m.get(e.kind) ?? 0) + 1), new Map())].sort((p, q) => q[1] - p[1]).map(([k, c]) => [k, c, CLASS_COLOUR[edges.find((e) => e.kind === k).class]]);
+chips($("point-kinds"), pointKinds, hiddenPoints, false);
+chips($("line-kinds"), lineKinds, hiddenLines, true);
+for (const b of $("filters").querySelectorAll("[data-all],[data-none]")) {
+  b.addEventListener("click", () => {
+    const points = (b.dataset.all ?? b.dataset.none) === "points";
+    const hidden = points ? hiddenPoints : hiddenLines;
+    const kinds = (points ? pointKinds : lineKinds).map(([k]) => k);
+    hidden.clear();
+    if (b.dataset.none !== undefined) for (const k of kinds) hidden.add(k);
+    for (const chip of (points ? $("point-kinds") : $("line-kinds")).querySelectorAll("button")) chip.setAttribute("aria-pressed", String(!hidden.has(chip.dataset.kind)));
+    relight();
+  });
+}
+$("filters-toggle").addEventListener("click", () => {
+  const open = $("filters").hidden;
+  $("filters").hidden = !open;
+  $("filters-toggle").setAttribute("aria-expanded", String(open));
+  $("filters-toggle").classList.toggle("on", open);
+});
+$("filters-close").addEventListener("click", () => $("filters-toggle").click());
 if (meta.views.length > 1) {
   const pick = el("select", { "aria-label": "View", onchange: (e) => (location.hash = e.target.value) });
-  for (const v of meta.views) pick.append(el("option", { value: v.id, ...(v.id === view.id ? { selected: "" } : {}) }, v.title));
+  for (const v of meta.views) pick.append(el("option", { value: v.id, ...(v.id === view.id ? { selected: "" } : {}) }, `View: ${v.id.replace("-", " ")}`));
   $("views").append(pick);
   $("views").hidden = false;
   addEventListener("hashchange", () => location.reload());
 }
 $("foot").replaceChildren(
-  `built from ${meta.commit} on ${meta.built} · three ${meta.three} · `,
+  `built from ${meta.commit} on ${meta.built}${meta.submodule ? ` · ${meta.submodule.path} at ${meta.submodule.commit.slice(0, 12)}` : ""} · three ${meta.three} · `,
   el("a", { href: `${SOURCE}/docs/map/README.md`, target: "_blank", rel: "noopener" }, "how this is made"),
   " · ",
   el("a", { href: `${SOURCE}/docs/security/DATA_FLOW.md`, target: "_blank", rel: "noopener" }, "the written companion"),
@@ -440,7 +537,10 @@ function resize() {
   bloom.resolution.set(w / 2, h / 2);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  pointMaterial.uniforms.scale.value = renderer.getPixelRatio() * Math.min(1, h / 700);
+  // A dense graph on a narrow screen piles its points and lines up; draw both fainter there.
+  const narrow = BIG ? Math.min(1, w / 900) : 1;
+  pointMaterial.uniforms.scale.value = renderer.getPixelRatio() * Math.min(1, h / 700) * narrow;
+  lines.material.opacity = LINE_OPACITY * (BIG ? Math.max(0.4, narrow) : 1);
   pxToWorld = (2 * Math.tan((camera.fov * Math.PI) / 360)) / h;
   sizeLabels();
 }

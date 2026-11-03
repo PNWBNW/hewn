@@ -1,3 +1,5 @@
+<p align="center"><a href="https://pnwbnw.github.io/hewn/"><img src="https://pnwbnw.github.io/hewn/still.svg" alt="The map of Hewn: every file, rule and program, and how they connect" width="100%"></a><br><sub><strong>The map of Hewn</strong>, redrawn from this tree on every push: every file in this repository and in the Leo programs', every rule and threat, every dependency, and how they connect. <a href="https://pnwbnw.github.io/hewn/">Open it in 3D</a> · <a href="https://pnwbnw.github.io/hewn/#data-flow">where the data lives</a> · <a href="docs/map/README.md">how it's made</a></sub></p>
+
 <p align="center"><img src="apps/business/public/brand/hewn-hero-1536.jpg" alt="Hewn: honest books, grounded and true." width="100%"></p>
 
 <h1 align="center">Hewn</h1>

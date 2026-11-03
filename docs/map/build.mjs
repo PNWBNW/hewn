@@ -21,7 +21,9 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, write
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { extract } from "./extract.mjs";
 import { layout } from "./layout.mjs";
+import { stillSvg } from "./still.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -53,6 +55,7 @@ function graphs() {
     const where = `data/${file}`;
     if (!g.id || !g.title) fail(`${where}: needs an id and a title`);
     const classes = new Set(Object.keys(g.classes ?? {}));
+    for (const [id, c] of Object.entries(g.classes ?? {})) if (!/^#[0-9a-f]{6}$/i.test(c.colour ?? "")) fail(`${where}: class ${id} needs a colour`);
     const regions = new Set();
     for (const r of g.regions ?? []) {
       if (regions.has(r.id)) fail(`${where}: region ${r.id} twice`);
@@ -79,6 +82,8 @@ function graphs() {
     out.push(g);
   }
   if (out.length === 0) fail("no graphs in data/");
+  // The whole tree, read from the files themselves (extract.mjs); it fails if the submodule is missing.
+  out.push(extract());
   return out;
 }
 
@@ -182,13 +187,18 @@ if (check || writeDoc) {
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, "data"), { recursive: true });
 const views = [];
+const built = { commit: commit(), built: new Date().toISOString().slice(0, 10) };
 for (const g of all) {
-  const laid = layout(g);
+  const laid = layout(g, { iterations: g.nodes.length > 400 ? 160 : 320 });
   writeFileSync(join(OUT, "data", `${g.id}.json`), JSON.stringify({ ...g, nodes: laid.nodes, regions: laid.regions }));
+  writeFileSync(join(OUT, `still-${g.id}.svg`), stillSvg(g, laid, built));
   views.push({ id: g.id, title: g.title, nodes: laid.nodes.length, edges: g.edges.length });
 }
+// The README's picture is the whole tree.
+cpSync(join(OUT, "still-project.svg"), join(OUT, "still.svg"));
 for (const f of ["index.html", "map.css", "map.js", "layout.mjs"]) cpSync(join(HERE, f), join(OUT, f));
 const three = vendor(OUT);
-writeFileSync(join(OUT, "meta.json"), JSON.stringify({ commit: commit(), built: new Date().toISOString().slice(0, 10), views, three: three.version }));
+const project = all.find((g) => g.id === "project");
+writeFileSync(join(OUT, "meta.json"), JSON.stringify({ ...built, views, three: three.version, submodule: project?.submodule ?? null }));
 writeFileSync(join(OUT, ".nojekyll"), "");
 console.log(`map: built ${views.map((v) => `${v.id} (${v.nodes} nodes, ${v.edges} edges)`).join("; ")} with three ${three.version} (${three.files} files) into ${relative(ROOT, OUT)}`);
