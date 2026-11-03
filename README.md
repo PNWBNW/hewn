@@ -28,9 +28,11 @@ difference is where everything lives:
 
 - **Your books never leave your device.** They are kept in an encrypted vault in your browser.
   There is no Hewn server holding your data, no database and no company account to hack.
-- **Your wallet is your bank feed.** Money moves through your Shield wallet on
-  Aleo. Hewn reads your wallet's history and asks you what each payment was for, instead
-  of having you type transactions in.
+- **Your wallet is your bank feed.** Hewn runs on Aleo, and a Shield account is the way in:
+  without one there is nothing to set up. Money moves through that wallet; Hewn reads its
+  history and asks you what each payment was for, instead of having you type transactions in.
+  What happens off chain, at the bank, can be recorded too, as a bonus; the books are the same
+  double-entry books either way.
 - **Payroll is private by design.** Workers are paid in USDCx, a stablecoin, through private Aleo
   transfers. Wages, withholdings, W-4s and paystubs are private in every case. Only hashes and
   commitments ever go on chain.
@@ -40,7 +42,8 @@ It is free and open source (AGPL-3.0).
 ## A tour of the app
 
 Hewn has two sides in one app: a **business** keeps its books and runs its team, and a **worker**
-gets their schedule, clocks hours and keeps their paystubs. One Shield account holds one kind.
+gets their schedule, clocks hours and keeps their paystubs. A customer has a portal of their own.
+One Shield account holds one kind of account.
 
 ### The business side
 
@@ -98,8 +101,9 @@ by country, with no account).
   keeps an unlocked key on the device for at most 24 hours. A forgotten passphrase can be
   replaced with a recovery key, if you made one in Settings; otherwise it can't. Keep backups.
 - **The wallet.** Shield is the only wallet. Every on-chain action is signed in Shield, so you
-  always see what you are signing. One Shield account holds one kind of account (a business or a
-  worker), so business and personal money never mix.
+  always see what you are signing. A Shield account holds one kind of account, a business's or a
+  person's (a person's worker and customer accounts may share one), so business and personal
+  money never share a wallet.
 - **Payroll.** Hewn works out gross pay, withholding and net pay on your device, from the hours
   on each person's weekly timecard (overtime, callouts and on-call days included, as agreed in
   their offer). It then pays each worker with a private USDCx transfer from your wallet.

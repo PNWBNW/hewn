@@ -20,6 +20,7 @@ index is out of date.
 - [Memory, part 1: three scopes, frontmatter, the generated index, signed entries](progress/2026-11-03.md#2026-11-03--memory-part-1-three-scopes-frontmatter-the-generated-index-signed-entries)
 - [Memory, part 2: the first dream, by hand](progress/2026-11-03.md#2026-11-03--memory-part-2-the-first-dream-by-hand)
 - [The ledger in two levels; the default mode set straight](progress/2026-11-03.md#2026-11-03--the-ledger-in-two-levels-the-default-mode-set-straight)
+- [The README and the site say the way in is Aleo](progress/2026-11-03.md#2026-11-03--the-readme-and-the-site-say-the-way-in-is-aleo)
 
 ## [2026-11-02](progress/2026-11-02.md)
 
