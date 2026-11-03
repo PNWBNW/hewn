@@ -19,16 +19,20 @@ and vulnerability review that comes next.
 - **Hewn's design shrinks the audit a lot.** With no database and no server that sees plaintext,
   many controls are "not applicable", but an auditor still needs each one written down with the
   reason.
-- **Which frameworks matter:** SOC 2 first. Add **SOC 1**, which isn't in the list but is what
-  businesses usually ask a payroll provider for. ISO 27001 later, for customers abroad. HITRUST,
-  FedRAMP and CMMC don't fit Hewn today (below).
+- **Which frameworks matter:** SOC 2 first. ISO 27001 later, for customers abroad. **SOC 1**,
+  which payroll providers are usually asked for, may not apply: Hewn computes payroll on the
+  customer's own device and never processes it for them (below). HITRUST, FedRAMP and CMMC don't
+  fit Hewn today.
+- **No outside audit until mainnet and funding (Joshua, 2026-11-03).** Until then Hewn audits
+  itself the way a CPA would for a Type I and a Type II, so the evidence is already there when one
+  is hired (below, "The internal audit").
 
 ## Which frameworks fit
 
 | Framework | What it is | Fits Hewn? | Why |
 |---|---|---|---|
 | **SOC 2** | An independent CPA's report on controls against the Trust Services Criteria: Security (required), plus Availability, Processing Integrity, Confidentiality, Privacy as chosen. Type I is one date; Type II covers a period, usually 3 to 12 months. | **Yes, first** | The standard ask for any B2B software. Security, Confidentiality, Privacy and Processing Integrity all apply. |
-| **SOC 1** (not in the list) | A CPA's report on controls that affect customers' financial reporting. | **Yes, alongside SOC 2** | Payroll and bookkeeping output lands in customers' financial statements, so their auditors ask payroll providers for a SOC 1 Type II. |
+| **SOC 1** (not in the list) | A CPA's report on a service organization's controls that affect customers' financial reporting. | **Not for now** | Payroll output lands in customers' financial statements, which is why auditors ask payroll processors like ADP for one. But Hewn computes payroll in the customer's browser and the customer signs every payment: Hewn doesn't process for them, so it may not be a service organization at all, and a customer's auditor would test it like desktop software (recalculating sample paychecks). Step 13 still states the payroll control objectives, which serve SOC 2 Processing Integrity and any customer's auditor. Revisit if an audited customer asks. |
 | **ISO 27001** | A certified information security management system: clauses 4 to 10 (context, leadership, risk, operation, improvement) and 93 Annex A controls. | **Later** | Expected by international and larger customers; most of its controls overlap SOC 2's, so the same work counts twice. |
 | **HITRUST** | A certifiable framework built for healthcare data. | **No** | Hewn holds no health data. Revisit only if health businesses become customers and ask. |
 | **FedRAMP** | Authorization for cloud services used by US federal agencies, on NIST 800-53. | **No** | Hewn isn't sold to federal agencies and isn't a cloud service holding their data. |
@@ -103,10 +107,10 @@ The gaps an auditor would raise first, by priority:
    to Upstash, with each item classed as private, internal or public.
 9. **People (CC1.4; ISO 6.1 to 6.6).** Security training, an acceptable-use acknowledgement, and
    for anyone with access later, background checks and offboarding. Small now, but it has to exist.
-10. **Evidence over time (SOC 2 Type II, SOC 1 Type II).** Auditors sample months of records:
+10. **Evidence over time (SOC 2 Type II).** Auditors sample months of records:
     approvals, access reviews, incident tickets, restore tests. GitHub issues and PRs can hold most
     of it, once the steps above say what to record.
-11. **Payroll and tax correctness (SOC 1; PI1).** Control objectives stated plainly (paychecks are
+11. **Payroll and tax correctness (PI1; what a SOC 1 would ask).** Control objectives stated plainly (paychecks are
     calculated correctly, paid once, recorded completely, closed and anchored), each with the tests
     or checks that show it. Tax tables need a written owner and a yearly update procedure.
 
@@ -121,7 +125,7 @@ Steps 1 to 7 stay as they are. Proposed additions, each one PR or one settings c
 | 10 | Access: the account inventory with 2FA confirmed, the first access review, the admin key's custody and rotation | `docs/security/` + settings |
 | 11 | Security testing in CI: static analysis, dependency review, an SBOM | `.github/workflows/` |
 | 12 | Incident response and recovery runbooks, with a restore drill | `docs/security/` |
-| 13 | SOC 1 control objectives for payroll and tax, each tied to its tests | `docs/` |
+| 13 | Payroll and tax control objectives, each tied to its tests | `docs/` |
 | 14 | The deep review: the whole codebase and the Leo programs, area by area, against the invariants and threats (Fable) | findings, then fixes |
 
 Steps 8 to 13 are what turn "the code is careful" into "the company can show it is". Step 14 is
@@ -137,7 +141,27 @@ land in the right place.
 2. **Access:** Joshua is the only person with access to GitHub and Vercel, and both have 2FA on.
    Still to list: Upstash, the domain registrar, npm, and the agent sessions' GitHub access.
 
-## Questions for Joshua
-1. **SOC 2 target:** a Type I first (a point in time, a few weeks of preparation), then a Type II
-   period starting once Steps 8 to 12 are in?
-2. **SOC 1:** in scope from the start, given payroll?
+3. **No outside audit yet:** no CPA firm until Hewn is ready for mainnet and has funding. Until
+   then, an internal audit that stands in for a SOC 2 Type I and Type II (below).
+4. **SOC 1:** out of scope for now; Step 13's payroll control objectives stay.
+
+## The internal audit
+
+What a CPA does for SOC 2, done in-house, so the first outside audit finds the controls written,
+working and evidenced. It's not a substitute for an independent report (the person auditing is
+also the person running the controls), so each finding says so plainly rather than grading
+itself.
+
+- **The control list.** One table (`docs/security/CONTROLS.md`, Step 9): every control, the SOC 2
+  criterion and ISO Annex A number it answers, its owner, how often it runs, and what evidence it
+  leaves (a CI run, a PR with "Approved by Joshua in session", an access review issue, a restore
+  drill note).
+- **Like a Type I (design, on one date).** Once Steps 8 to 12 are in, walk every control on one
+  day: is it written, does it answer its criterion, does what really happens match the words?
+  Each gap is a finding with a fix. The write-up is dated and kept in `docs/security/audits/`.
+- **Like a Type II (operation, over a period).** Then a period of at least 3 months in which
+  every control leaves its evidence as it runs. At the end, sample it the way an auditor would
+  (for example 25 merged PRs for change approval, each quarter's access review, each restore
+  drill) and record every exception, even small ones. Then the next period starts.
+- **The code review (Step 14)** is the testing an auditor's specialists would do, against the
+  invariants and threats.
