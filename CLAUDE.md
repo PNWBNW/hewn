@@ -126,7 +126,7 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 
 ## Working agreement
 
-- One task, one exit criterion, one PR. Don't bundle.
+- One task, one exit criterion, one PR. Don't bundle. (OPS-08)
 - Don't build new screens or a new app version without Joshua's explicit greenlight. Planning,
   inspection and tests are fine anytime.
 - Production revisions get a decimal version in the filename (v1.1, v1.2, …). Joshua decides when the
@@ -140,7 +140,7 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 - Commit messages and PR descriptions never carry a `https://claude.ai/...` session link (Joshua,
   2026-10-29), as in `pnw_mvp_v2`.
 - A PR merges only after Joshua approves it in the chat session (2026-11-03); the merge commit's
-  message says "Approved by Joshua in session, <date>" (`docs/COMPLIANCE_MAP.md`).
+  message says "Approved by Joshua in session, <date>" (`docs/COMPLIANCE_MAP.md`). (OPS-01)
 - If something in the existing code contradicts this file or the build plan, stop and ask. Don't
   silently pick one.
 
@@ -157,7 +157,7 @@ Each fact lives in the README of the thing it describes; this is where to find t
   `pnw_mvp_v2/CLAUDE.md` (Toolchain). The Leo programs: `pnw_mvp_v2/src/layer1`, `src/layer2`,
   `src/stubs`.
 - **Security baseline**: `docs/THREAT_MODEL.md` (CI blocks on tests, build and `pnpm audit`
-  moderate+; new dependencies are at least 7 days old, `minimumReleaseAge`).
+  moderate+; new dependencies are at least 7 days old, `minimumReleaseAge`; OPS-04).
 - **What was retired and why** (the Julia tax service, four salvaged packages, the old portal and
   mailbox): `archive/README.md`. `packages/tax-engine` is the only tax engine.
 - The double-pay item in `pnw_mvp_v2/docs/NOTES.md` is stale per Joshua; ignore it unless a test

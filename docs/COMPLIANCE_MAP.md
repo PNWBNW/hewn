@@ -121,7 +121,7 @@ Steps 1 to 7 stay as they are. Proposed additions, each one PR or one settings c
 | Step | What | Where |
 |---|---|---|
 | 8 | Change control: branch protection on `main`, CODEOWNERS, Joshua's approval required, a written rule for agent merges, signed commits | GitHub settings + `docs/` |
-| 9 | Governance pack: the short policies, a risk register built from the threat model (likelihood, impact, owner, treatment), the asset and vendor inventory, the data-flow diagram | `docs/security/` |
+| 9 | Governance pack: the control list (done, `docs/INVARIANTS.md`, 2026-11-03), the short policies, a risk register built from the threat model (likelihood, impact, owner, treatment), the asset and vendor inventory, the data-flow diagram | `docs/INVARIANTS.md`, `docs/security/` |
 | 10 | Access: the account inventory with 2FA confirmed, the first access review, the admin key's custody and rotation | `docs/security/` + settings |
 | 11 | Security testing in CI: static analysis, dependency review, an SBOM | `.github/workflows/` |
 | 12 | Incident response and recovery runbooks, with a restore drill | `docs/security/` |
@@ -152,10 +152,12 @@ working and evidenced. It's not a substitute for an independent report (the pers
 also the person running the controls), so each finding says so plainly rather than grading
 itself.
 
-- **The control list.** One table (`docs/security/CONTROLS.md`, Step 9): every control, the SOC 2
-  criterion and ISO Annex A number it answers, its owner, how often it runs, and what evidence it
-  leaves (a CI run, a PR with "Approved by Joshua in session", an access review issue, a restore
-  drill note).
+- **The control list is `docs/INVARIANTS.md`** (2026-11-03): every rule the code keeps, with the
+  SOC 2 criterion and ISO Annex A control it answers and the check that runs in CI, and a second
+  table of the rules the company keeps (OPS-01 on: merge approval, access, the admin key,
+  dependencies, CI's permissions, incidents, vulnerability reports, the change record), each with
+  where it is set, the evidence it leaves (a merge commit saying "Approved by Joshua in session",
+  an access review, a write-up) and its check, or the step that adds one.
 - **Like a Type I (design, on one date).** Once Steps 8 to 12 are in, walk every control on one
   day: is it written, does it answer its criterion, does what really happens match the words?
   Each gap is a finding with a fix. The write-up is dated and kept in `docs/security/audits/`.
