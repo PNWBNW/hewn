@@ -11,6 +11,7 @@ index is out of date.
 ## [2026-11-03](progress/2026-11-03.md)
 
 - [The Audit-Ready Plan checked against the security frameworks](progress/2026-11-03.md#2026-11-03--the-audit-ready-plan-checked-against-the-security-frameworks)
+- [The control list is the invariants table, not a new file (Step 9, part 1)](progress/2026-11-03.md#2026-11-03--the-control-list-is-the-invariants-table-not-a-new-file-step-9-part-1)
 
 ## [2026-11-02](progress/2026-11-02.md)
 

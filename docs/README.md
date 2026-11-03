@@ -5,7 +5,7 @@ day, indexed by `PROGRESS.md`) are at the repository root; this folder holds the
 
 | File | Status | What it answers |
 |---|---|---|
-| [`INVARIANTS.md`](INVARIANTS.md) | Living, checked in CI | Every non-negotiable rule with an id (INV-01…), where it is enforced, the check that proves it, and the threats it answers. Where an auditor starts. |
+| [`INVARIANTS.md`](INVARIANTS.md) | Living, checked in CI | Every non-negotiable rule with an id (INV-01…), where it is enforced, the check that proves it, the threats it answers, and the SOC 2 and ISO 27001 items it satisfies; then the operating rules (OPS-01…: merge approval, access, dependencies, incidents) with where each is set and the evidence it leaves. The control list; where an auditor starts. |
 | [`COMPLIANCE_MAP.md`](COMPLIANCE_MAP.md) | Review, for Joshua | The Audit-Ready Plan checked against SOC 2, ISO 27001, HITRUST, FedRAMP and CMMC (and SOC 1): which fit, what the plan already meets, what's missing (mostly organizational: change approval, policies, access, vendors, incidents), and Steps 8 to 14 to add. |
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | Living | What Hewn protects, from whom, how, and what it can't. Every PR checks its changes against it; new features add rows. |
 | [`LETTERS.md`](LETTERS.md) | Living | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
