@@ -58,7 +58,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #q { font: 12px var(--sans); color: var(--cream); background: transparent; border: 0; padding: 7px 10px; min-height: 30px; width: min(260px, 52vw); outline: none; }
 #q::placeholder { color: var(--faint); }
 #q:focus { background: rgba(245, 240, 227, 0.06); border-radius: 6px; }
-#q-results { position: absolute; top: calc(100% + 6px); right: 0; width: min(420px, calc(100vw - 2 * var(--pad))); max-height: 50vh; overflow: auto; list-style: none; margin: 0; padding: 4px; z-index: 3; }
+#q-results { background: #091623; position: absolute; top: calc(100% + 6px); right: 0; width: min(420px, calc(100vw - 2 * var(--pad))); max-height: 50vh; overflow: auto; list-style: none; margin: 0; padding: 4px; z-index: 3; }
 #q-results[hidden] { display: none; }
 #q-results li button { display: grid; grid-template-columns: 10px 1fr; align-items: baseline; gap: 8px; width: 100%; padding: 8px 8px; border-radius: 6px; text-align: left; }
 #q-results li button:hover, #q-results li button[aria-selected="true"] { background: rgba(245, 240, 227, 0.08); }
