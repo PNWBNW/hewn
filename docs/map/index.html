@@ -37,9 +37,20 @@
   <div class="group">
     <button id="flow" class="on" aria-pressed="true">Flow</button>
     <button id="fit">Fit</button>
+    <button id="filters-toggle" aria-expanded="false" aria-controls="filters">Filters</button>
   </div>
   <div id="views" class="group" hidden></div>
 </div>
+
+<section id="filters" class="panel" hidden aria-label="Filters">
+  <button id="filters-close" class="close" aria-label="Close">×</button>
+  <h2>Filters</h2>
+  <p class="muted">Hide kinds of points and lines. A hidden point takes its lines with it.</p>
+  <h3>Points <span class="links"><button data-all="points">all</button> · <button data-none="points">none</button></span></h3>
+  <ul id="point-kinds" class="chips"></ul>
+  <h3>Lines <span class="links"><button data-all="lines">all</button> · <button data-none="lines">none</button></span></h3>
+  <ul id="line-kinds" class="chips"></ul>
+</section>
 
 <aside id="details" class="panel" hidden aria-live="polite">
   <button id="close" class="close" aria-label="Close">×</button>

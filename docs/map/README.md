@@ -49,6 +49,11 @@ The address can name a view and a point to open: `#data-flow:d.vault`,
 submodule's file at the commit the map was built from), lists its lines, the rules it cites and
 every edge, and walks to the other end of any of them.
 
+**Filters** (top right) switch kinds of points and lines on and off: code, tests, documents,
+images, Leo programs, rules, threats, dependencies; imports, loads, links, mentions, checks,
+cites and the rest, each with its count. A hidden point takes its lines with it; the legend
+counts what is shown ("74 of 77").
+
 ## How it's published
 
 `.github/workflows/map.yml` runs on every push to `main`: checks out the submodule, installs the

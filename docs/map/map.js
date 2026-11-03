@@ -60,6 +60,10 @@ let selected = -1;
 let focus = null; // a region id
 let labels = "regions";
 let flowing = !REDUCED && !BIG;
+const hiddenPoints = new Set(); // node kinds switched off
+const hiddenLines = new Set(); // edge kinds switched off
+const shown = (i) => !hiddenPoints.has(nodes[i].kind);
+const edgeShown = (e) => !hiddenLines.has(e.kind) && shown(e.a) && shown(e.b);
 let interacted = false;
 
 // ---- Scene -----------------------------------------------------------------
@@ -281,10 +285,11 @@ function fit(instant = false) {
 function relight() {
   const lit = (i) => {
     const n = nodes[i];
+    if (!shown(i)) return 0;
     const inRegion = !focus || n.region === focus;
     if (selected < 0) return inRegion ? 1 : 0.18;
     if (i === selected) return 1;
-    const near = incident[selected].some((e) => edges[e].a === i || edges[e].b === i);
+    const near = incident[selected].some((ei) => edgeShown(edges[ei]) && (edges[ei].a === i || edges[ei].b === i));
     return near ? 0.95 : inRegion ? 0.3 : 0.12;
   };
   for (let i = 0; i < nodeCount; i++) dims[i] = lit(i);
@@ -292,7 +297,8 @@ function relight() {
   edges.forEach((e, i) => {
     const c = new THREE.Color(CLASS_COLOUR[e.class]);
     let k = 0.5;
-    if (selected >= 0) k = e.a === selected || e.b === selected ? (BIG ? 4 : 1) : BIG ? 0.25 : 0.1;
+    if (!edgeShown(e)) k = 0;
+    else if (selected >= 0) k = e.a === selected || e.b === selected ? (BIG ? 4 : 1) : BIG ? 0.25 : 0.1;
     else if (focus) k = nodes[e.a].region === focus || nodes[e.b].region === focus ? (BIG ? 1.6 : 0.8) : 0.1;
     lineColours.set([c.r * k, c.g * k, c.b * k, c.r * k, c.g * k, c.b * k], i * 6);
     for (let m = 0; m < PER_EDGE; m++) moteDims[i * PER_EDGE + m] = k;
@@ -304,8 +310,8 @@ function relight() {
   const hubs = BIG ? Math.max(3, Math.ceil(maxDegree * 0.35)) : 0;
   for (let i = 0; i < nodeCount; i++) {
     const n = nodes[i];
-    const near = selected >= 0 && (i === selected || incident[selected].some((e) => edges[e].a === i || edges[e].b === i));
-    const wanted = labels === "all" ? (focus ? n.region === focus : n.degree >= hubs) || near : near;
+    const near = selected >= 0 && (i === selected || incident[selected].some((ei) => edgeShown(edges[ei]) && (edges[ei].a === i || edges[ei].b === i)));
+    const wanted = shown(i) && (labels === "all" ? (focus ? n.region === focus : n.degree >= hubs) || near : near);
     if (!wanted && !nodeLabels.has(i)) continue;
     const s = nodeLabel(i);
     s.visible = wanted;
@@ -313,6 +319,14 @@ function relight() {
   }
   for (const [id, s] of regionLabels) s.visible = labels !== "none" && (!focus || id === focus);
   for (const [id, s] of lobes) s.material.opacity = !focus || id === focus ? LOBE_OPACITY : LOBE_OPACITY / 4;
+  // The legend counts what is shown.
+  const visible = new Map();
+  for (let i = 0; i < nodeCount; i++) if (shown(i)) visible.set(nodes[i].region, (visible.get(nodes[i].region) ?? 0) + 1);
+  for (const b of $("regions").querySelectorAll("button")) {
+    const r = regions.get(b.dataset.region);
+    const v = visible.get(r.id) ?? 0;
+    b.querySelector(".count").textContent = v === r.count ? String(r.count) : `${v} of ${r.count}`;
+  }
 }
 
 // ---- Picking -----------------------------------------------------------------
@@ -363,9 +377,9 @@ function select(i) {
     ...(n.lines ? [el("span", { class: "muted" }, ` ${n.lines} lines`)] : []),
   );
   const list = $("d-edges");
-  const shown = incident[i].slice(0, 80);
+  const listed = incident[i].filter((ei) => edgeShown(edges[ei])).slice(0, 80);
   list.replaceChildren(
-    ...shown.map((ei) => {
+    ...listed.map((ei) => {
       const e = edges[ei];
       const out = e.a === i;
       const other = out ? e.b : e.a;
@@ -381,7 +395,7 @@ function select(i) {
         ),
       );
     }),
-    ...(incident[i].length > shown.length ? [el("li", { class: "more" }, `and ${incident[i].length - shown.length} more`)] : []),
+    ...(incident[i].length > listed.length ? [el("li", { class: "more" }, `and ${incident[i].length - listed.length} more${hiddenLines.size || hiddenPoints.size ? ", some behind the filters" : ""}`)] : []),
   );
   panel.hidden = false;
   // Close enough to read the neighbours; on a phone the sheet covers the lower half, so aim a little below the point.
@@ -450,6 +464,57 @@ $("fit").addEventListener("click", () => {
   fit();
 });
 $("close").addEventListener("click", () => select(-1));
+
+// Filters: a chip per kind of point and per kind of line, with counts, built from this graph.
+function chips(list, items, hidden, colourOf) {
+  list.replaceChildren(
+    ...items.map(([kind, count, colour]) =>
+      el(
+        "li",
+        {},
+        el(
+          "button",
+          {
+            "data-kind": kind,
+            "aria-pressed": String(!hidden.has(kind)),
+            onclick: (ev) => {
+              const b = ev.currentTarget;
+              if (hidden.has(kind)) hidden.delete(kind);
+              else hidden.add(kind);
+              b.setAttribute("aria-pressed", String(!hidden.has(kind)));
+              relight();
+            },
+          },
+          el("span", { class: colourOf ? "bar-swatch" : "swatch", style: `color:${colour}` }),
+          kind,
+          el("span", { class: "count" }, String(count)),
+        ),
+      ),
+    ),
+  );
+}
+const pointKinds = [...nodes.reduce((m, n) => m.set(n.kind, (m.get(n.kind) ?? 0) + 1), new Map())].sort((p, q) => q[1] - p[1]).map(([k, c]) => [k, c, "#f5f0e3"]);
+const lineKinds = [...edges.reduce((m, e) => m.set(e.kind, (m.get(e.kind) ?? 0) + 1), new Map())].sort((p, q) => q[1] - p[1]).map(([k, c]) => [k, c, CLASS_COLOUR[edges.find((e) => e.kind === k).class]]);
+chips($("point-kinds"), pointKinds, hiddenPoints, false);
+chips($("line-kinds"), lineKinds, hiddenLines, true);
+for (const b of $("filters").querySelectorAll("[data-all],[data-none]")) {
+  b.addEventListener("click", () => {
+    const points = (b.dataset.all ?? b.dataset.none) === "points";
+    const hidden = points ? hiddenPoints : hiddenLines;
+    const kinds = (points ? pointKinds : lineKinds).map(([k]) => k);
+    hidden.clear();
+    if (b.dataset.none !== undefined) for (const k of kinds) hidden.add(k);
+    for (const chip of (points ? $("point-kinds") : $("line-kinds")).querySelectorAll("button")) chip.setAttribute("aria-pressed", String(!hidden.has(chip.dataset.kind)));
+    relight();
+  });
+}
+$("filters-toggle").addEventListener("click", () => {
+  const open = $("filters").hidden;
+  $("filters").hidden = !open;
+  $("filters-toggle").setAttribute("aria-expanded", String(open));
+  $("filters-toggle").classList.toggle("on", open);
+});
+$("filters-close").addEventListener("click", () => $("filters-toggle").click());
 if (meta.views.length > 1) {
   const pick = el("select", { "aria-label": "View", onchange: (e) => (location.hash = e.target.value) });
   for (const v of meta.views) pick.append(el("option", { value: v.id, ...(v.id === view.id ? { selected: "" } : {}) }, `View: ${v.id.replace("-", " ")}`));
