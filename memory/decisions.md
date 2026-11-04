@@ -109,7 +109,7 @@ Deploying, upgrading, archiving and testing the Leo programs.
 - 2026-10-13 · The wallet is the only signing path for new code; the CLI adapter is legacy; the `coordinator` package that carried it is gone (2026-10-14) · Joshua · **INV-11**, `check_signing_path.py` · BUILD_PLAN Decisions
 - 2026-10-13 · Deployed programs are immutable: a change is a new version with a migration note; the manifest is the source of truth; any new or changed Leo is flagged first and ships with negative tests · Joshua · **INV-20**, **INV-22** · `CLAUDE.md`
 - 2026-10-15 · Open registration: `pnw_name_registrar_v5` edition 1 and `employer_agreement_v4` edition 2 add free, licence-free paths; the gated originals stay unchanged · Joshua · the chain · `pnw_mvp_v2` `CLAUDE.md`
-- 2026-10-20 · Superseded versions move unchanged to `src/<layer>/archive/` with a row in its README; every live program carries a README · Joshua · **INV-21**, `check_archive.py` · `pnw_mvp_v2` `CLAUDE.md`
+- 2026-10-20 · Superseded versions move unchanged to `src/<layer>/archive/` with a row in its README; every live program carries a README · Joshua · **INV-21**, `pnw_mvp_v2` `scripts/check_archive.py` · `pnw_mvp_v2` `CLAUDE.md`
 - 2026-10-24 · The agreement program packs its byte fields on mainnet (`[u128; n]`, the way `hyperlane-aleo` does); v5 stays as deployed on testnet · Joshua · `@pnw/records` `packed` · BUILD_PLAN Decisions
 - 2026-10-25 · `hewn_credentials_v1` and `hewn_cards_v1` deployed: credentials as two private records with a public commitment; one card entry per name, bound to the name · Joshua · the chain · `pnw_mvp_v2` `CLAUDE.md`
 
@@ -147,6 +147,7 @@ How an offer is made and what it carries.
 Running payroll and recording hours.
 
 - 2026-10-22 · Pay runs pay only people who accepted (fix 5 of the security review) · Joshua · `packages/rail` · `progress/2026-10-22.md`
+- 2026-11-04 · The double-pay item in `pnw_mvp_v2`'s archived `NOTES.md` is closed: the four-step flow it described is gone, and Hewn's own guard (never pay twice on an unknown outcome, 2026-10-22) is tested · Joshua · `packages/payroll/src/settlement.test.ts` (`checkDoublePay`) · `progress/2026-11-04.md`
 
 ### Messages and conversations
 Who can read what in a conversation, and how people are confirmed.
@@ -213,7 +214,8 @@ When Hewn is audited by others.
 - 2026-11-03 · No outside audit until Hewn is ready for mainnet and has funding; until then an internal audit stands in for a SOC 2 Type I (every control walked on one date) and Type II (at least three months of evidence, sampled) · Joshua · `docs/COMPLIANCE_MAP.md` · its Decisions
 
 ## Before mainnet
-Every commitment pinned to "before mainnet", in one list the dream can verify when the time comes.
+Every commitment pinned to "before mainnet", in one list the dream can verify when the time comes. It repeats
+lines that also live in their own group on purpose, so the day of the launch has one complete list.
 
 - 2026-10-15 · `.hewn` names move under the Aleo Name Service as a TLD; a registrar that keeps a wallet to one kind of name; a conversation with the ANS team · Joshua · `docs/MAINNET_NAMES.md` · BUILD_PLAN Decisions
 - 2026-10-20 · Agreements carry no DAO copy and no DAO powers on mainnet · Joshua · `employer_agreement_v5` · BUILD_PLAN Decisions
@@ -222,6 +224,7 @@ Every commitment pinned to "before mainnet", in one list the dream can verify wh
 - 2026-10-30 · The traction floor of 5 visitors a country returns · Joshua · **INV-05** · `CLAUDE.md`
 - 2026-10-25 · A third-party audit of every program that will hold real money · Joshua · open · `pnw_mvp_v2` `CLAUDE.md`
 - 2026-11-03 · The first outside SOC 2 audit comes with mainnet and funding · Joshua · open · `docs/COMPLIANCE_MAP.md`
+- 2026-11-04 · The app keeps reading the superseded `employer_agreement_v4` and `hewn_letters_v1` (their records can't move to a newer program) until Joshua retires them, possibly at mainnet, where every program starts fresh and only the newest version is read · Joshua · open · `apps/business/src/chain/agreement_programs.ts`, `chain/letters.ts`
 
 ## Designs ahead
 Direction decided, nothing built yet.
@@ -247,6 +250,7 @@ How tasks, PRs and reports are done.
 - 2026-10-13 · One task, one exit criterion, one PR; no new screens without a greenlight; every task ends with tests, a progress entry and a PR · Joshua · **OPS-08**, `CLAUDE.md` · `CLAUDE.md`
 - 2026-10-29 · Commit messages and PR descriptions never carry a `https://claude.ai/...` session link · Joshua · `CLAUDE.md` · `progress/2026-10-29.md`
 - 2026-11-03 · Every progress entry ends with the bare id of the session that wrote it (never a link); only Joshua can open the transcript · Joshua · `progress_index.py` · `docs/MEMORY.md`
+- 2026-11-04 · Retired code is deleted, not archived: git history is the archive, `archive/README.md` keeps one row per retired thing with the commit that holds it; deployed Leo program versions stay (INV-21). Hewn's `archive/` code deleted the same day; the Leo repository's old documents and `portal/` are decided there · Joshua · **OPS-09**, `scripts/check_archive.py` · `progress/2026-11-04.md`
 
 ### Memory and the map
 How the team remembers, and the map it navigates by.

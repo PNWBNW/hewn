@@ -15,7 +15,8 @@ summary: The art drawn for every credential and paystub: a worker's land in 3D, 
 ## What it is
 
 Every credential and every paystub gets a picture drawn from its own data, the way PNW's
-topographic credential art was (`archive/packages/nft-art`), in Hewn's spirit: the Northwest of the
+topographic credential art was (`nft-art`, deleted 2026-11-04; `archive/README.md` names the commit
+that holds it), in Hewn's spirit: the Northwest of the
 hero image, layered ridges fading into mist, evergreens, honest materials. The old art's best idea
 stays (seeded terrain, so no two are alike); its blueprint look goes.
 

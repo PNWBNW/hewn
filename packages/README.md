@@ -34,8 +34,8 @@ rows, and only `apps/business/src/chain` may.
 | 3 | `records` | Record scanners and registry reads | chain |
 | 4 | `rail` | The pay queue: one private stablecoin transfer per payee through the wallet, resumable | chain |
 
-Four salvaged packages that nothing uses any more (`persistence`, `w4-crypto`, `pdf`, `nft-art`)
-are in [`../archive/packages/`](../archive/README.md), out of the workspace.
+Four salvaged packages that nothing used any more (`persistence`, `w4-crypto`, `pdf`, `nft-art`)
+were deleted; [`../archive/README.md`](../archive/README.md) says why and which commit holds them.
 
 Stablecoin note: every `transfer_private` in `rail` carries a Merkle exclusion proof that the
 sender isn't on USDCx's freeze list (Sealance, Poseidon4, depth 16), built on the device with the

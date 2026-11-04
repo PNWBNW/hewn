@@ -152,6 +152,10 @@ The dates and who decided each rule are in `memory/decisions.md`.
   (`docs/map/README.md`), so it is current and sees what grep misses: dynamic loads, the `@/`
   alias, program names resolved through `packages/config`. Run `show` and `impact` on a file
   before changing it.
+- Retired code is deleted, not archived: git history is the archive. `archive/README.md` keeps one
+  row per retired thing, with the commit that still holds it, and nothing else lives in `archive/`
+  (`scripts/check_archive.py`). Deployed Leo program versions are the exception: they stay,
+  unchanged (INV-21). (OPS-09)
 - Commit messages and PR descriptions never carry a `https://claude.ai/...` session link (Joshua,
   2026-10-29), as in `pnw_mvp_v2`.
 - A PR merges only after Joshua approves it in the chat session (2026-11-03); the merge commit's
@@ -175,8 +179,6 @@ Each fact lives in the README of the thing it describes; this is where to find t
   moderate+; new dependencies are at least 7 days old, `minimumReleaseAge`; OPS-04).
 - **What was retired and why** (the Julia tax service, four salvaged packages, the old portal and
   mailbox): `archive/README.md`. `packages/tax-engine` is the only tax engine.
-- The double-pay item in `pnw_mvp_v2/docs/NOTES.md` is stale per Joshua; ignore it unless a test
-  shows otherwise.
 - Licence: **AGPL-3.0-only** since 2026-10-15 (Joshua), here and in `pnw_mvp_v2`; every package
   says so. The app and the site link to the source (`BRAND.sourceUrl`); keep that link. The Hewn
   name and logo are not licensed.
