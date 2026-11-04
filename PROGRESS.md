@@ -8,6 +8,10 @@ them (`scripts/progress_index.py`): never edit it by hand. To log something, add
 entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
 index is out of date.
 
+## [2026-11-04](progress/2026-11-04.md)
+
+- [Dreaming: week of 2026-11-04](progress/2026-11-04.md#2026-11-04--dreaming-week-of-2026-11-04)
+
 ## [2026-11-03](progress/2026-11-03.md)
 
 - [The Audit-Ready Plan checked against the security frameworks](progress/2026-11-03.md#2026-11-03--the-audit-ready-plan-checked-against-the-security-frameworks)
@@ -22,6 +26,8 @@ index is out of date.
 - [The ledger in two levels; the default mode set straight](progress/2026-11-03.md#2026-11-03--the-ledger-in-two-levels-the-default-mode-set-straight)
 - [The README and the site say the way in is Aleo](progress/2026-11-03.md#2026-11-03--the-readme-and-the-site-say-the-way-in-is-aleo)
 - [Memory part 3: the weekly dream as a Routine](progress/2026-11-03.md#2026-11-03--memory-part-3-the-weekly-dream-as-a-routine)
+- [Dreaming: week of 2026-11-03, the first run](progress/2026-11-03.md#2026-11-03--dreaming-week-of-2026-11-03-the-first-run)
+- [The dream's pull request footer](progress/2026-11-03.md#2026-11-03--the-dreams-pull-request-footer)
 
 ## [2026-11-02](progress/2026-11-02.md)
 
