@@ -17,8 +17,10 @@ verify written as a question. It never touches code or tests, never rewords a ru
 **The first run** is fired by hand and reviewed before the schedule stands (Joshua, 2026-11-03):
 the Routine is created paused and is enabled once that run's pull request is approved. It lives in
 the Routines list of the claude.ai account, where it is paused, fired early or rescheduled; its
-prompt is a few lines pointing here (and a fallback that clones the repository if the fresh
-session has no checkout), so nothing there needs editing when this file changes.
+prompt is a few lines pointing here, so nothing there needs editing when this file changes. The
+Routine must carry the repository as a source with push access, chosen on the Routines page when
+it is made: a Routine made from inside a session carries none, and the session it starts can
+clone but not push (the first dream, 2026-11-03).
 
 **By hand:** paste `PROMPT.md` into a fresh cloud session on `main`, or fire the Routine from the
 Routines list.

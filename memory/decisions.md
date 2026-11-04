@@ -63,7 +63,7 @@ Registered names, who may be found by one, and names on mainnet.
 ### Login and passphrases
 How a person gets in, and what a passphrase must be.
 
-- 2026-10-20 · New passphrases: at least 12 characters with a letter and a space or symbol, common passwords refused, a strength meter, a five-word suggestion · Joshua · `books/passphrase.ts` · BUILD_PLAN Decisions
+- 2026-10-20 · New passphrases: at least 12 characters with a letter and a space or symbol, common passwords refused, a strength meter, a five-word suggestion · Joshua · `packages/vault/src/passphrase.ts` · BUILD_PLAN Decisions
 - 2026-10-21 · Usernames replace emails to log in (nothing is ever sent to an email); an email is still a valid username, so older accounts open unchanged · Joshua · `books/account.ts` · BUILD_PLAN Decisions
 - 2026-10-15 · "Stay logged in" keeps only the open data key, non-extractable, for at most 24 hours, forgotten on Log out · Joshua · **INV-08**, `@pnw/vault` · `CLAUDE.md`
 
