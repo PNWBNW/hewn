@@ -200,6 +200,7 @@ Who holds what, and what it takes to merge.
 
 - 2026-11-03 · A PR merges only after Joshua approves it in the chat session, on his own device; the merge commit says "Approved by Joshua in session, <date>" · Joshua · **OPS-01** · `docs/COMPLIANCE_MAP.md`
 - 2026-11-03 · Joshua alone holds GitHub and Vercel, both with 2FA · Joshua · **OPS-02** · `docs/COMPLIANCE_MAP.md`
+- 2026-11-04 · When Joshua merges a PR himself on GitHub, he adds "Approved by Joshua in session, <date>" to the merge message; #293 (merged by him that day without it) is noted in `progress/2026-11-04.md` · Joshua · **OPS-01** · `progress/2026-11-04.md`
 
 ### Hardening
 What was hardened, and what was reviewed and parked.
@@ -251,6 +252,7 @@ How tasks, PRs and reports are done.
 - 2026-10-29 · Commit messages and PR descriptions never carry a `https://claude.ai/...` session link · Joshua · `CLAUDE.md` · `progress/2026-10-29.md`
 - 2026-11-03 · Every progress entry ends with the bare id of the session that wrote it (never a link); only Joshua can open the transcript · Joshua · `progress_index.py` · `docs/MEMORY.md`
 - 2026-11-04 · Retired code is deleted, not archived: git history is the archive, `archive/README.md` keeps one row per retired thing with the commit that holds it; deployed Leo program versions stay (INV-21). Hewn's `archive/` code deleted the same day; the Leo repository's old documents and `portal/` are decided there · Joshua · **OPS-09**, `scripts/check_archive.py` · `progress/2026-11-04.md`
+- 2026-11-04 · The Leo repository's command-line execute harness (`execute_testnet.yml`, the phase 4 scripts, `config/scenarios/`) stays for now · Joshua · open · `pnw_mvp_v2` `CLAUDE.md` · `progress/2026-11-04.md`
 
 ### Memory and the map
 How the team remembers, and the map it navigates by.

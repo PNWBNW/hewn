@@ -14,6 +14,7 @@ index is out of date.
 - [Dead portal code deleted; shipped code never debug-logs](progress/2026-11-04.md#2026-11-04--dead-portal-code-deleted-shipped-code-never-debug-logs)
 - [Retired code is deleted, not archived (OPS-09)](progress/2026-11-04.md#2026-11-04--retired-code-is-deleted-not-archived-ops-09)
 - [The Leo repository's retired documents and portal/ deleted; Hewn's pin moves](progress/2026-11-04.md#2026-11-04--the-leo-repositorys-retired-documents-and-portal-deleted-hewns-pin-moves)
+- [A note for the merge record; the execute harness stays](progress/2026-11-04.md#2026-11-04--a-note-for-the-merge-record-the-execute-harness-stays)
 
 ## [2026-11-03](progress/2026-11-03.md)
 
