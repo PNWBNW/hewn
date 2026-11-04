@@ -1,10 +1,4 @@
-// ============================================================
-// SYNCED FILE — do not edit here
-// Source: pnw_mvp_v2/portal/src/types/aleo_types.ts
-// Synced from commit: pending-initial-sync
-// Synced on: 2026-03-15
-// If you need to change this, edit pnw_mvp_v2 first, then re-sync.
-// ============================================================
+// Came from the portal (pnw_mvp_v2/portal/src/types/aleo_types.ts, deleted 2026-11-04); owned here now, and the source of truth.
 
 export type Address = string;  // aleo1...
 export type Field = string;    // numeric field element

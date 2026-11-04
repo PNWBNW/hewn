@@ -1,10 +1,4 @@
-// ============================================================
-// SYNCED FILE — do not edit here
-// Source: pnw_mvp_v2/portal/src/commitments/merkle.ts
-// Synced from commit: pending-initial-sync
-// Synced on: 2026-03-15
-// If you need to change this, edit pnw_mvp_v2 first, then re-sync.
-// ============================================================
+// Came from the portal (pnw_mvp_v2/portal/src/commitments/merkle.ts, deleted 2026-11-04); owned here now, and the source of truth.
 
 import { domainHash, DOMAIN_TAGS } from "./hash";
 import type { Bytes32 } from "./aleo_types";

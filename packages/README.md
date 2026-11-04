@@ -42,4 +42,4 @@ sender isn't on USDCx's freeze list (Sealance, Poseidon4, depth 16), built on th
 SDK's `SealanceMerkleTree` once per run (`rail/src/exclusion.ts`).
 
 Hashing note: `commitments` keeps the portal's `BLAKE3(domain || payload)` rule, which is what is
-live on testnet. `pnw_mvp_v2/portal/src/commitments` diverged and is not the source of truth.
+live on testnet. The portal's own copy in `pnw_mvp_v2` diverged and was deleted (2026-11-04); this package is the source of truth.
