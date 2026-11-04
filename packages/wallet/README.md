@@ -8,7 +8,7 @@ on any other path (`scripts/check_signing_path.py`).
 | File | What |
 |---|---|
 | `wallet-provider.tsx` | The provider the app mounts: Shield's adapter, connected one of three ways (below) |
-| `wallet-executor.ts`, `useTransactionExecutor.ts` | Submitting a transaction through the adapter and following it to confirmation |
+| `wallet-executor.ts` | Submitting a transaction through the adapter and following it to confirmation |
 | `fee_mode.ts` | The per-device fee switch (public or private fee) and `withFeeMode`, applied to every call |
 | `credential-signer.ts` | Proving who holds an account by a signed challenge (`signMessage`), never a pasted key |
 

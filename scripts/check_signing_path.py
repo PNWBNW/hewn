@@ -12,7 +12,7 @@ its wallet from there. This check keeps that door the only one. Outside tests, i
   4. a file that imports @provablehq/sdk uses its execute path (ProgramManager, buildExecution...,
      .execute(, broadcast);
   5. any file imports child_process (no snarkos, no shelling out);
-  6. a file outside packages/pnw-adapter imports the CLI adapter (the retired pasted-key path).
+  6. any file imports a CLI adapter (the pasted-key path, deleted; it must not come back).
 
 Standard library only. Run from the repository root: python3 -I scripts/check_signing_path.py
 """
@@ -63,8 +63,8 @@ def main() -> int:
             problems.append(f"{rel}: uses the SDK's execute path; every write goes through Shield")
         if any(i in ("child_process", "node:child_process") for i in imports):
             problems.append(f"{rel}: imports child_process (no snarkos, no shelling out)")
-        if not rel.startswith("packages/pnw-adapter/") and any(re.search(r"aleo_cli_adapter|cli_adapter", i) for i in imports):
-            problems.append(f"{rel}: imports the retired CLI adapter")
+        if any(re.search(r"aleo_cli_adapter|cli_adapter", i) for i in imports):
+            problems.append(f"{rel}: imports a CLI adapter (the pasted-key path is gone)")
     if not (ROOT / SHIELD).exists():
         problems.append(f"{SHIELD} is missing: the check's one door has moved; update this script")
     if problems:

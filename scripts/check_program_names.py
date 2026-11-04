@@ -2,11 +2,10 @@
 """Program names come from one place (docs/INVARIANTS.md, INV-12; T15).
 
 Every Leo program id the app uses lives in packages/config/src/programs.ts (`PROGRAMS`), which
-mirrors pnw_mvp_v2's manifest; pnw-adapter keeps its own transition table for the retired CLI
-path. Anywhere else, a program id written out by hand can drift from what is deployed: an app
+mirrors pnw_mvp_v2's manifest. Anywhere else, a program id written out by hand can drift from what is deployed: an app
 that still calls a superseded version, or reads one mapping from v4 and another from v5.
 
-Outside tests, comments, packages/config and packages/pnw-adapter, this fails on any
+Outside tests, comments and packages/config, this fails on any
 `<name>.aleo` in the code. `credits.aleo` is allowed everywhere: it is the network's own program,
 not ours, and never changes version. A line that must keep a name carries the marker
 `program-names: allow` and a reason.
@@ -18,7 +17,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-HOME = ("packages/config/src/programs.ts", "packages/pnw-adapter/")
+HOME = ("packages/config/src/programs.ts",)
 NATIVE = {"credits.aleo"}
 ALLOW = "program-names: allow"
 NAME = re.compile(r"\b[a-z][a-z0-9_]*\.aleo\b")

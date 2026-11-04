@@ -27,9 +27,9 @@ rows, and only `apps/business/src/chain` may.
 | 1 | `vault` | The encrypted store: a random data key wrapped by the unlock secret; "stay logged in" | |
 | 1 | `payroll` | Workers, pay runs, paychecks, the paystub's canonical form | |
 | 1 | `sales` | Customers, vendors, estimates, invoices, bills, payments | |
-| 1 | `pnw-adapter` | Program and transition names for every Layer 1 and 2 call; routers | chain |
+| 1 | `pnw-adapter` | The Sealance exclusion-proof types the payroll manifest uses (program names live in `config`) | chain |
 | 1 | `wallet` | The Shield provider and executor: the only way a transaction is signed | chain |
-| 1 | `handshake` | The offer and acceptance engine and codec | chain |
+| 1 | `handshake` | The offer and acceptance engine | chain |
 | 2 | `manifest` | Payroll run compiler, chunk planner, row validation | chain |
 | 3 | `records` | Record scanners and registry reads | chain |
 | 4 | `rail` | The pay queue: one private stablecoin transfer per payee through the wallet, resumable | chain |

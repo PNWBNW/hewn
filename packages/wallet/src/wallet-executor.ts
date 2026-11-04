@@ -2,12 +2,8 @@
  * Wallet Execution Bridge — submits real transactions via the wallet adapter
  * and polls for confirmation on the Aleo network.
  *
- * This is the primary E10 execution path. It replaces the stub in
- * aleo_cli_adapter.ts for all wallet-connected flows.
- *
  * Pattern: pure functions that accept wallet methods as params (same as
- * credential-signer.ts). No React imports — see useTransactionExecutor.ts
- * for the React hook wrapper.
+ * credential-signer.ts). No React imports.
  */
 
 import { ENV } from "@pnw/config/env";

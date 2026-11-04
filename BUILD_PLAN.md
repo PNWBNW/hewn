@@ -49,7 +49,7 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 **Reused as-is from `pnw_mvp_v2` and `pnw_employment_portal_v1`**
 
 - Privacy architecture: records for identifying data, mappings hold only hashes and block heights, commitment-based authorization (`parties_key` commitments).
-- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `pnw-adapter`. The CLI adapter / private-key path is legacy and gone: the `coordinator` package that carried it was removed on 2026-10-14, and the pay queue in `rail` is the wallet path. The app never calls `snarkos` directly. Extensions hang off this seam.
+- The execution boundary: on-chain writes are signed in the user's wallet via the `wallet` executor, with program/transition names from `@pnw/config`. The CLI adapter / private-key path is gone: the `coordinator` package that carried it was removed on 2026-10-14 and the adapter itself on 2026-11-04, and the pay queue in `rail` is the wallet path. The app never calls `snarkos` directly. Extensions hang off this seam.
 - `payroll_audit_log` as the pattern for anchoring: a hash on chain, everything else private (a sealed month's root goes through it; the postings themselves stay in the vault, Decisions 2026-10-25).
 - The name registry (`pnw_name_registry_v2`; names are `name.hewn`), credentials (now `hewn_credentials_v1`), employer license gate, wallet-signature session model.
 - TypeScript tax engine (now `packages/tax-engine`, IRS annualization method).

@@ -91,9 +91,9 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
 
 **Boundaries**
 - Every on-chain write is signed in the user's wallet through the `wallet` package's executor, so
-  the wallet shows what is being signed. Program and transition names come from `pnw-adapter`
-  and `@pnw/config`, never hard-coded elsewhere. The CLI adapter (a pasted private key) is
-  legacy: no new code or screen may use it, and the pay queue in `rail` is the wallet path.
+  the wallet shows what is being signed. Program and transition names come from `@pnw/config`,
+  never hard-coded elsewhere. The CLI adapter (a pasted private key) is gone: no code may bring
+  it back, and the pay queue in `rail` is the wallet path.
   Nothing calls `snarkos` or the SDK execute path directly. (INV-11, INV-12)
 - **Every account is on the registry.** Setup links a Shield account and registers a
   `name.hewn` (a worker also creates the profile behind it; a customer uses the person's name if
