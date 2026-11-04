@@ -7,7 +7,6 @@
   "exports": {
     "./credential-signer": "./src/credential-signer.ts",
     "./fee-mode": "./src/fee_mode.ts",
-    "./useTransactionExecutor": "./src/useTransactionExecutor.ts",
     "./wallet-executor": "./src/wallet-executor.ts",
     "./wallet-provider": "./src/wallet-provider.tsx"
   },

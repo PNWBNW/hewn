@@ -205,6 +205,7 @@ What was hardened, and what was reviewed and parked.
 
 - 2026-10-22 · GitHub hardening parked, with its list (a ruleset on `main` in both repos, Vercel promoting by hand, passkey 2FA, old tokens deleted, the admin environment limited to `main`; hash checks on tool downloads, pinned action versions, a read-only gate token); ruled out: dropping the key fallback, commit pins in `pnw_mvp_v2` · Joshua · open · BUILD_PLAN Decisions
 - 2026-10-22 · From the hardening review: the PBKDF2 refusal done; a size limit on unpacking letters parked; the traction floor waits for data · Joshua · `@pnw/vault` · BUILD_PLAN Decisions
+- 2026-11-04 · Dead code inside the live packages is deleted, not kept: 16 portal leftovers nothing imported (the old transaction executor, four record scanners, the CLI adapter and its routers, three helpers); shipped code never debug-logs · Joshua · **INV-06**, **INV-12**, `scripts/check_console.py`, `scripts/check_signing_path.py` · `progress/2026-11-04.md`
 
 ### Outside audits
 When Hewn is audited by others.

@@ -7,10 +7,8 @@
   "exports": {
     "./aleo_types": "./src/aleo_types.ts",
     "./canonical_encoder": "./src/canonical_encoder.ts",
-    "./canonical_types": "./src/canonical_types.ts",
     "./hash": "./src/hash.ts",
-    "./merkle": "./src/merkle.ts",
-    "./token_id": "./src/token_id.ts"
+    "./merkle": "./src/merkle.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -102,13 +102,11 @@ export async function scanAgreementRecords(
   programs: readonly string[] = [PROGRAMS.layer1.employer_agreement],
 ): Promise<WorkerRecord[]> {
   try {
-    console.log("[PNW] Scanning wallet for agreement records...");
     const records: unknown[] = [];
     for (const program of programs) {
       const found = await requestRecords(program, true);
       if (Array.isArray(found)) records.push(...found);
     }
-    console.log("[PNW] Agreement records from wallet:", records.length);
 
     const workers: WorkerRecord[] = [];
     const seenAgreements = new Set<string>();
@@ -121,7 +119,6 @@ export async function scanAgreementRecords(
       }
     }
 
-    console.log("[PNW] Parsed worker records:", workers.length);
 
     // Resolve registered names, all at once; each lookup is best-effort.
     // display_name is the bare registered name (the suffix shown next to it
