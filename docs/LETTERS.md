@@ -18,7 +18,7 @@ paystubs, timesheets, the coworker directory and coworker chat. Group chats send
 member. Announcements: the channel's key goes to each member in a letter, and each post goes to
 everyone through `send_many` (one approval for each eight). Events with guests work the same way
 ("Shared events" below). The old mailbox is
-retired (2026-10-22, `archive/mailbox-api/`): nothing is sent through it or read from it.
+retired (2026-10-22; `archive/README.md` names the commit that holds it): nothing is sent through it or read from it.
 
 **Measured on testnet (2026-10-16, Joshua's phone, Shield):** a letter took 13.6–73.7 s from tap
 to accepted (approving and Shield's sponsor step included), cost 0.006578 ALEO, and was listed by

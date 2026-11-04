@@ -56,7 +56,7 @@ Mode upgrades are one-way and double-checked. Moving a business from fiat to anc
 
 **Retired**
 
-- The Julia tax service (`pnw_payroll_engine/`, now `archive/pnw_payroll_engine/`). One tax engine, in TS.
+- The Julia tax service (`pnw_payroll_engine/`, deleted; `archive/README.md` names the commit that holds it). One tax engine, in TS.
 - localStorage as a book of record (see Phase 1 vault).
 - The portal as an app: `pnw_employment_portal_v1` is rebuilt as a QB-shaped shell in Phase 0. Its libraries survive as packages; its screens do not.
 

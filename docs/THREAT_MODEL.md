@@ -220,7 +220,7 @@ The highest risk for a browser app.
 
 ## T10 — The mailbox
 
-**Retired 2026-10-22** (`archive/mailbox-api/`). Every message is now a letter on chain
+**Retired 2026-10-22** (deleted; `archive/README.md` names the commit that holds it). Every message is now a letter on chain
 (`docs/LETTERS.md`), sent from the user's wallet; no server holds messages. What follows is kept
 as the record of how it worked.
 

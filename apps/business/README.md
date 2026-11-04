@@ -21,8 +21,8 @@ never contains a route handler. CI builds both.
   names the website by its full address in the bundle.
 - In the bundle a pathname may end in `/`: compare pathnames through `canonicalPath`
   (`src/shell/AppShell.tsx`), never as raw strings.
-- No server holds messages: the old mailbox server is retired (2026-10-22,
-  `archive/mailbox-api/`), and every message is a letter on chain sent from the user's wallet.
+- No server holds messages: the old mailbox server is retired (2026-10-22; `archive/README.md`
+  names the commit that holds it), and every message is a letter on chain sent from the user's wallet.
 
 The stack: Next.js 16.4.1 (moved up from the portal's 16.1.6 for security fixes), React 19.2.3,
 pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/` for `src/`.
