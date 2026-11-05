@@ -19,6 +19,7 @@ What Hewn is and isn't, and how it's described.
 - 2026-10-13 · Greenlight for Phase 0 · Joshua · BUILD_PLAN · BUILD_PLAN Decisions
 - 2026-10-16 · Marketing says "no monthly subscription", never "free" · Joshua · `apps/site` · BUILD_PLAN Decisions
 - 2026-10-25 · Feed, reconcile, seal replaces `gl_core.aleo`: the chain is the bank feed, the vault is the books, a closed period's root is anchored through `payroll_audit_log`; a period-status program comes later as new Leo · Joshua · Phase 1 criteria, `docs/AUDIT_DESIGN.md` · BUILD_PLAN Decisions, `progress/2026-10-25.md`
+- 2026-11-05 · A technical paper, not a whitepaper (no token), kept in the repository as `docs/PAPER.md` and served at hewnaccounting.com/paper on the marketing site, with a PDF; it explains twin-curve math with everything that uses it · Joshua · `docs/PAPER.md` · `progress/2026-11-05.md`
 
 ### Modes and the way in
 Which mode the app runs in, and what a person needs to get in.
@@ -148,6 +149,7 @@ Running payroll and recording hours.
 
 - 2026-10-22 · Pay runs pay only people who accepted (fix 5 of the security review) · Joshua · `packages/rail` · `progress/2026-10-22.md`
 - 2026-11-04 · The double-pay item in `pnw_mvp_v2`'s archived `NOTES.md` is closed: the four-step flow it described is gone, and Hewn's own guard (never pay twice on an unknown outcome, 2026-10-22) is tested · Joshua · `packages/payroll/src/settlement.test.ts` (`checkDoublePay`) · `progress/2026-11-04.md`
+- 2026-11-05 · Payroll compliance plan: the IRS's own withholding method with verified, dated tables updated only through review; a real W-4 the worker fills in and signs (drawn with a finger, then in Shield), sent sealed under the pair's key; Social Security numbers collected behind layered locks; state rules follow where the work is done and fill in each agreement, the West first from Washington, Oregon and Idaho; the I-9 after the W-4; zPass to explore · Joshua · `docs/PAYROLL_COMPLIANCE.md` · `progress/2026-11-05.md`
 
 ### Messages and conversations
 Who can read what in a conversation, and how people are confirmed.
