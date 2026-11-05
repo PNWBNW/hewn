@@ -46,6 +46,7 @@ How the code is laid out and what it runs on.
 - 2026-10-25 · Superseded designs move from `BUILD_PLAN.md` to `docs/` with a status; known facts live in the README of what they describe · Joshua · `docs/README.md` · `progress/2026-10-25.md`
 
 ## Users
+- 2026-11-05 · Veil (Provable's viem-style toolkit) assessed: adopt in order, starting in tests and CI only (a local devnode, typed bindings from codegen), then generated decoders in place of the hand parsers, then the reads Hewn lacks; the app never imports its local-key package · Joshua asked, to decide · `docs/VEIL.md` · `progress/2026-11-05.md`
 
 ### Accounts
 What an account is, and how many a wallet or a username may hold.
