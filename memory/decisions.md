@@ -19,6 +19,7 @@ What Hewn is and isn't, and how it's described.
 - 2026-10-13 · Greenlight for Phase 0 · Joshua · BUILD_PLAN · BUILD_PLAN Decisions
 - 2026-10-16 · Marketing says "no monthly subscription", never "free" · Joshua · `apps/site` · BUILD_PLAN Decisions
 - 2026-10-25 · Feed, reconcile, seal replaces `gl_core.aleo`: the chain is the bank feed, the vault is the books, a closed period's root is anchored through `payroll_audit_log`; a period-status program comes later as new Leo · Joshua · Phase 1 criteria, `docs/AUDIT_DESIGN.md` · BUILD_PLAN Decisions, `progress/2026-10-25.md`
+- 2026-11-05 · A technical paper, not a whitepaper (no token), kept in the repository as `docs/PAPER.md` and served at hewnaccounting.com/paper on the marketing site, with a PDF; it explains twin-curve math with everything that uses it · Joshua · `docs/PAPER.md` · `progress/2026-11-05.md`
 
 ### Modes and the way in
 Which mode the app runs in, and what a person needs to get in.

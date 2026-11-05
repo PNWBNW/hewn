@@ -11,6 +11,7 @@ index is out of date.
 ## [2026-11-05](progress/2026-11-05.md)
 
 - [Close period part 3: the period proof and the page that checks it](progress/2026-11-05.md#2026-11-05--close-period-part-3-the-period-proof-and-the-page-that-checks-it)
+- [The technical paper, draft for review](progress/2026-11-05.md#2026-11-05--the-technical-paper-draft-for-review)
 
 ## [2026-11-04](progress/2026-11-04.md)
 
