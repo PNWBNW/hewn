@@ -13,6 +13,7 @@ index is out of date.
 - [Close period part 3: the period proof and the page that checks it](progress/2026-11-05.md#2026-11-05--close-period-part-3-the-period-proof-and-the-page-that-checks-it)
 - [The technical paper, draft for review](progress/2026-11-05.md#2026-11-05--the-technical-paper-draft-for-review)
 - [Payroll compliance: the plan, written down](progress/2026-11-05.md#2026-11-05--payroll-compliance-the-plan-written-down)
+- [zPass, explored](progress/2026-11-05.md#2026-11-05--zpass-explored)
 
 ## [2026-11-04](progress/2026-11-04.md)
 

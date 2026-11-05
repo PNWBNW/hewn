@@ -210,6 +210,11 @@ retention period, with the same locks as part 4.
 
 ## Part 7: zPass, to explore
 
+**Explored 2026-11-05: `docs/ZPASS.md`.** In short: an issuer-signed credential proven in zero
+knowledge; the SDK can't be used as it is (it signs with a pasted key); it fits a "verified person"
+mark, age and sanctions checks, not the I-9's document check yet; the missing piece is an issuer.
+Recommended: ask the zPass team, and design the employer as issuer after the I-9.
+
 Aleo's ecosystem has zero-knowledge identity work (zPass), meant to let a person prove a statement
 about a government-issued credential ("holds a valid ID", "is over 18", "is authorized to work")
 without handing over the document. For Hewn that could mean identity, for the W-4's "reasonably
