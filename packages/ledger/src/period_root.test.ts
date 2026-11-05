@@ -15,6 +15,7 @@ import {
 import { clock, sampleBooks } from "./test_helpers";
 
 const SECRET = new Uint8Array(32).fill(7);
+const PINNED_ROOT = "04371e4cc4a2e4fc614a14a39a626b9f5365813108e21c861f99c9687ab56acf";
 const OTHER = new Uint8Array(32).fill(8);
 const code = (c: string) => expect.objectContaining({ code: c });
 
@@ -124,5 +125,17 @@ describe("inclusion proofs", () => {
     expect(r.entryLeaves[1]).toBe(leaf);
     expect(verifyMerkleProof(leaf, merkleProof(r.entryLeaves, 1), r.entriesRoot)).toBe(true);
     expect(() => merkleProof(r.entryLeaves, 3)).toThrow(code("BAD_ROOT"));
+  });
+});
+
+describe("the root's bytes are fixed", () => {
+  // Roots are anchored on chain for good: the same input must give the same root in every
+  // version of the app. A change here orphans every root already anchored.
+  it("matches the recorded root for a fixed input", () => {
+    const e = (seq: number, date: string, hash: string) => ({ id: `e${seq}`, seq, date, source: { kind: "manual" }, lines: [], postedAt: "2026-11-01T00:00:00.000Z", prevHash: "0".repeat(64), hash }) as unknown as Entry;
+    const entries = [e(1, "2026-10-25", "11".repeat(32)), e(2, "2026-10-28", "22".repeat(32)), e(3, "2026-10-31", "33".repeat(32))];
+    const settlements = [{ entryHash: "22".repeat(32), txId: "at1example", recipient: "aleo1example" }];
+    const r = periodRoot({ anchorSecret: SECRET, start: "2026-10-25", end: "2026-10-31", entries, settlements, prevRoot: "ab".repeat(32) });
+    expect(r.root).toBe(PINNED_ROOT);
   });
 });

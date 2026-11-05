@@ -7,19 +7,19 @@ Oct 13, 2026 · Joshua Day
 
 ## Now
 
-Updated 2026-11-03. Session start reads this block; keep it to these four lines and change it
+Updated 2026-11-05. Session start reads this block; keep it to these four lines and change it
 whenever the work moves.
 
 - **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
 - **In flight:** the manual tests (issues #150–#164); the Audit-Ready Plan's Steps 8 to 14
   (`docs/COMPLIANCE_MAP.md`: the control list and the data-flow diagram are done, the policies,
-  risk register and inventory next, then the Fable deep review); memory (`docs/MEMORY.md`) is
-  built, the weekly dream's first run under review. The map of the whole tree is live
+  risk register and inventory next, then the Fable deep review). Memory (`docs/MEMORY.md`) is
+  built and the weekly dream runs on Sundays. The map of the whole tree is live
   (`docs/map/`, pnwbnw.github.io/hewn).
 - **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
-  anchored through `payroll_audit_log`). Reconciliation (2026-10-26) and Close period (2026-11-02,
-  `docs/CLOSE_PERIOD.md`) are built; what's left is Joshua's real close of October and the period
-  proof export (part 3).
+  anchored through `payroll_audit_log`). Reconciliation (2026-10-26), Close period (2026-11-02,
+  `docs/CLOSE_PERIOD.md`) and the period proof with its public check (`/verify`, 2026-11-05) are
+  built; what's left is Joshua's real close of October, anchored, its proof checked.
 - **Blocked on Joshua:** archiving the old portal repository on GitHub (Phase 0); two phones with
   Shield for the wallet scenarios in the manual tests and Phase 2's three-worker run.
 

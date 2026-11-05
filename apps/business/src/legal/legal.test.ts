@@ -19,6 +19,12 @@ describe("terms and privacy", () => {
     expect(isPublicPath("/termsheet")).toBe(false);
   });
 
+  it("checking a proof is public too: an auditor needs no account", () => {
+    expect(isPublicPath("/verify")).toBe(true);
+    expect(redirectFor("business", "/verify")).toBeNull();
+    expect(isPublicPath("/verifyx")).toBe(false);
+  });
+
   it("name who runs it, the law, and where to write", () => {
     const terms = text(renderToStaticMarkup(createElement(TermsPage)));
     expect(terms).toContain(`${BRAND.name} is run by ${BRAND.operator}`);

@@ -1,18 +1,18 @@
 ---
 status: built
-updated: 2026-11-02
-summary: Closing a period through any date after it ends, once every check passes, the root anchored through `payroll_audit_log`, reopening and locking; the period proof export is still open.
+updated: 2026-11-05
+summary: Closing a period through any date after it ends, once every check passes, the root anchored through `payroll_audit_log`, reopening and locking, and the period proof with a public page anyone can check it on.
 ---
 
 # Closing a period
 
-**Status:** decided (Joshua, 2026-11-02) and built, except the period proof export: closing by
-date and the period root (#272); Transactions → Close the books, the checklist, the anchor, reopen,
-lock and the Dashboard reminder (`books/close.ts`, `books/ClosePanel.tsx`,
-`chain/CloseShield.tsx`). The export comes next. No new Leo: it anchors through
-the deployed `payroll_audit_log.aleo`. It adds a screen, so building it needs Joshua's
-greenlight. It finishes Phase 1's last criterion (a month fed, categorized, reconciled and
-sealed) and steps 24 to 29 of the sealed-month test (#224).
+**Status:** decided (Joshua, 2026-11-02) and built: closing by date and the period root (#272);
+Transactions → Close the books, the checklist, the anchor, reopen, lock and the Dashboard reminder
+(`books/close.ts`, `books/ClosePanel.tsx`, `chain/CloseShield.tsx`); the period proof, exported
+from each close, and the page anyone checks it on (2026-11-05, "The period proof" below). No new
+Leo: it anchors through the deployed `payroll_audit_log.aleo`. What's left of Phase 1's last
+criterion (a month fed, categorized, reconciled and sealed) is a real close on testnet, and
+steps 24 to 29 of the sealed-month test (#224).
 
 `docs/AUDIT_DESIGN.md` already fixes **what** a close commits to (the period root) and **how** it
 is anchored (one `anchor_event`). This document is about **when and how a business closes**.
@@ -67,6 +67,28 @@ If Shield's signature fails or is cancelled, the books stay closed and the ancho
 - **The root's `period_id` is the range** (`2026-10-25..2026-10-31`) in the root format
   (`HEWN::PERIOD::v1`). `prev_root` still chains each close to the one before. Entries belong to a
   range by their date; settlements by the day their transfer confirmed. Both follow AUDIT_DESIGN.
+
+## The period proof
+
+**Export proof**, on each close that stands, saves one file (`<business>-period-proof-<start>-to-<end>.json`,
+through the share sheet on a phone). It holds every entry of the range in full with its salt,
+every payment's settlement (transaction id, the address paid) with its two salts, the business
+tag, the previous root, the accounts the entries name, and every close of the range, newest
+first, with its anchor. It never holds the anchor secret. It does hold wages and the addresses
+paid, so the panel says to give it only to an accountant or an auditor. Export is refused when
+the books no longer give the root that was closed.
+
+**Check a proof** (`/verify`, public, no account) reads the file on the device and never uploads
+it. The file's half (`@pnw/ledger` `checkPeriodProof`): every entry hashes to its recorded hash,
+every entry is dated in the range and in journal order, and everything recomputes to the root.
+Then the chain's half (`chain/period_check.ts`), only if the file passes: the root is in
+`payroll_audit_log`'s `audit_event_height`, the block it landed in came after the range ended,
+and every payment's transaction is on chain. The only things looked up are the root and the
+transaction ids, both already public. Every line passes or says what failed.
+
+**Not in it yet:** each payment's view key, which would let the checker see that a transfer paid
+the paystub's net to that address (AUDIT_DESIGN §3, check 4); the one-paycheck and worker's-year
+scopes. Both come with AUDIT_DESIGN's step 3 for those scopes.
 
 ## Reopening
 

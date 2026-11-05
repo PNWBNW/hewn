@@ -21,6 +21,9 @@
 
 import {
   type IsoDate,
+  type PeriodProof,
+  type ProofClose,
+  buildPeriodProof,
   closeThrough,
   entriesInRange,
   lockThrough,
@@ -231,6 +234,49 @@ export function closeRange(
   if (earlier?.anchor) record.anchor = earlier.anchor;
   const books = closeThrough(company.books, end, { now: () => options.now });
   return { company: { ...company, books, closing: { ...closing, records: [...closing.records, record] } }, record };
+}
+
+/**
+ * The period proof of a standing close (docs/AUDIT_DESIGN.md §4, "a whole period"): every entry and
+ * payment in its range with the salts that recompute its root, and every close of the range,
+ * newest first. Refuses when the books no longer give the root that was closed.
+ */
+export function periodProofFor(company: Company, record: Pick<CloseRecord, "start" | "end" | "root" | "prevRoot" | "reopenedAt">, madeAt: string): PeriodProof {
+  const closing = company.closing;
+  if (!closing || !HEX64.test(closing.secret)) throw new CloseError("These books have no closes to prove");
+  if (record.reopenedAt) throw new CloseError("That close was reopened: export the close that stands now");
+  const closes: ProofClose[] = closing.records
+    .filter((r) => r.start <= record.end && r.end >= record.start)
+    .map((r) => ({
+      start: r.start,
+      end: r.end,
+      root: r.root,
+      closedAt: r.closedAt,
+      ...(r.anchor ? { anchorTx: r.anchor.txId } : {}),
+      ...(r.reopenedAt ? { reopenedAt: r.reopenedAt } : {}),
+    }))
+    .reverse();
+  return buildPeriodProof(
+    {
+      anchorSecret: fromHex(closing.secret),
+      start: record.start,
+      end: record.end,
+      entries: entriesInRange(company.books, record.start, record.end),
+      settlements: settlementsIn(company, record.start, record.end),
+      ...(record.prevRoot ? { prevRoot: record.prevRoot } : {}),
+      business: company.books.settings.businessName,
+      madeAt,
+      accounts: company.books.accounts,
+      closes,
+    },
+    record.root,
+  );
+}
+
+/** The proof file's name: the business and the range. */
+export function proofFileName(businessName: string, record: Pick<CloseRecord, "start" | "end">): string {
+  const name = businessName.replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "books";
+  return `${name}-period-proof-${record.start}-to-${record.end}.json`;
 }
 
 /** Notes the anchor of the standing close that ends on `end`. */

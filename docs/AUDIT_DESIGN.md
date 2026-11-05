@@ -1,7 +1,7 @@
 ---
 status: plan
-updated: 2026-11-02
-summary: How a paycheck, a run or a period is provable to an auditor without the chain ever showing a wage; steps 1 and 2 (the period root, the anchor) done.
+updated: 2026-11-05
+summary: How a paycheck, a run or a period is provable to an auditor without the chain ever showing a wage; the period root, the anchor, and the whole-period pack with its verifier done.
 ---
 
 # Audit design: proof without receipts
@@ -33,10 +33,10 @@ an accountant, a tax agency or a worker's landlord, without the chain ever showi
 | `hash(paystub)` inside the payroll entry (`source.doc`) | The books (`@pnw/payroll`) | ✅ built |
 | Each entry hash-chained to the one before it | The books (`@pnw/ledger`) | ✅ built |
 | The transfer's transaction id and block height, recorded after it confirms | The paycheck's settlement (`@pnw/payroll`), *outside* the hashed entry | ✅ built |
-| **Period root:** one hash committing to every entry of a period | The books | 🔜 to build |
-| **Period anchor:** that root put on chain once per period | `payroll_audit_log::anchor_event` (live) | 🔜 to wire up |
+| **Period root:** one hash committing to every entry of a period | The books | ✅ built |
+| **Period anchor:** that root put on chain once per period | `payroll_audit_log::anchor_event` (live) | ✅ built |
 | **Payment proof:** the transfer's transition view key | Shield (`transitionViewKeys`) | ✅ readable today |
-| **Audit pack** and a verifier anyone can run | App export plus a static verify page | 🔜 to build |
+| **Audit pack** and a verifier anyone can run | App export plus a public verify page (`/verify`) | ✅ the whole-period pack and the verifier; 🔜 the paycheck and year scopes, and payment view keys |
 | Formal, consented audits | `audit_nft.aleo` (dual-consent authorization) | ✅ live, unchanged |
 
 ## 1. The period root
@@ -180,7 +180,10 @@ guard is planned: it would wrap the transfer in a two-call function, which Shiel
    period mark. This is the anchored mode's first real step and needs Joshua's greenlight for
    the screen.
 3. **Audit pack export and the verify page** (Opus). Scopes one to three, with the verifier
-   tested against a fixture pack, including failing ones.
+   tested against a fixture pack, including failing ones. *The whole-period scope and the
+   verify page are done (2026-11-05, `docs/CLOSE_PERIOD.md` "The period proof"; `@pnw/ledger`
+   `period_proof.ts`, `chain/period_check.ts`, `/verify`), without payment view keys yet; the
+   one-paycheck and worker's-year scopes, and the view keys, are what's left.*
 4. **The worker's own proof** (Opus, after the SDK check in §4).
 5. **The period-status program** (Fable, Phase 1; replaced `gl_core.aleo::anchor_period_root`
    on 2026-10-25). Takes over from `payroll_audit_log`, same root format.

@@ -86,7 +86,7 @@ export const HOME: Record<Role, string> = { business: "/", worker: "/work", cust
 
 /** Pages anyone can read without an account: the job board, traction, a card, the terms and the privacy page. */
 export const isPublicPath = (pathname: string) =>
-  ["/board", "/traction", "/card", "/terms", "/privacy"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  ["/board", "/traction", "/card", "/verify", "/terms", "/privacy"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 /** Where a vault of this role belongs when it lands on the other role's pages; null when the path is fine. */
 export function redirectFor(role: Role, pathname: string): string | null {
