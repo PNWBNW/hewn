@@ -186,6 +186,7 @@ Closing a period and anchoring its root.
 
 - 2026-10-16 · Proof without receipts: a paycheck, a run or a period provable to an auditor without the chain showing a wage · Joshua · `docs/AUDIT_DESIGN.md` · the doc
 - 2026-11-02 · Close period: any end date before today; every checklist line must pass; reopen until locked; a reminder from the 5th · Joshua · `books/close.ts` · `docs/CLOSE_PERIOD.md` Decisions
+- 2026-11-05 · The period proof: one file per standing close (every entry and payment in full, with the salts, never the anchor secret), and a public page, `/verify`, that checks it on the device and looks up only the root and the payments' transaction ids · Joshua (greenlit Close period part 3) · `@pnw/ledger` `period_proof.ts`, `chain/period_check.ts` · `docs/CLOSE_PERIOD.md`
 
 ### Audit readiness and compliance
 Which frameworks Hewn works toward, and how.

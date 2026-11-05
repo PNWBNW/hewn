@@ -14,6 +14,7 @@ being true.
 - **The GitHub `merge_pull_request` tool wants the full 40-character SHA**; a short one is refused. Take it from `git rev-parse HEAD`. (`progress/2026-11-03.md`)
 - **Two `with:` blocks on one workflow step make the YAML invalid**; the run never starts and the PR shows no CI at all. Parse workflow files (`yaml.safe_load`) before pushing them. (`progress/2026-11-03.md`)
 - **A Routine made from inside a session carries no repository.** The fresh session it starts can clone a public repository over HTTPS but the git proxy refuses its push (403: not in the session's authorized repositories), and it has no `add_repo` tool. A Routine that must push is created from the Routines page of claude.ai with the repository selected; the first dream's commit was lost this way. (`progress/2026-11-03.md`)
+- **Node's own `fetch` ignores the sandbox's proxy** (`getaddrinfo ENOTFOUND` for the explorer, while `curl` works). Run a live read with `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt`; in a headless browser, answer the explorer from `page.route` instead of loosening TLS. (`progress/2026-11-05.md`)
 - **Plain HTTP is refused by the agent proxy**, and github.io isn't reachable from the sandbox; a headless browser against a local server works. (`progress/2026-10-25.md`, `2026-11-03.md`)
 - **`build:static` overwrites `.next`**, so `next start` after it serves pages whose script nonces no longer match the per-request policy; rebuild the website first. (`progress/2026-10-25.md`)
 

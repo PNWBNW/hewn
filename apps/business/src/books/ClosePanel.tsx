@@ -8,14 +8,29 @@
 // ---------------------------------------------------------------------------
 
 import { type ReactNode, useState } from "react";
-import { CircleCheck, Circle, Lock } from "lucide-react";
+import { CircleCheck, Circle, FileCheck, Lock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { Field, FormError, errorMessage, inputClass } from "./AuthCard";
 import { useOpenBooks } from "./BooksProvider";
-import { type CloseRecord, closeChecks, closeRange, lockCloses, nextStart, recordAnchor, reopenCloses, settlementsIn, standingCloses, suggestedEnd } from "./close";
+import {
+  type CloseRecord,
+  closeChecks,
+  closeRange,
+  lockCloses,
+  nextStart,
+  periodProofFor,
+  proofFileName,
+  recordAnchor,
+  reopenCloses,
+  settlementsIn,
+  standingCloses,
+  suggestedEnd,
+} from "./close";
 import { todayIso } from "./display";
+import { periodProofToJson } from "@pnw/ledger";
+import { saveFile } from "./save_file";
 import { nextDay } from "@pnw/ledger";
 
 /** What the chain side gets to close: whether every other line passes, and the steps to call. */
@@ -56,6 +71,21 @@ export function ClosePanel({
   const start = nextStart({ books });
   const [end, setEnd] = useState(() => (start ? suggestedEnd(start, today) : today));
   const [error, setError] = useState<string | null>(null);
+  const [exported, setExported] = useState<string | null>(null);
+
+  const exportProof = async (r: CloseRecord) => {
+    setError(null);
+    setExported(null);
+    try {
+      const c = currentCompany();
+      if (!c) throw new Error("Books are not open");
+      const proof = periodProofFor(c, r, new Date().toISOString());
+      const saved = await saveFile(periodProofToJson(proof), proofFileName(c.books.settings.businessName, r));
+      if (saved !== "cancelled") setExported(`${range(r)}: the proof file is ${saved === "shared" ? "shared" : "downloaded"}.`);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
 
   const checks = start ? closeChecks({ books, payroll, sales, review: review ?? undefined }, start, end, today) : [];
   const ready = checks.length > 0 && checks.every((c) => c.ok);
@@ -169,9 +199,24 @@ export function ClosePanel({
                       {anchorAction({ record: r, anchored })}
                     </span>
                   )}
+                  {!r.reopenedAt && (
+                    <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={() => void exportProof(r)}>
+                      <FileCheck aria-hidden className="size-4" /> Export proof
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
+            <p className="text-xs text-muted-foreground">
+              A proof file lets your accountant or an auditor check that a closed range is complete and unchanged: it recomputes the fingerprint
+              anchored in public from every entry. It holds every entry in the range, wages and the addresses paid included, so give it only to
+              them. Anyone can check one at{" "}
+              <Link href="/verify" className="underline underline-offset-2">
+                Check a proof
+              </Link>
+              , on their own device.
+            </p>
+            {exported && <p className="text-xs text-money-positive">{exported}</p>}
             {lastStanding && closedThrough && (
               <ReopenOrLock
                 closedThrough={closedThrough}

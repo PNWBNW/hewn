@@ -8,6 +8,10 @@ them (`scripts/progress_index.py`): never edit it by hand. To log something, add
 entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
 index is out of date.
 
+## [2026-11-05](progress/2026-11-05.md)
+
+- [Close period part 3: the period proof and the page that checks it](progress/2026-11-05.md#2026-11-05--close-period-part-3-the-period-proof-and-the-page-that-checks-it)
+
 ## [2026-11-04](progress/2026-11-04.md)
 
 - [Dreaming: week of 2026-11-04](progress/2026-11-04.md#2026-11-04--dreaming-week-of-2026-11-04)

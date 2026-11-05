@@ -21,7 +21,10 @@
 // range has none), which ties the root to the journal's own hash chain.
 //
 // Salts come from one random anchor_secret, kept in the books, so a proof reveals only the salt
-// it needs and a revealed leaf names nobody. Pure: no storage, no network, no randomness.
+// it needs and a revealed leaf names nobody. A verifier never holds the secret: it gets the salts,
+// and recomputes the same leaves and root from them (`entryLeafFromSalt`, `settlementLeafFromSalts`,
+// `rootFromParts`), which is what the secret-based functions here call too. Pure: no storage, no
+// network, no randomness.
 // ---------------------------------------------------------------------------
 
 import { blake3 } from "@noble/hashes/blake3.js";
@@ -97,6 +100,60 @@ function checkSecret(secret: Uint8Array): void {
 
 const salt = (secret: Uint8Array, x: string): Uint8Array => hmac(sha256, secret, utf8ToBytes(x));
 
+/** An entry's salt, as hex: what a proof reveals so its leaf can be recomputed. */
+export function entrySalt(anchorSecret: Uint8Array, entryHash: string): string {
+  checkSecret(anchorSecret);
+  return bytesToHex(salt(anchorSecret, entryHash));
+}
+
+/** A settlement's own salt, as hex (its recipient tag uses the entry's salt). */
+export function settlementSalt(anchorSecret: Uint8Array, entryHash: string, txId: string): string {
+  checkSecret(anchorSecret);
+  return bytesToHex(salt(anchorSecret, `${entryHash}:${txId}`));
+}
+
+/** The entry leaf from a revealed salt (64 hex). */
+export function entryLeafFromSalt(saltHex: string, entryHash: string): string {
+  return h("HEWN::LEAF::v1", hashBytes(saltHex, "An entry's salt"), hashBytes(entryHash, "An entry hash"));
+}
+
+/** The settlement leaf from its two revealed salts: the entry's (for the recipient tag) and its own. */
+export function settlementLeafFromSalts(entrySaltHex: string, settleSaltHex: string, s: SettlementLink): string {
+  const entry = hashBytes(s.entryHash, "A settlement's entry hash");
+  if (typeof s.txId !== "string" || !s.txId.trim()) fail("BAD_ROOT", "A settlement needs its transaction id");
+  if (typeof s.recipient !== "string" || !s.recipient.trim()) fail("BAD_ROOT", "A settlement needs its recipient");
+  const recipientTag = h("HEWN::RECIPIENT::v1", hashBytes(entrySaltHex, "A settlement's entry salt"), utf8ToBytes(s.recipient));
+  return h("HEWN::SETTLE::v1", hashBytes(settleSaltHex, "A settlement's salt"), entry, utf8ToBytes(s.txId), hexToBytes(recipientTag));
+}
+
+/** Everything the root commits to, besides the leaves themselves. */
+export type RootParts = {
+  businessTag: string;
+  periodId: string;
+  n: number;
+  m: number;
+  prevRoot: string;
+  chainHead: string;
+  entriesRoot: string;
+  settlementsRoot: string;
+};
+
+/** The root from its parts: what a verifier recomputes without the secret. */
+export function rootFromParts(p: RootParts): string {
+  if (!Number.isInteger(p.n) || p.n < 0 || !Number.isInteger(p.m) || p.m < 0) fail("BAD_ROOT", "The counts must be whole numbers");
+  return h(
+    "HEWN::PERIOD::v1",
+    hashBytes(p.businessTag, "The business tag"),
+    utf8ToBytes(p.periodId),
+    u32(p.n),
+    u32(p.m),
+    hashBytes(p.prevRoot, "The previous root"),
+    hashBytes(p.chainHead, "The chain head"),
+    hashBytes(p.entriesRoot, "The entries' root"),
+    hashBytes(p.settlementsRoot, "The settlements' root"),
+  );
+}
+
 /** The business's salted tag: the same for every close, naming nobody. */
 export function businessTag(anchorSecret: Uint8Array): string {
   checkSecret(anchorSecret);
@@ -104,17 +161,13 @@ export function businessTag(anchorSecret: Uint8Array): string {
 }
 
 export function entryLeaf(anchorSecret: Uint8Array, entryHash: string): string {
-  checkSecret(anchorSecret);
-  return h("HEWN::LEAF::v1", salt(anchorSecret, entryHash), hashBytes(entryHash, "An entry hash"));
+  hashBytes(entryHash, "An entry hash");
+  return entryLeafFromSalt(entrySalt(anchorSecret, entryHash), entryHash);
 }
 
 export function settlementLeaf(anchorSecret: Uint8Array, s: SettlementLink): string {
-  checkSecret(anchorSecret);
-  const entry = hashBytes(s.entryHash, "A settlement's entry hash");
-  if (typeof s.txId !== "string" || !s.txId.trim()) fail("BAD_ROOT", "A settlement needs its transaction id");
-  if (typeof s.recipient !== "string" || !s.recipient.trim()) fail("BAD_ROOT", "A settlement needs its recipient");
-  const recipientTag = h("HEWN::RECIPIENT::v1", salt(anchorSecret, s.entryHash), utf8ToBytes(s.recipient));
-  return h("HEWN::SETTLE::v1", salt(anchorSecret, `${s.entryHash}:${s.txId}`), entry, utf8ToBytes(s.txId), hexToBytes(recipientTag));
+  hashBytes(s.entryHash, "A settlement's entry hash");
+  return settlementLeafFromSalts(entrySalt(anchorSecret, s.entryHash), settlementSalt(anchorSecret, s.entryHash, s.txId), s);
 }
 
 const EMPTY = h("HEWN::EMPTY::v1");
@@ -183,16 +236,15 @@ export function periodRoot(input: PeriodRootInput): PeriodRoot {
   const entriesRoot = merkleRoot(entryLeaves);
   const settlementsRoot = merkleRoot(settlementLeaves);
   const chainHead = input.entries.at(-1)?.hash ?? GENESIS_HASH;
-  const root = h(
-    "HEWN::PERIOD::v1",
-    hexToBytes(businessTag(input.anchorSecret)),
-    utf8ToBytes(periodId),
-    u32(entryLeaves.length),
-    u32(settlementLeaves.length),
-    hexToBytes(prevRoot),
-    hashBytes(chainHead, "The chain head"),
-    hexToBytes(entriesRoot),
-    hexToBytes(settlementsRoot),
-  );
+  const root = rootFromParts({
+    businessTag: businessTag(input.anchorSecret),
+    periodId,
+    n: entryLeaves.length,
+    m: settlementLeaves.length,
+    prevRoot,
+    chainHead,
+    entriesRoot,
+    settlementsRoot,
+  });
   return { root, periodId, n: entryLeaves.length, m: settlementLeaves.length, chainHead, entriesRoot, settlementsRoot, entryLeaves, settlementLeaves };
 }
