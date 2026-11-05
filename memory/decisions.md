@@ -149,6 +149,7 @@ Running payroll and recording hours.
 
 - 2026-10-22 · Pay runs pay only people who accepted (fix 5 of the security review) · Joshua · `packages/rail` · `progress/2026-10-22.md`
 - 2026-11-04 · The double-pay item in `pnw_mvp_v2`'s archived `NOTES.md` is closed: the four-step flow it described is gone, and Hewn's own guard (never pay twice on an unknown outcome, 2026-10-22) is tested · Joshua · `packages/payroll/src/settlement.test.ts` (`checkDoublePay`) · `progress/2026-11-04.md`
+- 2026-11-05 · Payroll compliance plan: the IRS's own withholding method with verified, dated tables updated only through review; a real W-4 the worker fills in and signs (drawn with a finger, then in Shield), sent sealed under the pair's key; Social Security numbers collected behind layered locks; state rules follow where the work is done and fill in each agreement, the West first from Washington, Oregon and Idaho; the I-9 after the W-4; zPass to explore · Joshua · `docs/PAYROLL_COMPLIANCE.md` · `progress/2026-11-05.md`
 
 ### Messages and conversations
 Who can read what in a conversation, and how people are confirmed.
