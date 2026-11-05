@@ -117,6 +117,22 @@ chain.
    checked against Hewn's needs: the letter's sender, decryption with a view key, transition view
    keys, fee modes, its mobile browser.
 
+## The reference copy, and updates
+
+Joshua forked Veil to **`PNWBNW/veil`** (2026-11-05) so sessions can read it quickly. Three rules
+keep it from misleading anyone:
+
+1. **The fork is for reading, never for building.** Hewn depends on the published
+   `@provablehq/veil-*` packages from npm, pinned exactly, never on the fork or a git URL. What the
+   app runs is what the lockfile says, not what the fork holds.
+2. **Read the version Hewn pins, not the fork's tip.** Before relying on something in the fork,
+   check it out at the tag of the version in the lockfile (`git checkout v0.16.0`, say). The fork's
+   main branch moves ahead weekly, and the tip may have changed what the pinned version does.
+3. **Updates come in deliberately.** A new Veil version arrives through Dependabot's weekly batched
+   pull request, at least seven days old (OPS-04), like every dependency. Each upgrade's pull
+   request names the versions crossed and reads their release notes, since 0.x releases may break
+   things. Sync the fork (GitHub's "Sync fork") when reading something newer than it holds.
+
 ## The order
 
 1. **Devnode, `veil-leo` and codegen in tests and CI only.** Development dependencies, nothing
