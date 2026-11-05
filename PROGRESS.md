@@ -15,6 +15,7 @@ index is out of date.
 - [Payroll compliance: the plan, written down](progress/2026-11-05.md#2026-11-05--payroll-compliance-the-plan-written-down)
 - [zPass, explored](progress/2026-11-05.md#2026-11-05--zpass-explored)
 - [Veil, assessed; and Hewn's real usage, counted](progress/2026-11-05.md#2026-11-05--veil-assessed-and-hewns-real-usage-counted)
+- [Veil decided: adopt it, Shield only](progress/2026-11-05.md#2026-11-05--veil-decided-adopt-it-shield-only)
 
 ## [2026-11-04](progress/2026-11-04.md)
 

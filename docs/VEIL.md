@@ -1,15 +1,17 @@
 ---
-status: report
+status: decided
 updated: 2026-11-05
-summary: Veil, Provable's viem-style TypeScript toolkit for Aleo, read from its source: what it is, how it would fit Hewn (typed program bindings, a local devnode for end-to-end tests, the reads Hewn lacks, writes through Shield), its risks, and an order to adopt it in.
+summary: Veil, Provable's viem-style TypeScript toolkit for Aleo, read from its source: what it is, how it fits Hewn (typed program bindings, a local devnode for end-to-end tests, the reads Hewn lacks, writes through Shield), its risks, and the order to adopt it in; decided: adopt it, with Shield the only wallet.
 ---
 
 # Veil: what it is, and how Hewn could use it
 
-**Status:** report (2026-11-05). Michael Turner (Provable) suggested Hewn try Veil; Joshua asked for
-a deep dive. Read from the source: the `ProvableHQ/veil` repository (cloned read-only, commit
-`9007de8`, 2026-11-05), its packages on npm, and the explorer. Nothing here is built; the order at
-the end is for Joshua to decide.
+**Status:** decided (Joshua, 2026-11-05): **Hewn adopts Veil, and Shield stays the only wallet.**
+Veil's wallet support is narrowed to Shield (its provider takes an explicit wallet list); offering
+other wallets (Leo Wallet, Puzzle, Fox) waits until each is checked against what Hewn relies on.
+Nothing is built yet; the order is below. Michael Turner (Provable) suggested Veil; read from the
+source: the `ProvableHQ/veil` repository (cloned read-only, commit `9007de8`, 2026-11-05), its
+packages and documentation site, its packages on npm, and the explorer.
 
 ## What it is
 
@@ -106,12 +108,21 @@ Every call ever made to Hewn's ten programs on testnet, read the same day:
 and October 16 to 27), and none since October 27. Hewn has not yet been used by anyone else on
 chain.
 
-## Recommendation, in order
+## Decisions (Joshua, 2026-11-05)
+
+1. **Adopt Veil,** in the order below, one PR each.
+2. **Shield only, for now.** Veil's provider is given Shield alone. Its getting-started page
+   confirms wallets differ (Shield requires the programs declared at connection and honours
+   record-access grants that other wallets ignore), so another wallet comes only after it is
+   checked against Hewn's needs: the letter's sender, decryption with a view key, transition view
+   keys, fee modes, its mobile browser.
+
+## The order
 
 1. **Devnode, `veil-leo` and codegen in tests and CI only.** Development dependencies, nothing
    shipped to users. First: one end-to-end test (an offer, its acceptance, a letter) against
-   Hewn's real programs on a local node. Needs the `aleo-devnode` binary in CI, and Leo's ABI
-   output confirmed.
+   Hewn's real programs on a local node. The `aleo-devnode` binary installs from npm
+   (`@provablehq/aleo-devnode`); Leo's ABI output is still to confirm.
 2. **Generated bindings in place of the hand parsers,** one program at a time, each its own PR with
    the old and new decoders tested against the same records.
 3. **The reads:** a usage panel from the program-calls route (for Hewn's own traction, not the
