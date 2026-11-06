@@ -12,7 +12,10 @@ its wallet from there. This check keeps that door the only one. Outside tests, i
   4. a file that imports @provablehq/sdk uses its execute path (ProgramManager, buildExecution...,
      .execute(, broadcast);
   5. any file imports child_process (no snarkos, no shelling out);
-  6. any file imports a CLI adapter (the pasted-key path, deleted; it must not come back).
+  6. any file imports a CLI adapter (the pasted-key path, deleted; it must not come back);
+  7. any file imports Veil's local-key or local-node packages (@provablehq/veil-aleo-sdk,
+     veil-aleo-devnode, veil-leo, aleo-devnode): they sign with a private key, for tests only
+     (docs/VEIL.md, apps/business/test/devnode).
 
 Standard library only. Run from the repository root: python3 -I scripts/check_signing_path.py
 """
@@ -24,6 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SHIELD = "apps/business/src/chain/shield.ts"
 SEND_OK = ("apps/business/src/chain/", "packages/rail/src/", "packages/wallet/src/")
 IMPORT = re.compile(r"""(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']([^"']+)["']""")
+TEST_ONLY = ("@provablehq/veil-aleo-sdk", "@provablehq/veil-aleo-devnode", "@provablehq/veil-leo", "@provablehq/aleo-devnode")
 SDK_EXECUTE = re.compile(r"\bProgramManager\b|\bbuildExecution\w*|\bbuildDevnodeExecution\w*|\.execute\s*\(|\bbroadcast\w*\s*\(")
 
 
@@ -65,6 +69,9 @@ def main() -> int:
             problems.append(f"{rel}: imports child_process (no snarkos, no shelling out)")
         if any(re.search(r"aleo_cli_adapter|cli_adapter", i) for i in imports):
             problems.append(f"{rel}: imports a CLI adapter (the pasted-key path is gone)")
+        for i in imports:
+            if any(i == t or i.startswith(t + "/") for t in TEST_ONLY):
+                problems.append(f"{rel}: imports {i}, which signs with a local key (tests only)")
     if not (ROOT / SHIELD).exists():
         problems.append(f"{SHIELD} is missing: the check's one door has moved; update this script")
     if problems:

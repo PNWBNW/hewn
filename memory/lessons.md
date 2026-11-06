@@ -36,3 +36,4 @@ being true.
 - **Statuses rot unless generated**: "being built" outlived the build in three documents and the Now block within two days. The documents' index is generated from frontmatter now; the dreaming pass verifies the rest. (`progress/2026-11-03.md`)
 - **The invariants table drifts too**: its intro said T1 to T17 when there were 20; a CI step said four flags when there were five. The map and the checks catch paths, not prose; the dream reads prose. (`progress/2026-11-03.md`)
 - **GitHub's image proxy caches a README image**; a newly published `still.svg` can show stale or broken for a few minutes after the first deploy. (`progress/2026-11-03.md`)
+- **A devnode test needs no Leo**: deploy the program's live bytecode from the explorer (`/program/{id}` returns it as a JSON string) and the node runs exactly what users run; the devnode's placeholder proofs make a deploy and a send take seconds. (`progress/2026-11-06.md`)

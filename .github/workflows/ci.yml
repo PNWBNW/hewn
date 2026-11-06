@@ -35,6 +35,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Tests
         run: pnpm test
+      - name: Letters against a real Aleo node (local devnode; docs/VEIL.md)
+        run: pnpm --filter @pnw/business test:devnode
       - name: Every write signed in Shield (docs/INVARIANTS.md, INV-11)
         run: python3 -I scripts/check_signing_path.py
       - name: Program names from one place (docs/INVARIANTS.md, INV-12)
