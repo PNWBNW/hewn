@@ -57,8 +57,10 @@ asked for one typed decoder in place of several hand parsers.
    of `send`, `send_page` and `send_many`, and a typed contract. Leo changed the ABI's shape after
    4.0 (inputs and outputs carry their mode inside the variant, `is_final` is gone, `interfaces` and
    `views` are new), and Veil's parser (`parseAbi`) reads both shapes; it ignores the new sections,
-   which Hewn's programs don't use. Read from Leo's source at both tags; Leo 4.4.6's own output is
-   still to see, when CI's pin moves.
+   which Hewn's programs don't use. Read from Leo's source at both tags. CI's compile pin can't
+   move to 4.4.6 (it refuses our programs' source, `docs/ALEO_CONSTRAINTS.md` §2b), which doesn't
+   matter here: `leo abi` reads deployed bytecode, not source, so the ABI comes from the explorer's
+   copy of each program, with any Leo.
 2. **End-to-end tests against a real node (devnode).** Hewn's app tests mock the chain, and the Leo
    tests check programs alone. A devnode in CI would let tests deploy Hewn's programs locally and
    run real flows (an offer and its acceptance, a letter, a close and its anchor, a payment)

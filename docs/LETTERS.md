@@ -295,9 +295,9 @@ says hello first. Nothing new is deployed:
 - snarkVM, master 8cbc73f: `console/network/src/lib.rs` (limits), `synthesizer/process/src/cost.rs`
   (fees), `console/program/src/data/record/` (encryption, tags), `ledger/block/src/transition/`
   (what a transition exposes), `synthesizer/src/vm/verify.rs` (constructor rule).
-  https://github.com/ProvableHQ/snarkVM
+  https://github.com/aleo-labs-protocol/snarkVM (then `ProvableHQ/snarkVM`; moved late October 2026)
 - Leo 4.4.5: `crates/parser/src/rowan.rs` (`self.signer` → `std::ctx::signer()`).
-  https://github.com/ProvableHQ/leo
+  https://github.com/aleo-labs-protocol/leo (then `ProvableHQ/leo`)
 - `@provablehq/sdk` 0.10.1 and wallet adaptor 0.3.0-alpha.3 type definitions (in `node_modules`).
 - Shield: https://provable.com/blog/introducing-shield
 - Record scanning service (Shield-side, TEE): https://developer.aleo.org/sdk/record-scanning/record_scanning

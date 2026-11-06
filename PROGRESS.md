@@ -13,6 +13,7 @@ index is out of date.
 - [Veil step 1: letters against a real Aleo node, in tests and CI](progress/2026-11-06.md#2026-11-06--veil-step-1-letters-against-a-real-aleo-node-in-tests-and-ci)
 - [VEIL.md: reading the fork at the pinned version, corrected](progress/2026-11-06.md#2026-11-06--veilmd-reading-the-fork-at-the-pinned-version-corrected)
 - [Veil: the three questions for Provable, answered from the source](progress/2026-11-06.md#2026-11-06--veil-the-three-questions-for-provable-answered-from-the-source)
+- [After `pnw_mvp_v2` #231: what moved, what is still behind, and in what order](progress/2026-11-06.md#2026-11-06--after-pnw_mvp_v2-231-what-moved-what-is-still-behind-and-in-what-order)
 
 ## [2026-11-05](progress/2026-11-05.md)
 
