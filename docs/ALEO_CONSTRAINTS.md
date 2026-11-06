@@ -1,6 +1,6 @@
 ---
 status: report
-updated: 2026-10-14
+updated: 2026-11-06
 summary: The network's limits checked against the settlement design before it was built (2026-10-14).
 ---
 
@@ -48,9 +48,13 @@ mapping writes). The limits were not what broke batching in April; the prover wa
 | `@provablehq/sdk` | 0.10.1 | 0.12.1; **V2 proofs no longer verify after V21**, so any local proving through 0.10.1 is dead on both networks |
 | Wallet adaptor | 0.3.0-alpha.3 | unchanged; API: `executeTransaction({program, function, inputs, fee?, recordIndices?, privateFee?})`, `transactionStatus`, `requestRecords`, `signMessage`, `decrypt`. No bulk method. |
 
-Sources: [Leo releases](https://github.com/ProvableHQ/leo/releases), [snarkOS releases](https://github.com/ProvableHQ/snarkOS/releases),
-[snarkVM releases](https://github.com/ProvableHQ/snarkVM/releases), [SDK releases](https://github.com/ProvableHQ/sdk/releases),
+Sources: [Leo releases](https://github.com/aleo-labs-protocol/leo/releases), [snarkOS releases](https://github.com/aleo-labs-protocol/snarkOS/releases),
+[snarkVM releases](https://github.com/aleo-labs-protocol/snarkVM/releases), [SDK releases](https://github.com/ProvableHQ/sdk/releases),
 adaptor types read from `node_modules/@provablehq/aleo-types`.
+
+Since then (2026-11-06): Leo, snarkOS and snarkVM moved to the `aleo-labs-protocol` organisation
+(the old `ProvableHQ` addresses redirect); Leo is at 4.4.6 (2026-10-28, tagged `leo-lang-v4.4.6`),
+paired with snarkOS 4.12.0. `docs/VEIL.md` has the detail.
 
 Action: the Leo session bumps all pins before touching a program. The wallet path is unaffected
 (Shield proves), but `@provablehq/sdk` 0.10.1 is still used for `SealanceMerkleTree` and must move
