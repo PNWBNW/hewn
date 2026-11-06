@@ -33,9 +33,9 @@ document's `status`, `updated` or `summary` line, then run `python3 -I scripts/d
 | [`LOCKED_SAVINGS.md`](LOCKED_SAVINGS.md) | idea · 2026-10-24 | Locked savings with an employer match, private and unpooled: one Aleo account per enrollment whose key is split between the two apps; questions for Aleo developers. |
 | [`PREMIUM_TIER.md`](PREMIUM_TIER.md) | idea · 2026-10-25 | What could sit behind a paid tier on mainnet, and what the free product never loses; candidates, not decided. |
 | [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | reference · 2026-10-14 | Who the app is for and the principles its screens follow; clean-room, from what bookkeepers do. |
-| [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | report · 2026-10-14 | The network's limits checked against the settlement design before it was built (2026-10-14). |
 | [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | report · 2026-10-14 | The read-only pass over the three codebases that decided what to keep, what to rebuild and in what order; most of its list is done. |
 | [`ZPASS.md`](ZPASS.md) | report · 2026-11-05 | What zPass is today (an issuer-signed credential proven in zero knowledge; an SDK from early 2025; example programs on testnet only), why Hewn can't use its SDK as it is, where it fits (verified identity, age, sanctions; not the I-9 yet), the missing piece (an issuer), and the recommended path. |
+| [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | report · 2026-11-06 | The network's limits checked against the settlement design before it was built (2026-10-14). |
 
 Status means: **idea**, an idea, nothing decided or built; **design**, a design waiting for Joshua's decision; **review**, a review or analysis for Joshua, nothing to build; **decided**, decided by Joshua, not yet built; **built**, built and in the app (open items, if any, are named in the summary); **plan**, a plan with its checklist; items tick here; **living**, kept current as the code changes; CI checks it where it can; **report**, a dated report of what was found; history, not current; **reference**, background that doesn't change: who it's for, how it was made.
 

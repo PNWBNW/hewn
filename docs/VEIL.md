@@ -50,8 +50,15 @@ asked for one typed decoder in place of several hand parsers.
 1. **Typed program bindings (codegen).** Generated from each Hewn program's ABI: record decoders,
    mapping value decoders, typed inputs. They would replace the hand parsers and encoders, one
    program at a time, and a program's redeploy would regenerate rather than rewrite them. This is
-   the biggest correctness gain. (To verify: whether Leo 4.0.0, which CI pins, writes `abi.json`;
-   `veil-leo` wraps a `leo abi` command that may need a newer Leo.)
+   the biggest correctness gain. **Checked 2026-11-06: it works.** Leo writes the ABI from 4.0.0
+   on (`leo build` writes `build/abi.json`; `leo abi <file.aleo>` writes it from deployed bytecode,
+   so no Leo source is needed). `leo abi` 4.0.0 on the live `hewn_letters_v2`, then
+   `veil-codegen` 0.15.0, gave typed `toLetter`, `toSentLetter`, `toPage`, the inputs and outputs
+   of `send`, `send_page` and `send_many`, and a typed contract. Leo changed the ABI's shape after
+   4.0 (inputs and outputs carry their mode inside the variant, `is_final` is gone, `interfaces` and
+   `views` are new), and Veil's parser (`parseAbi`) reads both shapes; it ignores the new sections,
+   which Hewn's programs don't use. Read from Leo's source at both tags; Leo 4.4.6's own output is
+   still to see, when CI's pin moves.
 2. **End-to-end tests against a real node (devnode).** Hewn's app tests mock the chain, and the Leo
    tests check programs alone. A devnode in CI would let tests deploy Hewn's programs locally and
    run real flows (an offer and its acceptance, a letter, a close and its anchor, a payment)
@@ -60,12 +67,23 @@ asked for one typed decoder in place of several hand parsers.
    - `getProgramCallsPaginated`: every call into a program. Hewn couldn't count its own usage
      (2026-11-05); with this route it can (below).
    - `getTransitionViewKeys`: a payment's view key from the wallet, which the period proof still
-     lacks for its fourth check (AUDIT_DESIGN §4).
+     lacks for its fourth check (AUDIT_DESIGN §4). Hewn doesn't need Veil for it: the Shield
+     adapter it pins (1.3.0) already has `transitionViewKeys(transactionId)`.
    - `getComplianceFreezeList`, and freeze-list exclusion proofs computed inside the wallet: if
-     Shield implements that algorithm (to verify), payroll could drop the proof it builds itself.
+     Shield implements that algorithm, payroll could drop the proof it builds itself. **Checked
+     2026-11-06, half answered.** The wallet standard defines it as a *derived input*,
+     `program-freezelist-exclusion-proof` (output: the `[MerkleProof; 2]` the stablecoin takes):
+     the app grants it at connect for one program, function and input slot, and the wallet fills
+     that slot without the app seeing what went into it. The types are in Shield adapter 1.3.0, but
+     its `algorithmsSupported()` returns the standard's fixed list, not the wallet's (its own
+     comment says so); adapter 1.5.0 asks the wallet. Whether Shield itself computes it is the one
+     question left for Michael.
 4. **Writes through Shield.** Veil's wallet client, built on the Shield adapter, keeps every
    signature in the wallet, so it fits INV-11. It isn't needed yet: Hewn's executor works. It
-   becomes worth it if the typed contracts from codegen are used for writes too.
+   becomes worth it if the typed contracts from codegen are used for writes too. Not available
+   through Shield: `simulate` (a dry run before signing). Veil's `simulateContract` needs a local
+   account and throws `SimulateNotSupportedError` for a wallet account, in 0.15.0 and at the tip
+   (`9007de8`); a preview before signing waits until wallets offer one.
 
 ## What to watch
 
@@ -138,12 +156,26 @@ keep it from misleading anyone:
    request names the versions crossed and reads their release notes, since 0.x releases may break
    things. Sync the fork (GitHub's "Sync fork") when reading something newer than it holds.
 
+**Leo, too.** Joshua forked Leo to **`PNWBNW/leo`** (2026-11-06), on the same three rules: read
+only (CI downloads Leo's published release, pinned by version and sha256, never the fork); read
+it at the tag of the version CI pins, fetched from Leo's repository since the fork holds no tags
+(`git fetch https://github.com/aleo-labs-protocol/leo tag leo-lang-v4.4.6`); sync it when
+something newer is needed.
+
+**Where the protocol lives now.** Leo, snarkOS and snarkVM moved from `ProvableHQ` to the
+**`aleo-labs-protocol`** organisation (late October 2026; snarkVM's own pull request records the
+move on October 27). The old addresses still redirect and serve the same commits. Provable, "an
+Aleo Labs company", keeps the developer products: the SDK, Veil, Shield and the explorer. Leo's
+releases since 4.1 are tagged `leo-lang-v…` (4.4.6, 2026-10-28, pairs with snarkOS 4.12.0); only
+4.0.0 to 4.0.2 carry plain `v…` tags. `pnw_mvp_v2`'s workflows still download from the old
+addresses, which works through the redirect; its pin bump moves them.
+
 ## The order
 
 1. **Devnode, `veil-leo` and codegen in tests and CI only.** Development dependencies, nothing
    shipped to users. First: one end-to-end test (an offer, its acceptance, a letter) against
    Hewn's real programs on a local node. The `aleo-devnode` binary installs from npm
-   (`@provablehq/aleo-devnode`); Leo's ABI output is still to confirm.
+   (`@provablehq/aleo-devnode`).
    **Built 2026-11-06:** `apps/business/test/devnode/`. `veil-core`, `veil-aleo-sdk` and
    `veil-aleo-devnode` 0.15.0 (the newest at least seven days old) and `aleo-devnode` 0.4.0, as
    development dependencies of the app. The test deploys `hewn_letters_v2` from its live bytecode
@@ -153,7 +185,7 @@ keep it from misleading anyone:
    No Leo is needed, since the deployed bytecode is the input. CI runs it after `pnpm test`
    (about 40 s), and the signing-path check refuses the local-key packages outside tests. Next in
    this step: an offer and its acceptance (`employer_agreement_v5`, which imports the registry, so
-   its imports deploy first). Codegen still waits on Leo's ABI.
+   its imports deploy first). Codegen no longer waits: Leo's ABI works (above).
 2. **Generated bindings in place of the hand parsers,** one program at a time, each its own PR with
    the old and new decoders tested against the same records.
 3. **The reads:** a usage panel from the program-calls route (for Hewn's own traction, not the
@@ -161,8 +193,10 @@ keep it from misleading anyone:
 4. **Writes through Veil's wallet client,** only if it clearly beats the current executor, with the
    signing-path check extended first.
 
-And one question back to Provable, through Michael: whether Shield implements the in-wallet
-freeze-list proof Veil can request, and which Leo version writes the ABI codegen reads.
+One question back to Provable, through Michael: whether Shield implements the in-wallet
+freeze-list proof (`program-freezelist-exclusion-proof`), and from which version. (Which Leo
+writes the ABI, and whether `simulate` works through Shield, were answered from the source on
+2026-11-06, above.)
 
 ## Sources
 
@@ -170,3 +204,9 @@ freeze-list proof Veil can request, and which Leo version writes the ABI codegen
   `package.json`, `packages/core/src` (the actions and the HTTP transport's routes)
 - The `@provablehq/veil-*` packages on npm (versions, publish dates, provenance)
 - The explorer's program-calls route, read for Hewn's ten programs on testnet
+- Read 2026-11-06: `aleo-labs-protocol/leo` at `v4.0.0` and `leo-lang-v4.4.6` (`crates/abi`,
+  `crates/abi-types`); Veil at `@provablehq/veil-core@0.15.0` and `9007de8`
+  (`packages/core/src/utils/parseAbi.ts`, `actions/wallet/simulateContract.ts`,
+  `types/inputRequest.ts`); the Shield adapter 1.3.0 (Hewn's) and 1.5.0 from npm;
+  `aleo-labs-protocol/snarkVM` pull request 3614 and `aleo-labs-protocol/snarkOS` pull requests
+  4610 and 4611 (the move)
