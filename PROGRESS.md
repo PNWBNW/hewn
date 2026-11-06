@@ -11,6 +11,7 @@ index is out of date.
 ## [2026-11-06](progress/2026-11-06.md)
 
 - [Veil step 1: letters against a real Aleo node, in tests and CI](progress/2026-11-06.md#2026-11-06--veil-step-1-letters-against-a-real-aleo-node-in-tests-and-ci)
+- [VEIL.md: reading the fork at the pinned version, corrected](progress/2026-11-06.md#2026-11-06--veilmd-reading-the-fork-at-the-pinned-version-corrected)
 
 ## [2026-11-05](progress/2026-11-05.md)
 

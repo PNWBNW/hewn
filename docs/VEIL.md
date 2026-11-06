@@ -127,8 +127,12 @@ keep it from misleading anyone:
    `@provablehq/veil-*` packages from npm, pinned exactly, never on the fork or a git URL. What the
    app runs is what the lockfile says, not what the fork holds.
 2. **Read the version Hewn pins, not the fork's tip.** Before relying on something in the fork,
-   check it out at the tag of the version in the lockfile (`git checkout v0.16.0`, say). The fork's
-   main branch moves ahead weekly, and the tip may have changed what the pinned version does.
+   check it out at the tag of the version in the lockfile. Veil tags each package on its own
+   (`@provablehq/veil-core@0.15.0`, not `v0.15.0`), and the fork holds no tags (GitHub's "Sync
+   fork" copies the branch only), so fetch the tag from Provable's repository into the clone:
+   `git fetch https://github.com/ProvableHQ/veil tag @provablehq/veil-core@0.15.0`, then
+   `git checkout @provablehq/veil-core@0.15.0`. The fork's main branch moves ahead weekly, and the
+   tip may have changed what the pinned version does.
 3. **Updates come in deliberately.** A new Veil version arrives through Dependabot's weekly batched
    pull request, at least seven days old (OPS-04), like every dependency. Each upgrade's pull
    request names the versions crossed and reads their release notes, since 0.x releases may break
