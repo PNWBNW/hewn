@@ -75,9 +75,44 @@ each package against what Hewn calls:
 | Veil (tests only) | 0.15.0 | 0.16.2 (2026-11-05) | Waits for seven days (OPS-04): 0.16.0 qualifies, 0.16.2 on 2026-11-12 |
 
 Order: the SDK (lowest risk, tested by the suite), then the adapters (Joshua connects Shield on
-the pull request's preview), then Veil when it is old enough. The Leo source move waits on an
-experiment: whether 4.4.6 builds the deployed programs byte for byte from migrated source, which
-decides whether the upgrade path can leave 4.0.0.
+the pull request's preview), then Veil when it is old enough. The Leo source move waits on Joshua;
+the experiment below says what it costs.
+
+### The Leo 4.4 experiment (2026-11-06, scratchpad only, no program changed)
+
+Leo 4.4.6, built from crates.io, against copies of all fifteen `src/layer1` programs, migrated by a
+script (five mechanical rewrites: `const` and `struct` out of the `program { }` block, `export` on
+every struct, `self.signer` → `std::ctx::signer()`, `self.caller` → `std::ctx::caller()`,
+`block.height` → `std::ctx::block_height()`, `self.address` → `std::ctx::addr()`; the stablecoin
+and registry stubs the same way), then compared with each program's deployed bytecode from the
+explorer:
+
+- **Byte for byte:** `hewn_letters_v2`, `employer_agreement_v5`, `paystub_receipts`,
+  `payroll_audit_log`. **Same except blank lines:** `hewn_cards_v1`, `hewn_credentials_v1`. **Same
+  bodies, different import header** (4.4.6 orders imports differently, and a local stub has no
+  transitive imports): `hewn_jobs_v1`, `employer_agreement_v4`, `pnw_name_registrar_v5`,
+  `pnw_router_v4`, `payroll_core_v2`.
+- **Different for real, all four `@admin`:** `pnw_name_registry_v2` and
+  `employer_license_registry` (4.4.6 orders a finalize's inputs by first use where 4.0.0 kept the
+  parameter order: `async set_verified r0 r2 r1` against the deployed `r0 r1 r2`), and
+  `employer_profiles_v2` and `pnw_worker_profiles_v2` (branch labels numbered differently). An
+  in-place upgrade of these four can't be compiled by 4.4.6 from migrated source: it keeps 4.0.0
+  and a frozen 4.0-syntax copy (`src/layer1/archive/` is where such copies live).
+- **Every test passes under 4.4.6** once migrated: 239 across the nine suites CI runs (letters 12,
+  agreement v5 22, jobs 31, cards 22, credentials 28, registry 30, registrar 24, profiles 19,
+  agreement v4 31).
+- **Leo 4.0.0 can't compile the migrated syntax** (`std::ctx::signer` unknown), so one source
+  can't serve both compilers.
+- **4.4.6 brings a checks-effects-interactions lint** (reads or writes after a `Final.run()` of an
+  imported program): warnings on nine programs, 60 to 72 in the agreement v4, router and payroll
+  core, 3 in `hewn_credentials_v1` (a status read and two writes after `assert_pair`'s run). Not
+  errors, but review material for any new program.
+
+Two ways forward, Joshua's call: keep the source in 4.0 syntax and compile every existing program
+with 4.0.0 while new programs are written for 4.4.6 (nothing deployed is touched, but two syntaxes
+and two copies of each stub); or migrate the source in one pull request (Fable, INV-22, all 239
+tests), keep 4.0-syntax copies of the four `@admin` programs above for their upgrades, and let
+4.4.6 be the one compiler everywhere else.
 
 ## 3. Proving: the thing that actually broke batching
 
