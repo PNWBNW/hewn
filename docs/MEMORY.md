@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-03
+updated: 2026-11-07
 summary: How Hewn's agents remember across sessions, in three scopes of plain files, with a weekly out-of-band "dreaming" pass that verifies, consolidates and enriches the memory so each session starts small and current.
 ---
 
@@ -27,7 +27,7 @@ The files fall into three scopes, which decide who may write them and when a ses
 | Scope | What | Who writes it | Read when |
 |---|---|---|---|
 | **Org knowledge** | The rules and the facts that don't change by themselves: `CLAUDE.md`, `docs/INVARIANTS.md`, `docs/THREAT_MODEL.md`, every folder's README, the Leo repository's `CLAUDE.md` | Only by a pull request Joshua approves; never by an agent on its own | Session start (`CLAUDE.md`), then on demand |
-| **Team memory** | What the team has decided, learned and done: `progress/` (one file a day, append-only), `docs/*.md` (designs with a status), `docs/incidents/`, `memory/` (decisions and lessons, from the first dream on) | Agents, freely, in the session's own pull request; the dreaming pass, in its own | The Now block and the newest `progress/` entries at Session start (about 5k tokens); the rest found through the map or `docs/README.md` |
+| **Team memory** | What the team has decided, learned and done: `progress/` (one file a day in a folder per month, append-only), `docs/*.md` (designs with a status), `docs/incidents/`, `memory/` (decisions and lessons, from the first dream on) | Agents, freely, in the session's own pull request; the dreaming pass, in its own | The Now block and the newest `progress/` entries at Session start (about 5k tokens); the rest found through the map or `docs/README.md` |
 | **Working memory** | A session's own notes, renders, captures, scratch scripts | The session | Never committed; gone with the session |
 
 Nothing private goes in any of them (INV-01, INV-06): memory is about the software, never about a

@@ -22,7 +22,7 @@ and its source is what anyone checks the deployed program against.
 
 The portal leftovers deleted from inside the live packages on 2026-11-04 (the old transaction
 executor, four record scanners, the CLI adapter and its routers) were never here; they are in
-`progress/2026-11-04.md`, held by `a285093` too.
+`progress/2026-11/2026-11-04.md`, held by `a285093` too.
 
 **To read or bring one back:** `git show a285093:archive/<path>` reads a file;
 `git checkout a285093 -- archive/<folder>` restores a folder, which then moves to `packages/` with

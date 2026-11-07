@@ -16,7 +16,7 @@ The state now:
 - Branch: !`git branch --show-current`
 - Uncommitted: !`git status --porcelain=v1 | wc -l | tr -d ' '` file(s)
 - Today (UTC): !`date -u +%Y-%m-%d`
-- Newest progress file: !`ls progress/*.md | sort | tail -1`
+- Newest progress file: !`ls progress/*/*.md | sort | tail -1`
 - This session: `${CLAUDE_SESSION_ID}`
 
 What the task did, if given: $ARGUMENTS
@@ -35,7 +35,8 @@ Nothing is committed while a check fails. Fix it, or stop and say what fails.
 
 ## 2. The progress entry
 
-Append to today's file in `progress/` (create it if today's is the first entry), with the
+Append to today's file in `progress/<YYYY-MM>/` (create it, and the month's folder, if today's
+is the first entry), with the
 heading `## <today> — <title>`: what changed, why, test counts, transaction ids if any, what is
 next or open. Detail goes here, not in chat. The last line is the bare id of this session:
 

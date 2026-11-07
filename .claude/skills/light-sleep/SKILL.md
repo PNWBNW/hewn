@@ -30,7 +30,7 @@ commit, no pull request) and stop. This is the usual outcome and it is the right
 
 ## 2. Read the day
 
-- Every progress entry dated since yesterday (`progress/<date>.md`, oldest to newest; each ends
+- Every progress entry dated since yesterday (`progress/<YYYY-MM>/<date>.md`, oldest to newest; each ends
   with the id of the session that wrote it).
 - The merged pull requests from the log; a diff only where an entry's claim needs checking.
 - The transcripts those entries name, if this environment's session tools can read them
@@ -67,7 +67,7 @@ Promotion and pruning (`docs/SLEEP.md`, the slow rung) are the weekly dream's; l
 
 - If nothing changed after step 3, end with **Nothing needed** (one line on what was verified is
   fine) and stop: no branch, no commit, no pull request.
-- Otherwise: branch `light-sleep/<today>` from `origin/main`; an entry in `progress/<today>.md`
+- Otherwise: branch `light-sleep/<today>` from `origin/main`; an entry in `progress/<YYYY-MM>/<today>.md`
   headed `## <today> — Light sleep: <today>` saying what was verified and what changed, ending
   with the bare id of this session (`— session_…`; `get_session` with no arguments gives it, or
   `${CLAUDE_SESSION_ID}`; never a link); then `python3 -I scripts/check_invariants.py`,

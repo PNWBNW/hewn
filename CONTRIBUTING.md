@@ -25,7 +25,7 @@ submodule over HTTPS; you only need it to work on the chain side.
 ## How the work is organised
 
 - **`BUILD_PLAN.md`** is the spec: phases, deliverables, exit criteria. **`progress/`** is the
-  dated log of every change, one file per day, indexed by `PROGRESS.md`. **`CLAUDE.md`** holds
+  dated log of every change, one file per day in a folder per month, indexed by `PROGRESS.md`. **`CLAUDE.md`** holds
   the rules everyone follows, person or agent.
 - One task, one exit criterion, one pull request. A PR ends with the tests run, a dated entry in
   that day's `progress/` file, signed with the session or person that wrote it (then

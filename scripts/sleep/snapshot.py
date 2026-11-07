@@ -70,7 +70,8 @@ def clipped(lines):
 
 def newest_progress(root):
     """(path, entry count, last heading) of the newest day file, or None."""
-    days = sorted(p for p in (root / "progress").glob("*.md") if re.match(r"\d{4}-\d{2}-\d{2}\.md$", p.name))
+    # One file a day in a folder a month (progress/2026-11/2026-11-07.md); a stray top-level file still counts.
+    days = sorted((p for p in (root / "progress").glob("**/*.md") if re.match(r"\d{4}-\d{2}-\d{2}\.md$", p.name)), key=lambda p: p.name)
     if not days:
         return None
     last = days[-1]

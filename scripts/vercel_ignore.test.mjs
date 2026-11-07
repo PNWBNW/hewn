@@ -23,7 +23,7 @@ test("a release builds what changed since the last deployment, the batch include
 });
 
 test("a release skips a project nothing of which changed", () => {
-  assert.equal(decide({ env: "production", message: RELEASE, changed: ["docs/x.md", "progress/2026-11-06.md"], watched: APP }).exit, SKIP);
+  assert.equal(decide({ env: "production", message: RELEASE, changed: ["docs/x.md", "progress/2026-11/2026-11-06.md"], watched: APP }).exit, SKIP);
   assert.equal(decide({ env: "production", message: RELEASE, changed: ["apps/business/a.ts", "packages/ledger/b.ts"], watched: SITE }).exit, SKIP);
   assert.equal(decide({ env: "production", message: RELEASE, changed: ["packages/brand/src/index.ts"], watched: SITE }).exit, BUILD);
 });
