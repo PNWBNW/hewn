@@ -1,6 +1,6 @@
 # Licensing
 
-Hewn is copyright (C) 2026 Joshua Day. It is licensed two ways.
+Hewn is copyright (C) 2025-2026 Joshua Daniel Day. It is licensed two ways.
 
 ## 1. The open licence: AGPL-3.0, with one attribution term
 
@@ -28,9 +28,9 @@ Hewn itself shows this line in the small print of every screen (`LegalLinks` in
 
 If you want to build a product on Hewn **without** the AGPL's conditions (to keep your changes
 closed, or sell it as proprietary software), a separate commercial licence is available for
-purchase from Joshua Day. Write to **hewnsupport@gmail.com** with what you intend to build.
+purchase from Joshua Daniel Day. Write to **hewnsupport@gmail.com** with what you intend to build.
 
-Rights beyond the AGPL are granted only by a written licence agreement signed by Joshua Day, and
+Rights beyond the AGPL are granted only by a written licence agreement signed by Joshua Daniel Day, and
 only on the terms it states. Nothing else grants them: not an email, a payment, an invoice, a
 conversation, or this file, which describes what is available and is not itself an offer.
 
@@ -39,11 +39,11 @@ which are AGPL-3.0 on the same terms.
 
 ## 3. The name
 
-**Hewn**(TM) and the Hewn logo are trademarks of Joshua Day and are not licensed by either licence
+**Hewn**(TM) and the Hewn logo are trademarks of Joshua Daniel Day and are not licensed by either licence
 above. A changed copy carries its own name and art (`CONTRIBUTING.md`, Forking).
 
 ## 4. Contributions
 
 Contributions are accepted under the contributor licence agreement in [`CLA.md`](CLA.md), which
-lets Joshua offer the commercial licence above for the whole of Hewn, contributions included,
+lets Joshua Daniel Day offer the commercial licence above for the whole of Hewn, contributions included,
 while every contribution stays available under the AGPL. Contributors keep their copyright.

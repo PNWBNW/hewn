@@ -11,7 +11,7 @@ inclusion) to Hewn (`PNWBNW/hewn`) or its Leo programs (`PNWBNW/pnw_mvp_v2`), yo
 following, for that contribution and every later one.
 
 1. **Definitions.** "You" are the person submitting the contribution, or the organisation they
-   submit it for. "Joshua" is Joshua Day, the copyright holder of Hewn, and anyone he transfers
+   submit it for. "Joshua" is Joshua Daniel Day, the copyright holder of Hewn, and anyone he transfers
    Hewn's copyright to, such as a company he forms. A "contribution" is any original work of
    authorship you submit for inclusion in Hewn.
 

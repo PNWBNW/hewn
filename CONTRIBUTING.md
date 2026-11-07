@@ -62,7 +62,7 @@ money wrongly, which goes privately, as [`SECURITY.md`](SECURITY.md) describes.
 ## Contributor agreement
 
 Every contribution comes in under the contributor licence agreement in [`CLA.md`](CLA.md). You
-keep the copyright in what you write and give Joshua Day a licence to use it, including in the
+keep the copyright in what you write and give Joshua Daniel Day a licence to use it, including in the
 commercial licence Hewn is also offered under (`LICENSING.md`); the AGPL copy stays open either
 way. On your first pull request a bot (CLA Assistant) asks you to agree with one click, once.
 If an AI assistant wrote part of your change, you reviewed it and submit it as your own work.
