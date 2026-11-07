@@ -1,6 +1,6 @@
 ---
 status: decided
-updated: 2026-11-06
+updated: 2026-11-07
 summary: Veil, Provable's viem-style TypeScript toolkit for Aleo, read from its source: what it is, how it fits Hewn (typed program bindings, a local devnode for end-to-end tests, the reads Hewn lacks, writes through Shield), its risks, and the order to adopt it in; decided: adopt it, with Shield the only wallet.
 ---
 
@@ -9,7 +9,7 @@ summary: Veil, Provable's viem-style TypeScript toolkit for Aleo, read from its 
 **Status:** decided (Joshua, 2026-11-05): **Hewn adopts Veil, and Shield stays the only wallet.**
 Veil's wallet support is narrowed to Shield (its provider takes an explicit wallet list); offering
 other wallets (Leo Wallet, Puzzle, Fox) waits until each is checked against what Hewn relies on.
-Step 1 is built (2026-11-06, below); the rest of the order waits. Michael Turner (Provable) suggested Veil; read from the
+Steps 1 and 2 are built (2026-11-06 and 2026-11-07, below: letters and agreements through generated bindings); steps 3 and 4 wait. Michael Turner (Provable) suggested Veil; read from the
 source: the `ProvableHQ/veil` repository (cloned read-only, commit `9007de8`, 2026-11-05), its
 packages and documentation site, its packages on npm, and the explorer.
 

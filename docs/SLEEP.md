@@ -1,12 +1,12 @@
 ---
-status: design
+status: built
 updated: 2026-11-07
-summary: The sleep cycle for the agents that build Hewn, after Google's sleep framework for continual learning: consolidate before the fast store is wiped, at three rhythms (every compaction, nightly, weekly), and a monthly REM pass that practises and keeps only what finds something; as hooks and skills a plugin can carry to any repository. Extends docs/MEMORY.md.
+summary: The sleep cycle for the agents that build Hewn, after Google's sleep framework for continual learning: consolidate before the fast store is wiped, at three rhythms (every compaction, nightly, weekly), and a monthly REM pass that practises and keeps only what finds something; as hooks and skills a plugin can carry to any repository. Extends docs/MEMORY.md. Built except the plugin (step 5), and the first REM run by hand.
 ---
 
 # Sleep: consolidation at every rhythm, and a REM pass
 
-**Status:** design (Joshua, 2026-11-07), to be built in the order at the end, one pull request each.
+**Status:** built (Joshua, 2026-11-07) through step 4 of the order at the end, one pull request each; the plugin (step 5) and the first REM run by hand remain.
 It extends `docs/MEMORY.md`, which stands: the three scopes, the format, progressive reading,
 signed writing, and the weekly dream. This document adds what that design lacked, read from
 Google Research's sleep framework for continual learning (Behrouz and Mirrokni, 2026-10-27, and the
