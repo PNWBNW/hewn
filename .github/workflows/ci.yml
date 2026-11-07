@@ -59,6 +59,8 @@ jobs:
         run: node docs/map/build.mjs --check
       - name: The map's extractor and queries find the known facts about the tree
         run: node --test docs/map/extract.test.mjs docs/map/query.test.mjs
+      - name: Vercel deploys only what changed (scripts/vercel_ignore.mjs)
+        run: node --test scripts/vercel_ignore.test.mjs
       - name: Typecheck and build every workspace project
         run: pnpm build
       - name: Static bundle of the app (the installable app's files)

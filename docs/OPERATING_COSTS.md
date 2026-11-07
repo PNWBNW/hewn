@@ -1,6 +1,6 @@
 ---
 status: plan
-updated: 2026-10-25
+updated: 2026-11-06
 summary: Running Hewn without a subscription: what costs money, the small fee on what moves money, name sales, hosting; estimates.
 ---
 
@@ -19,7 +19,10 @@ real traffic before mainnet.
   tier (10 GB-month, 1M writes, 10M reads a month, no egress fees) carries roughly 150–200
   businesses of about 10 people. Past it: about $0.36 per million reads, $4.50 per million writes.
 - Hosting: Vercel. The Hobby plan is for personal, non-commercial use, so plan on Pro ($20 a
-  month) before mainnet.
+  month) before mainnet. Builds happen once per release (2026-11-06, `scripts/vercel_ignore.mjs`):
+  `main` deploys only when a merge's title says `[deploy]`, and only the projects whose files
+  changed; no previews unless asked for. From 2026-11-01 to 11-06 that would have been one or two
+  builds a day at most, against 144 production builds and about 126 previews.
 - At about 20,000 active workers (about 2,000 businesses): roughly $120 a month in all.
 
 **The fee: flat, per paycheck paid on the rail, paid by the business**
