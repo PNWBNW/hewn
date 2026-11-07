@@ -1,8 +1,5 @@
 # Licensing
 
-> **Draft for legal review (2026-11-07).** The terms below say what Joshua intends; their exact
-> wording is to be checked by a lawyer before anyone relies on them.
-
 Hewn is copyright (C) 2026 Joshua Day. It is licensed two ways.
 
 ## 1. The open licence: AGPL-3.0, with one attribution term
