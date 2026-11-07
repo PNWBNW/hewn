@@ -152,7 +152,7 @@ by installing the plugin and writing its conventions. Hewn is the first user.
 | `/rest` | skill | consolidation, end of task | The agent, at the end of every task: the `CLAUDE.md` checklist (progress entry, the indexes, the checks, the commit) as one command, so it is never skipped. Built 2026-11-07: `.claude/skills/rest/SKILL.md` |
 | `/dream` | skill, `context: fork`, model-invocable off | consolidation, weekly | The "Hewn dreaming" Routine, whose prompt becomes one line; or Joshua by hand. Carries today's `PROMPT.md`, with promotion and pruning added. Built 2026-11-07: `.claude/skills/dream/SKILL.md` (the former `scripts/dreaming/PROMPT.md`); the Routine's prompt names the file, since a Routine typing `/dream` isn't documented |
 | `/light-sleep` | skill, `context: fork` | consolidation, nightly | A second Routine. Built 2026-11-07: `.claude/skills/light-sleep/SKILL.md`; the Routine's settings in `.claude/skills/README.md`, created from the Routines page (only there does a Routine get push access) |
-| `/rem` | skill, `context: fork`, model-invocable off | REM, monthly | A third Routine; its first run fired by hand and reviewed, like the first dream |
+| `/rem` | skill, `context: fork`, model-invocable off | REM, monthly | A third Routine; its first run fired by hand and reviewed, like the first dream. Built 2026-11-07: `.claude/skills/rem/SKILL.md`; the pairs drawn by `scripts/sleep/rem_pairs.py --seed <date>` (random across seven categories, repeatable); findings in `docs/incidents/rem-<date>.md` |
 
 Skills take `disable-model-invocation: true` where only a person or a Routine should start them
 (`/dream`, `/rem`), and `context: fork` where the pass must not see the working conversation.
@@ -177,6 +177,8 @@ sessions, which is what every Routine's session is.
    Built 2026-11-07 (`.claude/skills/`); the nightly Routine's first run is reviewed before its
    schedule stands, like the first dream.
 4. **`/rem`**, its first run by hand and its findings reviewed before its Routine stands.
+   Built 2026-11-07 (`.claude/skills/rem/`, `scripts/sleep/rem_pairs.py`); the first run is
+   next.
 5. **The plugin**, once the pieces have run on Hewn for a few weeks: the same files, installable
    elsewhere.
 

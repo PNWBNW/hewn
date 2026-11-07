@@ -17,6 +17,7 @@ index is out of date.
 - [Sleep: the design document](progress/2026-11-07.md#2026-11-07--sleep-the-design-document)
 - [Sleep step 2: consolidate before compaction, wake after it](progress/2026-11-07.md#2026-11-07--sleep-step-2-consolidate-before-compaction-wake-after-it)
 - [Sleep step 3: the passes as skills](progress/2026-11-07.md#2026-11-07--sleep-step-3-the-passes-as-skills)
+- [Sleep step 4: the REM pass](progress/2026-11-07.md#2026-11-07--sleep-step-4-the-rem-pass)
 
 ## [2026-11-06](progress/2026-11-06.md)
 
