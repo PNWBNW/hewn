@@ -43,3 +43,6 @@ docs/art/prototype/check.html
 docs/art/prototype/out/
 # The map's built site (docs/map/README.md): published by .github/workflows/map.yml
 docs/map/dist/
+
+# Python bytecode (the sleep tests import their module)
+__pycache__/

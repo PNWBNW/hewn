@@ -63,6 +63,8 @@ jobs:
         run: node --test scripts/vercel_ignore.test.mjs
       - name: The consolidation snapshot holds the state it should, and only that (docs/SLEEP.md)
         run: python3 -I scripts/sleep/snapshot_test.py
+      - name: The REM pass draws random pairs across categories, repeatably (docs/SLEEP.md)
+        run: python3 -I scripts/sleep/rem_pairs_test.py
       - name: Typecheck and build every workspace project
         run: pnpm build
       - name: Static bundle of the app (the installable app's files)
