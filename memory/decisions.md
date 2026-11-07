@@ -51,6 +51,7 @@ How the code is laid out and what it runs on.
 
 ## Users
 - 2026-11-05 · Hewn adopts Veil (Provable's viem-style toolkit), and Shield stays the only wallet: Veil's provider is narrowed to Shield, and another wallet comes only after it is checked against what Hewn relies on. The order: tests and CI first (a local devnode, typed bindings from codegen), then generated decoders in place of the hand parsers, then the reads Hewn lacks; the app never imports Veil's local-key package · Joshua · `docs/VEIL.md` · `progress/2026-11-05.md`
+- 2026-11-07 · Veil is for reading and uniformity, not for moving money: Hewn reads its own records (letters, agreements) through code generated from each program's ABI, built by Leo 4.0.0 as the deployed bytecode was and checked against it, never hand-edited; Veil never signs, sends or builds a transaction, and every write stays in Shield with its auditable trail. A Veil transaction path would be considered only if it fits every other interaction, breaks nothing and keeps that trail, and most likely Veil is never used for transactions · Joshua · **INV-11**, `scripts/check_signing_path.py` rules 7 and 8, `apps/business/src/chain/generated/generated.test.ts` · `progress/2026-11-07.md`
 
 ### Accounts
 What an account is, and how many a wallet or a username may hold.
