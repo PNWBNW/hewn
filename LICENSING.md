@@ -44,6 +44,6 @@ above. A changed copy carries its own name and art (`CONTRIBUTING.md`, Forking).
 
 ## 4. Contributions
 
-Contributions are accepted under the contributor licence agreement in `CONTRIBUTING.md`, which
-lets Joshua offer the commercial licence above for the whole of Hewn, contributions included.
-*(The agreement itself is being drafted; until it is in place, outside contributions wait.)*
+Contributions are accepted under the contributor licence agreement in [`CLA.md`](CLA.md), which
+lets Joshua offer the commercial licence above for the whole of Hewn, contributions included,
+while every contribution stays available under the AGPL. Contributors keep their copyright.
