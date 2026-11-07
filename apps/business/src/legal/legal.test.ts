@@ -52,6 +52,6 @@ describe("terms and privacy", () => {
   it("carry the attribution the licence requires, word for word (LICENSING.md, AGPL section 7(b))", () => {
     expect(CREDIT.text).toBe("Hewn by Joshua Day");
     expect(CREDIT.url).toBe("https://github.com/PNWBNW/hewn");
-    expect(CREDIT.copyright).toBe("© 2026 Joshua Day");
+    expect(CREDIT.copyright).toBe("© 2025-2026 Joshua Daniel Day");
   });
 });

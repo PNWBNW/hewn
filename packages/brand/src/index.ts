@@ -83,5 +83,5 @@ export const BRAND = {
 export const CREDIT = {
   text: "Hewn by Joshua Day",
   url: "https://github.com/PNWBNW/hewn",
-  copyright: "© 2026 Joshua Day",
+  copyright: "© 2025-2026 Joshua Daniel Day",
 } as const;
