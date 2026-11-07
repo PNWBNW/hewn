@@ -17,7 +17,7 @@ on any other path (`scripts/check_signing_path.py`).
 **Shield is the only wallet**; don't add other adapters. The adapters were renamed from
 `-adaptor-` to `-adapter-` on 2026-10-19 and are pinned exactly (no ranges):
 `@provablehq/aleo-wallet-adapter-core` 1.1.2, `-react` 1.3.1, `-shield` 1.3.0,
-`@provablehq/aleo-wallet-standard` 1.4.0, `@provablehq/aleo-types` 1.1.0. `@provablehq/sdk` 0.10.1
+`@provablehq/aleo-wallet-standard` 1.4.0, `@provablehq/aleo-types` 1.1.0. `@provablehq/sdk` 0.13.0 (0.10.1 until 2026-11-07)
 is used elsewhere for what Shield doesn't do (the stablecoin's exclusion proof, in `rail`), never
 to execute.
 

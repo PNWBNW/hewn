@@ -22,6 +22,7 @@ index is out of date.
 - [The contributor licence agreement](progress/2026-11-07.md#2026-11-07--the-contributor-licence-agreement)
 - [Licensing: one copyright line](progress/2026-11-07.md#2026-11-07--licensing-one-copyright-line)
 - [Light sleep: 2026-11-07](progress/2026-11-07.md#2026-11-07--light-sleep-2026-11-07)
+- [The SDK moves to 0.13.0](progress/2026-11-07.md#2026-11-07--the-sdk-moves-to-0130)
 
 ## [2026-11-06](progress/2026-11-06.md)
 

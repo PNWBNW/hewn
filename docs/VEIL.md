@@ -38,7 +38,7 @@ no npm provenance attestation.
 
 ## How Hewn does it today
 
-`@provablehq/sdk` 0.10.1 for reading and proofs (the stablecoin's freeze-list exclusion proof in
+`@provablehq/sdk` 0.13.0 (0.10.1 until 2026-11-07) for reading and proofs (the stablecoin's freeze-list exclusion proof in
 `packages/rail`, decrypting incoming payments with the business's view key), and Provable's wallet
 adapters (Shield 1.3.0) for every transaction, through one door (`chain/shield.ts`, INV-11). Around
 those: hand-written code to read mappings and parse their values, to parse record plaintext, and to
@@ -97,9 +97,9 @@ asked for one typed decoder in place of several hand parsers.
   pin an older 0.x and move deliberately. The React hooks pin wallet adapters newer than Hewn's
   (1.4.0 against 1.3.0), so adopting them is also a wallet adapter upgrade; the wallet adapter and
   core packages alone avoid that.
-- **The SDK version.** Veil's SDK-backed packages want `@provablehq/sdk` ^0.13; Hewn has 0.10.1. Using
-  only `veil-core` and the wallet adapter package needs no SDK change. In the devnode tests
-  (2026-11-06) `veil-aleo-sdk` brings its own 0.13.0, beside the app's 0.10.1, in tests only.
+- **The SDK version.** Veil's SDK-backed packages want `@provablehq/sdk` ^0.13. Hewn moved from
+  0.10.1 to 0.13.0 on 2026-11-07 (`docs/ALEO_CONSTRAINTS.md` §2b: nothing Hewn calls changed), so
+  the app and the devnode tests resolve one copy.
 - **Transports and the content security policy.** Veil's examples default to
   `edge.provable.com`; Hewn would point its transport at the configured endpoint
   (`ENV.ALEO_ENDPOINT`), which the policy already allows.

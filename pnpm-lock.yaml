@@ -66,8 +66,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/wallet
       '@provablehq/sdk':
-        specifier: 0.10.1
-        version: 0.10.1
+        specifier: 0.13.0
+        version: 0.13.0
       '@provablehq/veil-core':
         specifier: 0.15.0
         version: 0.15.0
@@ -264,8 +264,8 @@ importers:
         specifier: workspace:*
         version: link:../payroll
       '@provablehq/sdk':
-        specifier: 0.10.1
-        version: 0.10.1
+        specifier: 0.13.0
+        version: 0.13.0
 
   packages/records:
     dependencies:
@@ -712,9 +712,6 @@ packages:
   '@provablehq/aleo-wallet-standard@1.4.0':
     resolution: {integrity: sha512-qbw9kpnZDC6xQ2AXb+lAKMImGeKDQCbxiWmCdBCjAZAlnVK+lTsK+HXX2MUbCy3ZDHxFKWGZXt4f5iE+rR9uog==}
 
-  '@provablehq/sdk@0.10.1':
-    resolution: {integrity: sha512-JGov3hfXH+QHsQCrUIYutlrGRiztXOICeIywd7HOimPggMKgqTiwm70bZOejZei16Xh4Bl4UNURmeu22tIyCJw==}
-
   '@provablehq/sdk@0.13.0':
     resolution: {integrity: sha512-WMTSojrh7Sr4HGwxM/F/3zWDSceMwCBdXnHA3hdsp/kQ6VDGa2ARi3EHAmgnTr+lMKv7zR/Kl8O1NeqB/7xeag==}
 
@@ -739,9 +736,6 @@ packages:
   '@provablehq/veil-core@0.15.0':
     resolution: {integrity: sha512-Xew4o2NDmaFeUqhjukccBPhhxt/5wC3kGZPmuaKONhIbndovVQt1/GynEw/m1oLcQqWVpLDOR0sILV2GiA8lCg==}
     engines: {node: '>=18'}
-
-  '@provablehq/wasm@0.10.5':
-    resolution: {integrity: sha512-Ssg1QB3pOS3jlg1sjXGK2f6R/fGSwqftD4vVyB+XX58ly0ejv/g1BtfHaYNJLtGHkwd5qGeH3ImOZajURL0iJw==}
 
   '@provablehq/wasm@0.13.0':
     resolution: {integrity: sha512-Tz0mG4WANgPmodblzZm9kpNcBYoNUmAf3aR79DXhOtoKNb89R7YidVTDSvS+4Q8B7U0f1Q+IEp1OeaRxmnG5Kw==}
@@ -1245,12 +1239,6 @@ packages:
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
-
-  libsodium-wrappers@0.8.4:
-    resolution: {integrity: sha512-mu8aAWucZjTB5O/BtGXtW4e1agy7uHxNYG7zPthmmD1jU43LCDmSWZLN4JhflbdPXj3yDO4lxM1O9hLDgIOXDw==}
-
-  libsodium@0.8.4:
-    resolution: {integrity: sha512-lMcYaRi0zcs7tarATsQUYC7rstliIXZuoq0c6zXSgNtSNtdvBgkSegjWhpMJAXzKX3SUSwIp7+zEsob+j3LuRw==}
 
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
@@ -1922,16 +1910,6 @@ snapshots:
       '@provablehq/aleo-types': 1.1.0
       eventemitter3: 5.0.4
 
-  '@provablehq/sdk@0.10.1':
-    dependencies:
-      '@provablehq/wasm': 0.10.5
-      '@scure/base': 2.4.0
-      comlink: 4.4.2
-      core-js: 3.50.0
-      libsodium-wrappers: 0.8.4
-      mime: 4.1.0
-      xmlhttprequest-ssl: 4.0.0
-
   '@provablehq/sdk@0.13.0':
     dependencies:
       '@provablehq/wasm': 0.13.0
@@ -1959,8 +1937,6 @@ snapshots:
       '@provablehq/veil-core': 0.15.0
 
   '@provablehq/veil-core@0.15.0': {}
-
-  '@provablehq/wasm@0.10.5': {}
 
   '@provablehq/wasm@0.13.0': {}
 
@@ -2282,12 +2258,6 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   jiti@2.7.0: {}
-
-  libsodium-wrappers@0.8.4:
-    dependencies:
-      libsodium: 0.8.4
-
-  libsodium@0.8.4: {}
 
   lightningcss-android-arm64@1.32.0:
     optional: true
