@@ -28,9 +28,9 @@ so sources are GitHub, snarkVM source and release notes.
 | Execution fee | linear in bytes below 5,000 bytes, quadratic penalty above | fee docs |
 | Block time | 10 s in code; observed ~3 s on mainnet | `BLOCK_TIME`; community reports |
 
-Sources: [Network trait source](https://raw.githubusercontent.com/ProvableHQ/snarkVM/mainnet/console/network/src/lib.rs),
-[state path depths](https://raw.githubusercontent.com/ProvableHQ/snarkVM/mainnet/console/program/src/state_path/configuration/mod.rs),
-[spend limit PR](https://github.com/ProvableHQ/snarkVM/pull/2368),
+Sources: [Network trait source](https://raw.githubusercontent.com/aleo-labs-protocol/snarkVM/mainnet/console/network/src/lib.rs),
+[state path depths](https://raw.githubusercontent.com/aleo-labs-protocol/snarkVM/mainnet/console/program/src/state_path/configuration/mod.rs),
+[spend limit PR](https://github.com/aleo-labs-protocol/snarkVM/pull/2368),
 [fee docs](https://github.com/AleoNet/welcome/blob/master/documentation/concepts/fundamentals/03A_transaction_fees.md).
 
 What this means for us: a per-worker payroll transition is nowhere near these limits. A batch of
@@ -59,6 +59,60 @@ paired with snarkOS 4.12.0. `docs/VEIL.md` has the detail.
 Action: the Leo session bumps all pins before touching a program. The wallet path is unaffected
 (Shield proves), but `@provablehq/sdk` 0.10.1 is still used for `SealanceMerkleTree` and must move
 to 0.12.x regardless.
+
+## 2b. Toolchain, re-read 2026-11-06
+
+What moved on 2026-11-06 (`pnw_mvp_v2` #231), and what is still behind, read from the source of
+each package against what Hewn calls:
+
+| | Pinned | Current | What a move changes |
+| --- | --- | --- | --- |
+| Leo, to compile and test | 4.0.0 (`v4.0.0`, checksum pinned) | 4.4.6 (`leo-lang-v4.4.6`, 2026-10-28) | **Leo 4.4 refuses our programs' source**: a `const` inside `program { }` is an error, and `self.signer` is gone (`std::ctx::signer()`). Moving the source is a Leo change of its own (INV-22); until then 4.0.0 compiles and tests, which is also what built every deployed program. 4.4.6 removed `--disable-update-check`, prints `N tests run: N passed, 0 failed`, writes `build/<name>/<name>.aleo` |
+| Leo, to sign and send | 4.4.6 (crates.io, in the deploy and upgrade workflows) | 4.4.6 | Done: it was "latest", which has meant 4.4.6 since 2026-10-28, and its removed flag would have failed the next deploy |
+| snarkOS | 4.12.0, checksum pinned | 4.12.0 (2026-10-13); 4.12.1 exists | Done |
+| `@provablehq/sdk` | 0.10.1 | 0.13.0 (2026-10-27) | Everything Hewn calls is unchanged between the two: `SealanceMerkleTree` (identical source), `RecordCiphertext.fromString/decrypt/isOwner`, `ViewKey.from_string`, `Address.from_view_key`, `Transition.fromString/decryptTransition`, `Field.fromString`. 0.13 adds `types` export conditions and `.cjs` builds, and swaps `libsodium-wrappers` for `@serenity-kit/noble-sodium` 0.2.3 (a new dependency, T3). The rail exclusion test runs the real tree, so `pnpm test` exercises the bump; the devnode tests already resolve 0.13.0 nested, so a bump dedups to one copy. The old row's "V2 proofs" worry doesn't apply: Hewn proves nothing locally, and the tree and decryption are deterministic |
+| Shield adapter and its packages | shield 1.3.0, core 1.1.2, react 1.3.1, types 1.1.0, standard 1.4.0 | shield 1.5.0, core 1.3.0, react 1.5.0, types 1.3.0, standard 1.6.0 (2026-10-27) | Additive API: `getBalances`, `subscribeTransactionStatus`, `prepareShieldedUsdcxMint`, an `algorithmsSupported()` that asks the wallet (1.3.0 returns a fixed list), `useTransaction` and `useTransactionStatus` hooks, new `TransactionStatus` values (`finalized`, `completed`, `aborted`, `expired`, `cancelled`). `executeTransaction`, `connect`, `decrypt`, `requestRecords` and `transitionViewKeys` are byte-identical; `transactionStatus` now lowercases the status and drops a `transactionId` that only echoes a wallet-internal handle, which is what Hewn's `isOnChainId` guard already assumes. Relay URL, deep link and protocol version unchanged, so the CSP pin holds. Core 1.3.0 names `https://api.provable.com/v2` as a balance fallback Hewn never calls (and the CSP would refuse). Hewn's `ACCEPTED` sets know `finalized`, `confirmed`, `completed`; its `REJECTED` sets know `rejected`, `failed` and not `aborted`, `expired`, `cancelled`, which a wallet may report whatever the adapter version: worth adding with the bump |
+| Veil (tests only) | 0.15.0 | 0.16.2 (2026-11-05) | Waits for seven days (OPS-04): 0.16.0 qualifies, 0.16.2 on 2026-11-12 |
+
+Order: the SDK (lowest risk, tested by the suite), then the adapters (Joshua connects Shield on
+the pull request's preview), then Veil when it is old enough. The Leo source move waits on Joshua;
+the experiment below says what it costs.
+
+### The Leo 4.4 experiment (2026-11-06, scratchpad only, no program changed)
+
+Leo 4.4.6, built from crates.io, against copies of all fifteen `src/layer1` programs, migrated by a
+script (five mechanical rewrites: `const` and `struct` out of the `program { }` block, `export` on
+every struct, `self.signer` → `std::ctx::signer()`, `self.caller` → `std::ctx::caller()`,
+`block.height` → `std::ctx::block_height()`, `self.address` → `std::ctx::addr()`; the stablecoin
+and registry stubs the same way), then compared with each program's deployed bytecode from the
+explorer:
+
+- **Byte for byte:** `hewn_letters_v2`, `employer_agreement_v5`, `paystub_receipts`,
+  `payroll_audit_log`. **Same except blank lines:** `hewn_cards_v1`, `hewn_credentials_v1`. **Same
+  bodies, different import header** (4.4.6 orders imports differently, and a local stub has no
+  transitive imports): `hewn_jobs_v1`, `employer_agreement_v4`, `pnw_name_registrar_v5`,
+  `pnw_router_v4`, `payroll_core_v2`.
+- **Different for real, all four `@admin`:** `pnw_name_registry_v2` and
+  `employer_license_registry` (4.4.6 orders a finalize's inputs by first use where 4.0.0 kept the
+  parameter order: `async set_verified r0 r2 r1` against the deployed `r0 r1 r2`), and
+  `employer_profiles_v2` and `pnw_worker_profiles_v2` (branch labels numbered differently). An
+  in-place upgrade of these four can't be compiled by 4.4.6 from migrated source: it keeps 4.0.0
+  and a frozen 4.0-syntax copy (`src/layer1/archive/` is where such copies live).
+- **Every test passes under 4.4.6** once migrated: 239 across the nine suites CI runs (letters 12,
+  agreement v5 22, jobs 31, cards 22, credentials 28, registry 30, registrar 24, profiles 19,
+  agreement v4 31).
+- **Leo 4.0.0 can't compile the migrated syntax** (`std::ctx::signer` unknown), so one source
+  can't serve both compilers.
+- **4.4.6 brings a checks-effects-interactions lint** (reads or writes after a `Final.run()` of an
+  imported program): warnings on nine programs, 60 to 72 in the agreement v4, router and payroll
+  core, 3 in `hewn_credentials_v1` (a status read and two writes after `assert_pair`'s run). Not
+  errors, but review material for any new program.
+
+Two ways forward, Joshua's call: keep the source in 4.0 syntax and compile every existing program
+with 4.0.0 while new programs are written for 4.4.6 (nothing deployed is touched, but two syntaxes
+and two copies of each stub); or migrate the source in one pull request (Fable, INV-22, all 239
+tests), keep 4.0-syntax copies of the four `@admin` programs above for their upgrades, and let
+4.4.6 be the one compiler everywhere else.
 
 ## 3. Proving: the thing that actually broke batching
 
