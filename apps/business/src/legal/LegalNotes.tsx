@@ -3,8 +3,12 @@
 
 import Link from "next/link";
 import { cn } from "@pnw/ui/utils";
+import { CREDIT } from "@pnw/brand";
 
-/** "Testnet · provided as is · Terms · Privacy", in the footer of the front page and the rail. */
+/**
+ * "Testnet · provided as is · Terms · Privacy · Hewn by Joshua Day", in the footer of the front page
+ * and the rail. The last part is the attribution every copy keeps (LICENSING.md, AGPL section 7(b)).
+ */
 export function LegalLinks({ className, linkClassName }: { className?: string; linkClassName?: string }) {
   const link = cn("underline underline-offset-4", linkClassName);
   return (
@@ -17,6 +21,10 @@ export function LegalLinks({ className, linkClassName }: { className?: string; l
       <Link href="/privacy" className={link}>
         Privacy
       </Link>
+      {" · "}
+      <a href={CREDIT.url} target="_blank" rel="noreferrer" className={link}>
+        {CREDIT.text}
+      </a>
     </span>
   );
 }

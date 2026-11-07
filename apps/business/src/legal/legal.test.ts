@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { BRAND } from "@/brand";
+import { CREDIT } from "@pnw/brand";
 import { isPublicPath, redirectFor } from "@/shell/AppShell";
 import { PrivacyPage } from "./privacy";
 import { TermsPage } from "./terms";
@@ -41,9 +42,16 @@ describe("terms and privacy", () => {
 
   it("are linked from the small print, and the figures carry the note", () => {
     const links = renderToStaticMarkup(createElement(LegalLinks));
-    expect(text(links)).toBe("Testnet · provided as is · Terms · Privacy");
+    expect(text(links)).toBe(`Testnet · provided as is · Terms · Privacy · ${CREDIT.text}`);
     expect(links).toContain('href="/terms"');
     expect(links).toContain('href="/privacy"');
+    expect(links).toContain(`href="${CREDIT.url}"`);
     expect(text(renderToStaticMarkup(createElement(FiguresNote)))).toBe(FIGURES_NOTE);
+  });
+
+  it("carry the attribution the licence requires, word for word (LICENSING.md, AGPL section 7(b))", () => {
+    expect(CREDIT.text).toBe("Hewn by Joshua Day");
+    expect(CREDIT.url).toBe("https://github.com/PNWBNW/hewn");
+    expect(CREDIT.copyright).toBe("© 2026 Joshua Day");
   });
 });

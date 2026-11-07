@@ -63,7 +63,11 @@ money wrongly, which goes privately, as [`SECURITY.md`](SECURITY.md) describes.
 
 Hewn is AGPL-3.0: use it, study it, change it, share it. If you run a changed copy as a service for
 other people, offer them its source under the same licence (the app and the site link to the
-source for that reason; keep a link to yours).
+source for that reason; keep a link to yours). Keep the attribution "Hewn by Joshua Day", linked
+to this repository, where your users can see it, and keep `NOTICE`: that is the licence's one
+additional term (`LICENSING.md`). `CREDIT` in `packages/brand/src/index.ts` is the line to keep;
+`BRAND` beside it is yours to change. To build something closed on Hewn instead, ask about the
+commercial licence (`LICENSING.md`).
 
 The **Hewn** name and logo are not licensed. A fork should carry its own name and art. Both live in
 one place: the name, tagline, colours and asset paths in `packages/brand/src/index.ts`, the source
