@@ -30,8 +30,10 @@
 // ---------------------------------------------------------------------------
 
 import { PROGRAMS } from "@pnw/config/programs";
+import { parseRecord } from "@provablehq/veil-core";
 import { MailboxError } from "@pnw/mailbox";
 import type { FeeMode } from "@pnw/wallet/fee-mode";
+import { toLetter, toPage, toSentLetter } from "./generated/hewn_letters_v2";
 import { type ExecuteOptions, type WorkWallet, executeAndWait } from "./work/execute";
 
 /** The program letters are sent with. */
@@ -159,10 +161,24 @@ export type LetterRecord = {
 
 const RECORD_KINDS: Record<string, LetterRecord["kind"]> = { Letter: "letter", Page: "page", SentLetter: "sent" };
 
-const arrayOf = (plaintext: string, name: string): string | null => new RegExp(`\\b${name}\\s*:\\s*\\[([^\\]]*)\\]`).exec(plaintext)?.[1] ?? null;
-const numbersOf = (list: string, suffix: string): bigint[] => [...list.matchAll(new RegExp(`(\\d+)${suffix}\\b`, "g"))].map((m) => BigInt(m[1]!));
+/** Whole numbers below 2^128: a `u128`. */
+const U128 = 1n << 128n;
 
-/** One record from Shield's `requestRecords` as a letter, or null when it isn't one this app can read. */
+/** A parcel element as the generated decoder gives it (`<digits>field`), or null when it isn't one. */
+const fieldOf = (element: string): bigint | null => {
+  const m = /^(\d+)field$/.exec(element);
+  return m ? BigInt(m[1]!) : null;
+};
+
+/**
+ * One record from Shield's `requestRecords` as a letter, or null when it isn't one this app can read.
+ *
+ * The record's text is parsed by Veil (`parseRecord`) and read by the decoders generated from the
+ * program's ABI (`./generated/hewn_letters_v2`, docs/VEIL.md step 2), so the field names and
+ * shapes come from the program itself; v1 letters have the same three records, field for field.
+ * On top, what the app needs and the decoders don't check: the exact counts (two lookup halves,
+ * 34 or 256 parcel fields) and the ranges (a `u128`, a parcel field below 2^248).
+ */
 export function parseLetterRecord(raw: unknown): LetterRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -170,13 +186,14 @@ export function parseLetterRecord(raw: unknown): LetterRecord | null {
   const plaintext = typeof r.recordPlaintext === "string" ? r.recordPlaintext : null;
   if (!kind || !plaintext) return null;
   try {
-    const lookupList = arrayOf(plaintext, "lookup");
-    const parcelList = arrayOf(plaintext, kind === "page" ? "page" : "parcel");
-    if (lookupList === null || parcelList === null) return null;
-    const halves = numbersOf(lookupList, "u128");
-    const fields = numbersOf(parcelList, "field");
-    if (halves.length !== 2 || fields.length !== (kind === "page" ? PAGE_FIELDS : LETTER_FIELDS)) return null;
-    const out: LetterRecord = { kind, lookup: lookupOf(halves[0]!, halves[1]!), envelope: unpackParcel(fields) };
+    const record = parseRecord(plaintext);
+    const decoded = kind === "page" ? toPage(record) : kind === "sent" ? toSentLetter(record) : toLetter(record);
+    const halves = decoded.lookup;
+    const elements = "page" in decoded ? decoded.page : decoded.parcel;
+    if (halves.length !== 2 || !halves.every((h) => typeof h === "bigint" && h >= 0n && h < U128)) return null;
+    const fields = elements.map(fieldOf);
+    if (fields.length !== (kind === "page" ? PAGE_FIELDS : LETTER_FIELDS) || fields.some((f) => f === null)) return null;
+    const out: LetterRecord = { kind, lookup: lookupOf(halves[0]!, halves[1]!), envelope: unpackParcel(fields as bigint[]) };
     const height = r.blockHeight ?? r.block_height;
     if (typeof height === "number" && Number.isInteger(height)) out.blockHeight = height;
     if (typeof r.transactionId === "string") out.transactionId = r.transactionId;
