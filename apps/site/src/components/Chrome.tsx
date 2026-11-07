@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BRAND } from "@pnw/brand";
+import { BRAND, CREDIT } from "@pnw/brand";
 import { BrandLogo } from "@/components/Brand";
 
 export const buttonClass =
@@ -32,9 +32,18 @@ export function SiteFooter() {
   return (
     <footer className="border-t">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <p>
-          <span className="font-medium text-foreground">{BRAND.name}</span> · {BRAND.tagline}
-        </p>
+        <div className="flex flex-col gap-1">
+          <p>
+            <span className="font-medium text-foreground">{BRAND.name}</span> · {BRAND.tagline}
+          </p>
+          {/* The attribution every copy keeps (LICENSING.md, AGPL section 7(b)). */}
+          <p className="text-xs">
+            {CREDIT.copyright} ·{" "}
+            <a href={CREDIT.url} className="underline-offset-4 hover:text-foreground hover:underline">
+              {CREDIT.text}
+            </a>
+          </p>
+        </div>
         <nav aria-label="Footer" className="flex items-center gap-4">
           <Link href="/privacy" className="underline-offset-4 hover:text-foreground hover:underline">
             Privacy

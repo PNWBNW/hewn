@@ -74,3 +74,14 @@ export const BRAND = {
   reportsAccount: "aleo1s8t86aza932zah3mv5knclvnn5zy4gedpl5a4wn5h2yrt08mxqzsw5amdd",
   licence: "AGPL-3.0",
 } as const;
+
+/**
+ * The attribution every copy keeps: the additional term under section 7(b) of the AGPL-3.0
+ * (LICENSING.md). Unlike BRAND, a fork never changes this; it may put "Based on" in front of the
+ * text, nothing else. Shown in the small print of every screen and the website's footer.
+ */
+export const CREDIT = {
+  text: "Hewn by Joshua Day",
+  url: "https://github.com/PNWBNW/hewn",
+  copyright: "© 2026 Joshua Day",
+} as const;
