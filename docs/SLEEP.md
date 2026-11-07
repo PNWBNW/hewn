@@ -127,7 +127,7 @@ by the Routine's run history, never by an empty commit or an empty pull request.
 |---|---|---|---|---|
 | **Compaction** (consolidate and wake) | Every session, whenever context is summarised | The session's state | The two hooks above | Not applicable |
 | **Light sleep** (consolidate) | Nightly, about 3 a.m. Pacific | `git log --since=yesterday` first; then the day's progress entries and merged pull requests | Verifies the day's statuses and the Now block, files the day's decisions and lessons in `memory/`, nothing else | Stops after the log, in a minute or two, ending with "Nothing needed". No pull request |
-| **Deep sleep** (dream) | Weekly, Sunday evening Pacific, as today | The week, the transcripts the entries name, the whole memory store | Everything `scripts/dreaming/PROMPT.md` does, plus promotion candidates and pruning | Still opens its pull request: the week's record says it was verified |
+| **Deep sleep** (dream) | Weekly, Sunday evening Pacific, as today | The week, the transcripts the entries name, the whole memory store | Everything the dream did before (`.claude/skills/dream/SKILL.md`), plus promotion candidates and pruning | Still opens its pull request: the week's record says it was verified |
 | **REM** | Monthly, first Sunday, after the dream | Two random parts of the repository | The practice above | Ends with "Nothing found". No pull request |
 
 The rule for all of them: a pass that changes a file opens a pull request Joshua approves
@@ -149,9 +149,9 @@ by installing the plugin and writing its conventions. Hewn is the first user.
 |---|---|---|---|
 | `wake` | `SessionStart` hook (`startup`, `resume`, `compact`) | wake | The harness |
 | `consolidate` | `PreCompact` hook, plus the snapshot script it runs | consolidation | The harness |
-| `/rest` | skill | consolidation, end of task | The agent, at the end of every task: the `CLAUDE.md` checklist (progress entry, the indexes, the checks, the commit) as one command, so it is never skipped |
-| `/dream` | skill, `context: fork`, model-invocable off | consolidation, weekly | The "Hewn dreaming" Routine, whose prompt becomes one line; or Joshua by hand. Carries today's `PROMPT.md`, with promotion and pruning added |
-| `/light-sleep` | skill, `context: fork` | consolidation, nightly | A second Routine |
+| `/rest` | skill | consolidation, end of task | The agent, at the end of every task: the `CLAUDE.md` checklist (progress entry, the indexes, the checks, the commit) as one command, so it is never skipped. Built 2026-11-07: `.claude/skills/rest/SKILL.md` |
+| `/dream` | skill, `context: fork`, model-invocable off | consolidation, weekly | The "Hewn dreaming" Routine, whose prompt becomes one line; or Joshua by hand. Carries today's `PROMPT.md`, with promotion and pruning added. Built 2026-11-07: `.claude/skills/dream/SKILL.md` (the former `scripts/dreaming/PROMPT.md`); the Routine's prompt names the file, since a Routine typing `/dream` isn't documented |
+| `/light-sleep` | skill, `context: fork` | consolidation, nightly | A second Routine. Built 2026-11-07: `.claude/skills/light-sleep/SKILL.md`; the Routine's settings in `.claude/skills/README.md`, created from the Routines page (only there does a Routine get push access) |
 | `/rem` | skill, `context: fork`, model-invocable off | REM, monthly | A third Routine; its first run fired by hand and reviewed, like the first dream |
 
 Skills take `disable-model-invocation: true` where only a person or a Routine should start them
@@ -174,6 +174,8 @@ sessions, which is what every Routine's session is.
    script writes and reads the state it should; tried in a local or single-repository session.
 3. **`/rest` and `/dream`** as skills, `/dream` carrying `PROMPT.md` with promotion and pruning;
    the Routine's prompt points at `/dream`. The nightly `/light-sleep` and its Routine.
+   Built 2026-11-07 (`.claude/skills/`); the nightly Routine's first run is reviewed before its
+   schedule stands, like the first dream.
 4. **`/rem`**, its first run by hand and its findings reviewed before its Routine stands.
 5. **The plugin**, once the pieces have run on Hewn for a few weeks: the same files, installable
    elsewhere.
@@ -190,4 +192,4 @@ sessions, which is what every Routine's session is.
   `compact` matcher, `SessionEnd`, `Stop`), skills (frontmatter, `context: fork`,
   `disable-model-invocation`), memory (auto memory is machine-local), settings in cloud sessions
   (repository hooks and skills apply with one repository attached): https://code.claude.com/docs
-- `docs/MEMORY.md`, the design this one extends; `scripts/dreaming/PROMPT.md`, the dream as it runs.
+- `docs/MEMORY.md`, the design this one extends; `.claude/skills/dream/SKILL.md`, the dream as it runs.

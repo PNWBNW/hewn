@@ -16,6 +16,7 @@ index is out of date.
 - [Veil step 2, agreements: v5 and v4 records through generated bindings](progress/2026-11-07.md#2026-11-07--veil-step-2-agreements-v5-and-v4-records-through-generated-bindings)
 - [Sleep: the design document](progress/2026-11-07.md#2026-11-07--sleep-the-design-document)
 - [Sleep step 2: consolidate before compaction, wake after it](progress/2026-11-07.md#2026-11-07--sleep-step-2-consolidate-before-compaction-wake-after-it)
+- [Sleep step 3: the passes as skills](progress/2026-11-07.md#2026-11-07--sleep-step-3-the-passes-as-skills)
 
 ## [2026-11-06](progress/2026-11-06.md)
 

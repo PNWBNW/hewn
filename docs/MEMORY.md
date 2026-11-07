@@ -71,7 +71,8 @@ line, the Now block, a CI step's label). The answer is a periodic batch process 
 to curate memory. For Hewn:
 
 - **When:** once a week (Sunday evening Pacific), as a scheduled Routine that starts a fresh
-  session on `main` and reads its whole instruction from `scripts/dreaming/PROMPT.md`, so a change
+  session on `main` and reads its whole instruction from `.claude/skills/dream/SKILL.md` (the `/dream` skill;
+  `scripts/dreaming/PROMPT.md` until 2026-11-07), so a change
   to how the team dreams is a pull request like any other. Out of band, so no working session
   pays for it; bounded, so its cost is known.
 - **Input:** the week's `progress/` entries, the pull requests merged, the transcripts those
@@ -107,7 +108,7 @@ adds the rhythms and the pieces.
    `memory/lessons.md` populated from the documents, `CLAUDE.md` and the progress log;
    `CLAUDE.md` slimmed to rules with the dates and provenance moved to the ledger.
 3. **The recurring dream** (built 2026-11-03): the weekly Routine, its prompt kept in the
-   repository (`scripts/dreaming/PROMPT.md`), its first run fired by hand and reviewed before the
+   repository (`.claude/skills/dream/SKILL.md`, then `scripts/dreaming/PROMPT.md`), its first run fired by hand and reviewed before the
    schedule stands.
 
 ## Decisions (Joshua, 2026-11-03)

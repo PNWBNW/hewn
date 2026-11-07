@@ -1,10 +1,21 @@
+---
+name: dream
+description: The weekly dreaming pass (docs/MEMORY.md, docs/SLEEP.md): verifies, organizes and enriches the team's memory over the last seven days, names promotion candidates and prunes what was promoted or stopped being true, and opens one pull request, "dreaming: week of <date>". Started by the "Hewn dreaming" Routine or by Joshua; never by a working session on its own.
+disable-model-invocation: true
+context: fork
+background: false
+---
+
 # Dreaming: the weekly memory pass
 
 You are the weekly dreaming session for Hewn (`PNWBNW/hewn`, checked out in this session). Your
-only job is to curate the team's memory: verify it, organize it, enrich it. You never touch code,
-tests, workflows or the Leo programs; you never change the wording or the id of a rule; you never
-merge. You open one pull request and stop. The design you are running is `docs/MEMORY.md`; read
-it before anything else, then `CLAUDE.md` in full.
+only job is to curate the team's memory: verify it, organize it, enrich it, and keep it the right
+size. You never touch code, tests, workflows or the Leo programs; you never change the wording or
+the id of a rule; you never merge. You open one pull request and stop. The design you are running
+is `docs/MEMORY.md`, extended by `docs/SLEEP.md` (the sleep cycle this pass is the weekly rung
+of); read both before anything else, then `CLAUDE.md` in full. The nightly `/light-sleep` may
+already have filed some of the week's decisions and lessons; what it filed is yours to verify,
+not to redo.
 
 Today is the date `git log -1 --format=%cs origin/main` or later; call it `<today>`. The week is
 the seven days ending today.
@@ -72,18 +83,34 @@ README) goes in the pull request as a question, not a change.
 - A decision or lesson whose source you couldn't find keeps its line and gets a question in the
   pull request.
 
-## 5. Output
+## 5. Promote and prune
+
+The slow rung (`docs/SLEEP.md`): a store that only fills is never pruned, and what keeps proving
+true belongs higher up.
+
+- **Promotion candidates.** A lesson in `memory/lessons.md` that sessions keep relying on, or a
+  decision every session now assumes, belongs in a README, `docs/INVARIANTS.md` or `CLAUDE.md`.
+  Name each candidate in the pull request's **Questions**, with the rule or README it would join
+  and the entries that show it holding. Never promote one yourself: a rule changes only in a
+  pull request about the rule.
+- **Pruning.** A lesson Joshua promoted since the last dream (it now reads as a rule or a README
+  line) leaves `memory/lessons.md`; its ledger line in `memory/decisions.md` stays and now says
+  where the rule lives. A lesson that stopped being true leaves too, and the pull request says
+  which and why. `progress/` is never pruned: it is the raw record, and only the abstractions
+  move up.
+
+## 6. Output
 
 - Branch `dreaming/<today>` from `origin/main`. Commit message `dreaming: week of <today>`.
 - Before pushing: `python3 -I scripts/check_invariants.py`, `python3 -I scripts/check_links.py`,
   `python3 -I scripts/docs_index.py --write`, and an entry in `progress/<today>.md` headed
   `## <today> — Dreaming: week of <today>` saying what was verified, what changed and what is
   asked, ending with the bare id of this session (`— session_…`; `get_session` with no
-  arguments gives it; never a link). Then `python3 -I scripts/progress_index.py --write`.
+  arguments gives it, or `${CLAUDE_SESSION_ID}`; never a link). Then `python3 -I scripts/progress_index.py --write`.
 - One pull request titled `dreaming: week of <today>`. Its body has three parts: **Verified** (what
   was checked and found right, in a few lines), **Changed** (every change, each citing the file,
-  entry or pull request it rests on), **Questions** (anything you couldn't verify, as a question
-  to Joshua, never written down as a fact). Open it even when nothing changed: the entry that says
+  entry or pull request it rests on, pruned lessons included), **Questions** (anything you couldn't
+  verify, and every promotion candidate, as a question to Joshua, never written down as a fact). Open it even when nothing changed: the entry that says
   the week was verified is the record.
 - Never merge (Joshua approves every pull request in chat; OPS-01). Never put a `https://claude.ai/…`
   link in a commit, a pull request or a document. That includes the footer your tooling may add
