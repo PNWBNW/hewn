@@ -16,5 +16,6 @@ Test: `python3 -I scripts/sleep/snapshot_test.py` (CI runs it). It builds a thro
 and checks what each hook writes and prints, that a file's contents never reach the snapshot, and
 that `settings.json` wires both hooks to the script.
 
-The skills (`/rest`, `/dream`, `/light-sleep`, `/rem`) come next, in the order `docs/SLEEP.md`
-gives.
+| `rem_pairs.py` | (none) | Not a hook: the REM pass's draw (`/rem`, `.claude/skills/rem/SKILL.md`). Three random pairs of unrelated parts of the tree (a rule, a threat, a design document, a Leo program, a package, a page, a CI check), seeded by the date so a run repeats, no part twice. Test: `rem_pairs_test.py` (CI) |
+
+The skills (`/rest`, `/dream`, `/light-sleep`, `/rem`) are in `.claude/skills/`.
