@@ -7,7 +7,7 @@ Oct 13, 2026 · Joshua Day
 
 ## Now
 
-Updated 2026-11-05. Session start reads this block; keep it to these four lines and change it
+Updated 2026-11-07. Session start reads this block; keep it to these four lines and change it
 whenever the work moves.
 
 - **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
@@ -15,7 +15,9 @@ whenever the work moves.
   (`docs/COMPLIANCE_MAP.md`: the control list and the data-flow diagram are done, the policies,
   risk register and inventory next, then the Fable deep review); payroll compliance
   (`docs/PAYROLL_COMPLIANCE.md`: the federal engine first). Memory is built and the weekly
-  dream runs on Sundays. The map of the whole tree is live
+  dream runs on Sundays; the sleep cycle (`docs/SLEEP.md`) is built through its REM pass, the nightly
+  Routine awaiting Joshua; Veil step 2 (`docs/VEIL.md`) has letters and agreements on generated
+  bindings; licensing is AGPL plus an attribution term, a commercial licence and a CLA. The map of the whole tree is live
   (`docs/map/`, pnwbnw.github.io/hewn).
 - **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
   anchored through `payroll_audit_log`). Reconciliation (2026-10-26), Close period (2026-11-02,
