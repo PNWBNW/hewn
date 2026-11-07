@@ -108,7 +108,6 @@ function FileRestore({ onCancel, replacing }: { onCancel: () => void; replacing:
       <Field label="Backup file">
         <input
           type="file"
-          accept={`.${BRAND.backupExtension},application/json`}
           onChange={(e) => void pick(e.target.files?.[0] ?? null)}
           className="block w-full text-sm file:mr-3 file:h-10 file:rounded-md file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium"
         />

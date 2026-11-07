@@ -83,7 +83,6 @@ export default function VerifyProof() {
             {busy ? "Checking…" : "Choose a proof file"}
             <input
               type="file"
-              accept="application/json,.json"
               className="sr-only"
               onChange={(e) => {
                 const f = e.target.files?.[0];
