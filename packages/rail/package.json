@@ -15,6 +15,6 @@
     "@pnw/commitments": "workspace:*",
     "@pnw/config": "workspace:*",
     "@pnw/payroll": "workspace:*",
-    "@provablehq/sdk": "0.10.1"
+    "@provablehq/sdk": "0.13.0"
   }
 }

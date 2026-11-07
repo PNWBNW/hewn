@@ -22,6 +22,7 @@ being true.
 
 ## Shield and the network
 
+- **Inside Shield's browser, only a file fetched from a server can be saved.** Shield hands a download to Android's Download Manager, which fetches the address again over the network: a file built in the page (blob or `data:` link, even answered by a service worker) never arrives, and a new window, a new tab or an Android intent to another browser opens nothing. Shield's file picker allows JSON files only, whatever the page asks for. On a phone Hewn runs only inside Shield, and no file may pass through a server (Joshua), so saving a copy there waits on Shield; the on-chain backup is the way there, and a computer with the Shield extension saves files normally. Tested on a Pixel 7 with two throwaway preview pages, 2026-11-07. (`progress/2026-11-07.md`)
 - **On testnet, a private fee fails** (`RemoteProvingService ERR_NAME_NOT_RESOLVED`); Shield covers the fee publicly. The on-chain backup needs "pay with public fees" there; the app says so. (`progress/2026-10-27.md`)
 - **Shield's in-app browser has no share sheet and no downloads**; a backup file can't be saved from it. The on-chain backup exists for this reason; a request to Shield's team is drafted. (`progress/2026-10-27.md`)
 - **A Shield app update can empty its browser's storage**, taking the books with it. Backups are asked for; the on-chain backup restores on any device. (T19, `progress/2026-10-26.md`)

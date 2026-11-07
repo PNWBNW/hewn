@@ -1,6 +1,6 @@
 ---
 status: report
-updated: 2026-11-06
+updated: 2026-11-07
 summary: The network's limits checked against the settlement design before it was built (2026-10-14).
 ---
 
@@ -57,8 +57,8 @@ Since then (2026-11-06): Leo, snarkOS and snarkVM moved to the `aleo-labs-protoc
 paired with snarkOS 4.12.0. `docs/VEIL.md` has the detail.
 
 Action: the Leo session bumps all pins before touching a program. The wallet path is unaffected
-(Shield proves), but `@provablehq/sdk` 0.10.1 is still used for `SealanceMerkleTree` and must move
-to 0.12.x regardless.
+(Shield proves), and `@provablehq/sdk`, used for `SealanceMerkleTree`, moved to 0.13.0 on
+2026-11-07 (below).
 
 ## 2b. Toolchain, re-read 2026-11-06
 
@@ -70,11 +70,11 @@ each package against what Hewn calls:
 | Leo, to compile and test | 4.0.0 (`v4.0.0`, checksum pinned) | 4.4.6 (`leo-lang-v4.4.6`, 2026-10-28) | **Leo 4.4 refuses our programs' source**: a `const` inside `program { }` is an error, and `self.signer` is gone (`std::ctx::signer()`). Moving the source is a Leo change of its own (INV-22); until then 4.0.0 compiles and tests, which is also what built every deployed program. 4.4.6 removed `--disable-update-check`, prints `N tests run: N passed, 0 failed`, writes `build/<name>/<name>.aleo` |
 | Leo, to sign and send | 4.4.6 (crates.io, in the deploy and upgrade workflows) | 4.4.6 | Done: it was "latest", which has meant 4.4.6 since 2026-10-28, and its removed flag would have failed the next deploy |
 | snarkOS | 4.12.0, checksum pinned | 4.12.0 (2026-10-13); 4.12.1 exists | Done |
-| `@provablehq/sdk` | 0.10.1 | 0.13.0 (2026-10-27) | Everything Hewn calls is unchanged between the two: `SealanceMerkleTree` (identical source), `RecordCiphertext.fromString/decrypt/isOwner`, `ViewKey.from_string`, `Address.from_view_key`, `Transition.fromString/decryptTransition`, `Field.fromString`. 0.13 adds `types` export conditions and `.cjs` builds, and swaps `libsodium-wrappers` for `@serenity-kit/noble-sodium` 0.2.3 (a new dependency, T3). The rail exclusion test runs the real tree, so `pnpm test` exercises the bump; the devnode tests already resolve 0.13.0 nested, so a bump dedups to one copy. The old row's "V2 proofs" worry doesn't apply: Hewn proves nothing locally, and the tree and decryption are deterministic |
+| `@provablehq/sdk` | 0.13.0 (moved 2026-11-07; 0.10.1 before) | 0.13.0 (2026-10-27) | Done. Everything Hewn calls is unchanged between the two: `SealanceMerkleTree` (identical source), `RecordCiphertext.fromString/decrypt/isOwner`, `ViewKey.from_string`, `Address.from_view_key`, `Transition.fromString/decryptTransition`, `Field.fromString`. 0.13 adds `types` export conditions and `.cjs` builds, and swaps `libsodium-wrappers` for `@serenity-kit/noble-sodium` 0.2.3 (a new dependency, T3). The rail exclusion test runs the real tree, so `pnpm test` exercises the bump; the devnode tests already resolve 0.13.0 nested, so a bump dedups to one copy. The old row's "V2 proofs" worry doesn't apply: Hewn proves nothing locally, and the tree and decryption are deterministic |
 | Shield adapter and its packages | shield 1.3.0, core 1.1.2, react 1.3.1, types 1.1.0, standard 1.4.0 | shield 1.5.0, core 1.3.0, react 1.5.0, types 1.3.0, standard 1.6.0 (2026-10-27) | Additive API: `getBalances`, `subscribeTransactionStatus`, `prepareShieldedUsdcxMint`, an `algorithmsSupported()` that asks the wallet (1.3.0 returns a fixed list), `useTransaction` and `useTransactionStatus` hooks, new `TransactionStatus` values (`finalized`, `completed`, `aborted`, `expired`, `cancelled`). `executeTransaction`, `connect`, `decrypt`, `requestRecords` and `transitionViewKeys` are byte-identical; `transactionStatus` now lowercases the status and drops a `transactionId` that only echoes a wallet-internal handle, which is what Hewn's `isOnChainId` guard already assumes. Relay URL, deep link and protocol version unchanged, so the CSP pin holds. Core 1.3.0 names `https://api.provable.com/v2` as a balance fallback Hewn never calls (and the CSP would refuse). Hewn's `ACCEPTED` sets know `finalized`, `confirmed`, `completed`; its `REJECTED` sets know `rejected`, `failed` and not `aborted`, `expired`, `cancelled`, which a wallet may report whatever the adapter version: worth adding with the bump |
 | Veil (tests only) | 0.15.0 | 0.16.2 (2026-11-05) | Waits for seven days (OPS-04): 0.16.0 qualifies, 0.16.2 on 2026-11-12 |
 
-Order: the SDK (lowest risk, tested by the suite), then the adapters (Joshua connects Shield on
+Order: the SDK (lowest risk, tested by the suite; done 2026-11-07), then the adapters (Joshua connects Shield on
 the pull request's preview), then Veil when it is old enough. The Leo source move waits on Joshua;
 the experiment below says what it costs.
 
