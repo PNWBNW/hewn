@@ -4,6 +4,16 @@
       "abi": "../src/chain/generated/hewn_letters_v2.abi.json",
       "out": "../src/chain/generated/hewn_letters_v2.ts",
       "programId": "hewn_letters_v2.aleo"
+    },
+    {
+      "abi": "../src/chain/generated/employer_agreement_v5.abi.json",
+      "out": "../src/chain/generated/employer_agreement_v5.ts",
+      "programId": "employer_agreement_v5.aleo"
+    },
+    {
+      "abi": "../src/chain/generated/employer_agreement_v4.abi.json",
+      "out": "../src/chain/generated/employer_agreement_v4.ts",
+      "programId": "employer_agreement_v4.aleo"
     }
   ]
 }

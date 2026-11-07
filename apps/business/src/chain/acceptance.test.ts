@@ -1,3 +1,4 @@
+import { packedWords } from "@pnw/records/packed";
 import { describe, expect, it, vi } from "vitest";
 import { createBooks } from "@pnw/ledger";
 import { type Company, emptyCompany } from "../books/company";
@@ -29,7 +30,7 @@ function hired(): { company: Company; workerId: string } {
 const record = (name: string, agreementId: string, spent = false) => ({
   recordName: name,
   spent,
-  recordPlaintext: `{\n  owner: ${ADDR}.private,\n  agreement_id: ${bytesToAleoU8Array(agreementId)}.private,\n  worker_address: ${ANA}.private\n}`,
+  recordPlaintext: `{\n  owner: ${ADDR}.private,\n  agreement_id: ${bytesToAleoU8Array(agreementId)}.private,\n  worker_address: ${ANA}.private,\n  _nonce: 1group.public\n}`,
 });
 
 /** A vault that applies each update to the company it holds. */
@@ -96,7 +97,7 @@ describe("a v5 acceptance", () => {
     const base: Company = { ...emptyCompany(createBooks({ businessName: "Brothers", fiscalYearStartMonth: 1 })), rail };
     const { company } = hireByOffer(base, { name: "Ana Ruiz", who: { address: ANA, nameHash: "456", name: "ana" }, pay: PAY, link: { ...sentLink, program: AGREEMENT_V5, half: mine } });
     const v = vault(company);
-    const final = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  owner: ${ADDR}.private,\n  agreement_id: ${bytesToAleoU8Array(AGREEMENT)}.private,\n  worker_half: ${halfToInput(theirs)}.private\n}` };
+    const final = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  owner: ${ADDR}.private,\n  agreement_id: ${packedWords(AGREEMENT, 2)}.private,\n  worker_half: ${halfToInput(theirs)}.private,\n  _nonce: 1group.public\n}` };
     const requestRecords = vi.fn(async () => [final]);
     await checkAcceptances({ rail: v.get().rail, payroll: v.get().payroll, requestRecords, updateCompany: v.updateCompany, now: () => AT });
     const ring = v.get().mailbox?.threads?.[KEY]?.ring;

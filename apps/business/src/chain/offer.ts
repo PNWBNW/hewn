@@ -25,10 +25,10 @@ import type { Clock, RailWallet, Sleep } from "@pnw/rail";
 import { computeNameHash, queryNameOwner } from "@pnw/records/registry/name_registry";
 import { type RailLink, isRailAddress } from "../books/rail";
 import { packedWords } from "@pnw/records/packed";
-import { AGREEMENT_V4, AGREEMENT_V5, OFFER_PROGRAM as CURRENT_OFFER_PROGRAM, carriesHalves, halfOf, halfToInput } from "./agreement_programs";
+import { AGREEMENT_V4, AGREEMENT_V5, OFFER_PROGRAM as CURRENT_OFFER_PROGRAM, carriesHalves, halfFromRecord, halfToInput } from "./agreement_programs";
+import { decodeAgreementRecord } from "./agreement_records";
 import { bareDirectoryName } from "./directory";
 import { newHalf } from "./key_ring";
-import { byteArrayHex } from "./parties_key";
 import { DEFAULT_EXPIRY_DAYS, type ExpiryDays, type Letter, LetterError, emptyLetter, expiryFor, validateLetter } from "../books/offer_letter";
 import type { EmploymentType } from "../books/terms_words";
 import type { WorkWeek } from "../books/work_week";
@@ -266,17 +266,16 @@ export function finalAgreementIds(records: unknown[]): Set<string> {
   return new Set(finalAgreements(records).keys());
 }
 
-/** Every unspent FinalAgreement by agreement id, with the worker's public half when the record carries one (v5). */
+/** Every unspent FinalAgreement by agreement id, with the worker's public half when the record carries one (v5). Decoded through the generated bindings (agreement_records.ts). */
 export function finalAgreements(records: unknown[]): Map<string, { workerHalf?: string }> {
   const out = new Map<string, { workerHalf?: string }>();
   for (const raw of records) {
     const rec = raw as Record<string, unknown> | null;
     if (!rec || typeof rec !== "object" || rec.spent === true || rec.recordName !== "FinalAgreement") continue;
-    const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
-    const id = byteArrayHex(plaintext, "agreement_id");
-    if (!id) continue;
-    const workerHalf = halfOf(plaintext, "worker_half");
-    out.set(id, workerHalf ? { workerHalf } : {});
+    const d = decodeAgreementRecord(raw);
+    if (!d) continue;
+    const workerHalf = halfFromRecord(d.workerHalfHex);
+    out.set(d.agreementId, workerHalf ? { workerHalf } : {});
   }
   return out;
 }
@@ -286,8 +285,8 @@ export function sentOfferPlaintext(records: unknown[], agreementId: string): str
   for (const raw of records) {
     const rec = raw as Record<string, unknown> | null;
     if (!rec || typeof rec !== "object" || rec.spent === true || rec.recordName !== "SentOffer") continue;
-    const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
-    if (byteArrayHex(plaintext, "agreement_id") === bareHex(agreementId)) return plaintext;
+    const d = decodeAgreementRecord(raw);
+    if (d && d.agreementId === bareHex(agreementId)) return d.plaintext;
   }
   return null;
 }

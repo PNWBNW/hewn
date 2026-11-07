@@ -13,6 +13,7 @@ index is out of date.
 - [Vercel deploys once per batch, only when we mean it to](progress/2026-11-07.md#2026-11-07--vercel-deploys-once-per-batch-only-when-we-mean-it-to)
 - [Veil step 1 done: offers and agreements against a real Aleo node](progress/2026-11-07.md#2026-11-07--veil-step-1-done-offers-and-agreements-against-a-real-aleo-node)
 - [Veil step 2, letters: generated bindings in place of the hand parser](progress/2026-11-07.md#2026-11-07--veil-step-2-letters-generated-bindings-in-place-of-the-hand-parser)
+- [Veil step 2, agreements: v5 and v4 records through generated bindings](progress/2026-11-07.md#2026-11-07--veil-step-2-agreements-v5-and-v4-records-through-generated-bindings)
 
 ## [2026-11-06](progress/2026-11-06.md)
 
