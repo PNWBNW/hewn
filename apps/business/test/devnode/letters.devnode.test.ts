@@ -13,23 +13,15 @@
 // and nothing outside tests may import these packages (check_signing_path).
 // ---------------------------------------------------------------------------
 
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { startDevnode } from "@provablehq/veil-aleo-devnode";
-import { createDevnodeClient, loadNetwork } from "@provablehq/veil-aleo-sdk";
-import { waitForConfirmation } from "@provablehq/veil-core";
 import { open, seal } from "@pnw/mailbox";
 import { LETTERS_PROGRAM, LETTER_BYTES, letterCall, manyCalls, parseLetterRecord } from "@/chain/letters";
+import { type Aleo, type Clients, type Devnode, type Output, deploy, opened as openedBy, send as sendFrom, start } from "./harness";
 
 const PROGRAM_FILE = new URL("./programs/hewn_letters_v2.aleo", import.meta.url);
 /** The live program's bytecode, as read from the explorer on 2026-11-06. */
 const PROGRAM_SHA256 = "982e2d82a95b632fe049221b645e5ff334d44370588db807624b1e0ed64a785a";
-
-type Devnode = Awaited<ReturnType<typeof startDevnode>>;
-type Clients = ReturnType<typeof createDevnodeClient>;
-type Aleo = Awaited<ReturnType<typeof loadNetwork>>;
-type Output = { type: string; value: string };
 
 let node: Devnode;
 let clients: Clients;
@@ -37,37 +29,12 @@ let aleo: Aleo;
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
-
-/** Sends one call from the devnode's account and waits for it; returns its outputs. */
-async function send(call: { program: string; function: string; inputs: string[] }): Promise<Output[]> {
-  const txId = await clients.walletClient.writeContract(call);
-  const tx = (await waitForConfirmation(clients.publicClient, txId, 120_000)) as { execution?: { transitions?: { outputs?: Output[] }[] } };
-  return tx.execution?.transitions?.[0]?.outputs ?? [];
-}
-
-/** The record outputs a view key opens, as Shield would list them (`recordName`, `recordPlaintext`). */
-function opened(outputs: Output[], viewKey: string, names: readonly string[]): { recordName: string; recordPlaintext: string }[] {
-  const out: { recordName: string; recordPlaintext: string }[] = [];
-  outputs
-    .filter((o) => o.type === "record")
-    .forEach((o, i) => {
-      try {
-        out.push({ recordName: names[i] ?? "", recordPlaintext: aleo.decryptRecord(viewKey, o.value) });
-      } catch {
-        // Not this key's record.
-      }
-    });
-  return out;
-}
+const send = (call: Parameters<typeof sendFrom>[1]) => sendFrom(clients, call);
+const opened = (outputs: Output[], viewKey: string, names: readonly string[]) => openedBy(aleo, outputs, viewKey, names);
 
 beforeAll(async () => {
-  const source = readFileSync(PROGRAM_FILE, "utf8");
-  expect(createHash("sha256").update(source).digest("hex")).toBe(PROGRAM_SHA256);
-  node = await startDevnode({});
-  clients = createDevnodeClient();
-  aleo = await loadNetwork("testnet");
-  const deployment = await clients.walletClient.deployContract({ program: source });
-  await waitForConfirmation(clients.publicClient, deployment, 120_000);
+  ({ node, clients, aleo } = await start());
+  await deploy(clients, "hewn_letters_v2.aleo", PROGRAM_SHA256);
 });
 
 afterAll(async () => {
