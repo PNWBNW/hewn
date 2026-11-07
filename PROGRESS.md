@@ -23,6 +23,7 @@ index is out of date.
 - [Licensing: one copyright line](progress/2026-11-07.md#2026-11-07--licensing-one-copyright-line)
 - [Light sleep: 2026-11-07](progress/2026-11-07.md#2026-11-07--light-sleep-2026-11-07)
 - [The SDK moves to 0.13.0](progress/2026-11-07.md#2026-11-07--the-sdk-moves-to-0130)
+- [October closed on testnet; Veil's role in the ledger](progress/2026-11-07.md#2026-11-07--october-closed-on-testnet-veils-role-in-the-ledger)
 
 ## [2026-11-06](progress/2026-11-06.md)
 
