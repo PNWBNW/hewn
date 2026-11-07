@@ -261,8 +261,8 @@ FITNESS FOR A PARTICULAR PURPOSE. It is not tax, legal or accounting advice.
 Copyright (C) 2026 Joshua Day ([`NOTICE`](NOTICE)). One additional term applies under the
 licence's section 7(b): every copy keeps the attribution **"Hewn by Joshua Day"**, linked to this
 repository, where its users can see it. A **commercial licence**, for a closed or proprietary
-product built on Hewn, is available from Joshua Day (hewnsupport@gmail.com). Both are in
-[`LICENSING.md`](LICENSING.md).
+product built on Hewn, is available for purchase from Joshua Day (hewnsupport@gmail.com). Both
+are in [`LICENSING.md`](LICENSING.md).
 
 The **Hewn**™ name and logo are trademarks of Joshua Day, not covered by this licence. A fork
 should use its own name and art.

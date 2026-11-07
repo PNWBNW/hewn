@@ -28,8 +28,8 @@ Hewn itself shows this line in the small print of every screen (`LegalLinks` in
 ## 2. A commercial licence
 
 If you want to build a product on Hewn **without** the AGPL's conditions (to keep your changes
-closed, or sell it as proprietary software), a separate commercial licence is available from
-Joshua Day. Write to **hewnsupport@gmail.com** with what you intend to build.
+closed, or sell it as proprietary software), a separate commercial licence is available for
+purchase from Joshua Day. Write to **hewnsupport@gmail.com** with what you intend to build.
 
 The same applies to the Leo programs in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2),
 which are AGPL-3.0 on the same terms.
