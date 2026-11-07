@@ -16,7 +16,9 @@ whole or in part, must preserve the attribution
 
 in its Appropriate Legal Notices, displayed where a user of the work can see them (an About
 screen, a settings page or a footer), and must keep the copyright notice in [`NOTICE`](NOTICE).
-A changed work may say "Based on" before the attribution; it may not remove, shorten or hide it.
+A work with no user interface (a library, a server, a command-line tool) preserves the
+attribution in its documentation and in its own `NOTICE` file instead. A changed work may say
+"Based on" before the attribution; it may not remove, shorten or hide it.
 
 Hewn itself shows this line in the small print of every screen (`LegalLinks` in
 `apps/business/src/legal/LegalNotes.tsx`) and in the website's footer, from one place:
@@ -27,6 +29,10 @@ Hewn itself shows this line in the small print of every screen (`LegalLinks` in
 If you want to build a product on Hewn **without** the AGPL's conditions (to keep your changes
 closed, or sell it as proprietary software), a separate commercial licence is available for
 purchase from Joshua Day. Write to **hewnsupport@gmail.com** with what you intend to build.
+
+Rights beyond the AGPL are granted only by a written licence agreement signed by Joshua Day, and
+only on the terms it states. Nothing else grants them: not an email, a payment, an invoice, a
+conversation, or this file, which describes what is available and is not itself an offer.
 
 The same applies to the Leo programs in [`pnw_mvp_v2`](https://github.com/PNWBNW/pnw_mvp_v2),
 which are AGPL-3.0 on the same terms.
