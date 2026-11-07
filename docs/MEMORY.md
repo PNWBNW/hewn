@@ -93,6 +93,11 @@ to curate memory. For Hewn:
 The map is the structural half of "organize", already running on every push; dreaming is the
 semantic half.
 
+**Extended on 2026-11-07 by `docs/SLEEP.md`:** consolidation at every compaction and nightly as
+well as weekly, promotion and pruning between `memory/` and the rules, and a monthly REM pass
+that practises and keeps only what finds something. What this document says stands; that one
+adds the rhythms and the pieces.
+
 ## The order
 
 1. **Scopes, frontmatter, the generated index, session attribution** (this document; built
