@@ -5,12 +5,18 @@ import { describe, expect, it } from "vitest";
 import { generate } from "@provablehq/veil-codegen";
 import { parseAbi } from "@provablehq/veil-core";
 import { PROGRAMS } from "@pnw/config/programs";
-import { PROGRAM_ID } from "./hewn_letters_v2";
+import { PROGRAM_ID as AGREEMENT_V4_ID } from "./employer_agreement_v4";
+import { PROGRAM_ID as AGREEMENT_V5_ID } from "./employer_agreement_v5";
+import { PROGRAM_ID as LETTERS_ID } from "./hewn_letters_v2";
 
 const here = (file: string) => readFileSync(new URL(file, import.meta.url), "utf8");
-const ABI_JSON = JSON.parse(here("./hewn_letters_v2.abi.json"));
-/** The deployed bytecode, read from the explorer (the devnode tests deploy the same file). */
-const DEPLOYED = here("../../../test/devnode/programs/hewn_letters_v2.aleo");
+
+/** Each generated program: its id in @pnw/config, the id the bindings carry, and its records as deployed. */
+const PROGRAMS_GENERATED = [
+  { file: "hewn_letters_v2", config: PROGRAMS.letters.hewn_letters, id: LETTERS_ID, records: ["Letter", "Page", "SentLetter"] },
+  { file: "employer_agreement_v5", config: PROGRAMS.layer1.employer_agreement_v5, id: AGREEMENT_V5_ID, records: ["AgreementEnd", "FinalAgreement", "PendingAgreement", "SentOffer"] },
+  { file: "employer_agreement_v4", config: PROGRAMS.layer1.employer_agreement, id: AGREEMENT_V4_ID, records: ["FinalAgreement", "PendingAgreement"] },
+] as const;
 
 /** Each record in Aleo bytecode as `name: [field type, …]`, e.g. `Letter: ["lookup [u128; 2]", …]`. */
 function bytecodeRecords(bytecode: string): Record<string, string[]> {
@@ -39,20 +45,23 @@ function abiRecords(abi: { records: { path: string[]; fields: { name: string; ty
   return Object.fromEntries(abi.records.map((r) => [r.path.at(-1)!, r.fields.filter((f) => f.name !== "owner").map((f) => `${f.name} ${type(f.ty)}`)]));
 }
 
-describe("the generated bindings for hewn_letters_v2", () => {
+describe.each(PROGRAMS_GENERATED)("the generated bindings for $file", ({ file, config, id, records }) => {
+  const abi = JSON.parse(here(`./${file}.abi.json`));
+  /** The deployed bytecode, read from the explorer (test/devnode/programs, checksums in its README). */
+  const deployed = here(`../../../test/devnode/programs/${file}.aleo`);
+
   it("are exactly what veil-codegen makes from the checked-in ABI (regenerate with `pnpm codegen`, never edit)", () => {
-    expect(here("./hewn_letters_v2.ts")).toBe(generate({ abi: parseAbi(ABI_JSON), programId: "hewn_letters_v2.aleo" }));
+    expect(here(`./${file}.ts`)).toBe(generate({ abi: parseAbi(abi), programId: `${file}.aleo` }));
   });
 
   it("name the program @pnw/config names", () => {
-    expect(PROGRAM_ID).toBe(PROGRAMS.letters.hewn_letters);
-    expect(ABI_JSON.program).toBe(PROGRAMS.letters.hewn_letters);
+    expect(id).toBe(config);
+    expect(abi.program).toBe(config);
   });
 
   it("come from an ABI whose records are the deployed program's, field for field", () => {
-    const deployed = bytecodeRecords(DEPLOYED);
-    expect(Object.keys(deployed).sort()).toEqual(["Letter", "Page", "SentLetter"]);
-    expect(abiRecords(ABI_JSON)).toEqual(deployed);
-    expect(deployed.Letter).toEqual(["lookup [u128; 2]", "parcel [field; 34]"]);
+    const fromBytecode = bytecodeRecords(deployed);
+    expect(Object.keys(fromBytecode).sort()).toEqual([...records]);
+    expect(abiRecords(abi)).toEqual(fromBytecode);
   });
 });

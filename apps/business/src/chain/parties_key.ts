@@ -7,6 +7,7 @@
 
 import { arrayFieldHex } from "@pnw/records/packed";
 import { AGREEMENT_PROGRAMS } from "./agreement_programs";
+import { decodeAgreementRecord } from "./agreement_records";
 
 /**
  * A record's array field as lower-case hex: v4's `[u8; N]` bytes or v5's packed `u128` words
@@ -15,7 +16,7 @@ import { AGREEMENT_PROGRAMS } from "./agreement_programs";
  */
 export const byteArrayHex = (plaintext: string, field: string, length?: number): string | null => arrayFieldHex(plaintext, field, length);
 
-/** agreement id (hex) → parties key (64 hex) for every unspent agreement record, pending or final. */
+/** agreement id (hex) → parties key (64 hex) for every unspent agreement record, pending or final; decoded through the generated bindings (agreement_records.ts). */
 export function partiesKeysOf(records: unknown[]): Map<string, string> {
   const keys = new Map<string, string>();
   for (const raw of records) {
@@ -23,11 +24,8 @@ export function partiesKeysOf(records: unknown[]): Map<string, string> {
     if (!rec || typeof rec !== "object") continue;
     if (rec.spent === true) continue;
     // v5's SentOffer is the employer's copy of a pending offer (chain/agreement_programs.ts).
-    if (rec.recordName !== "FinalAgreement" && rec.recordName !== "PendingAgreement" && rec.recordName !== "SentOffer") continue;
-    const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
-    const agreementId = byteArrayHex(plaintext, "agreement_id");
-    const partiesKey = byteArrayHex(plaintext, "parties_key", 32);
-    if (agreementId && partiesKey && !keys.has(agreementId)) keys.set(agreementId, partiesKey);
+    const d = decodeAgreementRecord(raw);
+    if (d?.partiesKey && !keys.has(d.agreementId)) keys.set(d.agreementId, d.partiesKey);
   }
   return keys;
 }

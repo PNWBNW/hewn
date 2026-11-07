@@ -17,7 +17,26 @@ import { AGREEMENT_V5 } from "@/chain/agreement_programs";
 import { newHalf } from "@/chain/key_ring";
 import { FREQUENCY_CODES, OFFER_FUNCTION_V5, WITHDRAW_FUNCTION_V5, createOfferInputsV5, finalAgreements, newPartiesKey, sentOfferPlaintext } from "@/chain/offer";
 import { acceptCall, parseAgreementRecords } from "@/chain/work/agreements";
-import { type Aleo, type Clients, type Devnode, deploy, fundedAccount, opened, send, start } from "./harness";
+import { partiesKeysOf } from "@/chain/parties_key";
+import { parseAgreementRecord } from "@/chain/work/agreements";
+import { handFinalAgreements, handParseAgreementRecord, handPartiesKeysOf } from "../legacy/agreements_hand_parser";
+import { type Aleo, type Clients, type Devnode, type Listed, type Output, deploy, fundedAccount, opened as openedBy, send, start } from "./harness";
+
+/**
+ * The records a view key opens, each first read by the readers on the generated bindings and by
+ * the hand readers they replaced (docs/VEIL.md step 2): they must agree on every record the real
+ * program returns.
+ */
+function opened(a: Aleo, outputs: Output[], viewKey: string, names: readonly string[]): Listed[] {
+  const records = openedBy(a, outputs, viewKey, names);
+  expect(finalAgreements(records)).toEqual(handFinalAgreements(records));
+  expect(partiesKeysOf(records)).toEqual(handPartiesKeysOf(records));
+  for (const r of records) {
+    const worker = /worker_address:\s*(aleo1[a-z0-9]{58})/.exec(r.recordPlaintext)?.[1] ?? "";
+    expect(parseAgreementRecord(r, worker, AGREEMENT_V5)).toEqual(handParseAgreementRecord(r, worker, AGREEMENT_V5));
+  }
+  return records;
+}
 
 /** The live program's bytecode, as read from the explorer on 2026-11-06 and 11-07. */
 const PROGRAM_SHA256 = "a81fec03bb1418ef4020a3433d22107d1c34aa50e1d6ca76bbf8eab905a6ed19";

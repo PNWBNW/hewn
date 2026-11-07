@@ -12,8 +12,8 @@
 import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
 import { packedWords } from "@pnw/records/packed";
-import { AGREEMENT_PROGRAMS, AGREEMENT_V4, carriesHalves, halfOf, halfToInput } from "../agreement_programs";
-import { byteArrayHex } from "../parties_key";
+import { AGREEMENT_PROGRAMS, AGREEMENT_V4, carriesHalves, halfFromRecord, halfToInput } from "../agreement_programs";
+import { decodeAgreementRecord } from "../agreement_records";
 
 export type AgreementRecord = {
   kind: "pending" | "final";
@@ -37,30 +37,25 @@ export type AgreementRecord = {
   workerHalf?: string;
 };
 
-const ADDRESS = (field: string) => new RegExp(`${field}:\\s*(aleo1[a-z0-9]{58})`);
-const FIELD = (field: string) => new RegExp(`${field}:\\s*(\\d+)field`);
-
-/** One record, or null if it isn't an unspent agreement record owned by this person. */
+/**
+ * One record, or null if it isn't an unspent agreement record owned by this person. Decoded
+ * through the generated bindings (`../agreement_records.ts`, docs/VEIL.md step 2); the halves
+ * only for a program that carries them.
+ */
 export function parseAgreementRecord(raw: unknown, workerAddress: string, program: string = AGREEMENT_V4): AgreementRecord | null {
   const rec = raw as Record<string, unknown> | null;
   if (!rec || typeof rec !== "object") return null;
   if (rec.spent === true) return null;
   const kind = rec.recordName === "PendingAgreement" ? "pending" : rec.recordName === "FinalAgreement" ? "final" : null;
   if (!kind) return null;
-  const plaintext = typeof rec.recordPlaintext === "string" ? rec.recordPlaintext : "";
-  const worker = plaintext.match(ADDRESS("worker_address"))?.[1];
-  const employer = plaintext.match(ADDRESS("employer_address"))?.[1];
-  if (!worker || !employer || worker !== workerAddress) return null;
-  const agreementId = byteArrayHex(plaintext, "agreement_id");
-  const partiesKey = byteArrayHex(plaintext, "parties_key", 32);
-  const termsDocHash = byteArrayHex(plaintext, "terms_doc_hash", 32);
-  const employerNameHash = plaintext.match(FIELD("employer_name_hash"))?.[1];
-  const workerNameHash = plaintext.match(FIELD("worker_name_hash"))?.[1];
-  if (!agreementId || !partiesKey || !termsDocHash || !employerNameHash || !workerNameHash) return null;
-  const record: AgreementRecord = { kind, agreementId, partiesKey, employerAddress: employer, workerAddress: worker, employerNameHash, workerNameHash, termsDocHash, plaintext, program };
+  const d = decodeAgreementRecord(raw);
+  if (!d || !d.workerAddress || !d.employerAddress || d.workerAddress !== workerAddress) return null;
+  const { agreementId, partiesKey, termsDocHash, employerNameHash, workerNameHash } = d;
+  if (!partiesKey || !termsDocHash || !employerNameHash || !workerNameHash) return null;
+  const record: AgreementRecord = { kind, agreementId, partiesKey, employerAddress: d.employerAddress, workerAddress: d.workerAddress, employerNameHash, workerNameHash, termsDocHash, plaintext: d.plaintext, program };
   if (carriesHalves(program)) {
-    const employerHalf = halfOf(plaintext, "employer_half");
-    const workerHalf = halfOf(plaintext, "worker_half");
+    const employerHalf = halfFromRecord(d.employerHalfHex);
+    const workerHalf = halfFromRecord(d.workerHalfHex);
     if (employerHalf) record.employerHalf = employerHalf;
     if (workerHalf) record.workerHalf = workerHalf;
   }

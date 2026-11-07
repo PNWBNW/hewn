@@ -50,6 +50,7 @@ what users run, not a rebuild. The test checks each file's sha256 before deployi
 |---|---|---|
 | `hewn_letters_v2.aleo` | `982e2d82a95b632fe049221b645e5ff334d44370588db807624b1e0ed64a785a` | 2026-11-06 |
 | `employer_agreement_v5.aleo` | `a81fec03bb1418ef4020a3433d22107d1c34aa50e1d6ca76bbf8eab905a6ed19` | 2026-11-06 and 11-07 |
+| `employer_agreement_v4.aleo` | `5be6c60a70995dca1ad0368f26e781410249a61ad5ea8f7ba47db2d2b69e5b06` | 2026-11-07; not deployed by a test (it imports two programs), only read by `src/chain/generated/generated.test.ts` to check the ABI's records |
 
 To refresh or add one (a new version is a new file; deployed programs never change):
 

@@ -441,7 +441,7 @@ describe("offer → link", () => {
     expect(linkStatus(rail, "worker", "wkr-1")).toBe("typed");
     expect(linkStatus(offered, "worker", "wkr-1")).toBe("offered");
 
-    const plaintext = `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${bytesToAleoU8Array(sent.link.agreementId)}.private,\n  worker_address: ${WORKER}.private\n}`;
+    const plaintext = `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${bytesToAleoU8Array(sent.link.agreementId)}.private,\n  worker_address: ${WORKER}.private,\n  _nonce: 1group.public\n}`;
     expect(finalAgreementIds([{ recordName: "PendingAgreement", spent: false, recordPlaintext: plaintext }])).toEqual(new Set());
     expect(finalAgreementIds([{ recordName: "FinalAgreement", spent: true, recordPlaintext: plaintext }])).toEqual(new Set());
     const finals = finalAgreementIds([{ recordName: "FinalAgreement", spent: false, recordPlaintext: plaintext }, null, "x"]);
@@ -589,8 +589,8 @@ describe("offers to employer_agreement_v5", () => {
   it("read the worker's half from a v5 FinalAgreement, and nothing from a v4 one", () => {
     const workerHalf = "04" + "cd".repeat(64);
     const id = "11".repeat(32);
-    const v5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  agreement_id: ${packedWords(id, 2)}.private,\n  worker_half: ${halfToInput(workerHalf)}.private\n}` };
-    const v4 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  agreement_id: ${bytesToAleoU8Array("22".repeat(32))}.private\n}` };
+    const v5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${packedWords(id, 2)}.private,\n  worker_half: ${halfToInput(workerHalf)}.private,\n  _nonce: 1group.public\n}` };
+    const v4 = { recordName: "FinalAgreement", spent: false, recordPlaintext: `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${bytesToAleoU8Array("22".repeat(32))}.private,\n  _nonce: 1group.public\n}` };
     const found = finalAgreements([v5, v4, { recordName: "SentOffer", spent: false, recordPlaintext: v5.recordPlaintext }]);
     expect(found.get(id)).toEqual({ workerHalf });
     expect(found.get("22".repeat(32))).toEqual({});
@@ -600,7 +600,7 @@ describe("offers to employer_agreement_v5", () => {
   it("are withdrawn with the SentOffer record alone, found among Shield's v5 records", async () => {
     const wallet = fakeWallet();
     const id = "11".repeat(32);
-    const plaintext = `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${packedWords(id, 2)}.private\n}`;
+    const plaintext = `{\n  owner: ${EMPLOYER}.private,\n  agreement_id: ${packedWords(id, 2)}.private,\n  _nonce: 1group.public\n}`;
     const records = [{ recordName: "SentOffer", spent: true, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext }, { recordName: "SentOffer", spent: false, recordPlaintext: plaintext.replace(packedWords(id, 2), packedWords("33".repeat(32), 2)) }];
     expect(sentOfferPlaintext(records, id)).toBe(plaintext);
     expect(sentOfferPlaintext(records, "44".repeat(32))).toBeNull();

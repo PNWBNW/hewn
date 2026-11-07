@@ -205,7 +205,15 @@ addresses, which works through the redirect; its pin bump moves them.
    `u128`) and one place it isn't (a mistyped suffix, which a program's records can't carry).
    `veil-core` is now a runtime dependency of the app: 8.9 KB (3.7 KB gzipped), in the chain
    pages' chunk; the generated contract factory is never called (the signing-path check) and is
-   dropped from the bundle. Agreements next.
+   dropped from the bundle.
+   **Agreements done, 2026-11-07:** `employer_agreement_v5` and `v4` the same way (v5's source
+   build is the deployed bytecode byte for byte, v4's but for one blank line from its upgrade),
+   decoded once in `src/chain/agreement_records.ts` for the worker's reader, the employer's
+   import and withdrawal, and the parties keys. Side by side with the hand readers on fixtures and
+   on every real offer, acceptance and withdrawal record from the devnode: they agree, except
+   where the generated path is stricter (text without a `_nonce`; a record mixing the two
+   programs' shapes, which neither can write). Left: `packages/records`' agreement reader, which
+   waits for the bindings to move into a package of their own.
 3. **The reads:** a usage panel from the program-calls route (for Hewn's own traction, not the
    app), and transition view keys for the period proof's payment check.
 4. **Writes through Veil's wallet client,** only if it clearly beats the current executor, with the

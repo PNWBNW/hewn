@@ -107,10 +107,16 @@ describe("accept_job_offer inputs", () => {
   });
 });
 
+/** The same record as v5 carries it: every 32-byte `[u8; 32]` packed into two u128 words (v5 has no offer height). */
+const asV5 = (plaintext: string): string =>
+  plaintext
+    .replace(/\[((?:\s*\d+u8,?){32})\s*\]/g, (_m, list: string) => packedWords([...list.matchAll(/(\d+)u8/g)].map((b) => Number(b[1]).toString(16).padStart(2, "0")).join(""), 2))
+    .replace(/\n  offer_height: \d+u32\.private,/, "");
+
 describe("employer_agreement_v5 records", () => {
   const employerHalf = "04" + "ab".repeat(64);
   const workerHalf = "04" + "cd".repeat(64);
-  const pendingV5 = { recordName: "PendingAgreement", spent: false, recordPlaintext: PENDING_PLAINTEXT.replace("employer_address", `employer_half: ${halfToInput(employerHalf)}.private,\n  employer_address`) };
+  const pendingV5 = { recordName: "PendingAgreement", spent: false, recordPlaintext: asV5(PENDING_PLAINTEXT).replace("employer_address", `employer_half: ${halfToInput(employerHalf)}.private,\n  employer_address`) };
   const finalV5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: pendingV5.recordPlaintext.replace("employer_half", `worker_half: ${halfToInput(workerHalf)}.private,\n  employer_half`) };
 
   it("carry the employer's half in the offer and both halves once accepted", () => {

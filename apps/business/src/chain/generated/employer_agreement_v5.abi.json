@@ -1,0 +1,1551 @@
+{
+  "program": "employer_agreement_v5.aleo",
+  "structs": [
+    {
+      "path": [
+        "OfferTerms"
+      ],
+      "fields": [
+        {
+          "name": "industry_code",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "pay_frequency_code",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "start_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          }
+        },
+        {
+          "name": "end_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          }
+        },
+        {
+          "name": "review_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          }
+        },
+        {
+          "name": "agreement_rev",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          }
+        },
+        {
+          "name": "schema_v",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          }
+        },
+        {
+          "name": "policy_v",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "OfferHashes"
+      ],
+      "fields": [
+        {
+          "name": "terms_doc_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          }
+        },
+        {
+          "name": "terms_root",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          }
+        },
+        {
+          "name": "offer_time_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "records": [
+    {
+      "path": [
+        "PendingAgreement"
+      ],
+      "fields": [
+        {
+          "name": "owner",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "agreement_id",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "parties_key",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_name_hash",
+          "ty": {
+            "Primitive": "Field"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_name_hash",
+          "ty": {
+            "Primitive": "Field"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "industry_code",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "pay_frequency_code",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "start_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "end_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "review_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "agreement_rev",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "schema_v",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "policy_v",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "terms_doc_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "terms_root",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "offer_time_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_address",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_address",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_half",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 4
+            }
+          },
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "path": [
+        "SentOffer"
+      ],
+      "fields": [
+        {
+          "name": "owner",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "agreement_id",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "parties_key",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_name_hash",
+          "ty": {
+            "Primitive": "Field"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_name_hash",
+          "ty": {
+            "Primitive": "Field"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "terms_doc_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "offer_time_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_address",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_address",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_half",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 4
+            }
+          },
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "path": [
+        "FinalAgreement"
+      ],
+      "fields": [
+        {
+          "name": "owner",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "agreement_id",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "parties_key",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_name_hash",
+          "ty": {
+            "Primitive": "Field"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_name_hash",
+          "ty": {
+            "Primitive": "Field"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "industry_code",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "pay_frequency_code",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "start_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "end_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "review_epoch",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "agreement_rev",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "schema_v",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "policy_v",
+          "ty": {
+            "Primitive": {
+              "UInt": "U16"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "terms_doc_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "terms_root",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "offer_time_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "accept_time_hash",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_address",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_address",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_half",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 4
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_half",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 4
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "end_reason",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          },
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "path": [
+        "AgreementEnd"
+      ],
+      "fields": [
+        {
+          "name": "owner",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "agreement_id",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "parties_key",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": {
+                  "UInt": "U128"
+                }
+              },
+              "length": 2
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "ended_by",
+          "ty": {
+            "Primitive": "Address"
+          },
+          "mode": "None"
+        },
+        {
+          "name": "reason",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          },
+          "mode": "None"
+        }
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "name": "agreement_anchor_height",
+      "key": {
+        "Array": {
+          "element": {
+            "Primitive": {
+              "UInt": "U128"
+            }
+          },
+          "length": 2
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U32"
+        }
+      }
+    },
+    {
+      "name": "agreement_status",
+      "key": {
+        "Array": {
+          "element": {
+            "Primitive": {
+              "UInt": "U128"
+            }
+          },
+          "length": 2
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    },
+    {
+      "name": "resume_approvals",
+      "key": {
+        "Array": {
+          "element": {
+            "Primitive": {
+              "UInt": "U128"
+            }
+          },
+          "length": 2
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    },
+    {
+      "name": "end_approvals",
+      "key": {
+        "Array": {
+          "element": {
+            "Primitive": {
+              "UInt": "U128"
+            }
+          },
+          "length": 2
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    },
+    {
+      "name": "pair_status",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    }
+  ],
+  "storage_variables": [],
+  "functions": [
+    {
+      "name": "create_offer",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "agreement_id",
+          "ty": {
+            "Plaintext": {
+              "Array": {
+                "element": {
+                  "Primitive": {
+                    "UInt": "U128"
+                  }
+                },
+                "length": 2
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "parties_key",
+          "ty": {
+            "Plaintext": {
+              "Array": {
+                "element": {
+                  "Primitive": {
+                    "UInt": "U128"
+                  }
+                },
+                "length": 2
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_name_hash",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_name_hash",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_address",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "terms",
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "OfferTerms"
+                ],
+                "program": "employer_agreement_v5.aleo"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "hashes",
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "OfferHashes"
+                ],
+                "program": "employer_agreement_v5.aleo"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer_half",
+          "ty": {
+            "Plaintext": {
+              "Array": {
+                "element": {
+                  "Primitive": {
+                    "UInt": "U128"
+                  }
+                },
+                "length": 4
+              }
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "PendingAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "SentOffer"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "accept_offer",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "offer",
+          "ty": {
+            "Record": {
+              "path": [
+                "PendingAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "accept_time_hash",
+          "ty": {
+            "Plaintext": {
+              "Array": {
+                "element": {
+                  "Primitive": {
+                    "UInt": "U128"
+                  }
+                },
+                "length": 2
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker_half",
+          "ty": {
+            "Plaintext": {
+              "Array": {
+                "element": {
+                  "Primitive": {
+                    "UInt": "U128"
+                  }
+                },
+                "length": 4
+              }
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_offer",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "sent",
+          "ty": {
+            "Record": {
+              "path": [
+                "SentOffer"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "pause_employer",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "pause_worker",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "approve_resume_employer",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "approve_resume_worker",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "resume",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "terminate_employer",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "reason",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "AgreementEnd"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "terminate_worker",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "reason",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "AgreementEnd"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "approve_end_employer",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "approve_end_worker",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "end_mutual",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "a",
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "FinalAgreement"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "AgreementEnd"
+              ],
+              "program": "employer_agreement_v5.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "assert_pair_active",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "parties_key",
+          "ty": {
+            "Plaintext": {
+              "Array": {
+                "element": {
+                  "Primitive": {
+                    "UInt": "U128"
+                  }
+                },
+                "length": 2
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "assert_pair_agreed",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "parties_key",
+          "ty": {
+            "Plaintext": {
+              "Array": {
+                "element": {
+                  "Primitive": {
+                    "UInt": "U128"
+                  }
+                },
+                "length": 2
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "employer",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "worker",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    }
+  ]
+}
