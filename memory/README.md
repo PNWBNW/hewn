@@ -2,7 +2,7 @@
 
 Team memory (`docs/MEMORY.md`): what has been decided and what has been learned, consolidated
 in one place so a session finds it without reading every document. Agents append here freely in
-their own pull request; the weekly dreaming pass (`scripts/dreaming/PROMPT.md`) verifies, merges
+their own pull request; the weekly dreaming pass (`.claude/skills/dream/SKILL.md`) verifies, merges
 and prunes it in its own.
 
 | File | What |
