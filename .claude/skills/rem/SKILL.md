@@ -73,7 +73,7 @@ a "verified" line. The discarded dreams are discarded.
   `docs/incidents/rem-<today>.md` (the incidents folder is not in the documents index, so no
   frontmatter is required; start with a title and the date) and one section per finding: the two parts crossed, the test, input or
   question that showed it (the test as code, pasted, so a working session can run it), what it
-  means, and what a task to answer it would be. Never a fix, never a rule change. Then an entry in `progress/<today>.md` headed `## <today> — REM: <today>` listing the pairs
+  means, and what a task to answer it would be. Never a fix, never a rule change. Then an entry in `progress/<YYYY-MM>/<today>.md` headed `## <today> — REM: <today>` listing the pairs
   and the findings by title, ending with the bare id of this session (`— session_…`;
   `get_session` with no arguments gives it, or `${CLAUDE_SESSION_ID}`; never a link), and
   `python3 -I scripts/progress_index.py --write`, `python3 -I scripts/check_links.py`.

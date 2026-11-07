@@ -200,7 +200,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 | [`docs/map/`](docs/map/README.md) | The map of Hewn, drawn in 3D on GitHub Pages: [pnwbnw.github.io/hewn](https://pnwbnw.github.io/hewn). Where the data lives and what crosses between places, each flow with its rule; the whole tree next |
 | [`archive/`](archive/README.md) | Retired code, kept as it was: the Julia tax engine, the salvage script, four salvaged packages nothing uses |
 | [`BUILD_PLAN.md`](BUILD_PLAN.md) | The spec: phases, deliverables and exit criteria |
-| [`PROGRESS.md`](PROGRESS.md), [`progress/`](progress/) | A dated log of every change, with test counts: one file per day, and the index |
+| [`PROGRESS.md`](PROGRESS.md), [`progress/`](progress/) | A dated log of every change, with test counts: one file per day in a folder per month, and the index |
 | [`CLAUDE.md`](CLAUDE.md) | The project's rules: privacy floor, key handling, boundaries |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md), [`SECURITY.md`](SECURITY.md) | Running it, the rules in short, forking, and how to report a problem privately |
 | [`dev_testing_guide.md`](dev_testing_guide.md) | For developers testing the app by hand: scenarios we're unsure of, with results posted on each area's `manual-test` issue |

@@ -25,7 +25,7 @@ the seven days ending today.
 Never read the whole store. In this order:
 
 1. `docs/MEMORY.md`, `CLAUDE.md`, `memory/README.md`, `memory/decisions.md`, `memory/lessons.md`.
-2. **The week's work.** The progress entries of the last seven days (`progress/<date>.md`, one
+2. **The week's work.** The progress entries of the last seven days (`progress/<YYYY-MM>/<date>.md`, one
    file a day, entries oldest to newest) and the pull requests merged into `main` in that time
    (`git log origin/main --since="7 days ago" --format="%h %s"`; a squash merge ends in `(#N)`).
    Read the diff of each merged pull request only where an entry's claim needs checking.
@@ -103,7 +103,7 @@ true belongs higher up.
 
 - Branch `dreaming/<today>` from `origin/main`. Commit message `dreaming: week of <today>`.
 - Before pushing: `python3 -I scripts/check_invariants.py`, `python3 -I scripts/check_links.py`,
-  `python3 -I scripts/docs_index.py --write`, and an entry in `progress/<today>.md` headed
+  `python3 -I scripts/docs_index.py --write`, and an entry in `progress/<YYYY-MM>/<today>.md` headed
   `## <today> — Dreaming: week of <today>` saying what was verified, what changed and what is
   asked, ending with the bare id of this session (`— session_…`; `get_session` with no
   arguments gives it, or `${CLAUDE_SESSION_ID}`; never a link). Then `python3 -I scripts/progress_index.py --write`.

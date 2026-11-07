@@ -24,16 +24,16 @@ hand-edit the generated files in `apps/*/public/brand/` (the app and the marketi
 company and protocol namespace).
 
 `BUILD_PLAN.md` (repo root) is the spec: phases, deliverables, exit criteria. The log is one file
-per day in `progress/`; `PROGRESS.md` is its generated index. What has been decided and learned
-is consolidated in `memory/` (`decisions.md`, `lessons.md`); the rules below carry no history,
-the ledger does.
+per day in `progress/`, in a folder per month (`progress/2026-11/2026-11-07.md`); `PROGRESS.md`
+is its generated index. What has been decided and learned is consolidated in `memory/`
+(`decisions.md`, `lessons.md`); the rules below carry no history, the ledger does.
 
 ## Session start
 
 1. Read the **Now** block at the top of `BUILD_PLAN.md` (it ends at `## Scope`), the phase it
-   names, and the last few entries of the newest file in `progress/` (files are named by date;
-   within a day, entries run oldest to newest, so the newest are at the end). You don't need
-   `PROGRESS.md`, the index. About 5k tokens in all.
+   names, and the last few entries of the newest file in `progress/` (a folder per month, files
+   named by date; within a day, entries run oldest to newest, so the newest are at the end). You
+   don't need `PROGRESS.md`, the index. About 5k tokens in all.
 2. The current phase is the one the Now block names (not the first phase with an open box: older
    phases keep leftovers that wait on other things). Report to Joshua in 10 lines or fewer: current
    phase, what's done, what's next, any blocker. Then propose **one** task aimed at **one** exit
@@ -130,9 +130,9 @@ The dates and who decided each rule are in `memory/decisions.md`.
   inspection and tests are fine anytime.
 - Production revisions get a decimal version in the filename (v1.1, v1.2, …). Joshua decides when the
   whole number bumps.
-- End of every task: run the tests, append a dated entry to that day's file in `progress/` (what
-  changed, test counts, tx hashes if any), ending with the bare id of this session
-  (`— session_…`, never a link: only Joshua can open the transcript; `docs/MEMORY.md`, 2026-11-03),
+- End of every task: run the tests, append a dated entry to that day's file in
+  `progress/<month>/` (what changed, test counts, tx hashes if any), ending with the bare id of
+  this session (`— session_…`, never a link: only Joshua can open the transcript; `docs/MEMORY.md`, 2026-11-03),
   regenerate the index (`python3 -I scripts/progress_index.py --write`), tick any exit criteria
   met in `BUILD_PLAN.md`, commit, open a PR, stop.
 - Memory lives in three scopes of plain files (`docs/MEMORY.md`): org knowledge (this file, the

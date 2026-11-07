@@ -42,9 +42,11 @@ class SnapshotTest(unittest.TestCase):
         git(self.root, "init", "-q", "-b", "main")
         git(self.root, "config", "user.email", "test@example.invalid")
         git(self.root, "config", "user.name", "Test")
-        (self.root / "progress").mkdir()
-        (self.root / "progress" / "2026-11-06.md").write_text("## 2026-11-06 — Older\n\nText.\n", encoding="utf-8")
-        (self.root / "progress" / "2026-11-07.md").write_text(
+        (self.root / "progress" / "2026-11").mkdir(parents=True)
+        (self.root / "progress" / "2026-10").mkdir()
+        (self.root / "progress" / "2026-10" / "2026-10-31.md").write_text("## 2026-10-31 — Last month\n\nText.\n", encoding="utf-8")
+        (self.root / "progress" / "2026-11" / "2026-11-06.md").write_text("## 2026-11-06 — Older\n\nText.\n", encoding="utf-8")
+        (self.root / "progress" / "2026-11" / "2026-11-07.md").write_text(
             "## 2026-11-07 — First of the day\n\nText.\n\n## 2026-11-07 — The newest entry\n\nText.\n",
             encoding="utf-8",
         )
@@ -82,7 +84,7 @@ class SnapshotTest(unittest.TestCase):
         self.assertIn("- Trigger: auto", text)
         self.assertIn("- Branch: `work` at", text)
         self.assertIn("?? dirty.ts", text)
-        self.assertIn("`progress/2026-11-07.md`, 2 entries; last: `## 2026-11-07 — The newest entry`", text)
+        self.assertIn("`progress/2026-11/2026-11-07.md`, 2 entries; last: `## 2026-11-07 — The newest entry`", text)
         self.assertIn("    plan.md", text)
         self.assertNotIn("data.bin", text)
         # The instructions go to the summariser, under the harness's limit, and point at the file.
@@ -134,7 +136,7 @@ class SnapshotTest(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stderr)
             context = json.loads(done.stdout)["hookSpecificOutput"]["additionalContext"]
             self.assertIn(f"Session {source}", context)
-            self.assertIn("`progress/2026-11-07.md` (2 entries; last: `## 2026-11-07 — The newest entry`)", context)
+            self.assertIn("`progress/2026-11/2026-11-07.md` (2 entries; last: `## 2026-11-07 — The newest entry`)", context)
             self.assertIn("Branch `work`, 2 uncommitted change(s)", context)
 
     def test_runs_without_input_and_refuses_a_wrong_mode(self):

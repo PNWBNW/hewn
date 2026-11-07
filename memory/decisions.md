@@ -18,8 +18,8 @@ What Hewn is and isn't, and how it's described.
 - 2026-10-13 · Hewn is a clean-room rebuild of QuickBooks Advanced's function (minus AI and support) on the PNW payroll stack; never its screens, icons, text or layouts · Joshua · `CLAUDE.md`, `docs/DESIGN_BRIEF.md` · BUILD_PLAN
 - 2026-10-13 · Greenlight for Phase 0 · Joshua · BUILD_PLAN · BUILD_PLAN Decisions
 - 2026-10-16 · Marketing says "no monthly subscription", never "free" · Joshua · `apps/site` · BUILD_PLAN Decisions
-- 2026-10-25 · Feed, reconcile, seal replaces `gl_core.aleo`: the chain is the bank feed, the vault is the books, a closed period's root is anchored through `payroll_audit_log`; a period-status program comes later as new Leo · Joshua · Phase 1 criteria, `docs/AUDIT_DESIGN.md` · BUILD_PLAN Decisions, `progress/2026-10-25.md`
-- 2026-11-05 · A technical paper, not a whitepaper (no token), kept in the repository as `docs/PAPER.md` and served at hewnaccounting.com/paper on the marketing site, with a PDF; it explains twin-curve math with everything that uses it · Joshua · `docs/PAPER.md` · `progress/2026-11-05.md`
+- 2026-10-25 · Feed, reconcile, seal replaces `gl_core.aleo`: the chain is the bank feed, the vault is the books, a closed period's root is anchored through `payroll_audit_log`; a period-status program comes later as new Leo · Joshua · Phase 1 criteria, `docs/AUDIT_DESIGN.md` · BUILD_PLAN Decisions, `progress/2026-10/2026-10-25.md`
+- 2026-11-05 · A technical paper, not a whitepaper (no token), kept in the repository as `docs/PAPER.md` and served at hewnaccounting.com/paper on the marketing site, with a PDF; it explains twin-curve math with everything that uses it · Joshua · `docs/PAPER.md` · `progress/2026-11/2026-11-05.md`
 
 ### Modes and the way in
 Which mode the app runs in, and what a person needs to get in.
@@ -35,10 +35,10 @@ The product's name, where its brand lives, and the licence.
 
 - 2026-10-14 · The product is **Hewn**, hewnaccounting.com; the app at www.hewnaccounting.com while app.hewnaccounting.com doesn't resolve (2026-10-21); the name, tagline, colours and asset paths live only in `packages/brand` · Joshua · `packages/brand` · BUILD_PLAN Decisions
 - 2026-10-15 · Licence AGPL-3.0-only, here and in `pnw_mvp_v2`; the Hewn name and logo are not licensed; the app and the site link to the source · Joshua · `LICENSE`, `BRAND.sourceUrl` · `CLAUDE.md`
-- 2026-11-07 · Stay on AGPL-3.0 rather than a stricter source-available licence: it already stops a changed copy being closed, including as a hosted service, and the grant proposal and the positioning rely on Hewn being open source. Tighten around it instead: a copyright notice, an attribution term, a trademark, a contributor agreement, a commercial licence · Joshua · `LICENSING.md` · `progress/2026-11-07.md`
-- 2026-11-07 · Copyright is Joshua Daniel Day's, personally (`NOTICE`, © 2025-2026, the line README already carried); one additional term under AGPL section 7(b): every copy keeps "Hewn by Joshua Day", linked to the repository, where its users can see it, from `CREDIT` in `packages/brand` (a fork changes `BRAND`, never `CREDIT`); Hewn shows it in the small print of every screen and the site's footer · Joshua · `LICENSING.md`, `apps/business/src/legal/legal.test.ts` · `progress/2026-11-07.md`
-- 2026-11-07 · Dual licence: AGPL for everyone, and a commercial licence from Joshua Day (hewnsupport@gmail.com) for a closed or proprietary product built on Hewn or its Leo programs; contributions come in under a contributor licence agreement so the commercial licence can cover them; "Hewn" is marked ™ and to be registered at the USPTO by Joshua as an individual (intent-to-use, classes 9 and 42); a lawyer's review of the legal texts is planned · Joshua · `LICENSING.md`, `NOTICE` · `progress/2026-11-07.md`
-- 2026-11-07 · The contributor licence agreement (`CLA.md`): contributors keep their copyright and grant Joshua a broad licence including sublicensing under proprietary terms, plus a patent licence; every contribution stays available under the AGPL; AI-written parts are reviewed and submitted as the contributor's own; Washington law; agreed once through CLA Assistant on the first pull request · Joshua · `CLA.md`, `CONTRIBUTING.md` · `progress/2026-11-07.md`
+- 2026-11-07 · Stay on AGPL-3.0 rather than a stricter source-available licence: it already stops a changed copy being closed, including as a hosted service, and the grant proposal and the positioning rely on Hewn being open source. Tighten around it instead: a copyright notice, an attribution term, a trademark, a contributor agreement, a commercial licence · Joshua · `LICENSING.md` · `progress/2026-11/2026-11-07.md`
+- 2026-11-07 · Copyright is Joshua Daniel Day's, personally (`NOTICE`, © 2025-2026, the line README already carried); one additional term under AGPL section 7(b): every copy keeps "Hewn by Joshua Day", linked to the repository, where its users can see it, from `CREDIT` in `packages/brand` (a fork changes `BRAND`, never `CREDIT`); Hewn shows it in the small print of every screen and the site's footer · Joshua · `LICENSING.md`, `apps/business/src/legal/legal.test.ts` · `progress/2026-11/2026-11-07.md`
+- 2026-11-07 · Dual licence: AGPL for everyone, and a commercial licence from Joshua Day (hewnsupport@gmail.com) for a closed or proprietary product built on Hewn or its Leo programs; contributions come in under a contributor licence agreement so the commercial licence can cover them; "Hewn" is marked ™ and to be registered at the USPTO by Joshua as an individual (intent-to-use, classes 9 and 42); a lawyer's review of the legal texts is planned · Joshua · `LICENSING.md`, `NOTICE` · `progress/2026-11/2026-11-07.md`
+- 2026-11-07 · The contributor licence agreement (`CLA.md`): contributors keep their copyright and grant Joshua a broad licence including sublicensing under proprietary terms, plus a patent licence; every contribution stays available under the AGPL; AI-written parts are reviewed and submitted as the contributor's own; Washington law; agreed once through CLA Assistant on the first pull request · Joshua · `CLA.md`, `CONTRIBUTING.md` · `progress/2026-11/2026-11-07.md`
 
 ### Repository and stack
 How the code is laid out and what it runs on.
@@ -46,26 +46,26 @@ How the code is laid out and what it runs on.
 - 2026-10-13 · Monorepo: `apps/business` and `packages/`; the worker side lives inside `apps/business` as a second kind of account; the Leo programs stay in `pnw_mvp_v2`, attached as a submodule · Joshua · repo layout · BUILD_PLAN Decisions
 - 2026-10-13 · Tax engine in TypeScript only; the Julia service retired · Joshua · `packages/tax-engine`, `archive/README.md` · BUILD_PLAN Decisions
 - 2026-10-13 · Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed · Joshua · `packages/wallet` · BUILD_PLAN Decisions
-- 2026-10-21 · `@types/node` follows the Node that runs the code (22); Dependabot skips its major bumps · Joshua · `.github/dependabot.yml` · `progress/2026-10-21.md`
-- 2026-10-25 · Superseded designs move from `BUILD_PLAN.md` to `docs/` with a status; known facts live in the README of what they describe · Joshua · `docs/README.md` · `progress/2026-10-25.md`
+- 2026-10-21 · `@types/node` follows the Node that runs the code (22); Dependabot skips its major bumps · Joshua · `.github/dependabot.yml` · `progress/2026-10/2026-10-21.md`
+- 2026-10-25 · Superseded designs move from `BUILD_PLAN.md` to `docs/` with a status; known facts live in the README of what they describe · Joshua · `docs/README.md` · `progress/2026-10/2026-10-25.md`
 
 ## Users
-- 2026-11-05 · Hewn adopts Veil (Provable's viem-style toolkit), and Shield stays the only wallet: Veil's provider is narrowed to Shield, and another wallet comes only after it is checked against what Hewn relies on. The order: tests and CI first (a local devnode, typed bindings from codegen), then generated decoders in place of the hand parsers, then the reads Hewn lacks; the app never imports Veil's local-key package · Joshua · `docs/VEIL.md` · `progress/2026-11-05.md`
-- 2026-11-07 · Veil is for reading and uniformity, not for moving money: Hewn reads its own records (letters, agreements) through code generated from each program's ABI, built by Leo 4.0.0 as the deployed bytecode was and checked against it, never hand-edited; Veil never signs, sends or builds a transaction, and every write stays in Shield with its auditable trail. A Veil transaction path would be considered only if it fits every other interaction, breaks nothing and keeps that trail, and most likely Veil is never used for transactions · Joshua · **INV-11**, `scripts/check_signing_path.py` rules 7 and 8, `apps/business/src/chain/generated/generated.test.ts` · `progress/2026-11-07.md`
+- 2026-11-05 · Hewn adopts Veil (Provable's viem-style toolkit), and Shield stays the only wallet: Veil's provider is narrowed to Shield, and another wallet comes only after it is checked against what Hewn relies on. The order: tests and CI first (a local devnode, typed bindings from codegen), then generated decoders in place of the hand parsers, then the reads Hewn lacks; the app never imports Veil's local-key package · Joshua · `docs/VEIL.md` · `progress/2026-11/2026-11-05.md`
+- 2026-11-07 · Veil is for reading and uniformity, not for moving money: Hewn reads its own records (letters, agreements) through code generated from each program's ABI, built by Leo 4.0.0 as the deployed bytecode was and checked against it, never hand-edited; Veil never signs, sends or builds a transaction, and every write stays in Shield with its auditable trail. A Veil transaction path would be considered only if it fits every other interaction, breaks nothing and keeps that trail, and most likely Veil is never used for transactions · Joshua · **INV-11**, `scripts/check_signing_path.py` rules 7 and 8, `apps/business/src/chain/generated/generated.test.ts` · `progress/2026-11/2026-11-07.md`
 
 ### Accounts
 What an account is, and how many a wallet or a username may hold.
 
 - 2026-10-15 · One kind of account per Shield account: a wallet holding a business's name can't hold a person's account, and the reverse (business and personal money never share a wallet) · Joshua · **INV-15**, `chain/account_kind.ts` · BUILD_PLAN Decisions, `CLAUDE.md`
 - 2026-10-26 · One username holds a business, or a person's worker and customer accounts, never a business with either; a person's worker and customer accounts may share a wallet; older business + worker pairs keep opening · Joshua · `books/account.ts` · BUILD_PLAN Decisions
-- 2026-10-26 · No cards for clients: a customer account gets no card or land · Joshua · `packages/art` · `progress/2026-10-26.md`
+- 2026-10-26 · No cards for clients: a customer account gets no card or land · Joshua · `packages/art` · `progress/2026-10/2026-10-26.md`
 
 ### Names
 Registered names, who may be found by one, and names on mainnet.
 
 - 2026-10-15 · Every account is on the registry: setup registers a `name.hewn` (a worker also creates the profile behind it; a customer uses the person's name if the wallet has one) · Joshua · **INV-13** · `CLAUDE.md`
 - 2026-10-15 · Mainnet names live under the Aleo Name Service as the `hewn` TLD: free tier a random public name, paid tier a chosen name priced by length · Joshua · `docs/MAINNET_NAMES.md` · BUILD_PLAN Decisions
-- 2026-10-22 · Team members, customers and vendors are added only by their registered name, shown only when its hash checks out (fix 4 of the security review) · Joshua · **INV-14** · `progress/2026-10-22.md`
+- 2026-10-22 · Team members, customers and vendors are added only by their registered name, shown only when its hash checks out (fix 4 of the security review) · Joshua · **INV-14** · `progress/2026-10/2026-10-22.md`
 
 ### Login and passphrases
 How a person gets in, and what a passphrase must be.
@@ -104,8 +104,8 @@ Where the books live on the device, and how they are backed up.
 - 2026-10-13 · localStorage is not a book of record; durable data goes in the encrypted IndexedDB vault · Joshua · **INV-10**, `check_browser_storage.py` · `CLAUDE.md`
 - 2026-10-22 · Backups asking for more PBKDF2 rounds than the app writes are refused (hardening B) · Joshua · `@pnw/vault` · BUILD_PLAN Decisions
 - 2026-10-26 · Backups of the books on chain as letters: a new chain at half a snapshot of changes or after 12; asked for weekly, after each pay run and at each close; the cost shown first · Joshua · `docs/CHAIN_BACKUP.md` · its Decisions
-- 2026-10-26 · A plain download counts as a backup only once the person confirms it saved; the share sheet counts at once · Joshua · `books/backup_reminder.ts` · `progress/2026-10-26.md`
-- 2026-10-27 · On testnet the on-chain backup must be sent with a public fee; the app says so · Joshua · `chain/ChainBackup.tsx` · `progress/2026-10-27.md`
+- 2026-10-26 · A plain download counts as a backup only once the person confirms it saved; the share sheet counts at once · Joshua · `books/backup_reminder.ts` · `progress/2026-10/2026-10-26.md`
+- 2026-10-27 · On testnet the on-chain backup must be sent with a public fee; the app says so · Joshua · `chain/ChainBackup.tsx` · `progress/2026-10/2026-10-27.md`
 
 ## The chain
 
@@ -124,7 +124,7 @@ Deploying, upgrading, archiving and testing the Leo programs.
 Who pays network fees and how.
 
 - 2026-10-16 · Network fees are paid privately by default, for everything; only names and job postings are public; never a silent fallback to a public fee: short of private ALEO the app stops and offers to move some · Joshua · `@pnw/wallet` `fee_mode.ts` · BUILD_PLAN Decisions
-- 2026-10-27 · On testnet Shield covers the fee publicly and a private fee fails; the app notes it where it matters (backups) · Joshua · `chain/ChainBackup.tsx` · `progress/2026-10-27.md`
+- 2026-10-27 · On testnet Shield covers the fee publicly and a private fee fails; the app notes it where it matters (backups) · Joshua · `chain/ChainBackup.tsx` · `progress/2026-10/2026-10-27.md`
 
 ### Letters and records
 How anything between two people travels.
@@ -132,7 +132,7 @@ How anything between two people travels.
 - 2026-10-14 · Hewn pays with one private USDCx transfer per worker and sends the paystub as a letter; `payroll_core_v2`, the receipts and per-payment anchors stay deployed, unused · Joshua · `packages/rail` · `pnw_mvp_v2` `CLAUDE.md`
 - 2026-10-16 · Letters are records on chain; the chain is the mailbox (`hewn_letters_v2` with `send_many`, 2026-10-18) · Joshua · `docs/LETTERS.md` · BUILD_PLAN Decisions
 - 2026-10-19 · The Mailbox page is retired: Messages is the line of communication; offers under Jobs, hours under Payroll, a paystub's delivery on its paycheck · Joshua · the app's navigation · BUILD_PLAN Decisions
-- 2026-10-22 · Every letter is checked against its sender; a registered name is shown only when its hash checks out; a payment is never made twice on an unknown outcome (security review fixes 1 to 5) · Joshua · `chain/letters.ts`, `packages/rail` · `progress/2026-10-22.md`
+- 2026-10-22 · Every letter is checked against its sender; a registered name is shown only when its hash checks out; a payment is never made twice on an unknown outcome (security review fixes 1 to 5) · Joshua · `chain/letters.ts`, `packages/rail` · `progress/2026-10/2026-10-22.md`
 - 2026-10-22 · Layer 2 never moves funds; no pooled custody · Joshua · **INV-24**, `check_layer2_moves_no_funds.py` · `pnw_mvp_v2` `CLAUDE.md`
 
 ### Agreements
@@ -153,10 +153,10 @@ How an offer is made and what it carries.
 ### Payroll and hours
 Running payroll and recording hours.
 
-- 2026-10-22 · Pay runs pay only people who accepted (fix 5 of the security review) · Joshua · `packages/rail` · `progress/2026-10-22.md`
-- 2026-11-04 · The double-pay item in `pnw_mvp_v2`'s archived `NOTES.md` is closed: the four-step flow it described is gone, and Hewn's own guard (never pay twice on an unknown outcome, 2026-10-22) is tested · Joshua · `packages/payroll/src/settlement.test.ts` (`checkDoublePay`) · `progress/2026-11-04.md`
-- 2026-11-05 · Payroll compliance plan: the IRS's own withholding method with verified, dated tables updated only through review; a real W-4 the worker fills in and signs (drawn with a finger, then in Shield), sent sealed under the pair's key; Social Security numbers collected behind layered locks; state rules follow where the work is done and fill in each agreement, the West first from Washington, Oregon and Idaho; the I-9 after the W-4; zPass to explore · Joshua · `docs/PAYROLL_COMPLIANCE.md` · `progress/2026-11-05.md`
-- 2026-11-05 · zPass explored: it fits a verified-person mark, age and sanctions proofs, not the I-9's document check yet; its SDK signs with a pasted key, so Hewn would carry the pattern in its own Leo program, signed in Shield; next, questions to the zPass team and the employer as issuer after the I-9 (to decide) · Joshua asked · `docs/ZPASS.md` · `progress/2026-11-05.md`
+- 2026-10-22 · Pay runs pay only people who accepted (fix 5 of the security review) · Joshua · `packages/rail` · `progress/2026-10/2026-10-22.md`
+- 2026-11-04 · The double-pay item in `pnw_mvp_v2`'s archived `NOTES.md` is closed: the four-step flow it described is gone, and Hewn's own guard (never pay twice on an unknown outcome, 2026-10-22) is tested · Joshua · `packages/payroll/src/settlement.test.ts` (`checkDoublePay`) · `progress/2026-11/2026-11-04.md`
+- 2026-11-05 · Payroll compliance plan: the IRS's own withholding method with verified, dated tables updated only through review; a real W-4 the worker fills in and signs (drawn with a finger, then in Shield), sent sealed under the pair's key; Social Security numbers collected behind layered locks; state rules follow where the work is done and fill in each agreement, the West first from Washington, Oregon and Idaho; the I-9 after the W-4; zPass to explore · Joshua · `docs/PAYROLL_COMPLIANCE.md` · `progress/2026-11/2026-11-05.md`
+- 2026-11-05 · zPass explored: it fits a verified-person mark, age and sanctions proofs, not the I-9's document check yet; its SDK signs with a pasted key, so Hewn would carry the pattern in its own Leo program, signed in Shield; next, questions to the zPass team and the employer as issuer after the I-9 (to decide) · Joshua asked · `docs/ZPASS.md` · `progress/2026-11/2026-11-05.md`
 
 ### Messages and conversations
 Who can read what in a conversation, and how people are confirmed.
@@ -169,7 +169,7 @@ Who can read what in a conversation, and how people are confirmed.
 Customers as accounts, their portal, bills and reviews.
 
 - 2026-10-23 · Customers as their own accounts with a portal; posting a request free for now; businesses opt into a directory by field; reviews at each payment, public together at the job's end; USDCx is the customer's to get (13 items) · Joshua · `docs/CUSTOMERS.md` · its Decisions
-- 2026-10-26 · Step 1 built: accounts, invoices as letters, bills paid from Shield, a printable invoice, agreements for a job, an invoice naming its agreed job · Joshua · `/customer` · `progress/2026-10-26.md`
+- 2026-10-26 · Step 1 built: accounts, invoices as letters, bills paid from Shield, a printable invoice, agreements for a job, an invoice naming its agreed job · Joshua · `/customer` · `progress/2026-10/2026-10-26.md`
 
 ### The job board
 The public board and what it costs.
@@ -179,8 +179,8 @@ The public board and what it costs.
 ### Credentials and cards
 What a business vouches for, and the art every account carries.
 
-- 2026-10-24 · Every account gets art drawn from its name: a worker's land in 3D with landmarks for credentials, a business's land as a map, the constellation, paystub rings; every card private, a business's card public, a worker's tenure card public or hidden at their choice · Joshua · `packages/art`, `docs/HEWN_ART.md` · `progress/2026-10-24.md`
-- 2026-10-25 · A business vouches for a person it has an agreement with (`hewn_credentials_v1`); issued from the team list, accepted from the profile; drawn as landmarks · Joshua · `chain/credentials` · `progress/2026-10-25.md`
+- 2026-10-24 · Every account gets art drawn from its name: a worker's land in 3D with landmarks for credentials, a business's land as a map, the constellation, paystub rings; every card private, a business's card public, a worker's tenure card public or hidden at their choice · Joshua · `packages/art`, `docs/HEWN_ART.md` · `progress/2026-10/2026-10-24.md`
+- 2026-10-25 · A business vouches for a person it has an agreement with (`hewn_credentials_v1`); issued from the team list, accepted from the profile; drawn as landmarks · Joshua · `chain/credentials` · `progress/2026-10/2026-10-25.md`
 
 ## The books
 
@@ -188,7 +188,7 @@ What a business vouches for, and the art every account carries.
 The double-entry core and how it follows Shield.
 
 - 2026-10-13 · The double-entry core is identical in every mode; the ledger, vault, reports and payroll never import the chain packages · Joshua · **INV-16**, `fiat_boundary.test.ts` · `CLAUDE.md`
-- 2026-10-26 · Reconciliation: the books' Shield account against the linked account's USDCx, flagged on the Dashboard, with "Record the difference" · Joshua · `books/reconcile.ts` · `progress/2026-10-26.md`
+- 2026-10-26 · Reconciliation: the books' Shield account against the linked account's USDCx, flagged on the Dashboard, with "Record the difference" · Joshua · `books/reconcile.ts` · `progress/2026-10/2026-10-26.md`
 
 ### Closing and anchoring
 Closing a period and anchoring its root.
@@ -200,7 +200,7 @@ Closing a period and anchoring its root.
 ### Audit readiness and compliance
 Which frameworks Hewn works toward, and how.
 
-- 2026-10-25 · The audit-ready (ICM) plan: Session start reads the Now block; rules with ids tied to checks and threats; every "none" check made real; a public-state map; one progress file a day; not adopted: AGENTS.md, CONTEXT.md per folder, stage folders · Joshua · `docs/INVARIANTS.md`, `scripts/` · `progress/2026-10-25.md`
+- 2026-10-25 · The audit-ready (ICM) plan: Session start reads the Now block; rules with ids tied to checks and threats; every "none" check made real; a public-state map; one progress file a day; not adopted: AGENTS.md, CONTEXT.md per folder, stage folders · Joshua · `docs/INVARIANTS.md`, `scripts/` · `progress/2026-10/2026-10-25.md`
 - 2026-11-03 · SOC 2 first, ISO 27001 later; SOC 1 out of scope for now; HITRUST, FedRAMP and CMMC don't fit; the control list is `docs/INVARIANTS.md` · Joshua · `docs/COMPLIANCE_MAP.md` · its Decisions
 
 ## Security and operations
@@ -210,14 +210,14 @@ Who holds what, and what it takes to merge.
 
 - 2026-11-03 · A PR merges only after Joshua approves it in the chat session, on his own device; the merge commit says "Approved by Joshua in session, <date>" · Joshua · **OPS-01** · `docs/COMPLIANCE_MAP.md`
 - 2026-11-03 · Joshua alone holds GitHub and Vercel, both with 2FA · Joshua · **OPS-02** · `docs/COMPLIANCE_MAP.md`
-- 2026-11-04 · When Joshua merges a PR himself on GitHub, he adds "Approved by Joshua in session, <date>" to the merge message; #293 (merged by him that day without it) is noted in `progress/2026-11-04.md` · Joshua · **OPS-01** · `progress/2026-11-04.md`
+- 2026-11-04 · When Joshua merges a PR himself on GitHub, he adds "Approved by Joshua in session, <date>" to the merge message; #293 (merged by him that day without it) is noted in `progress/2026-11/2026-11-04.md` · Joshua · **OPS-01** · `progress/2026-11/2026-11-04.md`
 
 ### Hardening
 What was hardened, and what was reviewed and parked.
 
 - 2026-10-22 · GitHub hardening parked, with its list (a ruleset on `main` in both repos, Vercel promoting by hand, passkey 2FA, old tokens deleted, the admin environment limited to `main`; hash checks on tool downloads, pinned action versions, a read-only gate token); ruled out: dropping the key fallback, commit pins in `pnw_mvp_v2` · Joshua · open · BUILD_PLAN Decisions
 - 2026-10-22 · From the hardening review: the PBKDF2 refusal done; a size limit on unpacking letters parked; the traction floor waits for data · Joshua · `@pnw/vault` · BUILD_PLAN Decisions
-- 2026-11-04 · Dead code inside the live packages is deleted, not kept: 16 portal leftovers nothing imported (the old transaction executor, four record scanners, the CLI adapter and its routers, three helpers); shipped code never debug-logs · Joshua · **INV-06**, **INV-12**, `scripts/check_console.py`, `scripts/check_signing_path.py` · `progress/2026-11-04.md`
+- 2026-11-04 · Dead code inside the live packages is deleted, not kept: 16 portal leftovers nothing imported (the old transaction executor, four record scanners, the CLI adapter and its routers, three helpers); shipped code never debug-logs · Joshua · **INV-06**, **INV-12**, `scripts/check_console.py`, `scripts/check_signing_path.py` · `progress/2026-11/2026-11-04.md`
 
 ### Outside audits
 When Hewn is audited by others.
@@ -241,8 +241,8 @@ lines that also live in their own group on purpose, so the day of the launch has
 Direction decided, nothing built yet.
 
 ### Proof of income
-- 2026-10-29 · Paystubs become private records the worker proves from; the paystub letter is kept, with the record as an extra transaction; the agreement is checked once per worker (a "paystub right") · Joshua · `docs/PROOF_OF_INCOME.md` · `progress/2026-10-29.md`
-- 2026-10-30 · No verifier code: an income letter with a QR code under the employer-vouched name, as simple as bringing in paystubs · Joshua · `docs/PROOF_OF_INCOME.md` · `progress/2026-10-30.md`
+- 2026-10-29 · Paystubs become private records the worker proves from; the paystub letter is kept, with the record as an extra transaction; the agreement is checked once per worker (a "paystub right") · Joshua · `docs/PROOF_OF_INCOME.md` · `progress/2026-10/2026-10-29.md`
+- 2026-10-30 · No verifier code: an income letter with a QR code under the employer-vouched name, as simple as bringing in paystubs · Joshua · `docs/PROOF_OF_INCOME.md` · `progress/2026-10/2026-10-30.md`
 
 ### Accountant access
 - 2026-11-02 · Accountants' access to the books is its own design, to brainstorm separately · Joshua · `docs/CLOSE_PERIOD.md` · its Decisions
@@ -259,19 +259,20 @@ Direction decided, nothing built yet.
 How tasks, PRs and reports are done.
 
 - 2026-10-13 · One task, one exit criterion, one PR; no new screens without a greenlight; every task ends with tests, a progress entry and a PR · Joshua · **OPS-08**, `CLAUDE.md` · `CLAUDE.md`
-- 2026-10-29 · Commit messages and PR descriptions never carry a `https://claude.ai/...` session link · Joshua · `CLAUDE.md` · `progress/2026-10-29.md`
+- 2026-10-29 · Commit messages and PR descriptions never carry a `https://claude.ai/...` session link · Joshua · `CLAUDE.md` · `progress/2026-10/2026-10-29.md`
 - 2026-11-03 · Every progress entry ends with the bare id of the session that wrote it (never a link); only Joshua can open the transcript · Joshua · `progress_index.py` · `docs/MEMORY.md`
-- 2026-11-04 · Retired code is deleted, not archived: git history is the archive, `archive/README.md` keeps one row per retired thing with the commit that holds it; deployed Leo program versions stay (INV-21). Hewn's `archive/` code deleted the same day; the Leo repository's old documents and `portal/` are decided there · Joshua · **OPS-09**, `scripts/check_archive.py` · `progress/2026-11-04.md`
-- 2026-11-04 · The Leo repository's command-line execute harness (`execute_testnet.yml`, the phase 4 scripts, `config/scenarios/`) stays for now · Joshua · open · `pnw_mvp_v2` `CLAUDE.md` · `progress/2026-11-04.md`
+- 2026-11-04 · Retired code is deleted, not archived: git history is the archive, `archive/README.md` keeps one row per retired thing with the commit that holds it; deployed Leo program versions stay (INV-21). Hewn's `archive/` code deleted the same day; the Leo repository's old documents and `portal/` are decided there · Joshua · **OPS-09**, `scripts/check_archive.py` · `progress/2026-11/2026-11-04.md`
+- 2026-11-04 · The Leo repository's command-line execute harness (`execute_testnet.yml`, the phase 4 scripts, `config/scenarios/`) stays for now · Joshua · open · `pnw_mvp_v2` `CLAUDE.md` · `progress/2026-11/2026-11-04.md`
 
 ### Memory and the map
 How the team remembers, and the map it navigates by.
 
-- 2026-11-03 · The map of the whole tree lives on GitHub (Pages and the README), never on the website; one page with the data-flow view; redrawn on every push; a point's size continuous in its connections and lines; nothing overlaps · Joshua · `docs/map/` · `progress/2026-11-03.md`
-- 2026-11-03 · Ask the map before grepping; `show` and `impact` on a file before changing it · Joshua · `CLAUDE.md` · `progress/2026-11-03.md`
+- 2026-11-03 · The map of the whole tree lives on GitHub (Pages and the README), never on the website; one page with the data-flow view; redrawn on every push; a point's size continuous in its connections and lines; nothing overlaps · Joshua · `docs/map/` · `progress/2026-11/2026-11-03.md`
+- 2026-11-03 · Ask the map before grepping; `show` and `impact` on a file before changing it · Joshua · `CLAUDE.md` · `progress/2026-11/2026-11-03.md`
 - 2026-11-03 · Memory in three scopes; frontmatter on every document with a generated index; a weekly out-of-band dreaming pass; the first dream by hand; this ledger in two levels · Joshua · `docs/MEMORY.md` · its Decisions
 - 2026-11-03 · The dream runs as a weekly Routine (Sunday evening Pacific) that starts a fresh session on `main` and reads its instruction from `scripts/dreaming/PROMPT.md`; its first run is fired by hand and reviewed before the schedule stands; it never merges · Joshua · `scripts/dreaming/` · `docs/MEMORY.md`
-- 2026-11-03 · The marketing reel of the map is not kept in the repository · Joshua · session scratch · `progress/2026-11-03.md`
+- 2026-11-03 · The marketing reel of the map is not kept in the repository · Joshua · session scratch · `progress/2026-11/2026-11-03.md`
+- 2026-11-07 · The progress log groups its day files in a folder per month (`progress/2026-11/2026-11-07.md`); the index groups by month too, and a day file outside its month's folder fails CI · Joshua · `scripts/progress_index.py` · `progress/2026-11/2026-11-07.md`
 
 ### Sessions and tooling
 What the agent sessions may and may not do.
@@ -279,7 +280,7 @@ What the agent sessions may and may not do.
 - 2026-10-13 · Any new or changed Leo program is said out loud first, so Joshua can switch the session to Fable 5.1 at high effort · Joshua · **INV-22** · `CLAUDE.md`
 - 2026-11-03 · A refused command is never worked around; after a squash merge the branch comes back with a plain merge of `main`, never a force-push · Joshua · `memory/lessons.md` · this session
 - 2026-11-07 · The agents sleep at three rhythms, not one: consolidate at every compaction (hooks), nightly (light sleep) and weekly (the dream, now with promotion and pruning), and a monthly REM pass that practises and keeps only what finds something; a pass runs regardless, and one with nothing to do says so and writes nothing; every change still a pull request Joshua approves · Joshua · `docs/SLEEP.md` · this session
-- 2026-11-07 · The passes are skills in `.claude/skills/` (`/rest`, `/dream`, `/light-sleep`): the dream's prompt moved from `scripts/dreaming/PROMPT.md` to `.claude/skills/dream/SKILL.md` with promotion and pruning added; each Routine's prompt names its `SKILL.md` by path (a Routine typing a slash command isn't documented); the nightly Routine is created from the Routines page, its first run reviewed before the schedule stands · Joshua (the order in `docs/SLEEP.md`) · `.claude/skills/README.md` · `progress/2026-11-07.md`
-- 2026-11-07 · REM's pairing is mechanical: `scripts/sleep/rem_pairs.py` draws three pairs across seven categories at random, seeded by the date, so the pass can't pick the pair it likes and a run can be repeated; its findings go in `docs/incidents/rem-<date>.md` (not indexed), never a fix · Joshua (the order in `docs/SLEEP.md`) · `.claude/skills/rem/SKILL.md`, `scripts/sleep/rem_pairs_test.py` · `progress/2026-11-07.md`
+- 2026-11-07 · The passes are skills in `.claude/skills/` (`/rest`, `/dream`, `/light-sleep`): the dream's prompt moved from `scripts/dreaming/PROMPT.md` to `.claude/skills/dream/SKILL.md` with promotion and pruning added; each Routine's prompt names its `SKILL.md` by path (a Routine typing a slash command isn't documented); the nightly Routine is created from the Routines page, its first run reviewed before the schedule stands · Joshua (the order in `docs/SLEEP.md`) · `.claude/skills/README.md` · `progress/2026-11/2026-11-07.md`
+- 2026-11-07 · REM's pairing is mechanical: `scripts/sleep/rem_pairs.py` draws three pairs across seven categories at random, seeded by the date, so the pass can't pick the pair it likes and a run can be repeated; its findings go in `docs/incidents/rem-<date>.md` (not indexed), never a fix · Joshua (the order in `docs/SLEEP.md`) · `.claude/skills/rem/SKILL.md`, `scripts/sleep/rem_pairs_test.py` · `progress/2026-11/2026-11-07.md`
 - 2026-11-06 · The Leo programs compile and test with Leo 4.0.0, the language they are written in; the deploy and upgrade workflows sign and send with Leo 4.4.6; snarkOS 4.12.0; every download from `aleo-labs-protocol` with its checksum pinned. Moving the source to Leo 4.4 is a Leo change of its own (INV-22) · Joshua (approved `pnw_mvp_v2` #231) · `pnw_mvp_v2/CLAUDE.md` Toolchain, `docs/ALEO_CONSTRAINTS.md` §2b
 - 2026-11-06 · Vercel deploys once per batch: `main` deploys only on a release, a merge whose title says `[deploy]`, and only the projects whose files changed since their last deployment; other branches get no preview unless a commit's title says `[preview]` · Joshua · `scripts/vercel_ignore.mjs`, `apps/business/README.md` Deploying

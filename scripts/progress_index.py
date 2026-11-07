@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """The progress log: one file per day, and an index generated from them.
 
-Entries live in progress/YYYY-MM-DD.md, one `## YYYY-MM-DD — Title` heading per entry, newest
-last within a day. PROGRESS.md at the root is generated from those files: a heading per day, newest
-first, linking its file, and a line per entry linking its heading. Never edit PROGRESS.md by hand; add or change an entry in
+Entries live in progress/YYYY-MM/YYYY-MM-DD.md (a folder per month, since 2026-11-07), one
+`## YYYY-MM-DD — Title` heading per entry, newest last within a day. PROGRESS.md at the root is
+generated from those files: a heading per month and per day, newest first, linking each day's
+file, and a line per entry linking its heading. Never edit PROGRESS.md by hand; add or change an entry in
 its day's file, then run
 
     python3 -I scripts/progress_index.py --write
 
 Without --write it checks, and fails when:
   - PROGRESS.md isn't what the day files would generate (an entry added without the index);
-  - a day file is misnamed, has no entry, or holds an entry dated another day;
+  - a day file is misnamed, sits outside its month's folder (a day file at the top of progress/
+    included), has no entry, or holds an entry dated another day;
   - an entry heading isn't `## YYYY-MM-DD — Title` (older entries may use `: ` for the dash);
   - an entry dated 2026-11-03 or later doesn't end with the session that wrote it, as a bare
     `session_…` id or `— written by Joshua` (docs/MEMORY.md; never a link).
 
-`--split` was used once (2026-10-25) to cut the old single PROGRESS.md into day files; kept so
-the move can be read and repeated.
+`--split` was used once (2026-10-25) to cut the old single PROGRESS.md into day files (then at the
+top of progress/); kept so the move can be read.
 
 Standard library only. Run from the repository root: python3 -I scripts/progress_index.py
 """
@@ -30,6 +32,7 @@ INDEX = ROOT / "PROGRESS.md"
 # Entries before 2026-10-25 used either "— " or ": " after the date; both are read as written.
 HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2})(?: — |: )(.+)$")
 DAY_FILE = re.compile(r"^\d{4}-\d{2}-\d{2}\.md$")
+MONTH_DIR = re.compile(r"^\d{4}-\d{2}$")
 # From this day on, every entry ends with who wrote it: the session's bare id, or Joshua by hand.
 SIGNED_FROM = "2026-11-03"
 SIGNATURE = re.compile(r"^(?:— )?(session_[A-Za-z0-9]{10,}|written by Joshua)\s*$")
@@ -38,11 +41,12 @@ INTRO = """# Hewn — Progress Log
 
 Dated entries, newest last. Detail lives here; chat reports stay short.
 
-Each day's entries are in [`progress/`](progress/), one file per day. This page is generated from
-them (`scripts/progress_index.py`): never edit it by hand. To log something, add a
-`## YYYY-MM-DD — Title` entry at the end of that day's file (start the file if it's the first
-entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
-index is out of date.
+Each day's entries are in [`progress/`](progress/), one file per day in a folder per month
+(`progress/2026-11/2026-11-07.md`). This page is generated from them
+(`scripts/progress_index.py`): never edit it by hand. To log something, add a
+`## YYYY-MM-DD — Title` entry at the end of that day's file (start the file, and the month's
+folder, if it's the first entry), then run `python3 -I scripts/progress_index.py --write`. CI
+fails when this index is out of date or a day file sits outside its month's folder.
 """
 
 
@@ -90,17 +94,28 @@ def unsigned(path: Path):
 def build_index():
     problems = []
     lines = [INTRO]
-    files = sorted(DAYS.glob("*.md")) if DAYS.is_dir() else []
-    days = [p for p in files if p.name != "README.md"]
+    loose = [p for p in DAYS.glob("*.md") if p.name != "README.md"] if DAYS.is_dir() else []
+    for p in loose:
+        problems.append(f"progress/{p.name}: day files live in their month's folder (progress/{p.name[:7]}/{p.name})")
+    for d in (p for p in DAYS.iterdir() if p.is_dir()) if DAYS.is_dir() else []:
+        if not MONTH_DIR.match(d.name):
+            problems.append(f"progress/{d.name}/: folders are months, named YYYY-MM")
+    days = sorted(DAYS.glob("*/*.md"), key=lambda p: p.name) if DAYS.is_dir() else []
     if not days:
         problems.append("progress/: no day files")
     total = 0
+    month = None
     for path in reversed(days):  # newest day first in the index; entries stay in written order
-        rel = f"progress/{path.name}"
+        rel = f"progress/{path.parent.name}/{path.name}"
         if not DAY_FILE.match(path.name):
             problems.append(f"{rel}: name isn't YYYY-MM-DD.md")
             continue
+        if path.name[:7] != path.parent.name:
+            problems.append(f"{rel}: belongs in progress/{path.name[:7]}/")
         day = path.stem
+        if day[:7] != month:
+            month = day[:7]
+            lines.append(f"## {month}\n")
         found = entries(path)
         if not found:
             problems.append(f"{rel}: no `## {day} — Title` entry")
@@ -116,7 +131,7 @@ def build_index():
                 problems.append(f"{rel}: entry dated {date}: {title}")
             links.append(f"- [{title}]({rel}#{slug})")
             total += 1
-        lines.append(f"## [{day}]({rel})\n\n" + "\n".join(links) + "\n")
+        lines.append(f"### [{day}]({rel})\n\n" + "\n".join(links) + "\n")
     return "\n".join(lines) + "\n", problems, total, len(days)
 
 
