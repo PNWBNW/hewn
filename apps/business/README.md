@@ -49,6 +49,24 @@ pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/
 The rule the folders enforce: `books` never imports `chain`, and nothing outside `chain` imports a
 wallet or Aleo package. A test fails if it does.
 
+## Deploying
+
+Vercel builds the website from this folder (`vercel.json`). Since 2026-11-06 it deploys only when
+we mean it to, once per batch (`scripts/vercel_ignore.mjs`, Vercel's "Ignored Build Step"):
+
+- **`main` deploys on a release:** a merge whose title says `[deploy]` (the pull request's title,
+  which becomes the squash commit's). Merges without it wait and go out together with the next
+  release, so several pull requests cost one build.
+- **A release builds only what changed** since that project's last deployment: this folder,
+  `packages/`, the lockfile or the workspace files. When it can't tell (more merges since the last
+  deployment than Vercel's shallow clone holds), it builds.
+- **Other branches** get no preview unless the pushed commit's title says `[preview]` (to try
+  something on a phone, say the wallet with Shield).
+
+Only the title counts, so a description can mention the tokens freely. The marketing site
+(`apps/site`) follows the same rule with its own folders. Until a release, the live app is the
+last one deployed: say "release" and the next merge carries `[deploy]`.
+
 ## Settings
 
 None are needed to run. `.env.example` lists the optional ones: the courier's pinning key

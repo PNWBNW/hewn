@@ -8,6 +8,10 @@ them (`scripts/progress_index.py`): never edit it by hand. To log something, add
 entry of the day), then run `python3 -I scripts/progress_index.py --write`. CI fails when this
 index is out of date.
 
+## [2026-11-07](progress/2026-11-07.md)
+
+- [Vercel deploys once per batch, only when we mean it to](progress/2026-11-07.md#2026-11-07--vercel-deploys-once-per-batch-only-when-we-mean-it-to)
+
 ## [2026-11-06](progress/2026-11-06.md)
 
 - [Veil step 1: letters against a real Aleo node, in tests and CI](progress/2026-11-06.md#2026-11-06--veil-step-1-letters-against-a-real-aleo-node-in-tests-and-ci)
