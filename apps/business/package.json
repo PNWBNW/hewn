@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build:static": "HEWN_STATIC=1 next build && node scripts/static_csp.mjs",
-    "test:devnode": "vitest run --config vitest.devnode.config.ts"
+    "test:devnode": "vitest run --config vitest.devnode.config.ts",
+    "codegen": "veil-codegen --config codegen/veil.config.json"
   },
   "dependencies": {
     "@pnw/art": "workspace:*",
@@ -30,6 +31,7 @@
     "@pnw/vault": "workspace:*",
     "@pnw/wallet": "workspace:*",
     "@provablehq/sdk": "0.10.1",
+    "@provablehq/veil-core": "0.15.0",
     "@vercel/analytics": "2.0.1",
     "lucide-react": "1.60.0",
     "next": "16.4.2",
@@ -40,7 +42,7 @@
     "@provablehq/aleo-devnode": "0.4.0",
     "@provablehq/veil-aleo-devnode": "0.15.0",
     "@provablehq/veil-aleo-sdk": "0.15.0",
-    "@provablehq/veil-core": "0.15.0",
+    "@provablehq/veil-codegen": "0.15.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",

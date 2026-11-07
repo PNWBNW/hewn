@@ -205,7 +205,7 @@ describe("announcements: one letter to many", () => {
     const sentCopy = (lookup: string) => {
       const [hi, lo] = lookupHalves(lookup);
       const fields = packParcel(bytes(1), LETTER_FIELDS);
-      return { recordName: "SentLetter", recordPlaintext: `{ owner: ${ME}.private, lookup: [ ${hi}u128.private, ${lo}u128.private ], parcel: [ ${fields.map((f) => `${f}field.private`).join(", ")} ] }`, spent: false };
+      return { recordName: "SentLetter", recordPlaintext: `{ owner: ${ME}.private, lookup: [ ${hi}u128.private, ${lo}u128.private ], parcel: [ ${fields.map((f) => `${f}field.private`).join(", ")} ], _nonce: 1group.public }`, spent: false };
     };
     const used = "dd".repeat(32);
     const w: LetterWallet = {

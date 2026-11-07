@@ -1,0 +1,9 @@
+{
+  "programs": [
+    {
+      "abi": "../src/chain/generated/hewn_letters_v2.abi.json",
+      "out": "../src/chain/generated/hewn_letters_v2.ts",
+      "programId": "hewn_letters_v2.aleo"
+    }
+  ]
+}

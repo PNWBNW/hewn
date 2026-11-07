@@ -195,6 +195,17 @@ addresses, which works through the redirect; its pin bump moves them.
    one at a time, each approved in Shield). Codegen no longer waits: Leo's ABI works (above).
 2. **Generated bindings in place of the hand parsers,** one program at a time, each its own PR with
    the old and new decoders tested against the same records.
+   **Letters done, 2026-11-07** (`apps/business/src/chain/generated/`): the ABI built by Leo 4.0.0
+   from `hewn_letters_v2`'s source (byte for byte the deployed program, so it has the parameter
+   names), the bindings from `veil-codegen` 0.15.0, and `parseLetterRecord` on Veil's
+   `parseRecord` and the generated `toLetter`, `toPage`, `toSentLetter`, with Hewn's counts and
+   ranges on top. The hand parser stays in `test/legacy/` for the side-by-side tests (unit
+   fixtures, malformed records, and every real record the devnode test returns): they agree,
+   except where the generated path is stricter (text without a `_nonce`, a lookup half beyond a
+   `u128`) and one place it isn't (a mistyped suffix, which a program's records can't carry).
+   `veil-core` is now a runtime dependency of the app: 8.9 KB (3.7 KB gzipped), in the chain
+   pages' chunk; the generated contract factory is never called (the signing-path check) and is
+   dropped from the bundle. Agreements next.
 3. **The reads:** a usage panel from the program-calls route (for Hewn's own traction, not the
    app), and transition view keys for the period proof's payment check.
 4. **Writes through Veil's wallet client,** only if it clearly beats the current executor, with the

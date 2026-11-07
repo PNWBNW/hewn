@@ -68,6 +68,9 @@ importers:
       '@provablehq/sdk':
         specifier: 0.10.1
         version: 0.10.1
+      '@provablehq/veil-core':
+        specifier: 0.15.0
+        version: 0.15.0
       '@vercel/analytics':
         specifier: 2.0.1
         version: 2.0.1(next@16.4.2(@types/node@22.20.5)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
@@ -93,7 +96,7 @@ importers:
       '@provablehq/veil-aleo-sdk':
         specifier: 0.15.0
         version: 0.15.0(@provablehq/veil-aleo-devnode@0.15.0(@provablehq/veil-core@0.15.0))(@provablehq/veil-core@0.15.0)
-      '@provablehq/veil-core':
+      '@provablehq/veil-codegen':
         specifier: 0.15.0
         version: 0.15.0
       '@tailwindcss/postcss':
@@ -727,6 +730,11 @@ packages:
     peerDependencies:
       '@provablehq/veil-aleo-devnode': '>=0.15.0 <1.0.0'
       '@provablehq/veil-core': '>=0.15.0 <1.0.0'
+
+  '@provablehq/veil-codegen@0.15.0':
+    resolution: {integrity: sha512-FbuME7HSyaaMRuz5jI2qayZ1S9TXmVd5hunxyxqz51VOa6zImaHkLMnNJCy5zSvioMCiyD4YdiraxmRqqm61UA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   '@provablehq/veil-core@0.15.0':
     resolution: {integrity: sha512-Xew4o2NDmaFeUqhjukccBPhhxt/5wC3kGZPmuaKONhIbndovVQt1/GynEw/m1oLcQqWVpLDOR0sILV2GiA8lCg==}
@@ -1945,6 +1953,10 @@ snapshots:
       '@provablehq/veil-aleo-devnode': 0.15.0(@provablehq/veil-core@0.15.0)
       '@provablehq/veil-core': 0.15.0
       '@scure/bip39': 1.6.0
+
+  '@provablehq/veil-codegen@0.15.0':
+    dependencies:
+      '@provablehq/veil-core': 0.15.0
 
   '@provablehq/veil-core@0.15.0': {}
 

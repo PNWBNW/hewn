@@ -21,7 +21,7 @@ const make = (id: string, text = "Send gift cards.", reportedAt = "2026-10-20T21
 /** A record as Shield returns it, from the call the app would make. */
 function recordOf(inputs: string[], fn: string, extra: Record<string, unknown> = {}) {
   const page = fn === "send_page";
-  return { recordName: page ? "Page" : "Letter", recordPlaintext: `{ owner: ${ACCOUNT}.private, lookup: ${inputs[1]!.replace(/u128/g, "u128.private")}, ${page ? "page" : "parcel"}: ${inputs[2]!.replace(/field/g, "field.private")} }`, ...extra };
+  return { recordName: page ? "Page" : "Letter", recordPlaintext: `{ owner: ${ACCOUNT}.private, lookup: ${inputs[1]!.replace(/u128/g, "u128.private")}, ${page ? "page" : "parcel"}: ${inputs[2]!.replace(/field/g, "field.private")}, _nonce: 1group.public }`, ...extra };
 }
 
 describe("reports as letters", () => {

@@ -15,7 +15,11 @@ its wallet from there. This check keeps that door the only one. Outside tests, i
   6. any file imports a CLI adapter (the pasted-key path, deleted; it must not come back);
   7. any file imports Veil's local-key or local-node packages (@provablehq/veil-aleo-sdk,
      veil-aleo-devnode, veil-leo, aleo-devnode): they sign with a private key, for tests only
-     (docs/VEIL.md, apps/business/test/devnode).
+     (docs/VEIL.md, apps/business/test/devnode);
+  8. any file takes a writing or contract action from @provablehq/veil-core (the app uses it to
+     read records: parseRecord and the generated decoders), or calls a generated
+     `create...Contract` (the bindings in src/chain/generated carry one; only the decoders are
+     the app's), so Veil's wallet client never becomes a second way to sign.
 
 Standard library only. Run from the repository root: python3 -I scripts/check_signing_path.py
 """
@@ -27,6 +31,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SHIELD = "apps/business/src/chain/shield.ts"
 SEND_OK = ("apps/business/src/chain/", "packages/rail/src/", "packages/wallet/src/")
 IMPORT = re.compile(r"""(?:from\s+|import\s*\(\s*|require\s*\(\s*)["']([^"']+)["']""")
+VEIL_CORE = "@provablehq/veil-core"
+VEIL_WRITE = re.compile(r"\b(createWalletClient|getContract|writeContract|executeContract|simulateContract|deployContract|transfer|createClient)\b")
+NAMED_FROM = re.compile(r"""import\s+(?:type\s+)?(\{[^}]*\}|\*\s+as\s+\w+|\w+)\s*from\s*["']([^"']+)["']""")
+GENERATED_FACTORY = re.compile(r"\bcreate[A-Z]\w*Contract\s*\(")
+GENERATED = "apps/business/src/chain/generated/"
 TEST_ONLY = ("@provablehq/veil-aleo-sdk", "@provablehq/veil-aleo-devnode", "@provablehq/veil-leo", "@provablehq/aleo-devnode")
 SDK_EXECUTE = re.compile(r"\bProgramManager\b|\bbuildExecution\w*|\bbuildDevnodeExecution\w*|\.execute\s*\(|\bbroadcast\w*\s*\(")
 
@@ -72,6 +81,12 @@ def main() -> int:
         for i in imports:
             if any(i == t or i.startswith(t + "/") for t in TEST_ONLY):
                 problems.append(f"{rel}: imports {i}, which signs with a local key (tests only)")
+        if not rel.startswith(GENERATED):
+            for names, module in NAMED_FROM.findall(code):
+                if module == VEIL_CORE and (names.lstrip().startswith("*") or VEIL_WRITE.search(names)):
+                    problems.append(f"{rel}: takes a writing or contract action from {VEIL_CORE}; the app reads with it, and writes only through Shield")
+            if GENERATED_FACTORY.search(code):
+                problems.append(f"{rel}: calls a generated contract factory; use the generated decoders, and write through Shield")
     if not (ROOT / SHIELD).exists():
         problems.append(f"{SHIELD} is missing: the check's one door has moved; update this script")
     if problems:

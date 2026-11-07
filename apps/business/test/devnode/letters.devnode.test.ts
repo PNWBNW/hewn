@@ -17,7 +17,8 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { open, seal } from "@pnw/mailbox";
 import { LETTERS_PROGRAM, LETTER_BYTES, letterCall, manyCalls, parseLetterRecord } from "@/chain/letters";
-import { type Aleo, type Clients, type Devnode, type Output, deploy, opened as openedBy, send as sendFrom, start } from "./harness";
+import { handParseLetterRecord } from "../legacy/letters_hand_parser";
+import { type Aleo, type Clients, type Devnode, type Listed, type Output, deploy, opened as openedBy, send as sendFrom, start } from "./harness";
 
 const PROGRAM_FILE = new URL("./programs/hewn_letters_v2.aleo", import.meta.url);
 /** The live program's bytecode, as read from the explorer on 2026-11-06. */
@@ -30,7 +31,20 @@ let aleo: Aleo;
 const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
 const send = (call: Parameters<typeof sendFrom>[1]) => sendFrom(clients, call);
-const opened = (outputs: Output[], viewKey: string, names: readonly string[]) => openedBy(aleo, outputs, viewKey, names);
+/**
+ * The records a view key opens, each one first read by both letter parsers: the one on the
+ * generated bindings and the hand parser it replaced (docs/VEIL.md step 2) must agree on every
+ * record the real program returns.
+ */
+const opened = (outputs: Output[], viewKey: string, names: readonly string[]): Listed[] => {
+  const records = openedBy(aleo, outputs, viewKey, names);
+  for (const r of records) {
+    const generated = parseLetterRecord(r);
+    expect(generated).not.toBeNull();
+    expect(generated).toEqual(handParseLetterRecord(r));
+  }
+  return records;
+};
 
 beforeAll(async () => {
   ({ node, clients, aleo } = await start());
