@@ -12,6 +12,8 @@ desktop.ini
 
 # Claude Code local settings (never commit)
 .claude/settings.local.json
+# The consolidation snapshot a session writes before its context is compacted (docs/SLEEP.md)
+.claude/sleep/
 
 # Secrets — never commit
 .env
