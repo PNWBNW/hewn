@@ -11,6 +11,7 @@ index is out of date.
 ## [2026-11-07](progress/2026-11-07.md)
 
 - [Vercel deploys once per batch, only when we mean it to](progress/2026-11-07.md#2026-11-07--vercel-deploys-once-per-batch-only-when-we-mean-it-to)
+- [Veil step 1 done: offers and agreements against a real Aleo node](progress/2026-11-07.md#2026-11-07--veil-step-1-done-offers-and-agreements-against-a-real-aleo-node)
 
 ## [2026-11-06](progress/2026-11-06.md)
 

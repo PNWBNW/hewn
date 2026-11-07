@@ -185,9 +185,14 @@ addresses, which works through the redirect; its pin bump moves them.
    `manyCalls`, `parseLetterRecord` and the mailbox's `seal` and `open`: a letter and the sender's
    copy, a page, one announcement to three people, and an all-zero lookup the program must refuse.
    No Leo is needed, since the deployed bytecode is the input. CI runs it after `pnpm test`
-   (about 40 s), and the signing-path check refuses the local-key packages outside tests. Next in
-   this step: an offer and its acceptance (`employer_agreement_v5`, which imports the registry, so
-   its imports deploy first). Codegen no longer waits: Leo's ABI works (above).
+   (about 40 s), and the signing-path check refuses the local-key packages outside tests.
+   **2026-11-07, step 1 done:** offers and agreements too (`agreements.devnode.test.ts`):
+   `employer_agreement_v5` from its live bytecode (it imports nothing), driven by Hewn's own
+   offer, acceptance and withdrawal code, with the worker signing from their own generated
+   account; six tests, four of them refusals pinned to the program's own revert. It confirmed one
+   thing worth knowing: the agreement id hashes the employer, the terms and the offer time, not
+   the worker, so the same terms in the same second to two people is one offer (the app sends
+   one at a time, each approved in Shield). Codegen no longer waits: Leo's ABI works (above).
 2. **Generated bindings in place of the hand parsers,** one program at a time, each its own PR with
    the old and new decoders tested against the same records.
 3. **The reads:** a usage panel from the program-calls route (for Hewn's own traction, not the
