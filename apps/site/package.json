@@ -16,8 +16,8 @@
     "@pnw/security": "workspace:*",
     "@pnw/ui": "workspace:*",
     "@vercel/analytics": "2.0.1",
-    "lucide-react": "1.60.0",
-    "next": "16.4.2",
+    "lucide-react": "1.66.0",
+    "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
