@@ -17,6 +17,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [Shield adapter packages 1.3.0 → 1.5.0](progress/2026-11/2026-11-08.md#2026-11-08--shield-adapter-packages-130--150)
 - [Find my books over the relay: Shield opened from the tap](progress/2026-11/2026-11-08.md#2026-11-08--find-my-books-over-the-relay-shield-opened-from-the-tap)
 - [Vercel's deployment storage full; retention down to a week](progress/2026-11/2026-11-08.md#2026-11-08--vercels-deployment-storage-full-retention-down-to-a-week)
+- [A name registration Shield called failed, that the chain had accepted](progress/2026-11/2026-11-08.md#2026-11-08--a-name-registration-shield-called-failed-that-the-chain-had-accepted)
 
 ### [2026-11-07](progress/2026-11/2026-11-07.md)
 

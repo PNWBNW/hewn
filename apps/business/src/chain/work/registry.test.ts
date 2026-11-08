@@ -3,7 +3,7 @@ import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
 import { computeNameHash } from "@pnw/records/registry/name_registry";
 import { encodeStringToU128 } from "@pnw/records/registry/profile_types";
 import { describe, expect, it } from "vitest";
-import { CREATE_PROFILE, type ProfileForm, REGISTER, ageAt, checkProfileForm, nameToU128, profileAnchor, profileInputs, registerNameInputs } from "./registry";
+import { CREATE_PROFILE, type ProfileForm, REGISTER, ageAt, checkProfileForm, nameToU128, profileAnchor, profileInputs, registerNameInputs, registeredAnyway } from "./registry";
 
 const WORKER = "aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px";
 
@@ -111,5 +111,46 @@ describe("create_worker_profile", () => {
     expect(() => checkProfileForm({ ...form, citizenshipFlag: 9 }, NOW)).toThrow(/citizenship/);
     expect(() => checkProfileForm({ ...form, firstName: "a".repeat(17) }, NOW)).toThrow(/16 characters/);
     expect(() => profileInputs({ ...form, lastName: "" }, NAME_HASH, WORKER, NOW)).toThrow(/Last name/);
+  });
+});
+
+describe("registeredAnyway: a failed send that went through", () => {
+  const ME = "aleo1me";
+  const reads = (answers: (string | null | Error)[]) => {
+    let i = 0;
+    const calls: string[] = [];
+    const nameOwner = async (h: string) => {
+      calls.push(h);
+      const a = answers[Math.min(i++, answers.length - 1)]!;
+      if (a instanceof Error) throw a;
+      return a;
+    };
+    return { nameOwner, calls };
+  };
+  const instant = { sleep: async () => {} };
+
+  it("says yes when the registry already has the name as this account's", async () => {
+    const r = reads([ME]);
+    expect(await registeredAnyway(r.nameOwner, "123", ME, "Shield: timed out", instant)).toBe(true);
+    expect(r.calls).toEqual(["123"]);
+  });
+
+  it("reads once for an ordinary failure, and says no when the name isn't this account's", async () => {
+    const none = reads([null, ME]);
+    expect(await registeredAnyway(none.nameOwner, "123", ME, "user rejected", instant)).toBe(false);
+    expect(none.calls).toHaveLength(1); // a decline in Shield isn't kept waiting
+    expect(await registeredAnyway(reads(["aleo1other"]).nameOwner, "123", ME, "failed", instant)).toBe(false);
+  });
+
+  it("waits for the registry to catch up when Shield says the transaction already exists (2026-11-08)", async () => {
+    const r = reads([null, null, ME]);
+    const err = "TxOrchestratorService: Failed to send transaction: ... Transaction 'at1x' already exists in the ledger";
+    expect(await registeredAnyway(r.nameOwner, "123", ME, err, instant)).toBe(true);
+    expect(r.calls).toHaveLength(3);
+    expect(await registeredAnyway(reads([null]).nameOwner, "123", ME, err, { ...instant, tries: 4 })).toBe(false);
+  });
+
+  it("says no when the registry can't be read, so the original error stands", async () => {
+    expect(await registeredAnyway(reads([new Error("offline")]).nameOwner, "123", ME, "already exists in the ledger", instant)).toBe(false);
   });
 });

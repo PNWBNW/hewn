@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { queryNamePlaintext } from "@pnw/records/registry/name_registry";
+import { queryNameOwner, queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
@@ -27,6 +27,7 @@ import type { Company } from "@/books/company";
 import { ShieldStatus } from "./ShieldStatus";
 import { type AccountStatus, INDUSTRIES, NAME_RULE, REGISTER_BUSINESS, accountStatus, checkName, registerBusinessInputs } from "./business_registry";
 import { executeAndWait } from "./work/execute";
+import { registeredAnyway } from "./work/registry";
 import { useShield } from "./shield";
 
 export type RegisterBusinessProps = { onClose: () => void; onDone?: () => void };
@@ -127,13 +128,24 @@ export function RegisterFlow({ onClose, onDone }: RegisterBusinessProps) {
     setBusy(true);
     setError(null);
     setFailed(false);
+    let nameHash: string | null = null;
     try {
-      const { nameHash, inputs } = registerBusinessInputs(name, industry);
-      await executeAndWait(wallet, { ...REGISTER_BUSINESS, inputs });
-      await save(nameHash, name);
+      const built = registerBusinessInputs(name, industry);
+      nameHash = built.nameHash;
+      await executeAndWait(wallet, { ...REGISTER_BUSINESS, inputs: built.inputs });
+      await save(built.nameHash, name);
     } catch (e) {
-      setError(errorMessage(e));
-      setFailed(true);
+      // Shield can call a send failed that went through: the registry has the last word.
+      const hash = nameHash;
+      if (address && hash && (await registeredAnyway(queryNameOwner, hash, address, errorMessage(e)))) {
+        await save(hash, name).catch((s: unknown) => {
+          setError(errorMessage(s));
+          setFailed(true);
+        });
+      } else {
+        setError(errorMessage(e));
+        setFailed(true);
+      }
     } finally {
       setBusy(false);
     }

@@ -142,3 +142,32 @@ export function profileInputs(form: ProfileForm, nameHash: string, address: stri
     profileAnchor(nameHash, address, epoch),
   ];
 }
+
+/**
+ * After a name registration's send failed, whether it landed anyway: whether the registry now has
+ * the name owned by this account. Shield can report a failure for a transaction that went through:
+ * on 2026-11-08 it sent a registration, sent it again, and passed on the second send's "already
+ * exists in the ledger" as the result, and setup offered the name again while the chain had already
+ * given it (each retry then rejected: one name per account). With that error the registry is read
+ * a few times, since it can trail the error by a block; otherwise once. A registry that can't be
+ * read answers no, and the original error stands.
+ */
+export async function registeredAnyway(
+  nameOwner: (nameHash: string) => Promise<string | null>,
+  nameHash: string,
+  address: string,
+  error: string,
+  deps: { sleep?: (ms: number) => Promise<void>; tries?: number; waitMs?: number } = {},
+): Promise<boolean> {
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const tries = /already exists in the ledger/i.test(error) ? (deps.tries ?? 4) : 1;
+  for (let i = 0; i < tries; i++) {
+    if (i > 0) await sleep(deps.waitMs ?? 5_000);
+    try {
+      if ((await nameOwner(nameHash)) === address) return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
