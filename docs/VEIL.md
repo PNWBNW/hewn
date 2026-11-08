@@ -1,6 +1,6 @@
 ---
 status: decided
-updated: 2026-11-07
+updated: 2026-11-08
 summary: Veil, Provable's viem-style TypeScript toolkit for Aleo, read from its source: what it is, how it fits Hewn (typed program bindings, a local devnode for end-to-end tests, the reads Hewn lacks, writes through Shield), its risks, and the order to adopt it in; decided: adopt it, with Shield the only wallet.
 ---
 
@@ -193,6 +193,12 @@ addresses, which works through the redirect; its pin bump moves them.
    thing worth knowing: the agreement id hashes the employer, the terms and the offer time, not
    the worker, so the same terms in the same second to two people is one offer (the app sends
    one at a time, each approved in Shield). Codegen no longer waits: Leo's ABI works (above).
+   **2026-11-08:** a three-worker payroll run too (`payroll.devnode.test.ts`): the payroll
+   package posts it, the rail's pay queue splits and transfers as it does through Shield, and
+   each worker's view key opens exactly their net pay. The stablecoin is the stand-in from
+   `pnw_mvp_v2/src/stubs`, since only the issuer's account may deploy or mint the deployed one;
+   it was rewritten to the deployed program's transitions, inputs and outputs for this
+   (pnw_mvp_v2 #233). Four tests, about 70 s; the suite about 3 minutes.
 2. **Generated bindings in place of the hand parsers,** one program at a time, each its own PR with
    the old and new decoders tested against the same records.
    **Letters done, 2026-11-07** (`apps/business/src/chain/generated/`): the ABI built by Leo 4.0.0

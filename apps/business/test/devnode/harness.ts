@@ -39,11 +39,21 @@ export async function deploy(clients: Clients, file: string, sha256: string): Pr
   return source;
 }
 
+/** The outputs of a confirmed transaction's first transition. */
+export function outputsOf(tx: unknown): Output[] {
+  return (tx as { execution?: { transitions?: { outputs?: Output[] }[] } }).execution?.transitions?.[0]?.outputs ?? [];
+}
+
+/** Sends one call from `from` and waits for it; returns the transaction id and the first transition's outputs. */
+export async function sendTx(from: Clients, call: Call): Promise<{ txId: string; outputs: Output[] }> {
+  const txId = await from.walletClient.writeContract(call);
+  const tx = await waitForConfirmation(from.publicClient, txId, CONFIRM_MS);
+  return { txId, outputs: outputsOf(tx) };
+}
+
 /** Sends one call from `from` and waits for it; returns the first transition's outputs. */
 export async function send(from: Clients, call: Call): Promise<Output[]> {
-  const txId = await from.walletClient.writeContract(call);
-  const tx = (await waitForConfirmation(from.publicClient, txId, CONFIRM_MS)) as { execution?: { transitions?: { outputs?: Output[] }[] } };
-  return tx.execution?.transitions?.[0]?.outputs ?? [];
+  return (await sendTx(from, call)).outputs;
 }
 
 /** The record outputs a view key opens, named by their place in the transition's outputs. */

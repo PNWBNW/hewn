@@ -6,7 +6,7 @@ these check the seam between them: that the inputs Hewn builds are what the depl
 and the records it returns are what Hewn reads.
 
 ```bash
-pnpm --filter @pnw/business test:devnode   # about 2 minutes; CI runs it after `pnpm test`
+pnpm --filter @pnw/business test:devnode   # about 3 minutes; CI runs it after `pnpm test`
 ```
 
 It is not part of `pnpm test` (the root runs only `vitest.config.ts` files); its config is
@@ -32,6 +32,18 @@ It is not part of `pnpm test` (the root runs only `vitest.config.ts` files); its
     parties key twice, an offer to oneself, and the same terms at the same second to someone
     else (the agreement id hashes the employer, the terms and the offer time, not the worker). 6
     tests.
+  - `payroll.devnode.test.ts` (the USDCx stand-in, below): Phase 2's three-worker payroll run,
+    rehearsed. `postPayRun` and `markPaycheckSettlement` (`@pnw/payroll`) post the run and write
+    each settlement back as the Pay panel does; `runPayQueue`, `explorerNetwork` and
+    `centsToMinor` (`@pnw/rail`) plan the transfers, build the freeze-list proof and send `split`
+    and `transfer_private` exactly as through Shield, over a `RailWallet` that signs with the
+    node's account and lists its Token records. Checked against the VM: three balanced entries,
+    each linked to the transaction that paid it (`source.ref`, `source.doc`, the settlement's
+    reference); each worker's view key opens exactly their net pay in that transaction and no one
+    else's; the business keeps the rest; the hash chain verifies. And the refusals: a run the
+    business can't cover stops before anything is sent; going private with more USDCx than it
+    holds is rejected by the node's finalize; a Token the business doesn't own can't be spent by
+    it (the Leo test runner lets that through; the VM doesn't). 4 tests.
 
 ## The signing key
 
@@ -44,13 +56,21 @@ These are development dependencies only; nothing here ships.
 ## The programs
 
 `programs/` holds each program's bytecode exactly as it is deployed on testnet, so the test runs
-what users run, not a rebuild. The test checks each file's sha256 before deploying it.
+what users run, not a rebuild. The one exception is the stablecoin: the deployed
+`test_usdcx_stablecoin.aleo` can be deployed and minted only by its issuer's account, so a devnode
+can't hold it; the payroll test deploys the stand-in from `pnw_mvp_v2/src/stubs` under the same
+name, built by Leo 4.0.0. It has the deployed program's transitions, inputs and outputs in the
+same order and moves value the same way (its own Leo tests say so, negative cases included); its
+freeze-list proof is taken and not checked, since the freeze-list program isn't on a devnode, and
+`mint_test` credits a public balance out of nothing. The test checks each file's sha256 before
+deploying it.
 
 | File | sha256 | Read from the explorer |
 |---|---|---|
 | `hewn_letters_v2.aleo` | `982e2d82a95b632fe049221b645e5ff334d44370588db807624b1e0ed64a785a` | 2026-11-06 |
 | `employer_agreement_v5.aleo` | `a81fec03bb1418ef4020a3433d22107d1c34aa50e1d6ca76bbf8eab905a6ed19` | 2026-11-06 and 11-07 |
 | `employer_agreement_v4.aleo` | `5be6c60a70995dca1ad0368f26e781410249a61ad5ea8f7ba47db2d2b69e5b06` | 2026-11-07; not deployed by a test (it imports two programs), only read by `src/chain/generated/generated.test.ts` to check the ABI's records |
+| `test_usdcx_stablecoin.aleo` | `1b00b69ef302f2c6a5af8e6888b8e33cb9fd77edf332cf79a35241f952586bc0` | Not from the explorer: built 2026-11-08 by Leo 4.0.0 from `pnw_mvp_v2/src/stubs/test_usdcx_stablecoin.aleo` (pnw_mvp_v2 #233). Rebuild it when the stand-in changes (`leo build` in a copy of the folder without the `.aleo` suffix; the file is `build/main.aleo`) |
 
 To refresh or add one (a new version is a new file; deployed programs never change):
 
@@ -61,4 +81,12 @@ sha256sum programs/hewn_letters_v2.aleo
 ```
 
 A program that imports another needs its imports deployed first, in order (`hewn_credentials_v1`
-imports `employer_agreement_v5`, say); neither program here imports anything.
+imports `employer_agreement_v5`, say); none of the programs here imports anything.
+
+## What can't be tested this way
+
+Paying more than a Token holds. The stand-in refuses it the way the deployed program does (the
+subtraction underflows; its Leo test `test_pay_over_token_fails`), but through the SDK that
+underflow is a panic inside the VM's WebAssembly during local execution, not a rejected promise:
+the call never settles and a test can only time out. Shield would refuse to build such a
+transaction the same way, and the pay queue never builds one (`planTransfers` splits first).
