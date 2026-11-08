@@ -14,6 +14,7 @@ import { type PeriodProof, type ProofCheck, checkPeriodProof, readPeriodProof } 
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { type ChainCheck, chainChecks } from "./period_check";
 import { TxLink } from "./TxLink";
+import { pickerAccept } from "@/books/save_file";
 
 type Line = Pick<ProofCheck | ChainCheck, "ok" | "label" | "detail">;
 type Result = {
@@ -83,7 +84,7 @@ export default function VerifyProof() {
             {busy ? "Checking…" : "Choose a proof file"}
             <input
               type="file"
-              accept="application/json,.json"
+              accept={pickerAccept("json")}
               className="sr-only"
               onChange={(e) => {
                 const f = e.target.files?.[0];

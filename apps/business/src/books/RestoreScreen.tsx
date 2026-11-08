@@ -8,6 +8,7 @@ import { BRAND } from "@/brand";
 import { LEGACY_VAULT_ID } from "./account";
 import { useBooks } from "./BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "./NewPassphrase";
+import { pickerAccept } from "./save_file";
 
 /** Where a restore starts: a backup file, or the backup kept with the Shield account (with the username typed so far). */
 export type RestoreStart = { from: "file" | "account"; username?: string };
@@ -108,7 +109,7 @@ function FileRestore({ onCancel, replacing }: { onCancel: () => void; replacing:
       <Field label="Backup file">
         <input
           type="file"
-          accept={`.${BRAND.backupExtension},application/json`}
+          accept={pickerAccept(BRAND.backupExtension)}
           onChange={(e) => void pick(e.target.files?.[0] ?? null)}
           className="block w-full text-sm file:mr-3 file:h-10 file:rounded-md file:border-0 file:bg-secondary file:px-4 file:text-sm file:font-medium"
         />

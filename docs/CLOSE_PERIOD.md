@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-05
+updated: 2026-11-08
 summary: Closing a period through any date after it ends, once every check passes, the root anchored through `payroll_audit_log`, reopening and locking, and the period proof with a public page anyone can check it on.
 ---
 
@@ -71,7 +71,7 @@ If Shield's signature fails or is cancelled, the books stay closed and the ancho
 ## The period proof
 
 **Export proof**, on each close that stands, saves one file (`<business>-period-proof-<start>-to-<end>.json`,
-through the share sheet on a phone). It holds every entry of the range in full with its salt,
+through the share sheet on a phone, as `….json.txt`, which `/verify` takes too). It holds every entry of the range in full with its salt,
 every payment's settlement (transaction id, the address paid) with its two salts, the business
 tag, the previous root, the accounts the entries name, and every close of the range, newest
 first, with its anchor. It never holds the anchor secret. It does hold wages and the addresses

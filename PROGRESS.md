@@ -18,6 +18,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [Find my books over the relay: Shield opened from the tap](progress/2026-11/2026-11-08.md#2026-11-08--find-my-books-over-the-relay-shield-opened-from-the-tap)
 - [Vercel's deployment storage full; retention down to a week](progress/2026-11/2026-11-08.md#2026-11-08--vercels-deployment-storage-full-retention-down-to-a-week)
 - [A name registration Shield called failed, that the chain had accepted](progress/2026-11/2026-11-08.md#2026-11-08--a-name-registration-shield-called-failed-that-the-chain-had-accepted)
+- [A backup file from a phone browser: shared as text, downloaded if refused](progress/2026-11/2026-11-08.md#2026-11-08--a-backup-file-from-a-phone-browser-shared-as-text-downloaded-if-refused)
 
 ### [2026-11-07](progress/2026-11/2026-11-07.md)
 

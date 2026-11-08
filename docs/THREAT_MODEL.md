@@ -548,7 +548,10 @@ site data is cleared, or the books were made in another browser or at another ad
 - **Backups are asked for:** right after setup and a week after the last one, on the Dashboard and
   the worker's Home (`books/backup_reminder.ts`; the last backup's time is kept in the vault). On a
   phone, saving a backup opens the share sheet (save to Files, send to yourself), since a plain
-  download often goes nowhere inside an app's browser. ✅
+  download often goes nowhere inside an app's browser. The file is shared as plain text
+  (`….hewn.txt`, contents unchanged), the one type every share sheet takes: Brave on Android
+  refused it typed as JSON ("Permission denied", 2026-11-08); a browser that still refuses gets a
+  plain download (`books/save_file.ts`). ✅
 - **A download counts only when confirmed.** A page can't see whether a download landed, and
   Shield's browser dropped one silently while the app recorded a backup (2026-10-26). Now a backup
   counts at once only through the share sheet; after a plain download the app asks "Did the file
