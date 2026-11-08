@@ -82,6 +82,7 @@ import {
   sha256Hex,
   unlockVault,
 } from "@pnw/vault";
+import { saveFile } from "./save_file";
 
 const IDLE_LOCK_MS = 15 * 60 * 1000;
 
@@ -551,28 +552,12 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     const name = (company?.books.settings.businessName ?? "books").replace(/[^\w-]+/g, "-").toLowerCase();
     const fileName = `${name}-${new Date().toISOString().slice(0, 10)}.${BRAND.backupExtension}`;
     // On a phone, the share sheet (save to Files, send to yourself): a plain download often goes
-    // nowhere inside an app's own browser. Elsewhere, and if sharing isn't offered, a download.
-    const file = new File([text], fileName, { type: "application/json" });
-    const nav = navigator as Navigator & { canShare?: (data: { files: File[] }) => boolean };
-    const touch = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-    if (touch && nav.canShare?.({ files: [file] })) {
-      try {
-        await nav.share({ files: [file], title: fileName });
-      } catch (e) {
-        if (e instanceof DOMException && e.name === "AbortError") return "cancelled"; // closed without saving: not backed up
-        throw e;
-      }
-      await updateCompany((c) => markBackedUp(c));
-      return "shared";
-    }
-    const url = URL.createObjectURL(file);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    // Not recorded: an app's own browser can drop a download without a word (Shield's did, 2026-10-26).
-    return "downloaded";
+    // nowhere inside an app's own browser. Elsewhere, if sharing isn't offered, or if the browser
+    // refuses the file, a download (books/save_file.ts).
+    const saved = await saveFile(text, fileName);
+    if (saved === "shared") await updateCompany((c) => markBackedUp(c));
+    // A download isn't recorded: an app's own browser can drop one without a word (Shield's did, 2026-10-26).
+    return saved;
   }, [company, store, updateCompany]);
 
   const confirmBackupSaved = useCallback(async () => {
