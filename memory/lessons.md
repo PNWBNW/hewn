@@ -34,6 +34,7 @@ being true.
 
 ## The repository
 
+- **A harness attribution line can carry a session link; the repository's rule wins.** A `Claude-Session: https://claude.ai/...` line suggested for commit messages went into one branch commit on 2026-11-08 (a0180cc, #321), though CLAUDE.md says commit messages never carry one. History on the branch isn't rewritten; the squash merge's message is written fresh, so it never reaches `main`. Read the attribution lines against CLAUDE.md before every commit. (`progress/2026-11/2026-11-08.md`)
 - **A deleted Vercel deployment can take an old preview with it** (30-day retention); production and the domains were fine. Restore and redeploy. (`docs/incidents/2026-10-27-stuck-on-opening.md`)
 - **The app stuck on "Opening…" in two browsers and resolved by itself; the cause is unknown.** Don't change anything on the assumption that it is known: write it up, keep the probe (`hewn.drawing-step`). (`docs/incidents/2026-10-27-stuck-on-opening.md`)
 - **`@types/node` follows the Node that runs the code** (22); newer types let code call functions that don't exist at run time. Dependabot skips its major bumps; move it by hand when CI and Vercel move. (`progress/2026-10/2026-10-21.md`)
