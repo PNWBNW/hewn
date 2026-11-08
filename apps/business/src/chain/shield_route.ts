@@ -39,3 +39,12 @@ export function openShield(deps: { navigate?: (url: string) => void; after?: (fn
   const after = deps.after ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
   after(() => navigate(SHIELD_OPEN_URL), WAKE_DELAY_MS);
 }
+
+/**
+ * Whether a connect failed because this page cancelled it (`restart` in shield.ts tears the
+ * pairing down on purpose): the adapter reports "Shield pairing was cancelled", and that is not
+ * an error to show.
+ */
+export function isPairingCancelled(message: string): boolean {
+  return /cancel/i.test(message);
+}

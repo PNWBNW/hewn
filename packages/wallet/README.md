@@ -39,7 +39,11 @@ nothing happens on screen. `chain/shield.ts` exposes `route` and `away` for the 
 "Open Shield" link (`ShieldAway`), and `chain/shield_route.ts` has `openShield`, which opens the
 app from the tap that asked for a read, as the restore screen does. Tried on a real phone on
 2026-11-08 (Brave on Android): the pairing, a letter through to accepted, and the restore's reads,
-which waited until the app was opened by hand; hence `openShield`.
+which waited until the app was opened by hand; hence `openShield`. One more thing seen there: a
+remembered pairing is resumed by its relay channel, and when Shield's side has dropped that
+channel (a cancelled pairing, say) the resume waits up to five minutes for an app that never
+comes, with no tap to open it. `useShield`'s `restart` tears the pairing down and asks Shield
+afresh from a tap; the restore screen offers it after ten seconds of "Connecting…".
 
 ## Fees
 

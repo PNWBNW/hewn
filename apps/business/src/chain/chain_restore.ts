@@ -37,3 +37,6 @@ export const AWAY_HINT_MS = 3_000;
 export function awayHint(input: { route: ShieldRoute; busy: boolean; waited: boolean }): boolean {
   return input.route === "relay" && input.busy && input.waited;
 }
+
+/** How long "Connecting…" may run over the relay before the screen offers to start the pairing over. */
+export const CONNECT_HINT_MS = 10_000;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
-import { WAKE_DELAY_MS, openShield, shieldRoute } from "./shield_route";
+import { WAKE_DELAY_MS, isPairingCancelled, openShield, shieldRoute } from "./shield_route";
 
 describe("shieldRoute", () => {
   it("uses injected Shield wherever it is found: the extension, or Shield's own browser", () => {
@@ -36,5 +36,13 @@ describe("openShield", () => {
       },
     });
     expect(calls).toEqual({ url: "shield://wake", ms: WAKE_DELAY_MS });
+  });
+});
+
+describe("isPairingCancelled", () => {
+  it("knows the adapter's word for a pairing this page tore down, and nothing else", () => {
+    expect(isPairingCancelled("Shield pairing was cancelled")).toBe(true);
+    expect(isPairingCancelled("timed out waiting for the Shield app to pair")).toBe(false);
+    expect(isPairingCancelled("could not reach the Shield relay")).toBe(false);
   });
 });

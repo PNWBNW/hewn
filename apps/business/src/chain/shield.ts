@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { Network, WalletReadyState, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
-import { type ShieldRoute, isPhone, shieldRoute } from "./shield_route";
+import { type ShieldRoute, isPairingCancelled, isPhone, shieldRoute } from "./shield_route";
 
 export type { ShieldRoute };
 
@@ -49,7 +49,10 @@ export function useShield() {
   useEffect(() => {
     if (!asked || !wallet.wallet || wallet.connected || wallet.connecting) return;
     setAsked(false);
-    wallet.connect(Network.TESTNET).catch((e: unknown) => setError(errorMessage(e)));
+    wallet.connect(Network.TESTNET).catch((e: unknown) => {
+      const message = errorMessage(e);
+      if (!isPairingCancelled(message)) setError(message);
+    });
   }, [asked, wallet]);
 
   // Presence, relay only: the adapter says when the app comes and goes.
@@ -77,6 +80,25 @@ export function useShield() {
     wallet.selectWallet(shield.adapter.name);
   };
 
+  /**
+   * Forgets this browser's pairing and asks Shield afresh. Over the relay, a remembered pairing
+   * whose channel is gone (Shield's side cancelled or dropped it) leaves a connect waiting up to
+   * five minutes for an app that will never come, and without a tap the browser won't open it.
+   * Tearing the pairing down ends that wait; the connect that follows runs from the tap.
+   */
+  const restart = async () => {
+    if (!shield) return;
+    setError(null);
+    try {
+      await adaptor.disconnect();
+    } catch {
+      // Nothing was connected: there is nothing to tear down.
+    }
+    await new Promise<void>((r) => setTimeout(r, 0)); // let the cancelled connect settle first
+    setAsked(true);
+    wallet.selectWallet(shield.adapter.name);
+  };
+
   const state: ShieldState =
     wallet.connected && wallet.address
       ? { kind: "connected", address: wallet.address }
@@ -89,5 +111,5 @@ export function useShield() {
   /** Connected over the relay, but the Shield app is in the background: reads wait until it opens. */
   const away = route === "relay" && state.kind === "connected" && !present;
 
-  return { state, route, away, connect, error, wallet };
+  return { state, route, away, connect, restart, error, wallet };
 }
