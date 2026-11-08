@@ -43,7 +43,12 @@ which waited until the app was opened by hand; hence `openShield`. One more thin
 remembered pairing is resumed by its relay channel, and when Shield's side has dropped that
 channel (a cancelled pairing, say) the resume waits up to five minutes for an app that never
 comes, with no tap to open it. `useShield`'s `restart` tears the pairing down and asks Shield
-afresh from a tap; the restore screen offers it after ten seconds of "Connecting…".
+afresh from a tap; the restore screen offers it after ten seconds of "Connecting…". And the wake
+link must name the site's relay channel, `shield://wake?channelId=…`, as the adapter's own does:
+a bare `shield://wake` opens the app, which then finds no connection for it and says "Connection
+expired". The adapter keeps the channel privately, so `shieldWakeUrl` (here) reads it, and a test
+fails if a new adapter version moves the names it reads; `useShield().wakeUrl()` hands it to every
+"Open Shield" link and to `openShield`.
 
 ## Fees
 

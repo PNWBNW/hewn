@@ -73,7 +73,7 @@ type Public = { aleo: bigint; usdcx: bigint };
 type Private = { aleo: bigint; usdcx: bigint };
 
 function BalancesCard({ address }: AccountBalancesProps) {
-  const { state, away, connect, error: connectError, wallet } = useShield();
+  const { state, away, connect, wakeUrl, error: connectError, wallet } = useShield();
   const [pub, setPub] = useState<Public | null>(null);
   const [priv, setPriv] = useState<Private | null>(null);
   const [pubError, setPubError] = useState<string | null>(null);
@@ -176,7 +176,7 @@ function BalancesCard({ address }: AccountBalancesProps) {
             <span className="text-xs text-muted-foreground">to see the private balances</span>
           </div>
         ) : away ? (
-          <ShieldAway what="the private balances" />
+          <ShieldAway what="the private balances" href={wakeUrl()} />
         ) : null}
       </CardContent>
     </Card>

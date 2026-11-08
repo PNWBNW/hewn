@@ -24,9 +24,9 @@ describe("shieldRoute", () => {
 });
 
 describe("openShield", () => {
-  it("opens the Shield app with its wake link, a moment after the tap so the request leaves first", () => {
+  it("opens the Shield app with the link it is given, a moment after the tap so the request leaves first", () => {
     const calls: { url?: string; ms?: number } = {};
-    openShield({
+    openShield("shield://wake?channelId=abc", {
       navigate: (url) => {
         calls.url = url;
       },
@@ -35,7 +35,7 @@ describe("openShield", () => {
         fn();
       },
     });
-    expect(calls).toEqual({ url: "shield://wake", ms: WAKE_DELAY_MS });
+    expect(calls).toEqual({ url: "shield://wake?channelId=abc", ms: WAKE_DELAY_MS });
   });
 });
 

@@ -40,7 +40,7 @@ type Done = { notes: string[]; open: () => Promise<void> };
 
 function Restore({ username: initialUsername = "", replacing, onCancel }: Props) {
   const { restoreFromAccount } = useBooks();
-  const { state, route, away, connect, restart, error: shieldError, wallet: shield } = useShield();
+  const { state, route, away, connect, restart, wakeUrl, error: shieldError, wallet: shield } = useShield();
   const latest = useRef(shield);
   latest.current = shield;
   const wallet = useMemo<LetterWallet>(
@@ -94,7 +94,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
       // Over the relay, Shield answers the records request only while it is open, and the adapter
       // opens it for approvals only: bring it to the front from this tap when it is in the
       // background. Injected Shield is always there.
-      if (away) openShield();
+      if (away) openShield(wakeUrl());
       const report = await pending;
       if (!report) {
         setError(`No backup kept with ${shortAddress(address)} for that username. Check the username, and that Shield is on the account you backed up with.`);
@@ -237,7 +237,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
           If this account already has books on this device, restoring replaces them. Save a backup of them first if you might need them.
         </p>
       )}
-      {awayHint({ route, busy, waited }) ? <ShieldAway what="your books" /> : null}
+      {awayHint({ route, busy, waited }) ? <ShieldAway what="your books" href={wakeUrl()} /> : null}
       <FormError message={error} />
       <div className="flex gap-3">
         <Button type="button" variant="outline" className="h-11 flex-1" onClick={onCancel} disabled={busy}>

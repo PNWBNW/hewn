@@ -1,7 +1,7 @@
 // How this page reaches Shield (three ways in, @pnw/wallet/wallet-provider).
 // Pure: the hook in shield.ts feeds it the adapter's ready state and the device.
 
-import { SHIELD_OPEN_URL, WalletReadyState } from "@pnw/wallet/wallet-provider";
+import { WalletReadyState } from "@pnw/wallet/wallet-provider";
 
 /**
  * - `injected`: the extension, or Shield's own browser; always reachable.
@@ -32,12 +32,14 @@ export const WAKE_DELAY_MS = 300;
  * app is in the background waits on the channel, and nothing happens on screen.
  * So a screen about to read while the app is away opens it itself. Call it from
  * the tap that asked, since the browser opens another app only on a person's
- * action; the link fires a moment later so the request is on the wire first.
+ * action; the link fires a moment later so the request is on the wire first. `url` is
+ * `useShield().wakeUrl()`, which names this site's relay channel: without it Shield opens but
+ * says the connection expired.
  */
-export function openShield(deps: { navigate?: (url: string) => void; after?: (fn: () => void, ms: number) => void } = {}): void {
-  const navigate = deps.navigate ?? ((url: string) => { window.location.href = url; });
+export function openShield(url: string, deps: { navigate?: (url: string) => void; after?: (fn: () => void, ms: number) => void } = {}): void {
+  const navigate = deps.navigate ?? ((to: string) => { window.location.href = to; });
   const after = deps.after ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
-  after(() => navigate(SHIELD_OPEN_URL), WAKE_DELAY_MS);
+  after(() => navigate(url), WAKE_DELAY_MS);
 }
 
 /**

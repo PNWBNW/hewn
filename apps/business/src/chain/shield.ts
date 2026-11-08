@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
-import { Network, WalletReadyState, useWallet } from "@pnw/wallet/wallet-provider";
+import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
 import { type ShieldRoute, isPairingCancelled, isPhone, shieldRoute } from "./shield_route";
 
@@ -111,5 +111,8 @@ export function useShield() {
   /** Connected over the relay, but the Shield app is in the background: reads wait until it opens. */
   const away = route === "relay" && state.kind === "connected" && !present;
 
-  return { state, route, away, connect, restart, error, wallet };
+  /** The link that brings Shield to the front for this site's pairing (with its relay channel). */
+  const wakeUrl = () => shieldWakeUrl(shield?.adapter);
+
+  return { state, route, away, connect, restart, wakeUrl, error, wallet };
 }
