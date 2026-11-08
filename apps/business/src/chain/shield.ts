@@ -96,6 +96,11 @@ export function useShield() {
     } catch {
       // Nothing was connected: there is nothing to tear down.
     }
+    // The provider forgets a disconnected wallet only from the adapter's disconnect event, and
+    // skips that once the page has seen a beforeunload, which every shield:// link fires and which
+    // it never resets: after the first trip to Shield, it kept the closed pairing as connected for
+    // good (seen 2026-11-08). Selecting no wallet clears it whatever the page has seen.
+    wallet.selectWallet(null);
   };
 
   // The fresh connect is asked for only once the provider shows the old pairing gone; see
