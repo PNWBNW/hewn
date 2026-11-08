@@ -248,6 +248,16 @@ describe("runPayQueue", () => {
     ]);
   });
 
+  it("a wallet reporting aborted, expired, cancelled or refunded fails the payee at once", async () => {
+    // The newer wallet statuses for a transaction that will never land; each ends the wait as a failure, not a timeout.
+    for (const status of ["aborted", "expired", "cancelled", "refunded"]) {
+      const wallet = new FakeWallet([centsToMinor(10_00n)], () => [{ status, error: `Shield: ${status}` }]);
+      const { result, events } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)]);
+      expect(result).toEqual({ settled: [], failed: [{ workerId: "w1", failure: `Shield: ${status}` }], unconfirmed: [] });
+      expect(events.some((e) => e.kind === "failed")).toBe(true);
+    }
+  });
+
   it("resumes: skips settled, polls a sent one instead of re-sending it, retries a failed one", async () => {
     const wallet = new FakeWallet([centsToMinor(50_00n), centsToMinor(50_00n)], (_c, n) => accepted(AT(n)));
     wallet.know("shield_old", [{ status: "pending" }, { status: "accepted", transactionId: AT(9) }]);

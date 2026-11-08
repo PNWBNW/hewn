@@ -11,10 +11,10 @@ document's `status`, `updated` or `summary` line, then run `python3 -I scripts/d
 |---|---|---|
 | [`JOB_BOARD.md`](JOB_BOARD.md) | living · 2026-10-19 | The public job board on `hewn_jobs_v1.aleo`: what is public on purpose, how applications stay sealed, fees. |
 | [`LETTERS.md`](LETTERS.md) | living · 2026-10-26 | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
-| [`THREAT_MODEL.md`](THREAT_MODEL.md) | living · 2026-10-30 | What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it. |
 | [`INVARIANTS.md`](INVARIANTS.md) | living · 2026-11-03 | Every non-negotiable rule with an id, where it is enforced, its check, its threats and the SOC 2 and ISO 27001 items it satisfies; then the operating rules. The control list. |
 | [`map/`](map/README.md) | living · 2026-11-03 | The map of Hewn in 3D on GitHub Pages: every file in both repositories, every rule and dependency, how they connect; its extractor, layout, viewer, query tool and build. |
 | [`security/DATA_FLOW.md`](security/DATA_FLOW.md) | living · 2026-11-03 | Where the data lives and what crosses between places: every store and flow classed private, sealed, public or control, each citing its rule; the map's data-flow view in writing. |
+| [`THREAT_MODEL.md`](THREAT_MODEL.md) | living · 2026-11-08 | What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it. |
 | [`TWIN_CURVE_CONVERSATIONS.md`](TWIN_CURVE_CONVERSATIONS.md) | built · 2026-10-23 | The business ↔ team member conversation on key exchange (the handshake), and backups both people agree to. |
 | [`HEWN_ART.md`](HEWN_ART.md) | built · 2026-10-24 | The art drawn for every credential and paystub: a worker's land in 3D, a business's topographic map, the constellation, the paystub rings; in the app, the credential card (question 1) still open. |
 | [`CUSTOMERS.md`](CUSTOMERS.md) | built · 2026-10-26 | Customers as their own accounts with a portal: invoices sent as letters, bills paid from Shield, agreements with a clear end; Step 1 built, the directory of businesses and reviews still open. |
@@ -36,7 +36,7 @@ document's `status`, `updated` or `summary` line, then run `python3 -I scripts/d
 | [`DESIGN_BRIEF.md`](DESIGN_BRIEF.md) | reference · 2026-10-14 | Who the app is for and the principles its screens follow; clean-room, from what bookkeepers do. |
 | [`INTEGRATION_AUDIT.md`](INTEGRATION_AUDIT.md) | report · 2026-10-14 | The read-only pass over the three codebases that decided what to keep, what to rebuild and in what order; most of its list is done. |
 | [`ZPASS.md`](ZPASS.md) | report · 2026-11-05 | What zPass is today (an issuer-signed credential proven in zero knowledge; an SDK from early 2025; example programs on testnet only), why Hewn can't use its SDK as it is, where it fits (verified identity, age, sanctions; not the I-9 yet), the missing piece (an issuer), and the recommended path. |
-| [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | report · 2026-11-07 | The network's limits checked against the settlement design before it was built (2026-10-14). |
+| [`ALEO_CONSTRAINTS.md`](ALEO_CONSTRAINTS.md) | report · 2026-11-08 | The network's limits checked against the settlement design before it was built (2026-10-14). |
 
 Status means: **idea**, an idea, nothing decided or built; **design**, a design waiting for Joshua's decision; **review**, a review or analysis for Joshua, nothing to build; **decided**, decided by Joshua, not yet built; **built**, built and in the app (open items, if any, are named in the summary); **plan**, a plan with its checklist; items tick here; **living**, kept current as the code changes; CI checks it where it can; **report**, a dated report of what was found; history, not current; **reference**, background that doesn't change: who it's for, how it was made.
 

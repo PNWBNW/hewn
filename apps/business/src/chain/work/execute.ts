@@ -42,7 +42,8 @@ export class ExecuteError extends Error {
 }
 
 const ACCEPTED = new Set(["accepted", "finalized", "confirmed", "completed"]);
-const REJECTED = new Set(["rejected", "failed"]);
+// What a wallet may report for a transaction that will never land (adapter 1.5.0's `TransactionStatus`, plus the two older words).
+const REJECTED = new Set(["rejected", "failed", "aborted", "expired", "cancelled", "refunded"]);
 const isOnChainId = (id: string | undefined): id is string => typeof id === "string" && id.startsWith("at1");
 
 /** Asks Shield to prove, sign and broadcast one transition, then waits until it is accepted. */
