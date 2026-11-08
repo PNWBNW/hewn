@@ -42,7 +42,9 @@ itself, staying up long enough to answer what follows. `chain/shield.ts` exposes
 `away` for the wording and the "Open Shield" link (`ShieldAway`), and `restart`, a fresh connect
 from a tap. Tried on a real phone on 2026-11-08 (Brave on Android): the pairing, a letter through
 to accepted, and the restore's reads, which waited until the app was opened by hand; the restore
-now connects afresh when Shield is asleep and searches as soon as the connect lands. One more thing seen there: a
+now connects afresh when Shield is asleep and searches as soon as the connect lands. On the phone
+that is a trip to Shield for an approval, Shield's "Return to your browser", and the books open on
+the way back (plus a first trip when the screen opens without a pairing). One more thing seen there: a
 remembered pairing is resumed by its relay channel, and when Shield's side has dropped that
 channel (a cancelled pairing, say) the resume waits up to five minutes for an app that never
 comes, with no tap to open it. `useShield`'s `restart` tears the pairing down and asks Shield
