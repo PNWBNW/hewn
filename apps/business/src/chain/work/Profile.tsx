@@ -21,7 +21,7 @@ import { setProfile } from "@/books/work";
 import { BRAND } from "@/brand";
 import { executeAndWait } from "./execute";
 import { COUNTRY_CODES, US_STATE_CODES } from "./geo";
-import { CITIZENSHIP, CREATE_PROFILE, GENDER_UNSPECIFIED, NAME_PATTERN, NAME_RULE, type ProfileForm, REGISTER, profileInputs, registerNameInputs } from "./registry";
+import { CITIZENSHIP, CREATE_PROFILE, GENDER_UNSPECIFIED, NAME_PATTERN, NAME_RULE, type ProfileForm, REGISTER, profileInputs, registerNameInputs, registeredAnyway } from "./registry";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
 import { assertKindFree } from "../account_kind";
 
@@ -128,14 +128,23 @@ export function RegisterName({
     if (availability.kind !== "available") return;
     setBusy(true);
     setError(null);
+    let nameHash: string | null = null;
     try {
-      const { nameHash, inputs } = registerNameInputs(name);
+      const built = registerNameInputs(name);
+      nameHash = built.nameHash;
+      const { inputs } = built;
       // One kind of account per Shield account: a wallet holding a business's name can't take a person's.
       if (address) await assertKindFree(role, address);
       if (!availability.yours) await executeAndWait(wallet, { ...REGISTER, inputs });
       await save(nameHash, name);
     } catch (e) {
-      setError(errorMessage(e));
+      // Shield can call a send failed that went through: the registry has the last word.
+      const hash = nameHash;
+      if (address && hash && (await registeredAnyway(queryNameOwner, hash, address, errorMessage(e)))) {
+        await save(hash, name).catch((s: unknown) => setError(errorMessage(s)));
+      } else {
+        setError(errorMessage(e));
+      }
     } finally {
       setBusy(false);
     }
