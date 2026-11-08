@@ -126,7 +126,8 @@ export async function recordTag(plaintext: string): Promise<string> {
 }
 
 const ACCEPTED = new Set(["accepted", "finalized", "confirmed", "completed"]);
-const REJECTED = new Set(["rejected", "failed"]);
+// What a wallet may report for a transaction that will never land (adapter 1.5.0's `TransactionStatus`, plus the two older words).
+const REJECTED = new Set(["rejected", "failed", "aborted", "expired", "cancelled", "refunded"]);
 
 export const isOnChainId = (id: string | undefined): id is string => typeof id === "string" && id.startsWith("at1");
 

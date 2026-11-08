@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-10-30
+updated: 2026-11-08
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it.
 ---
 
@@ -105,7 +105,7 @@ The highest risk for a browser app.
   and a channel that forwards sealed messages to the Shield app. Verified in a browser: third-party
   fetch, framing and inline handlers are all refused. ✅
 - ⚠️ A plain phone browser reaches the Shield app over Provable's relay
-  (`@provablehq/aleo-wallet-adapter-shield` 1.3.0, the third way in beside the extension and
+  (`@provablehq/aleo-wallet-adapter-shield` 1.5.0, the third way in beside the extension and
   Shield's own browser). The page and the app exchange messages sealed end to end (ECIES, signed,
   sequence-numbered; the relay forwards them unread). The pairing secret rides only in the
   `shield://` link that opens the app, never over the relay, and authenticates the app's key

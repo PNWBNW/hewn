@@ -428,6 +428,10 @@ describe("sendOffer", () => {
     expect(await awaitAccepted(fakeWallet({ polls: 1 }), WALLET_ID, instant)).toBe(TX);
     const bare = { ...fakeWallet({ polls: 1 }), transactionStatus: async () => ({ status: "finalized" }) };
     expect(await awaitAccepted(bare, TX, instant)).toBe(TX);
+    for (const status of ["aborted", "expired", "cancelled", "refunded"]) {
+      const gone = { ...fakeWallet(), transactionStatus: async () => ({ status, error: `gone: ${status}` }) };
+      await expect(awaitAccepted(gone, WALLET_ID, instant)).rejects.toThrow(`gone: ${status}`);
+    }
   });
 });
 

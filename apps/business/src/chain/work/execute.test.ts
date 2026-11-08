@@ -44,6 +44,9 @@ describe("executeAndWait", () => {
     await expect(executeAndWait(fakeWallet([], null).wallet, CALL, fast)).rejects.toThrow(/didn't take/);
     await expect(executeAndWait(fakeWallet([{ status: "rejected", error: "insufficient balance" }]).wallet, CALL, fast)).rejects.toThrow(/insufficient balance/);
     await expect(executeAndWait(fakeWallet([{ status: "failed" }]).wallet, CALL, fast)).rejects.toThrow(/failed/);
+    for (const status of ["aborted", "expired", "cancelled", "refunded"]) {
+      await expect(executeAndWait(fakeWallet([{ status, error: `Shield: ${status}` }]).wallet, CALL, fast)).rejects.toThrow(`Shield: ${status}`);
+    }
     let t = 0;
     const slow = fakeWallet([new Error("not yet"), { status: "pending" }]);
     await expect(executeAndWait(slow.wallet, CALL, { ...fast, capMs: 10, now: () => (t += 4) })).rejects.toThrow(/in time/);
