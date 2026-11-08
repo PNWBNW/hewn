@@ -20,10 +20,9 @@ import { useBooks } from "@/books/BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "@/books/NewPassphrase";
 import { shortAddress } from "@/books/rail";
 import { restoreBackup } from "./books_backup";
-import { AWAY_HINT_MS, CONNECT_HINT_MS, awayHint, ownReader, restoreNotes } from "./chain_restore";
+import { AWAY_HINT_MS, CONNECT_HINT_MS, type FindChain, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import { LetterBox, type LetterWallet } from "./letters";
 import { useShield } from "./shield";
-import { openShield } from "./shield_route";
 import { ShieldAway } from "./ShieldStatus";
 
 type Props = { username?: string; replacing: boolean; onCancel: () => void };
@@ -62,6 +61,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
   const [busy, setBusy] = useState(false);
   const [waited, setWaited] = useState(false); // "Looking…" has run long enough to say "Open Shield"
   const [connectWaited, setConnectWaited] = useState(false); // "Connecting…" has run long enough to offer "Start over"
+  const [chain, setChain] = useState<FindChain>("idle"); // a search waiting on a fresh connect
 
   useEffect(() => {
     if (state.kind !== "connecting") {
@@ -91,10 +91,6 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
         username,
         recovering ? { code, next } : { passphrase },
       );
-      // Over the relay, Shield answers the records request only while it is open, and the adapter
-      // opens it for approvals only: bring it to the front from this tap when it is in the
-      // background. Injected Shield is always there.
-      if (away) openShield(wakeUrl());
       const report = await pending;
       if (!report) {
         setError(`No backup kept with ${shortAddress(address)} for that username. Check the username, and that Shield is on the account you backed up with.`);
@@ -114,6 +110,30 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
     } finally {
       clearTimeout(hint);
     }
+  }
+
+  // A search waiting on a fresh connect goes out the moment the connect lands, while Shield is
+  // still in front saying "Return to your browser", so it answers this too.
+  useEffect(() => {
+    if (chain === "idle") return;
+    const step = stepFindChain(chain, state.kind);
+    if (step.chain !== chain) setChain(step.chain);
+    if (step.then === "find") void find();
+    if (step.then === "stop") setBusy(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- find is this render's: it reads the address the connect just gave
+  }, [chain, state.kind]);
+
+  /** The button: straight to the search, or, over the relay with Shield asleep, a fresh connect first. */
+  function start() {
+    if (busy || !ready) return;
+    if (!mustReconnect(route, away)) {
+      void find();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setChain("restarting");
+    void restart();
   }
 
   if (done) {
@@ -180,7 +200,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!busy) void find();
+        start();
       }}
     >
       {shieldPart}
@@ -237,7 +257,11 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
           If this account already has books on this device, restoring replaces them. Save a backup of them first if you might need them.
         </p>
       )}
-      {awayHint({ route, busy, waited }) ? <ShieldAway what="your books" href={wakeUrl()} /> : null}
+      {chain !== "idle" ? (
+        <p className="text-sm text-muted-foreground">Shield opens to connect. Approve there, then come back here: your books will be on their way.</p>
+      ) : awayHint({ route, busy, waited }) ? (
+        <ShieldAway what="your books" href={wakeUrl()} />
+      ) : null}
       <FormError message={error} />
       <div className="flex gap-3">
         <Button type="button" variant="outline" className="h-11 flex-1" onClick={onCancel} disabled={busy}>

@@ -6,7 +6,7 @@ import { type AccountUnlock, fileIdsIn, restoreIntoVault, restoredCompany } from
 import { stateHash } from "../books/books_backup";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "../books/company";
 import { type Page, planBackup, restoreBackup, sealerOf } from "./books_backup";
-import { AWAY_HINT_MS, awayHint, ownReader, restoreNotes } from "./chain_restore";
+import { AWAY_HINT_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import type { LetterRecord } from "./letters";
 
 const USER = "alder";
@@ -155,5 +155,26 @@ describe("the Open Shield line while looking", () => {
     expect(awayHint({ route: "injected", busy: true, waited: true })).toBe(false); // injected Shield is always there
     expect(awayHint({ route: "none", busy: true, waited: true })).toBe(false);
     expect(AWAY_HINT_MS).toBe(3_000);
+  });
+});
+
+describe("Find my books over the relay", () => {
+  it("connects afresh first only over the relay with Shield asleep", () => {
+    expect(mustReconnect("relay", true)).toBe(true);
+    expect(mustReconnect("relay", false)).toBe(false); // Shield awake: no trip at all
+    expect(mustReconnect("injected", true)).toBe(false);
+    expect(mustReconnect("none", true)).toBe(false);
+  });
+
+  it("searches once the fresh connect lands, and stops if it ends without one", () => {
+    // The old pairing goes first: "ready" then is not an end.
+    expect(stepFindChain("restarting", "ready")).toEqual({ chain: "restarting", then: null });
+    expect(stepFindChain("restarting", "connected")).toEqual({ chain: "restarting", then: null }); // the old pairing, still up
+    expect(stepFindChain("restarting", "connecting")).toEqual({ chain: "connecting", then: null });
+    expect(stepFindChain("connecting", "connecting")).toEqual({ chain: "connecting", then: null });
+    expect(stepFindChain("connecting", "connected")).toEqual({ chain: "idle", then: "find" });
+    expect(stepFindChain("connecting", "ready")).toEqual({ chain: "idle", then: "stop" }); // declined in Shield, or failed
+    expect(stepFindChain("connecting", "missing")).toEqual({ chain: "idle", then: "stop" });
+    expect(stepFindChain("idle", "connected")).toEqual({ chain: "idle", then: null });
   });
 });

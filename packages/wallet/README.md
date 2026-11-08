@@ -35,11 +35,14 @@ to execute.
 A computer without the extension has no way in yet: Shield's app can't scan a pairing code. Over
 the relay the app answers reads only while it is open, and the adapter opens it (the `shield://`
 link) for approvals only: a read sent while the app is in the background waits on the channel, and
-nothing happens on screen. `chain/shield.ts` exposes `route` and `away` for the wording and the
-"Open Shield" link (`ShieldAway`), and `chain/shield_route.ts` has `openShield`, which opens the
-app from the tap that asked for a read, as the restore screen does. Tried on a real phone on
-2026-11-08 (Brave on Android): the pairing, a letter through to accepted, and the restore's reads,
-which waited until the app was opened by hand; hence `openShield`. One more thing seen there: a
+nothing happens on screen. A remembered pairing reconnects without asking Shield anything, so
+reads made on it wait while Shield sleeps; a fresh connect makes the adapter open Shield with the
+request in its link, and Shield asks for an approval and then says "Return to your browser"
+itself, staying up long enough to answer what follows. `chain/shield.ts` exposes `route` and
+`away` for the wording and the "Open Shield" link (`ShieldAway`), and `restart`, a fresh connect
+from a tap. Tried on a real phone on 2026-11-08 (Brave on Android): the pairing, a letter through
+to accepted, and the restore's reads, which waited until the app was opened by hand; the restore
+now connects afresh when Shield is asleep and searches as soon as the connect lands. One more thing seen there: a
 remembered pairing is resumed by its relay channel, and when Shield's side has dropped that
 channel (a cancelled pairing, say) the resume waits up to five minutes for an app that never
 comes, with no tap to open it. `useShield`'s `restart` tears the pairing down and asks Shield

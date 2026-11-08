@@ -166,9 +166,11 @@ People choose, the app asks. It can't send a backup on its own: every page needs
    under the same keys and backups carry on; with the recovery key, a new passphrase is set and the
    next backup starts a fresh copy. Files already on the device stay; the screen says how many the
    books miss, and how far a broken backup got. From a plain phone browser (paired over Shield's
-   relay) Shield answers the records request only while it is open, so **Find my books** opens the
-   Shield app itself when the app is in the background, and an **Open Shield** line appears if the
-   search still waits after three seconds (2026-11-08; `packages/wallet/README.md`).
+   relay) Shield answers the records request only while it is open. So **Find my books** searches
+   straight away when Shield is awake, and when it is asleep it connects afresh first: Shield opens
+   to an approval, says "Return to your browser" itself, and the search goes out as the connect
+   lands, while Shield is still up. An **Open Shield** line appears if a search still waits after
+   three seconds (2026-11-08; `packages/wallet/README.md`).
 4. **A network test:** two test accounts. Back up, wipe the browser, restore on a second browser,
    then compare the restored books entry by entry.
 

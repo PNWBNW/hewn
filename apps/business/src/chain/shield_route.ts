@@ -23,25 +23,6 @@ export function isPhone(): boolean {
   return typeof navigator !== "undefined" && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
-/** How long after the tap the wake link fires: the request first, then the app (the adapter's own reasoning, with room for a read's first hashes). */
-export const WAKE_DELAY_MS = 300;
-
-/**
- * Brings the Shield app to the front over the relay. The adapter does this for
- * approvals only (`needsApproval` in its remote wallet); a read sent while the
- * app is in the background waits on the channel, and nothing happens on screen.
- * So a screen about to read while the app is away opens it itself. Call it from
- * the tap that asked, since the browser opens another app only on a person's
- * action; the link fires a moment later so the request is on the wire first. `url` is
- * `useShield().wakeUrl()`, which names this site's relay channel: without it Shield opens but
- * says the connection expired.
- */
-export function openShield(url: string, deps: { navigate?: (url: string) => void; after?: (fn: () => void, ms: number) => void } = {}): void {
-  const navigate = deps.navigate ?? ((to: string) => { window.location.href = to; });
-  const after = deps.after ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
-  after(() => navigate(url), WAKE_DELAY_MS);
-}
-
 /**
  * Whether a connect failed because this page cancelled it (`restart` in shield.ts tears the
  * pairing down on purpose): the adapter reports "Shield pairing was cancelled", and that is not
