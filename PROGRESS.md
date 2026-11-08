@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-08](progress/2026-11/2026-11-08.md)
+
+- [Phase 2 rehearsed: a three-worker payroll run on a local Aleo node](progress/2026-11/2026-11-08.md#2026-11-08--phase-2-rehearsed-a-three-worker-payroll-run-on-a-local-aleo-node)
+
 ### [2026-11-07](progress/2026-11/2026-11-07.md)
 
 - [Vercel deploys once per batch, only when we mean it to](progress/2026-11/2026-11-07.md#2026-11-07--vercel-deploys-once-per-batch-only-when-we-mean-it-to)

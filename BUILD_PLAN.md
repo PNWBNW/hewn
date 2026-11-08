@@ -7,7 +7,7 @@ Oct 13, 2026 · Joshua Day
 
 ## Now
 
-Updated 2026-11-07. Session start reads this block; keep it to these four lines and change it
+Updated 2026-11-08. Session start reads this block; keep it to these four lines and change it
 whenever the work moves.
 
 - **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
@@ -16,9 +16,11 @@ whenever the work moves.
   risk register and inventory next, then the Fable deep review); payroll compliance
   (`docs/PAYROLL_COMPLIANCE.md`: the federal engine first). Memory is built and the weekly
   dream runs on Sundays; the sleep cycle (`docs/SLEEP.md`) is built through its REM pass, the nightly
-  Routine awaiting Joshua; Veil step 2 (`docs/VEIL.md`) has letters and agreements on generated
-  bindings; licensing is AGPL plus an attribution term, a commercial licence and a CLA. The map of the whole tree is live
-  (`docs/map/`, pnwbnw.github.io/hewn).
+  Routine running nightly; Veil step 2 (`docs/VEIL.md`) has letters and agreements on generated
+  bindings; licensing is AGPL plus an attribution term, a commercial licence and a CLA. Phase 2's
+  three-worker run is rehearsed end to end on a local Aleo node in CI
+  (`apps/business/test/devnode/payroll.devnode.test.ts`, 2026-11-08); the testnet run itself
+  waits on the phones. The map of the whole tree is live (`docs/map/`, pnwbnw.github.io/hewn).
 - **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
   anchored through `payroll_audit_log`). Reconciliation (2026-10-26), Close period (2026-11-02,
   `docs/CLOSE_PERIOD.md`) and the period proof with its public check (`/verify`, 2026-11-05) are
@@ -153,7 +155,7 @@ Payroll stops being the product and becomes the first module posting into the le
 
 **Exit criteria**
 
-- [ ] A 3-worker testnet payroll run produces three balanced journal entries, each linked to its transfer transaction (receipt anchors replaced 2026-10-14 by one private transfer per worker and the paystub as a letter)
+- [ ] A 3-worker testnet payroll run produces three balanced journal entries, each linked to its transfer transaction (receipt anchors replaced 2026-10-14 by one private transfer per worker and the paystub as a letter). Rehearsed 2026-11-08 on a local Aleo node in CI with Hewn's own posting and pay-queue code and a stand-in for the stablecoin (`apps/business/test/devnode/payroll.devnode.test.ts`); the run on testnet, from Shield, is what's left
 - [x] Running the same payroll in fiat mode produces identical entries in the vault, minus the chain transfer (fiat mode, offline, 2026-10-14)
 - [x] P&L for the period shows the wage expense; balance sheet shows the tax liability (fiat mode, 2026-10-13)
 - [x] Existing payroll tests (`vitest`) still green; no change to worker-facing paystub flow (2026-10-13)
