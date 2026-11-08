@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@pnw/ui/button";
-import { SHIELD_APP_URL, SHIELD_OPEN_URL } from "@pnw/wallet/wallet-provider";
+import { SHIELD_APP_URL } from "@pnw/wallet/wallet-provider";
 import type { ShieldRoute, ShieldState } from "./shield";
 
 const link = "font-medium text-primary underline-offset-4 hover:underline";
@@ -73,13 +73,14 @@ export function ShieldStatus({
 
 /**
  * Shown when the page is paired over the relay but the Shield app is in the
- * background: it answers reads only while open. The link brings it to the front.
+ * background: it answers reads only while open. The link brings it to the front; `href` is
+ * `useShield().wakeUrl()`, which names this site's pairing so Shield doesn't call it expired.
  */
-export function ShieldAway({ what }: { what: string }) {
+export function ShieldAway({ what, href }: { what: string; href: string }) {
   return (
     <p className="text-xs text-muted-foreground">
       Shield is in the background, so it can&apos;t answer yet.{" "}
-      <a href={SHIELD_OPEN_URL} className={link}>
+      <a href={href} className={link}>
         Open Shield
       </a>
       , then come back here for {what}.

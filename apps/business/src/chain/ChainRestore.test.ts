@@ -6,7 +6,7 @@ import { type AccountUnlock, fileIdsIn, restoreIntoVault, restoredCompany } from
 import { stateHash } from "../books/books_backup";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "../books/company";
 import { type Page, planBackup, restoreBackup, sealerOf } from "./books_backup";
-import { ownReader, restoreNotes } from "./chain_restore";
+import { AWAY_HINT_MS, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import type { LetterRecord } from "./letters";
 
 const USER = "alder";
@@ -144,5 +144,38 @@ describe("the pieces around it", () => {
     const notes = restoreNotes({ applied: 2, found: 4, stopped: { at: 2, reason: "a piece is missing" }, missingFiles: 1 });
     expect(notes[0]).toContain("as of backup 2 of 4");
     expect(notes[1]).toContain("1 receipt or bill file isn't on this device");
+  });
+});
+
+describe("the Open Shield line while looking", () => {
+  it("shows over the relay only, while looking only, and only once the read has waited", () => {
+    expect(awayHint({ route: "relay", busy: true, waited: true })).toBe(true);
+    expect(awayHint({ route: "relay", busy: true, waited: false })).toBe(false);
+    expect(awayHint({ route: "relay", busy: false, waited: true })).toBe(false);
+    expect(awayHint({ route: "injected", busy: true, waited: true })).toBe(false); // injected Shield is always there
+    expect(awayHint({ route: "none", busy: true, waited: true })).toBe(false);
+    expect(AWAY_HINT_MS).toBe(3_000);
+  });
+});
+
+describe("Find my books over the relay", () => {
+  it("connects afresh first only over the relay with Shield asleep", () => {
+    expect(mustReconnect("relay", true)).toBe(true);
+    expect(mustReconnect("relay", false)).toBe(false); // Shield awake: no trip at all
+    expect(mustReconnect("injected", true)).toBe(false);
+    expect(mustReconnect("none", true)).toBe(false);
+  });
+
+  it("searches once the fresh connect lands, and stops if it ends without one", () => {
+    // The old pairing goes first: "ready" then is not an end.
+    expect(stepFindChain("restarting", "ready")).toEqual({ chain: "restarting", then: null });
+    expect(stepFindChain("restarting", "connected")).toEqual({ chain: "restarting", then: null }); // the old pairing, still up
+    expect(stepFindChain("restarting", "connecting")).toEqual({ chain: "connecting", then: null });
+    expect(stepFindChain("connecting", "connecting")).toEqual({ chain: "connecting", then: null });
+    expect(stepFindChain("connecting", "connected")).toEqual({ chain: "idle", then: "find" });
+    expect(stepFindChain("connecting", "ready")).toEqual({ chain: "idle", then: "stop" }); // declined in Shield, or failed
+    expect(stepFindChain("connecting", "missing")).toEqual({ chain: "idle", then: "stop" });
+    expect(stepFindChain("idle", "connected")).toEqual({ chain: "idle", then: null });
+    expect(RESTART_CAP_MS).toBe(15_000); // then it gives up and says so, never stuck on "Looking…"
   });
 });

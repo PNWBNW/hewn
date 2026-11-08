@@ -33,8 +33,27 @@ to execute.
   (pinned there, `apps/business/src/security/headers.ts`, and here).
 
 A computer without the extension has no way in yet: Shield's app can't scan a pairing code. Over
-the relay the app answers reads only while it is open; `chain/shield.ts` exposes `route` and `away`
-for the wording and an "Open Shield" link. Not yet tried on a real phone.
+the relay the app answers reads only while it is open, and the adapter opens it (the `shield://`
+link) for approvals only: a read sent while the app is in the background waits on the channel, and
+nothing happens on screen. A remembered pairing reconnects without asking Shield anything, so
+reads made on it wait while Shield sleeps; a fresh connect makes the adapter open Shield with the
+request in its link, and Shield asks for an approval and then says "Return to your browser"
+itself, staying up long enough to answer what follows. `chain/shield.ts` exposes `route` and
+`away` for the wording and the "Open Shield" link (`ShieldAway`), and `restart`, a fresh connect
+from a tap. Tried on a real phone on 2026-11-08 (Brave on Android): the pairing, a letter through
+to accepted, and the restore's reads, which waited until the app was opened by hand; the restore
+now connects afresh when Shield is asleep and searches as soon as the connect lands. On the phone
+that is a trip to Shield for an approval, Shield's "Return to your browser", and the books open on
+the way back (plus a first trip when the screen opens without a pairing). One more thing seen there: a
+remembered pairing is resumed by its relay channel, and when Shield's side has dropped that
+channel (a cancelled pairing, say) the resume waits up to five minutes for an app that never
+comes, with no tap to open it. `useShield`'s `restart` tears the pairing down and asks Shield
+afresh from a tap; the restore screen offers it after ten seconds of "Connecting…". And the wake
+link must name the site's relay channel, `shield://wake?channelId=…`, as the adapter's own does:
+a bare `shield://wake` opens the app, which then finds no connection for it and says "Connection
+expired". The adapter keeps the channel privately, so `shieldWakeUrl` (here) reads it, and a test
+fails if a new adapter version moves the names it reads; `useShield().wakeUrl()` hands it to every
+"Open Shield" link and to `openShield`.
 
 ## Fees
 

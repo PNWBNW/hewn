@@ -66,7 +66,7 @@ type Tab = "new" | "reviewed" | "excluded";
 
 function ReviewFlow() {
   const { rail, review, sales, payroll, viewKey, updateCompany } = useOpenBooks();
-  const { state, away, connect, error: connectError, wallet } = useShield();
+  const { state, away, connect, wakeUrl, error: connectError, wallet } = useShield();
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [tab, setTab] = useState<Tab>("new");
   const [names, setNames] = useState<Record<string, string>>({});
@@ -209,7 +209,7 @@ function ReviewFlow() {
         </details>
       )}
       <FormError message={connectError} />
-      {away ? <ShieldAway what="the check" /> : null}
+      {away ? <ShieldAway what="the check" href={wakeUrl()} /> : null}
 
       <div role="tablist" aria-label="Review" className="flex gap-2">
         {(

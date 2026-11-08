@@ -78,6 +78,22 @@ export const SHIELD_APP_URL = "https://www.shield.app/";
 export const SHIELD_OPEN_URL = `${new URL(DEFAULT_SHIELD_DEEPLINK_BASE).protocol}//wake`;
 
 /**
+ * The link that brings Shield to the front for this site's pairing, built as the adapter builds
+ * its own (`wakeUrlFor` in its remote wallet): `shield://wake?channelId=…`. Shield matches the
+ * wake to the site's relay channel by that id; a bare `shield://wake` still opens the app, but
+ * Shield then finds no connection for it and says "Connection expired" (seen 2026-11-08, Brave on
+ * Android). The adapter keeps the channel on its remote wallet and exposes no accessor, so this
+ * reads `_shieldWallet.channelId`; the adapter is pinned exactly, and a test fails if a new
+ * version moves either name. Over the extension or Shield's own browser there is no channel, and
+ * the bare link is returned (nothing wakes those anyway).
+ */
+export function shieldWakeUrl(adapter: unknown): string {
+  const remote = (adapter as { _shieldWallet?: { channelId?: unknown } } | null | undefined)?._shieldWallet;
+  const channel = remote?.channelId;
+  return typeof channel === "string" && channel !== "" ? `${SHIELD_OPEN_URL}?channelId=${encodeURIComponent(channel)}` : SHIELD_OPEN_URL;
+}
+
+/**
  * Three ways in, one adapter (Joshua, 2026-10-19):
  *
  * 1. The browser extension on a computer: Shield is injected into the page

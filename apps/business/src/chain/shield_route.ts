@@ -22,3 +22,24 @@ export function shieldRoute(readyState: WalletReadyState | undefined, phone: boo
 export function isPhone(): boolean {
   return typeof navigator !== "undefined" && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
 }
+
+/**
+ * Whether a connect failed because this page cancelled it (`restart` in shield.ts tears the
+ * pairing down on purpose): the adapter reports "Shield pairing was cancelled", and that is not
+ * an error to show.
+ */
+export function isPairingCancelled(message: string): boolean {
+  return /cancel/i.test(message);
+}
+
+/**
+ * Whether a fresh connect may be asked for yet: only once the provider shows the old pairing
+ * gone. Asking straight after the disconnect lets the provider fold "forget the wallet" and
+ * "pick it again" into one update, so it never sees the change, keeps showing the closed pairing
+ * as connected, and never connects (seen 2026-11-08 on Joshua's phone). The provider also skips
+ * forgetting the wallet on a disconnect once the page has seen a beforeunload, which every
+ * shield:// link fires, so `restart` selects no wallet itself; this then waits for that to land.
+ */
+export function mayReconnect(input: { pending: boolean; selected: boolean; connected: boolean; connecting: boolean; disconnecting: boolean }): boolean {
+  return input.pending && !input.selected && !input.connected && !input.connecting && !input.disconnecting;
+}

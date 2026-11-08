@@ -15,6 +15,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 - [Phase 2 rehearsed: a three-worker payroll run on a local Aleo node](progress/2026-11/2026-11-08.md#2026-11-08--phase-2-rehearsed-a-three-worker-payroll-run-on-a-local-aleo-node)
 - [Shield adapter packages 1.3.0 → 1.5.0](progress/2026-11/2026-11-08.md#2026-11-08--shield-adapter-packages-130--150)
+- [Find my books over the relay: Shield opened from the tap](progress/2026-11/2026-11-08.md#2026-11-08--find-my-books-over-the-relay-shield-opened-from-the-tap)
 
 ### [2026-11-07](progress/2026-11/2026-11-07.md)
 

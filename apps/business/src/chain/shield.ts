@@ -16,9 +16,9 @@
 
 import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
-import { Network, WalletReadyState, useWallet } from "@pnw/wallet/wallet-provider";
+import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
-import { type ShieldRoute, isPhone, shieldRoute } from "./shield_route";
+import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, shieldRoute } from "./shield_route";
 
 export type { ShieldRoute };
 
@@ -35,6 +35,7 @@ export function useShield() {
   };
   const shield = wallet.wallets[0]; // Shield is the only adapter registered
   const [asked, setAsked] = useState(false);
+  const [reconnect, setReconnect] = useState(false); // restart: a fresh connect waits for the old pairing to go
   const [error, setError] = useState<string | null>(null);
   // Over the relay, the Shield app leaves whenever it is in the background and
   // answers reads only once it is open again. Injected Shield is always there.
@@ -49,7 +50,10 @@ export function useShield() {
   useEffect(() => {
     if (!asked || !wallet.wallet || wallet.connected || wallet.connecting) return;
     setAsked(false);
-    wallet.connect(Network.TESTNET).catch((e: unknown) => setError(errorMessage(e)));
+    wallet.connect(Network.TESTNET).catch((e: unknown) => {
+      const message = errorMessage(e);
+      if (!isPairingCancelled(message)) setError(message);
+    });
   }, [asked, wallet]);
 
   // Presence, relay only: the adapter says when the app comes and goes.
@@ -77,6 +81,39 @@ export function useShield() {
     wallet.selectWallet(shield.adapter.name);
   };
 
+  /**
+   * Forgets this browser's pairing and asks Shield afresh. Over the relay, a remembered pairing
+   * whose channel is gone (Shield's side cancelled or dropped it) leaves a connect waiting up to
+   * five minutes for an app that will never come, and without a tap the browser won't open it.
+   * Tearing the pairing down ends that wait; the connect that follows runs from the tap.
+   */
+  const restart = async () => {
+    if (!shield) return;
+    setError(null);
+    setReconnect(true);
+    try {
+      await adaptor.disconnect();
+    } catch {
+      // Nothing was connected: there is nothing to tear down.
+    }
+    // The provider forgets a disconnected wallet only from the adapter's disconnect event, and
+    // skips that once the page has seen a beforeunload, which every shield:// link fires and which
+    // it never resets: after the first trip to Shield, it kept the closed pairing as connected for
+    // good (seen 2026-11-08). Selecting no wallet clears it whatever the page has seen.
+    wallet.selectWallet(null);
+  };
+
+  // The fresh connect is asked for only once the provider shows the old pairing gone; see
+  // mayReconnect. The connect that follows still runs within the tap's few seconds.
+  useEffect(() => {
+    if (!shield) return;
+    if (!mayReconnect({ pending: reconnect, selected: Boolean(wallet.wallet), connected: wallet.connected, connecting: wallet.connecting, disconnecting: wallet.disconnecting })) return;
+    setReconnect(false);
+    setAsked(true);
+    wallet.selectWallet(shield.adapter.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on the provider's state, not on each new wallet object
+  }, [reconnect, wallet.wallet, wallet.connected, wallet.connecting, wallet.disconnecting]);
+
   const state: ShieldState =
     wallet.connected && wallet.address
       ? { kind: "connected", address: wallet.address }
@@ -89,5 +126,8 @@ export function useShield() {
   /** Connected over the relay, but the Shield app is in the background: reads wait until it opens. */
   const away = route === "relay" && state.kind === "connected" && !present;
 
-  return { state, route, away, connect, error, wallet };
+  /** The link that brings Shield to the front for this site's pairing (with its relay channel). */
+  const wakeUrl = () => shieldWakeUrl(shield?.adapter);
+
+  return { state, route, away, connect, restart, wakeUrl, error, wallet };
 }

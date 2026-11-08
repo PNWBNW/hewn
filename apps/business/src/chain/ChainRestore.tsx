@@ -11,7 +11,7 @@
 // the books' provider; nothing here logs a key, a lookup, an address or a letter.
 // ---------------------------------------------------------------------------
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CloudDownload } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
@@ -20,9 +20,10 @@ import { useBooks } from "@/books/BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "@/books/NewPassphrase";
 import { shortAddress } from "@/books/rail";
 import { restoreBackup } from "./books_backup";
-import { ownReader, restoreNotes } from "./chain_restore";
+import { AWAY_HINT_MS, CONNECT_HINT_MS, type FindChain, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import { LetterBox, type LetterWallet } from "./letters";
 import { useShield } from "./shield";
+import { ShieldAway } from "./ShieldStatus";
 
 type Props = { username?: string; replacing: boolean; onCancel: () => void };
 
@@ -38,7 +39,7 @@ type Done = { notes: string[]; open: () => Promise<void> };
 
 function Restore({ username: initialUsername = "", replacing, onCancel }: Props) {
   const { restoreFromAccount } = useBooks();
-  const { state, connect, error: shieldError, wallet: shield } = useShield();
+  const { state, route, away, connect, restart, wakeUrl, error: shieldError, wallet: shield } = useShield();
   const latest = useRef(shield);
   latest.current = shield;
   const wallet = useMemo<LetterWallet>(
@@ -58,6 +59,18 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [waited, setWaited] = useState(false); // "Looking…" has run long enough to say "Open Shield"
+  const [connectWaited, setConnectWaited] = useState(false); // "Connecting…" has run long enough to offer "Start over"
+  const [chain, setChain] = useState<FindChain>("idle"); // a search waiting on a fresh connect
+
+  useEffect(() => {
+    if (state.kind !== "connecting") {
+      setConnectWaited(false);
+      return;
+    }
+    const t = setTimeout(() => setConnectWaited(true), CONNECT_HINT_MS);
+    return () => clearTimeout(t);
+  }, [state.kind]);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
 
@@ -68,14 +81,17 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
     if (!address || !ready) return;
     setBusy(true);
     setError(null);
+    setWaited(false);
+    const hint = setTimeout(() => setWaited(true), AWAY_HINT_MS);
     try {
       const box = new LetterBox({ wallet });
       const read = ownReader((lookup) => box.getAll(lookup), address);
-      const report = await restoreFromAccount(
+      const pending = restoreFromAccount(
         (normalized, openSlots) => restoreBackup({ read, username: normalized, address, openSlots }),
         username,
         recovering ? { code, next } : { passphrase },
       );
+      const report = await pending;
       if (!report) {
         setError(`No backup kept with ${shortAddress(address)} for that username. Check the username, and that Shield is on the account you backed up with.`);
         setBusy(false);
@@ -91,7 +107,44 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
+    } finally {
+      clearTimeout(hint);
     }
+  }
+
+  // A search waiting on a fresh connect goes out the moment the connect lands, while Shield is
+  // still in front saying "Return to your browser", so it answers this too.
+  useEffect(() => {
+    if (chain === "idle") return;
+    const step = stepFindChain(chain, state.kind);
+    if (step.chain !== chain) setChain(step.chain);
+    if (step.then === "find") void find();
+    if (step.then === "stop") setBusy(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- find is this render's: it reads the address the connect just gave
+  }, [chain, state.kind]);
+
+  // A fresh connect that hasn't started within RESTART_CAP_MS won't: say so rather than sit on "Looking…".
+  useEffect(() => {
+    if (chain !== "restarting") return;
+    const t = setTimeout(() => {
+      setChain("idle");
+      setBusy(false);
+      setError("Shield didn't open to connect. Tap Find my books to try again.");
+    }, RESTART_CAP_MS);
+    return () => clearTimeout(t);
+  }, [chain]);
+
+  /** The button: straight to the search, or, over the relay with Shield asleep, a fresh connect first. */
+  function start() {
+    if (busy || !ready) return;
+    if (!mustReconnect(route, away)) {
+      void find();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setChain("restarting");
+    void restart();
   }
 
   if (done) {
@@ -128,9 +181,26 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
     shieldPart = <p className="rounded-md border bg-muted px-3 py-2 text-sm">Open this page in the Shield app, or with the Shield extension, to find your books.</p>;
   } else if (!address) {
     shieldPart = (
-      <Button type="button" variant="outline" className="h-11" disabled={state.kind === "connecting"} onClick={connect}>
-        {state.kind === "connecting" ? "Connecting…" : "Connect Shield"}
-      </Button>
+      <div className="flex flex-col gap-2">
+        <Button type="button" variant="outline" className="h-11" disabled={state.kind === "connecting"} onClick={connect}>
+          {state.kind === "connecting" ? "Connecting…" : "Connect Shield"}
+        </Button>
+        {state.kind === "connecting" && route === "relay" ? (
+          <p className="text-xs text-muted-foreground">
+            {connectWaited ? (
+              <>
+                Shield didn&apos;t answer?{" "}
+                <button type="button" className="font-medium text-primary underline-offset-4 hover:underline" onClick={() => void restart()}>
+                  Start over
+                </button>
+                : this browser forgets its pairing and asks Shield afresh.
+              </>
+            ) : (
+              "Shield should open now. Approve there, then come back here."
+            )}
+          </p>
+        ) : null}
+      </div>
     );
   } else {
     shieldPart = <p className="text-sm text-muted-foreground">Looking with {shortAddress(address)}. If that isn't the account you backed up with, switch accounts in Shield.</p>;
@@ -141,7 +211,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
       className="flex flex-col gap-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!busy) void find();
+        start();
       }}
     >
       {shieldPart}
@@ -198,6 +268,11 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
           If this account already has books on this device, restoring replaces them. Save a backup of them first if you might need them.
         </p>
       )}
+      {chain !== "idle" ? (
+        <p className="text-sm text-muted-foreground">Shield opens to connect. Approve there, then come back here: your books will be on their way.</p>
+      ) : awayHint({ route, busy, waited }) ? (
+        <ShieldAway what="your books" href={wakeUrl()} />
+      ) : null}
       <FormError message={error} />
       <div className="flex gap-3">
         <Button type="button" variant="outline" className="h-11 flex-1" onClick={onCancel} disabled={busy}>
