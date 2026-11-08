@@ -20,9 +20,11 @@ import { useBooks } from "@/books/BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "@/books/NewPassphrase";
 import { shortAddress } from "@/books/rail";
 import { restoreBackup } from "./books_backup";
-import { ownReader, restoreNotes } from "./chain_restore";
+import { AWAY_HINT_MS, awayHint, ownReader, restoreNotes } from "./chain_restore";
 import { LetterBox, type LetterWallet } from "./letters";
 import { useShield } from "./shield";
+import { openShield } from "./shield_route";
+import { ShieldAway } from "./ShieldStatus";
 
 type Props = { username?: string; replacing: boolean; onCancel: () => void };
 
@@ -38,7 +40,7 @@ type Done = { notes: string[]; open: () => Promise<void> };
 
 function Restore({ username: initialUsername = "", replacing, onCancel }: Props) {
   const { restoreFromAccount } = useBooks();
-  const { state, connect, error: shieldError, wallet: shield } = useShield();
+  const { state, route, away, connect, error: shieldError, wallet: shield } = useShield();
   const latest = useRef(shield);
   latest.current = shield;
   const wallet = useMemo<LetterWallet>(
@@ -58,6 +60,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [waited, setWaited] = useState(false); // "Looking…" has run long enough to say "Open Shield"
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
 
@@ -68,14 +71,21 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
     if (!address || !ready) return;
     setBusy(true);
     setError(null);
+    setWaited(false);
+    const hint = setTimeout(() => setWaited(true), AWAY_HINT_MS);
     try {
       const box = new LetterBox({ wallet });
       const read = ownReader((lookup) => box.getAll(lookup), address);
-      const report = await restoreFromAccount(
+      const pending = restoreFromAccount(
         (normalized, openSlots) => restoreBackup({ read, username: normalized, address, openSlots }),
         username,
         recovering ? { code, next } : { passphrase },
       );
+      // Over the relay, Shield answers the records request only while it is open, and the adapter
+      // opens it for approvals only: bring it to the front from this tap when it is in the
+      // background. Injected Shield is always there.
+      if (away) openShield();
+      const report = await pending;
       if (!report) {
         setError(`No backup kept with ${shortAddress(address)} for that username. Check the username, and that Shield is on the account you backed up with.`);
         setBusy(false);
@@ -91,6 +101,8 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
+    } finally {
+      clearTimeout(hint);
     }
   }
 
@@ -198,6 +210,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
           If this account already has books on this device, restoring replaces them. Save a backup of them first if you might need them.
         </p>
       )}
+      {awayHint({ route, busy, waited }) ? <ShieldAway what="your books" /> : null}
       <FormError message={error} />
       <div className="flex gap-3">
         <Button type="button" variant="outline" className="h-11 flex-1" onClick={onCancel} disabled={busy}>

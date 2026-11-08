@@ -3,6 +3,7 @@
 import type { AccountRestoreReport } from "@/books/account_restore";
 import type { ReadOwn } from "./books_backup";
 import type { LetterRecord } from "./letters";
+import type { ShieldRoute } from "./shield_route";
 
 /** The backup's pieces are letters this account sent to itself: anything else under the same lookup is ignored. */
 export function ownReader(getAll: (lookup: string) => Promise<LetterRecord[]>, address: string): ReadOwn {
@@ -23,4 +24,16 @@ export function restoreNotes(report: AccountRestoreReport): string[] {
     );
   }
   return notes;
+}
+
+/** How long "Looking…" may run over the relay before the screen says to open Shield. */
+export const AWAY_HINT_MS = 3_000;
+
+/**
+ * Whether to show the "Open Shield" line: a read over the relay has waited `AWAY_HINT_MS`.
+ * Keyed on time, not on the adapter's presence, which can lag behind the app; injected Shield
+ * is always there, so the line never shows for it.
+ */
+export function awayHint(input: { route: ShieldRoute; busy: boolean; waited: boolean }): boolean {
+  return input.route === "relay" && input.busy && input.waited;
 }

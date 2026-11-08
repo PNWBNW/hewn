@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-10-27
+updated: 2026-11-08
 summary: The books backed up as letters to your own account: compressed, then encrypted; a snapshot, then only changes; restored on any device with the wallet and the passphrase or recovery key.
 ---
 
@@ -165,7 +165,10 @@ People choose, the app asks. It can't send a backup on its own: every page needs
    (`chain/ChainRestore.tsx`, `books/account_restore.ts`). With the passphrase, the books come back
    under the same keys and backups carry on; with the recovery key, a new passphrase is set and the
    next backup starts a fresh copy. Files already on the device stay; the screen says how many the
-   books miss, and how far a broken backup got.
+   books miss, and how far a broken backup got. From a plain phone browser (paired over Shield's
+   relay) Shield answers the records request only while it is open, so **Find my books** opens the
+   Shield app itself when the app is in the background, and an **Open Shield** line appears if the
+   search still waits after three seconds (2026-11-08; `packages/wallet/README.md`).
 4. **A network test:** two test accounts. Back up, wipe the browser, restore on a second browser,
    then compare the restored books entry by entry.
 

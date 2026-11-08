@@ -33,8 +33,13 @@ to execute.
   (pinned there, `apps/business/src/security/headers.ts`, and here).
 
 A computer without the extension has no way in yet: Shield's app can't scan a pairing code. Over
-the relay the app answers reads only while it is open; `chain/shield.ts` exposes `route` and `away`
-for the wording and an "Open Shield" link. Not yet tried on a real phone.
+the relay the app answers reads only while it is open, and the adapter opens it (the `shield://`
+link) for approvals only: a read sent while the app is in the background waits on the channel, and
+nothing happens on screen. `chain/shield.ts` exposes `route` and `away` for the wording and the
+"Open Shield" link (`ShieldAway`), and `chain/shield_route.ts` has `openShield`, which opens the
+app from the tap that asked for a read, as the restore screen does. Tried on a real phone on
+2026-11-08 (Brave on Android): the pairing, a letter through to accepted, and the restore's reads,
+which waited until the app was opened by hand; hence `openShield`.
 
 ## Fees
 

@@ -6,7 +6,7 @@ import { type AccountUnlock, fileIdsIn, restoreIntoVault, restoredCompany } from
 import { stateHash } from "../books/books_backup";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "../books/company";
 import { type Page, planBackup, restoreBackup, sealerOf } from "./books_backup";
-import { ownReader, restoreNotes } from "./chain_restore";
+import { AWAY_HINT_MS, awayHint, ownReader, restoreNotes } from "./chain_restore";
 import type { LetterRecord } from "./letters";
 
 const USER = "alder";
@@ -144,5 +144,16 @@ describe("the pieces around it", () => {
     const notes = restoreNotes({ applied: 2, found: 4, stopped: { at: 2, reason: "a piece is missing" }, missingFiles: 1 });
     expect(notes[0]).toContain("as of backup 2 of 4");
     expect(notes[1]).toContain("1 receipt or bill file isn't on this device");
+  });
+});
+
+describe("the Open Shield line while looking", () => {
+  it("shows over the relay only, while looking only, and only once the read has waited", () => {
+    expect(awayHint({ route: "relay", busy: true, waited: true })).toBe(true);
+    expect(awayHint({ route: "relay", busy: true, waited: false })).toBe(false);
+    expect(awayHint({ route: "relay", busy: false, waited: true })).toBe(false);
+    expect(awayHint({ route: "injected", busy: true, waited: true })).toBe(false); // injected Shield is always there
+    expect(awayHint({ route: "none", busy: true, waited: true })).toBe(false);
+    expect(AWAY_HINT_MS).toBe(3_000);
   });
 });

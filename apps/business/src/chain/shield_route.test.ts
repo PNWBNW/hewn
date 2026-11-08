@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
-import { shieldRoute } from "./shield_route";
+import { WAKE_DELAY_MS, openShield, shieldRoute } from "./shield_route";
 
 describe("shieldRoute", () => {
   it("uses injected Shield wherever it is found: the extension, or Shield's own browser", () => {
@@ -20,5 +20,21 @@ describe("shieldRoute", () => {
     expect(shieldRoute(WalletReadyState.NOT_DETECTED, true)).toBe("none");
     expect(shieldRoute(WalletReadyState.UNSUPPORTED, true)).toBe("none");
     expect(shieldRoute(undefined, true)).toBe("none");
+  });
+});
+
+describe("openShield", () => {
+  it("opens the Shield app with its wake link, a moment after the tap so the request leaves first", () => {
+    const calls: { url?: string; ms?: number } = {};
+    openShield({
+      navigate: (url) => {
+        calls.url = url;
+      },
+      after: (fn, ms) => {
+        calls.ms = ms;
+        fn();
+      },
+    });
+    expect(calls).toEqual({ url: "shield://wake", ms: WAKE_DELAY_MS });
   });
 });
