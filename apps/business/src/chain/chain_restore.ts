@@ -53,6 +53,9 @@ export function mustReconnect(route: ShieldRoute, away: boolean): boolean {
   return route === "relay" && away;
 }
 
+/** How long a fresh connect may take to start before the search gives up and says so. */
+export const RESTART_CAP_MS = 15_000;
+
 /** Where a search that waits on a fresh connect stands: restarting (the old pairing going), connecting, or none. */
 export type FindChain = "idle" | "restarting" | "connecting";
 

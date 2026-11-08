@@ -20,7 +20,7 @@ import { useBooks } from "@/books/BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "@/books/NewPassphrase";
 import { shortAddress } from "@/books/rail";
 import { restoreBackup } from "./books_backup";
-import { AWAY_HINT_MS, CONNECT_HINT_MS, type FindChain, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
+import { AWAY_HINT_MS, CONNECT_HINT_MS, type FindChain, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import { LetterBox, type LetterWallet } from "./letters";
 import { useShield } from "./shield";
 import { ShieldAway } from "./ShieldStatus";
@@ -122,6 +122,17 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
     if (step.then === "stop") setBusy(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- find is this render's: it reads the address the connect just gave
   }, [chain, state.kind]);
+
+  // A fresh connect that hasn't started within RESTART_CAP_MS won't: say so rather than sit on "Looking…".
+  useEffect(() => {
+    if (chain !== "restarting") return;
+    const t = setTimeout(() => {
+      setChain("idle");
+      setBusy(false);
+      setError("Shield didn't open to connect. Tap Find my books to try again.");
+    }, RESTART_CAP_MS);
+    return () => clearTimeout(t);
+  }, [chain]);
 
   /** The button: straight to the search, or, over the relay with Shield asleep, a fresh connect first. */
   function start() {

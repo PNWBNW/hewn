@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
-import { type ShieldRoute, isPairingCancelled, isPhone, shieldRoute } from "./shield_route";
+import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, shieldRoute } from "./shield_route";
 
 export type { ShieldRoute };
 
@@ -35,6 +35,7 @@ export function useShield() {
   };
   const shield = wallet.wallets[0]; // Shield is the only adapter registered
   const [asked, setAsked] = useState(false);
+  const [reconnect, setReconnect] = useState(false); // restart: a fresh connect waits for the old pairing to go
   const [error, setError] = useState<string | null>(null);
   // Over the relay, the Shield app leaves whenever it is in the background and
   // answers reads only once it is open again. Injected Shield is always there.
@@ -89,15 +90,24 @@ export function useShield() {
   const restart = async () => {
     if (!shield) return;
     setError(null);
+    setReconnect(true);
     try {
       await adaptor.disconnect();
     } catch {
       // Nothing was connected: there is nothing to tear down.
     }
-    await new Promise<void>((r) => setTimeout(r, 0)); // let the cancelled connect settle first
+  };
+
+  // The fresh connect is asked for only once the provider shows the old pairing gone; see
+  // mayReconnect. The connect that follows still runs within the tap's few seconds.
+  useEffect(() => {
+    if (!shield) return;
+    if (!mayReconnect({ pending: reconnect, selected: Boolean(wallet.wallet), connected: wallet.connected, connecting: wallet.connecting, disconnecting: wallet.disconnecting })) return;
+    setReconnect(false);
     setAsked(true);
     wallet.selectWallet(shield.adapter.name);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on the provider's state, not on each new wallet object
+  }, [reconnect, wallet.wallet, wallet.connected, wallet.connecting, wallet.disconnecting]);
 
   const state: ShieldState =
     wallet.connected && wallet.address

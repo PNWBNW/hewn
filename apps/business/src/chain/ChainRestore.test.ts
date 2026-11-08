@@ -6,7 +6,7 @@ import { type AccountUnlock, fileIdsIn, restoreIntoVault, restoredCompany } from
 import { stateHash } from "../books/books_backup";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "../books/company";
 import { type Page, planBackup, restoreBackup, sealerOf } from "./books_backup";
-import { AWAY_HINT_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
+import { AWAY_HINT_MS, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import type { LetterRecord } from "./letters";
 
 const USER = "alder";
@@ -176,5 +176,6 @@ describe("Find my books over the relay", () => {
     expect(stepFindChain("connecting", "ready")).toEqual({ chain: "idle", then: "stop" }); // declined in Shield, or failed
     expect(stepFindChain("connecting", "missing")).toEqual({ chain: "idle", then: "stop" });
     expect(stepFindChain("idle", "connected")).toEqual({ chain: "idle", then: null });
+    expect(RESTART_CAP_MS).toBe(15_000); // then it gives up and says so, never stuck on "Looking…"
   });
 });

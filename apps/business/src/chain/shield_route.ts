@@ -31,3 +31,13 @@ export function isPhone(): boolean {
 export function isPairingCancelled(message: string): boolean {
   return /cancel/i.test(message);
 }
+
+/**
+ * Whether a fresh connect may be asked for yet: only once the provider shows the old pairing
+ * gone. Asking straight after the disconnect lets the provider fold "forget the wallet" and
+ * "pick it again" into one update, so it never sees the change, keeps showing the closed pairing
+ * as connected, and never connects (seen 2026-11-08 on Joshua's phone).
+ */
+export function mayReconnect(input: { pending: boolean; selected: boolean; connected: boolean; connecting: boolean; disconnecting: boolean }): boolean {
+  return input.pending && !input.selected && !input.connected && !input.connecting && !input.disconnecting;
+}

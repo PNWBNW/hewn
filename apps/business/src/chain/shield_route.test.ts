@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
-import { isPairingCancelled, shieldRoute } from "./shield_route";
+import { isPairingCancelled, mayReconnect, shieldRoute } from "./shield_route";
 
 describe("shieldRoute", () => {
   it("uses injected Shield wherever it is found: the extension, or Shield's own browser", () => {
@@ -28,5 +28,17 @@ describe("isPairingCancelled", () => {
     expect(isPairingCancelled("Shield pairing was cancelled")).toBe(true);
     expect(isPairingCancelled("timed out waiting for the Shield app to pair")).toBe(false);
     expect(isPairingCancelled("could not reach the Shield relay")).toBe(false);
+  });
+});
+
+describe("mayReconnect", () => {
+  const gone = { pending: true, selected: false, connected: false, connecting: false, disconnecting: false };
+  it("asks for the fresh connect only once the old pairing is gone from the provider", () => {
+    expect(mayReconnect(gone)).toBe(true);
+    expect(mayReconnect({ ...gone, pending: false })).toBe(false); // nothing asked
+    expect(mayReconnect({ ...gone, disconnecting: true })).toBe(false); // still going
+    expect(mayReconnect({ ...gone, selected: true, connected: true })).toBe(false); // the provider still shows it: the race of 2026-11-08
+    expect(mayReconnect({ ...gone, selected: true })).toBe(false); // the wallet not yet forgotten
+    expect(mayReconnect({ ...gone, connecting: true })).toBe(false);
   });
 });
