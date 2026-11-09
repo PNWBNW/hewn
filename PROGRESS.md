@@ -15,6 +15,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 - [Dreaming: week of 2026-11-09](progress/2026-11/2026-11-09.md#2026-11-09--dreaming-week-of-2026-11-09)
 - [The dream and the light-sleep filed the same decisions](progress/2026-11/2026-11-09.md#2026-11-09--the-dream-and-the-light-sleep-filed-the-same-decisions)
+- [One sleep pull request at a time](progress/2026-11/2026-11-09.md#2026-11-09--one-sleep-pull-request-at-a-time)
 
 ### [2026-11-08](progress/2026-11/2026-11-08.md)
 
@@ -24,6 +25,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [Vercel's deployment storage full; retention down to a week](progress/2026-11/2026-11-08.md#2026-11-08--vercels-deployment-storage-full-retention-down-to-a-week)
 - [A name registration Shield called failed, that the chain had accepted](progress/2026-11/2026-11-08.md#2026-11-08--a-name-registration-shield-called-failed-that-the-chain-had-accepted)
 - [A backup file from a phone browser: shared as text, downloaded if refused](progress/2026-11/2026-11-08.md#2026-11-08--a-backup-file-from-a-phone-browser-shared-as-text-downloaded-if-refused)
+- [Released: today's relay and backup fixes are live](progress/2026-11/2026-11-08.md#2026-11-08--released-todays-relay-and-backup-fixes-are-live)
 - [Light sleep: 2026-11-08](progress/2026-11/2026-11-08.md#2026-11-08--light-sleep-2026-11-08)
 
 ### [2026-11-07](progress/2026-11/2026-11-07.md)

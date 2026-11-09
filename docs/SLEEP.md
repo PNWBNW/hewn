@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-07
+updated: 2026-11-09
 summary: The sleep cycle for the agents that build Hewn, after Google's sleep framework for continual learning: consolidate before the fast store is wiped, at three rhythms (every compaction, nightly, weekly), and a monthly REM pass that practises and keeps only what finds something; as hooks and skills a plugin can carry to any repository. Extends docs/MEMORY.md. Built except the plugin (step 5), and the first REM run by hand.
 ---
 
@@ -134,6 +134,14 @@ The rule for all of them: a pass that changes a file opens a pull request Joshua
 (OPS-01); a pass that changes nothing writes nothing. A pass never rewords a rule, never merges,
 never prints a key, and never carries a `https://claude.ai/…` link; its progress entry, when it
 writes one, ends with its bare session id (`docs/MEMORY.md`).
+
+One sleep pull request is open at a time (2026-11-09). A pass starts by listing the open pull
+requests: with a light sleep or a dream still waiting for Joshua, it works on that branch
+(merged up to `main`) and updates that pull request rather than opening another, so what the
+earlier pass filed is verified, not filed twice; with two open, it stops and says so. The first
+dream that ran from `main` while the night's light sleep waited repeated four of its decisions,
+and the two conflicted. Both passes also fetch the `pnw_mvp_v2` submodule first, so the Leo
+paths the rules cite get checked.
 
 Cost: each pass is a fresh cloud session. An empty nightly run is a minute; a busy one is about a
 tenth of a working session; the weekly dream is unchanged; REM is bounded by how many pairs it
