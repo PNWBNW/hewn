@@ -48,6 +48,7 @@ How the code is laid out and what it runs on.
 - 2026-10-13 · Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed · Joshua · `packages/wallet` · BUILD_PLAN Decisions
 - 2026-10-21 · `@types/node` follows the Node that runs the code (22); Dependabot skips its major bumps · Joshua · `.github/dependabot.yml` · `progress/2026-10/2026-10-21.md`
 - 2026-10-25 · Superseded designs move from `BUILD_PLAN.md` to `docs/` with a status; known facts live in the README of what they describe · Joshua · `docs/README.md` · `progress/2026-10/2026-10-25.md`
+- 2026-11-08 · Dependency moves follow the order in `docs/ALEO_CONSTRAINTS.md` §2b, one small pull request each, on Joshua's go: `@provablehq/sdk` 0.13.0 (2026-11-07), then the five Shield adapter packages at 1.5.0 / 1.3.0 / 1.6.0, pinned exactly; the three `REJECTED` status sets also treat `aborted`, `expired`, `cancelled` and `refunded` as failures · Joshua · `apps/business/package.json`, `chain/work/execute.ts` · `progress/2026-11/2026-11-07.md`, `progress/2026-11/2026-11-08.md`
 
 ## Users
 - 2026-11-05 · Hewn adopts Veil (Provable's viem-style toolkit), and Shield stays the only wallet: Veil's provider is narrowed to Shield, and another wallet comes only after it is checked against what Hewn relies on. The order: tests and CI first (a local devnode, typed bindings from codegen), then generated decoders in place of the hand parsers, then the reads Hewn lacks; the app never imports Veil's local-key package · Joshua · `docs/VEIL.md` · `progress/2026-11/2026-11-05.md`
@@ -106,6 +107,8 @@ Where the books live on the device, and how they are backed up.
 - 2026-10-26 · Backups of the books on chain as letters: a new chain at half a snapshot of changes or after 12; asked for weekly, after each pay run and at each close; the cost shown first · Joshua · `docs/CHAIN_BACKUP.md` · its Decisions
 - 2026-10-26 · A plain download counts as a backup only once the person confirms it saved; the share sheet counts at once · Joshua · `books/backup_reminder.ts` · `progress/2026-10/2026-10-26.md`
 - 2026-10-27 · On testnet the on-chain backup must be sent with a public fee; the app says so · Joshua · `chain/ChainBackup.tsx` · `progress/2026-10/2026-10-27.md`
+- 2026-11-08 · A backup or proof file is shared as `text/plain` under a `.txt` name (contents unchanged), downloaded instead when the browser refuses the share; the restore and `/verify` pickers take `.txt` too · Joshua (after his Brave test) · `books/save_file.ts` · `progress/2026-11/2026-11-08.md`
+- 2026-11-08 · "Find my books" over the relay keeps a remembered pairing and opens Shield from the tap only when it is away ("option A"), showing the Open Shield link after three seconds · Joshua · `chain/shield_route.ts` · `progress/2026-11/2026-11-08.md`
 
 ## The chain
 
@@ -119,6 +122,7 @@ Deploying, upgrading, archiving and testing the Leo programs.
 - 2026-10-20 · Superseded versions move unchanged to `src/<layer>/archive/` with a row in its README; every live program carries a README · Joshua · **INV-21**, `pnw_mvp_v2` `scripts/check_archive.py` · `pnw_mvp_v2` `CLAUDE.md`
 - 2026-10-24 · The agreement program packs its byte fields on mainnet (`[u128; n]`, the way `hyperlane-aleo` does); v5 stays as deployed on testnet · Joshua · `@pnw/records` `packed` · BUILD_PLAN Decisions
 - 2026-10-25 · `hewn_credentials_v1` and `hewn_cards_v1` deployed: credentials as two private records with a public commitment; one card entry per name, bound to the name · Joshua · the chain · `pnw_mvp_v2` `CLAUDE.md`
+- 2026-11-08 · Phase 2's three-worker payroll run is rehearsed on a local Aleo node in CI before the testnet run, against a rewritten USDCx stand-in with the deployed program's shape (Joshua chose "option A", fix the stand-in rather than wait for the phones); the testnet run itself still waits on the phones · Joshua · `apps/business/test/devnode/payroll.devnode.test.ts`, `pnw_mvp_v2` `src/stubs` · `progress/2026-11/2026-11-08.md`
 
 ### Fees
 Who pays network fees and how.
@@ -284,3 +288,4 @@ What the agent sessions may and may not do.
 - 2026-11-07 · REM's pairing is mechanical: `scripts/sleep/rem_pairs.py` draws three pairs across seven categories at random, seeded by the date, so the pass can't pick the pair it likes and a run can be repeated; its findings go in `docs/incidents/rem-<date>.md` (not indexed), never a fix · Joshua (the order in `docs/SLEEP.md`) · `.claude/skills/rem/SKILL.md`, `scripts/sleep/rem_pairs_test.py` · `progress/2026-11/2026-11-07.md`
 - 2026-11-06 · The Leo programs compile and test with Leo 4.0.0, the language they are written in; the deploy and upgrade workflows sign and send with Leo 4.4.6; snarkOS 4.12.0; every download from `aleo-labs-protocol` with its checksum pinned. Moving the source to Leo 4.4 is a Leo change of its own (INV-22) · Joshua (approved `pnw_mvp_v2` #231) · `pnw_mvp_v2/CLAUDE.md` Toolchain, `docs/ALEO_CONSTRAINTS.md` §2b
 - 2026-11-06 · Vercel deploys once per batch: `main` deploys only on a release, a merge whose title says `[deploy]`, and only the projects whose files changed since their last deployment; other branches get no preview unless a commit's title says `[preview]` · Joshua · `scripts/vercel_ignore.mjs`, `apps/business/README.md` Deploying
+- 2026-11-08 · Vercel's deployment retention is one week, and a `[preview]` push happens only when Joshua is about to test, never with every fix and never on a doc-only commit · Joshua · Vercel settings, `scripts/vercel_ignore.mjs` · `progress/2026-11/2026-11-08.md`
