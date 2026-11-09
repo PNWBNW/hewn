@@ -48,6 +48,7 @@ How the code is laid out and what it runs on.
 - 2026-10-13 · Shield is the only supported wallet; Puzzle, Leo, Fox and Soter adaptors removed · Joshua · `packages/wallet` · BUILD_PLAN Decisions
 - 2026-10-21 · `@types/node` follows the Node that runs the code (22); Dependabot skips its major bumps · Joshua · `.github/dependabot.yml` · `progress/2026-10/2026-10-21.md`
 - 2026-10-25 · Superseded designs move from `BUILD_PLAN.md` to `docs/` with a status; known facts live in the README of what they describe · Joshua · `docs/README.md` · `progress/2026-10/2026-10-25.md`
+- 2026-11-08 · Dependency moves follow the order in `docs/ALEO_CONSTRAINTS.md` §2b, one small pull request each, on Joshua's go: `@provablehq/sdk` 0.13.0 (2026-11-07), then the five Shield adapter packages at 1.5.0 / 1.3.0 / 1.6.0, pinned exactly; the three `REJECTED` status sets also treat `aborted`, `expired`, `cancelled` and `refunded` as failures · Joshua · `apps/business/package.json`, `chain/work/execute.ts` · `progress/2026-11/2026-11-07.md`, `progress/2026-11/2026-11-08.md`
 
 ## Users
 - 2026-11-05 · Hewn adopts Veil (Provable's viem-style toolkit), and Shield stays the only wallet: Veil's provider is narrowed to Shield, and another wallet comes only after it is checked against what Hewn relies on. The order: tests and CI first (a local devnode, typed bindings from codegen), then generated decoders in place of the hand parsers, then the reads Hewn lacks; the app never imports Veil's local-key package · Joshua · `docs/VEIL.md` · `progress/2026-11/2026-11-05.md`
