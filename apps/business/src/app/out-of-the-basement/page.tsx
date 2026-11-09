@@ -29,7 +29,7 @@ export default function OutOfTheBasement() {
     <div className="paper-desk">
       <article className="paper-sheet">
         <p className="paper-running">
-          <span>{PAPER.version}</span>
+          <span>{PAPER.runningHead}</span>
           <span>{PAPER.date}</span>
         </p>
 
