@@ -51,6 +51,9 @@ export function SiteFooter() {
           <a href={`${BRAND.appUrl}/traction`} className="underline-offset-4 hover:text-foreground hover:underline">
             Traction map
           </a>
+          <Link href="/out-of-the-basement" className="underline-offset-4 hover:text-foreground hover:underline">
+            The story
+          </Link>
           <a href={BRAND.sourceUrl} className="underline-offset-4 hover:text-foreground hover:underline">
             Source code ({BRAND.licence})
           </a>

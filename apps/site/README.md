@@ -4,7 +4,7 @@ The public front page and privacy page, deployed on its own domain. It shares th
 (`@pnw/brand`), the security headers (`@pnw/security`) and the theme tokens (`@pnw/ui`) with the
 app, and nothing else: no ledger, no vault, no chain package, no analytics, no third-party scripts.
 
-Pages: `/` (landing) and `/privacy`. Every page is rendered per request so it carries a fresh CSP
+Pages: `/` (landing), `/privacy`, and `/out-of-the-basement`, Joshua's paper on how Hewn was built (2026-11-09). Its text and figures live in `src/paper/basement.ts`, generated from the paper's draft together with the PDF in `public/papers/`; regenerate both rather than editing either by hand. Every page is rendered per request so it carries a fresh CSP
 nonce (`src/proxy.ts`), like the app.
 
 ## Deploying on Vercel

@@ -3,3 +3,66 @@
 
 /* Tailwind only scans this app by default; include the shared kit's class names. */
 @source "../../../../packages/ui/src";
+
+/* The paper page (/out-of-the-basement), laid out like a journal article: a white sheet on a
+   grey desk in both themes, serif type from the reader's own system (no web fonts), justified
+   text with first-line indents, booktabs-style tables. Its body is generated HTML. */
+.paper-desk { background: #e9e9e4; padding: 2rem 0 3rem; }
+.paper-sheet {
+  --ink: #1b1b1a; --ink-2: #4a4a46; --rule: #1b1b1a; --hair: #cfcfc8;
+  margin: 0 auto; max-width: 46rem; background: #ffffff; color: var(--ink);
+  padding: 2.75rem 4rem 3.5rem; box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 8px 28px rgba(0,0,0,.08);
+  font-family: "Charter", "Bitstream Charter", "Sitka Text", "Iowan Old Style", Cambria, "Noto Serif", Georgia, serif;
+  font-size: 1.0625rem; line-height: 1.6; hyphens: auto; -webkit-hyphens: auto;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+}
+@media (max-width: 640px) {
+  .paper-desk { padding: 0; background: #ffffff; }
+  .paper-sheet { padding: 1.5rem 1rem 2.5rem; box-shadow: none; font-size: 1rem; }
+}
+.paper-sheet a { color: inherit; text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.paper-running { display: flex; justify-content: space-between; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--hair); padding-bottom: 0.5rem; margin: 0 0 2.25rem; }
+.paper-titleblock { text-align: center; margin-bottom: 2rem; }
+.paper-titleblock h1 { font-size: 2.125rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.005em; margin: 0; }
+.paper-subtitle { font-size: 1.1875rem; font-style: italic; line-height: 1.35; margin: 0.6rem auto 0; max-width: 32rem; color: var(--ink-2); }
+.paper-author { font-variant: small-caps; letter-spacing: 0.04em; font-size: 1.125rem; margin: 1.5rem 0 0.15rem; }
+.paper-affil { font-size: 0.875rem; font-style: italic; color: var(--ink-2); margin: 0; }
+.paper-pdf { margin: 0.9rem 0 0; font-size: 0.875rem; }
+.paper-pdf a { font-variant: small-caps; letter-spacing: 0.06em; border: 1px solid var(--ink); padding: 0.15rem 0.7rem; text-decoration: none; }
+.paper-abstract { margin: 0 auto 2.25rem; max-width: 36rem; font-size: 0.9375rem; line-height: 1.55; }
+.paper-abstract h2 { text-align: center; font-size: 0.9375rem; font-weight: 700; font-variant: small-caps; letter-spacing: 0.08em; margin: 0 0 0.5rem; }
+.paper-abstract p { text-align: justify; margin: 0; }
+.paper-abstract .paper-keywords { margin-top: 0.75rem; text-align: left; font-size: 0.875rem; }
+.paper-colophon { margin-top: 2.5rem; padding-top: 0.75rem; border-top: 1px solid var(--hair); font-size: 0.8125rem; line-height: 1.5; color: var(--ink-2); }
+
+.paper h2 { font-size: 1.25rem; font-weight: 700; line-height: 1.3; margin: 2.25rem 0 0.75rem; }
+.paper h3 { font-size: 1.0625rem; font-weight: 700; font-style: italic; line-height: 1.35; margin: 1.5rem 0 0.4rem; }
+.paper p { margin: 0; text-align: justify; }
+.paper p + p, .paper blockquote + p, .paper ol + p, .paper ul + p { text-indent: 1.5em; }
+.paper h2 + p, .paper h3 + p, .paper figure + p { text-indent: 0; }
+.paper p.small { font-size: 0.875rem; color: var(--ink-2); text-indent: 0; margin-bottom: 0.5rem; }
+.paper strong { font-weight: 700; }
+.paper code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace; font-size: 0.82em; overflow-wrap: anywhere; }
+.paper blockquote { margin: 0.75rem 2rem 0.9rem; font-size: 0.9375rem; line-height: 1.5; }
+.paper blockquote p { text-indent: 0; }
+.paper ol, .paper ul { margin: 0.6rem 0 0.8rem 1.75rem; }
+.paper ol { list-style: decimal; }
+.paper ul { list-style: disc; }
+.paper li { margin: 0 0 0.35rem; text-align: justify; }
+.paper ul.refs { list-style: none; margin: 0.5rem 0 0; }
+.paper ul.refs li { padding-left: 1.75rem; text-indent: -1.75rem; font-size: 0.9375rem; line-height: 1.5; text-align: left; overflow-wrap: anywhere; }
+.paper figure { margin: 1.5rem 0 1.75rem; }
+.paper figure svg { display: block; width: 100%; height: auto; }
+.paper figcaption { margin-top: 0.6rem; font-family: inherit; font-size: 0.875rem; line-height: 1.45; text-align: justify; }
+.paper figcaption b { font-weight: 700; }
+.paper-appendix { margin-top: 2.5rem; }
+.paper .table-wrap { overflow-x: auto; margin: 0.5rem 0 1.75rem; }
+.paper table { width: 100%; min-width: 34rem; border-collapse: collapse; font-size: 0.8125rem; line-height: 1.4; border-top: 1.5px solid var(--rule); border-bottom: 1.5px solid var(--rule); }
+.paper th { text-align: left; font-weight: 700; border-bottom: 0.75px solid var(--rule); padding: 0.4rem 0.75rem 0.4rem 0; }
+.paper td { vertical-align: top; padding: 0.3rem 0.75rem 0.3rem 0; text-align: left; }
+.paper td:first-child { white-space: nowrap; }
+
+/* A narrow column can't justify without rivers of space: ragged right on phones. Last, so it wins. */
+@media (max-width: 640px) {
+  .paper p, .paper li, .paper figcaption, .paper-abstract p { text-align: left; }
+}
