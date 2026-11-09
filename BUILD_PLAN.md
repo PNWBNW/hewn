@@ -24,7 +24,8 @@ whenever the work moves.
 - **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
   anchored through `payroll_audit_log`). Reconciliation (2026-10-26), Close period (2026-11-02,
   `docs/CLOSE_PERIOD.md`) and the period proof with its public check (`/verify`, 2026-11-05) are
-  built; what's left is Joshua's real close of October, anchored, its proof checked.
+  built; October is closed and anchored on testnet (2026-11-07, `progress/2026-11/2026-11-07.md`);
+  what's left is checking its proof from a computer with the Shield extension.
 - **Blocked on Joshua:** archiving the old portal repository on GitHub (Phase 0); two phones with
   Shield for the wallet scenarios in the manual tests and Phase 2's three-worker run.
 
