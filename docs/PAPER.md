@@ -1,6 +1,6 @@
 ---
 status: review
-updated: 2026-11-05
+updated: 2026-11-09
 summary: The technical paper, v1.0 draft for hewnaccounting.com/paper: private payroll and provable books on Aleo, the twin-curve math behind every conversation, what is public, the honest limits, and what is live.
 ---
 
@@ -101,6 +101,16 @@ the pair **twin-curve math**.
 
 It is not pairing-based cryptography (a different thing, which Aleo's proofs use internally), and
 the two layers don't strengthen each other. They do two different jobs.
+
+It is also not **Dual_EC_DRBG**, the "dual elliptic curve" random-number generator that NIST
+standardised in 2006 and withdrew in 2014 after its backdoor came to light. That design used two
+fixed points on one curve, with a hidden relationship between them that let whoever knew it
+predict the output. Twin-curve math is not a random-number generator and has no second point. It
+is two standard, public constructions on two different curves, Aleo's record encryption and an
+ECDH key agreement on P-256, with every key made on the person's own device and nothing hidden
+in the construction. Hewn's randomness comes from the browser's own generator
+(`crypto.getRandomValues`), the same source as the vault's keys. The two share a word, not a
+design.
 
 ### 4.1 Two curves, two jobs
 
