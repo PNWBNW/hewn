@@ -16,6 +16,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [Dreaming: week of 2026-11-09](progress/2026-11/2026-11-09.md#2026-11-09--dreaming-week-of-2026-11-09)
 - [The dream and the light-sleep filed the same decisions](progress/2026-11/2026-11-09.md#2026-11-09--the-dream-and-the-light-sleep-filed-the-same-decisions)
 - [One sleep pull request at a time](progress/2026-11/2026-11-09.md#2026-11-09--one-sleep-pull-request-at-a-time)
+- [Twin-curve math is not Dual_EC_DRBG; the technical paper says so](progress/2026-11/2026-11-09.md#2026-11-09--twin-curve-math-is-not-dual_ec_drbg-the-technical-paper-says-so)
 
 ### [2026-11-08](progress/2026-11/2026-11-08.md)
 
