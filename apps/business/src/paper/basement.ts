@@ -7,7 +7,7 @@ export const PAPER = {
   subtitle: "An autoethnography of building Hewn, zero-knowledge payroll, with AI agents",
   author: "Joshua Daniel Day",
   date: "9 November 2026",
-  version: "Preprint draft 0.3",
+  runningHead: "Out of the Basement: building Hewn",
   pdf: "/papers/out-of-the-basement.pdf",
   licence: "CC BY-NC-ND 4.0",
   licenceUrl: "https://creativecommons.org/licenses/by-nc-nd/4.0/",
