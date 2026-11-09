@@ -13,6 +13,8 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ### [2026-11-09](progress/2026-11/2026-11-09.md)
 
+- [Dreaming: week of 2026-11-09](progress/2026-11/2026-11-09.md#2026-11-09--dreaming-week-of-2026-11-09)
+- [The dream and the light-sleep filed the same decisions](progress/2026-11/2026-11-09.md#2026-11-09--the-dream-and-the-light-sleep-filed-the-same-decisions)
 - [One sleep pull request at a time](progress/2026-11/2026-11-09.md#2026-11-09--one-sleep-pull-request-at-a-time)
 
 ### [2026-11-08](progress/2026-11/2026-11-08.md)
