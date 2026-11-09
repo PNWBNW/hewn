@@ -8,13 +8,14 @@ are in `scripts/sleep/`.
 | Skill | Rhythm | Who starts it | What it does |
 |---|---|---|---|
 | `/rest` | End of every task | The working session itself | `CLAUDE.md`'s end-of-task checklist as one command: checks, the signed progress entry, the indexes, exit criteria, commit, pull request, stop. Runs in the working context, since it writes about that work |
-| `/dream` | Weekly, Sunday evening Pacific | The "Hewn dreaming" Routine (a fresh session on `main`), or Joshua | The deep pass (`docs/MEMORY.md`): verify, organize, enrich the team's memory over the week; name promotion candidates and prune what was promoted or stopped being true; always one pull request, `dreaming: week of <date>`. Forked, model invocation off |
-| `/light-sleep` | Nightly, about 3 a.m. Pacific | The "Hewn light sleep" Routine, or Joshua | One day's consolidation: `git log --since="1 day ago"` first; "Nothing needed" and stop when it is empty, else verify the day and file its decisions and lessons; a pull request only when a file changed. Forked, model invocation off |
+| `/dream` | Weekly, Sunday evening Pacific | The "Hewn dreaming" Routine (a fresh session on `main`), or Joshua | The deep pass (`docs/MEMORY.md`): verify, organize, enrich the team's memory over the week; name promotion candidates and prune what was promoted or stopped being true; always one pull request, `dreaming: week of <date>`, or the sleep pull request already open, extended. Forked, model invocation off |
+| `/light-sleep` | Nightly, about 3 a.m. Pacific | The "Hewn light sleep" Routine, or Joshua | One day's consolidation: `git log --since="1 day ago"` first; "Nothing needed" and stop when it is empty, else verify the day and file its decisions and lessons; a pull request only when a file changed, or the one already open, extended. Forked, model invocation off |
 | `/rem` | Monthly, first Sunday, after the dream | The "Hewn REM" Routine, or Joshua | The practice pass: three random pairs of unrelated parts (`scripts/sleep/rem_pairs.py --seed <today>`), what would break each, keep only what finds something; a pull request of findings in `docs/incidents/rem-<date>.md`, never a fix; "Nothing found" and no pull request otherwise. Forked, model invocation off |
 
 Every pass changes only team memory (REM only its findings file), never a rule's wording or id,
 never code; never merges (OPS-01); never prints a key; never writes a `https://claude.ai/…`
-link.
+link. The light sleep and the dream keep one pull request open between them: a pass that finds
+one open works on its branch and updates it (`docs/SLEEP.md`, the rhythms).
 
 **The Routines.** A Routine must carry the repository as a source with push access, which only
 the Routines page of claude.ai can give it (a Routine made from inside a session can clone but
