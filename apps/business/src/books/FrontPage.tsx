@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { BadgeDollarSign, HardDrive, LogIn, UserCheck } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { BRAND } from "@/brand";
@@ -70,6 +71,15 @@ export function FrontPage({ locked, onNewHere, onRestore }: { locked: boolean; o
             </li>
           ))}
         </ul>
+
+        {/* Joshua's paper on how it was built (app/out-of-the-basement), readable without an account. */}
+        <p className="mx-auto mt-8 max-w-xl text-sm leading-6 text-muted-foreground">
+          How it was built:{" "}
+          <Link href="/out-of-the-basement" className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
+            read <em>Out of the Basement</em>
+          </Link>
+          , the story of a tradesman building zero-knowledge payroll with AI agents.
+        </p>
 
         <div className="mt-8">
           <AuthFooter />

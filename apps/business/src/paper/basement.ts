@@ -1,6 +1,6 @@
 // Generated from the paper's draft (the same text and figures as the PDF in
 // public/papers/). Do not edit by hand: change the draft and regenerate both.
-// Static, first-party content; rendered as HTML by app/out-of-the-basement/page.tsx.
+// Static, first-party content; rendered as HTML by app/out-of-the-basement/page.tsx in the app.
 
 export const PAPER = {
   title: "Out of the Basement",

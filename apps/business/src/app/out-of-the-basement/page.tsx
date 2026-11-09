@@ -1,22 +1,28 @@
 import type { Metadata } from "next";
-import { BRAND } from "@pnw/brand";
+import { BRAND } from "@/brand";
 import { PAPER } from "@/paper/basement";
+import "@/paper/paper.css";
+
+// The app sets no metadataBase, so the addresses a link preview needs are written out in full.
+const URL_HERE = `${BRAND.appUrl}/out-of-the-basement`;
 
 export const metadata: Metadata = {
   title: `${PAPER.title}: building ${BRAND.name}`,
   description: `${PAPER.subtitle}. ${PAPER.author}, ${PAPER.date}.`,
-  alternates: { canonical: "/out-of-the-basement" },
+  alternates: { canonical: URL_HERE },
   openGraph: {
     type: "article",
+    url: URL_HERE,
     title: PAPER.title,
     description: PAPER.subtitle,
-    images: [{ url: BRAND.assets.heroJpg1536, width: 1536, height: 526, alt: `${BRAND.name}: ${BRAND.tagline}` }],
+    images: [{ url: `${BRAND.appUrl}${BRAND.assets.heroJpg1536}`, width: 1536, height: 526, alt: `${BRAND.name}: ${BRAND.tagline}` }],
   },
 };
 
-// Laid out like a journal article: a white sheet, serif type, a centred title block, a set-off
-// abstract, justified text with indented paragraphs (styles under .paper-sheet in globals.css).
-// The paper's text is static, first-party HTML generated from its draft (src/paper/basement.ts):
+// Joshua's paper on how Hewn was built, readable without an account (shell/AppShell.tsx isPublicPath)
+// and linked from the front page. Laid out like a journal article: a white sheet, serif type, a
+// centred title block, a set-off abstract, justified text with indented paragraphs (paper/paper.css).
+// The text is static, first-party HTML generated from the paper's draft (paper/basement.ts):
 // headings, paragraphs, quotes, lists, two inline SVG figures and two tables. No scripts.
 export default function OutOfTheBasement() {
   return (

@@ -1,9 +1,11 @@
 // The paper page carries the whole paper: every numbered section, both figures,
 // both appendices, the PDF it links to, and no working notes left in the text.
+// Anyone can read it, without an account.
 
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { isPublicPath, redirectFor } from "@/shell/AppShell";
 import { PAPER } from "./basement";
 
 const PUBLIC = join(__dirname, "..", "..", "public");
@@ -42,5 +44,12 @@ describe("the paper page", () => {
     expect(all).not.toContain("[NOTE");
     expect(all).not.toContain("Open questions");
     expect(all).not.toMatch(/<script|javascript:|on[a-z]+=/i);
+  });
+
+  it("is public: readable without an account, and never redirected", () => {
+    for (const p of ["/out-of-the-basement", "/out-of-the-basement/"]) expect(isPublicPath(p)).toBe(true);
+    expect(redirectFor("business", "/out-of-the-basement")).toBeNull();
+    expect(redirectFor("worker", "/out-of-the-basement")).toBeNull();
+    expect(redirectFor("customer", "/out-of-the-basement")).toBeNull();
   });
 });

@@ -18,6 +18,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [One sleep pull request at a time](progress/2026-11/2026-11-09.md#2026-11-09--one-sleep-pull-request-at-a-time)
 - [Twin-curve math is not Dual_EC_DRBG; the technical paper says so](progress/2026-11/2026-11-09.md#2026-11-09--twin-curve-math-is-not-dual_ec_drbg-the-technical-paper-says-so)
 - [The paper on the site: Out of the Basement](progress/2026-11/2026-11-09.md#2026-11-09--the-paper-on-the-site-out-of-the-basement)
+- [The paper moves into the app, linked from its front page](progress/2026-11/2026-11-09.md#2026-11-09--the-paper-moves-into-the-app-linked-from-its-front-page)
 
 ### [2026-11-08](progress/2026-11/2026-11-08.md)
 
