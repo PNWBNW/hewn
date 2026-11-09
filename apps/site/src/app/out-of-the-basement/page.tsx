@@ -14,55 +14,50 @@ export const metadata: Metadata = {
   },
 };
 
-const link = "font-medium text-foreground underline underline-offset-4 hover:text-primary";
-
+// Laid out like a journal article: a white sheet, serif type, a centred title block, a set-off
+// abstract, justified text with indented paragraphs (styles under .paper-sheet in globals.css).
 // The paper's text is static, first-party HTML generated from its draft (src/paper/basement.ts):
 // headings, paragraphs, quotes, lists, two inline SVG figures and two tables. No scripts.
 export default function OutOfTheBasement() {
   return (
-    <article className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
-      <header className="text-center">
-        <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">{PAPER.version}</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">{PAPER.title}</h1>
-        <p className="mx-auto mt-3 max-w-xl text-lg text-muted-foreground">{PAPER.subtitle}</p>
-        <p className="mt-5 text-base">
-          {PAPER.author} · {PAPER.date}
+    <div className="paper-desk">
+      <article className="paper-sheet">
+        <p className="paper-running">
+          <span>{PAPER.version}</span>
+          <span>{PAPER.date}</span>
         </p>
-        <p className="mt-4 text-sm">
-          <a href={PAPER.pdf} className={link} download>
-            Download the PDF
-          </a>
-        </p>
-      </header>
 
-      <section aria-labelledby="abstract" className="mt-10 rounded-xl border bg-card p-6">
-        <h2 id="abstract" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Abstract
-        </h2>
-        {PAPER.abstract.map((p) => (
-          <p key={p.slice(0, 24)} className="mt-3 text-base leading-7" dangerouslySetInnerHTML={{ __html: p }} />
-        ))}
-        <p className="mt-4 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Keywords:</span> {PAPER.keywords}.
-        </p>
-      </section>
+        <header className="paper-titleblock">
+          <h1>{PAPER.title}</h1>
+          <p className="paper-subtitle">{PAPER.subtitle}</p>
+          <p className="paper-author">{PAPER.author}</p>
+          <p className="paper-affil">Independent; {BRAND.name}, {BRAND.siteUrl.replace(/^https?:\/\//, "")}</p>
+          <p className="paper-pdf">
+            <a href={PAPER.pdf} download>
+              PDF
+            </a>
+          </p>
+        </header>
 
-      <div className="paper mt-10" dangerouslySetInnerHTML={{ __html: PAPER.bodyHtml }} />
-      <div className="paper mt-12" dangerouslySetInnerHTML={{ __html: PAPER.appendixHtml }} />
+        <section aria-labelledby="abstract" className="paper-abstract">
+          <h2 id="abstract">Abstract</h2>
+          {PAPER.abstract.map((p) => (
+            <p key={p.slice(0, 24)} dangerouslySetInnerHTML={{ __html: p }} />
+          ))}
+          <p className="paper-keywords">
+            <em>Keywords:</em> {PAPER.keywords}.
+          </p>
+        </section>
 
-      <footer className="mt-12 border-t pt-6 text-sm text-muted-foreground">
-        <p>
-          © 2026 {PAPER.author}. This paper is licensed under{" "}
-          <a href={PAPER.licenceUrl} className={link}>
-            {PAPER.licence}
-          </a>
-          : it may be shared with credit, not sold or altered. The code it describes is {BRAND.licence}, at{" "}
-          <a href={BRAND.sourceUrl} className={link}>
-            its source repository
-          </a>
-          .
-        </p>
-      </footer>
-    </article>
+        <div className="paper" dangerouslySetInnerHTML={{ __html: PAPER.bodyHtml }} />
+        <div className="paper paper-appendix" dangerouslySetInnerHTML={{ __html: PAPER.appendixHtml }} />
+
+        <footer className="paper-colophon">
+          © 2026 {PAPER.author}. Licensed under <a href={PAPER.licenceUrl}>{PAPER.licence}</a>: it may be shared with
+          credit, not sold or altered. The code it describes is {BRAND.licence}, at{" "}
+          <a href={BRAND.sourceUrl}>{BRAND.sourceUrl.replace(/^https?:\/\//, "")}</a>.
+        </footer>
+      </article>
+    </div>
   );
 }
