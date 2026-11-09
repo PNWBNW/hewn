@@ -31,7 +31,7 @@ pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/
 
 | Folder | What's in it |
 |---|---|
-| `src/app/` | The routes, one folder per page: `/` (dashboard), `transactions`, `sales`, `expenses`, `payroll` (with its run), `projects`, `reports`, `taxes`, `jobs`, `messages`, `settings`; the worker side under `work/`; the public `board`, `traction` and `card` (a name's card, for anyone); the server pieces under `api/` |
+| `src/app/` | The routes, one folder per page: `/` (dashboard), `transactions`, `sales`, `expenses`, `payroll` (with its run), `projects`, `reports`, `taxes`, `jobs`, `messages`, `settings`; the worker side under `work/`; the public `board`, `traction`, `card` (a name's card, for anyone) and `out-of-the-basement` (Joshua's paper on how Hewn was built, linked from the front page); the server pieces under `api/` |
 | `src/cards/` | The cards as the app draws them, on top of `packages/art`: a business's map, a worker's land, a paystub's rings. See its README. |
 | `src/books/` | Everything about the books that needs no chain: the vault session, the company, the models behind each screen (hours, schedule, thread, mailbox, jobs, hiring…), pure functions with their tests beside them. See its README. |
 | `src/chain/` | Everything that touches Aleo: Shield, letters, offers, pay, the registry, the job board. Loaded only by the pages that need it, through `import("@/chain/…")`. See its README. |
@@ -39,6 +39,7 @@ pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/
 | `src/shell/` | The app shell: navigation, section views, page views |
 | `src/security/` | The content security policy for both builds, with tests |
 | `src/traction/` | The public traction map and the visit counter that feeds it |
+| `src/paper/` | The paper's text and figures (`basement.ts`, generated from its draft with the PDF in `public/papers/`; regenerate both, never edit by hand) and its journal-style CSS |
 | `src/api_base.ts`, `src/brand.ts`, `src/proxy.ts` | Where the server pieces are for this build; the brand re-export; the per-request policy |
 | `src/fiat_boundary.test.ts` | The test that keeps chain code inside `src/chain` and chain words off a fiat user's screens |
 | `test/devnode/` | End-to-end tests against a local Aleo node, outside `pnpm test`: Hewn's letters, agreements and a three-worker payroll run against the deployed programs' bytecode (the stablecoin a stand-in). See its README. |

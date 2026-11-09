@@ -19,6 +19,8 @@ const SRC = join(APP_ROOT, "src");
 const CHAIN_DIR = join(SRC, "chain") + sep;
 // The terms and the privacy page say plainly what goes on chain and what the wallet does (2026-10-22).
 const LEGAL_DIR = join(SRC, "legal") + sep;
+// So does Joshua's paper on how Hewn was built (app/out-of-the-basement, 2026-11-09): his words, about the chain.
+const PAPER_DIR = join(SRC, "paper") + sep;
 
 const CHAIN_PACKAGES = [
   "@pnw/wallet",
@@ -66,7 +68,7 @@ describe("fiat boundary", () => {
   });
 
   it("shows no chain vocabulary to a fiat user", () => {
-    const offenders = outsideChain(sourceFiles(SRC)).filter((f) => !f.startsWith(LEGAL_DIR)).flatMap((file) =>
+    const offenders = outsideChain(sourceFiles(SRC)).filter((f) => !f.startsWith(LEGAL_DIR) && !f.startsWith(PAPER_DIR)).flatMap((file) =>
       readFileSync(file, "utf8")
         .split("\n")
         .map((line, i) => ({ line, n: i + 1 }))

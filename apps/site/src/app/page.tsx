@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { BadgeDollarSign, BookOpen, HandCoins, Lock } from "lucide-react";
 import { BRAND } from "@pnw/brand";
 import { BrandHero, BrandLogo } from "@/components/Brand";
@@ -68,12 +67,12 @@ export default function Home() {
           </div>
           <p className="mt-6 text-sm text-muted-foreground">
             How it was built:{" "}
-            <Link
-              href="/out-of-the-basement"
+            <a
+              href={`${BRAND.appUrl}/out-of-the-basement`}
               className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
             >
               read <em>Out of the Basement</em>
-            </Link>
+            </a>
             , the story of a tradesman building zero-knowledge payroll with AI agents.
           </p>
         </section>
