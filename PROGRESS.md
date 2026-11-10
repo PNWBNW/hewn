@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-10](progress/2026-11/2026-11-10.md)
+
+- [Light sleep: 2026-11-10](progress/2026-11/2026-11-10.md#2026-11-10--light-sleep-2026-11-10)
+
 ### [2026-11-09](progress/2026-11/2026-11-09.md)
 
 - [Dreaming: week of 2026-11-09](progress/2026-11/2026-11-09.md#2026-11-09--dreaming-week-of-2026-11-09)
