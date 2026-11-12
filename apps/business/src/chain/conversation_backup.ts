@@ -125,6 +125,13 @@ const restoredVia = (key: string) => key.slice(0, 16);
  * its sent copies (`mine`). Each message goes to `store` (books/thread.ts `addToThread` keeps each
  * once). Key halves in them are dropped: a restored history never restarts a handshake. Returns how
  * many messages came back.
+ *
+ * A conversation is ordered by when each of their messages arrived on this device
+ * (books/thread_order.ts), and a restored one never arrived here. So their place is rebuilt from
+ * the time written on each, kept in the order of their slots: one of theirs is never placed
+ * before the one in the slot before it, nor after now. Each side's own messages therefore stay in
+ * the order they were sent, whatever times are written on them; how the two sides' messages fall
+ * between each other is as good as those times.
  */
 export async function restoreHistory({
   backup,
@@ -151,6 +158,7 @@ export async function restoreHistory({
     ] as const) {
       const kind = THREAD_KINDS[from];
       const k = partiesKeyFromHex(stream.key);
+      let floor = 0; // where the message in the slot before this one was placed
       try {
         for (let seq = 0; seq < limit; seq++) {
           const bytes = await read(lookupId(k, kind, seq));
@@ -161,7 +169,9 @@ export async function restoreHistory({
             // An answer to a handshake keeps its inside under the pair it made: opened only when the backup holds that pair.
             if (message.body.type === "sealed") message = await openWithAny(message, backup.keys, kind, seq, from);
             delete message.half;
-            item = { ...message, mine: isMine, seq, ...(isMine ? {} : { receivedAt: stamp() }), ...(stream.via ? { via: stream.via } : {}) };
+            const place = Math.max(floor, Math.min(Date.parse(message.sentAt), Date.parse(stamp())));
+            floor = place;
+            item = { ...message, mine: isMine, seq, ...(isMine ? {} : { receivedAt: new Date(place).toISOString() }), ...(stream.via ? { via: stream.via } : {}) };
           } catch {
             continue; // a slot that doesn't open as a message: passed over
           }

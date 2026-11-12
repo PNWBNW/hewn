@@ -18,6 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Thread, ThreadItem } from "./thread";
+import { inOrder } from "./thread_order";
 
 export type ShiftBlock = { start: string; end: string };
 
@@ -213,11 +214,10 @@ export type PublishedWeek = {
 type ScheduleItem = ThreadItem & { body: { type: "schedule"; week: ScheduleWeek; note: string } };
 type AnswerItem = ThreadItem & { body: { type: "schedule_answer"; scheduleId: string; weekStart: string; answer: "confirmed" | "change"; note: string } };
 
-const byTime = (a: ThreadItem, b: ThreadItem) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.seq - b.seq);
 
 /** The latest week published for `weekStart` in a conversation, with its answer. */
 export function publishedWeek(thread: Thread | undefined, weekStart: string): PublishedWeek | undefined {
-  const items = [...(thread?.items ?? [])].sort(byTime);
+  const items = [...(thread?.items ?? [])].sort(inOrder);
   const sent = items.filter((i): i is ScheduleItem => i.body.type === "schedule" && i.body.week.weekStart === weekStart);
   const last = sent.at(-1);
   if (!last) return undefined;

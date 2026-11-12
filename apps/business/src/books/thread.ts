@@ -22,6 +22,7 @@ import { LETTER_LABEL, type Letter, letterText, validateLetter } from "./offer_l
 import { type EmploymentType, type JobFields, cleanHours, employmentLabel, hoursLine, longDate, payLine, validateJobFields } from "./terms_words";
 import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./schedule";
 import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, validateHoursChange } from "./hours_change";
+import { inOrder } from "./thread_order";
 import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from "./report";
 import { MAX_EVENT_TITLE } from "./events";
 import { type Bill, validateBill } from "./bill";
@@ -575,7 +576,7 @@ export function validateThread(raw: unknown): Thread {
     const held = byId.get(item.id);
     if (!held || (item.mine && !held.mine)) byId.set(item.id, item);
   }
-  const thread: Thread = { items: [...byId.values()].sort(byTime), nextIn: raw.nextIn, nextOut: raw.nextOut };
+  const thread: Thread = { items: [...byId.values()].sort(inOrder), nextIn: raw.nextIn, nextOut: raw.nextOut };
   if (raw.ring !== undefined) {
     try {
       thread.ring = validateKeyRing(raw.ring);
@@ -585,8 +586,6 @@ export function validateThread(raw: unknown): Thread {
   }
   return thread;
 }
-
-const byTime = (a: ThreadItem, b: ThreadItem) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.id < b.id ? -1 : 1);
 
 /** Whether two messages say the same thing, whatever slot or time they came in. */
 export const sameMessage = (a: ThreadMessage, b: ThreadMessage): boolean => a.from === b.from && JSON.stringify(a.body) === JSON.stringify(b.body);
@@ -604,7 +603,7 @@ export const sameMessage = (a: ThreadMessage, b: ThreadMessage): boolean => a.fr
 export function addToThread(thread: Thread, item: ThreadItem): Thread {
   const fresh = validateItem(item);
   const held = !fresh.mine && thread.items.some((i) => i.id === fresh.id);
-  const items = held ? thread.items : [...thread.items.filter((i) => i.id !== fresh.id), fresh].sort(byTime);
+  const items = held ? thread.items : [...thread.items.filter((i) => i.id !== fresh.id), fresh].sort(inOrder);
   let next: Thread = { ...thread, items };
   if (!fresh.via) next = fresh.mine ? { ...next, nextOut: Math.max(thread.nextOut, fresh.seq + 1) } : { ...next, nextIn: Math.max(thread.nextIn, fresh.seq + 1) };
   if (fresh.via || fresh.half) {
@@ -835,3 +834,5 @@ export function proposalFromDraft(d: ProposalDraft): { proposal: Proposal } | { 
   const { rateText: _rateText, employmentType, hoursText: _hoursText, ...rest } = d;
   return { proposal: { ...rest, rate: cents.toString(), ...(employmentType ? { employmentType } : {}), ...(hours ? { hoursPerWeek: hours } : {}) } };
 }
+
+export { inOrder, placedAt } from "./thread_order";

@@ -65,16 +65,30 @@ describe("the thread through the mailbox", () => {
     expect((await readThread({ client: box, partiesKey: KEY, reader: "worker", thread: worker.thread, store: worker.store, skip: worker.skip })).received).toEqual([]);
   });
 
-  it("takes a message dated in the future as sent when it arrived, so it can't stay the latest for ever", async () => {
+  it("takes a message dated in the future as sent when it arrived, and keeps what arrived together in its slots' order", async () => {
     const box = fakeMailbox();
     const business = side();
     await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "From next year" }, now: () => new Date("2027-10-16T18:00:00.000Z") });
     await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 1, body: { type: "text", text: "From today" }, now: NOW });
     await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip, now: () => "2026-10-16T19:00:00.000Z" });
     expect(business.thread.items.map((i) => [i.body.type === "text" ? i.body.text : "", i.sentAt])).toEqual([
-      ["From today", "2026-10-16T18:00:00.000Z"],
       ["From next year", "2026-10-16T19:00:00.000Z"],
+      ["From today", "2026-10-16T18:00:00.000Z"],
     ]);
+  });
+
+  it("puts a message where it arrived, whatever past time is written on it", async () => {
+    const box = fakeMailbox();
+    const business = side();
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "The first one" }, now: () => new Date("2026-10-16T18:00:00.000Z") });
+    await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip, now: () => "2026-10-16T19:00:00.000Z" });
+    business.keep(await postToThread({ client: box, partiesKey: KEY, from: "business", nextOut: 0, body: { type: "text", text: "My answer" }, now: () => new Date("2026-10-16T20:00:00.000Z") }));
+    // Sent after the answer, dated a fortnight before everything.
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 1, body: { type: "text", text: "Dated before the first" }, now: () => new Date("2026-10-02T08:00:00.000Z") });
+    await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip, now: () => "2026-10-16T21:00:00.000Z" });
+    expect(business.thread.items.map((i) => (i.body.type === "text" ? i.body.text : ""))).toEqual(["The first one", "My answer", "Dated before the first"]);
+    // The time written on it is kept to show, and decides nothing.
+    expect(business.thread.items.at(-1)).toMatchObject({ sentAt: "2026-10-02T08:00:00.000Z", receivedAt: "2026-10-16T21:00:00.000Z" });
   });
 
   it("steps over a slot that's already taken", async () => {
