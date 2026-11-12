@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-08
+updated: 2026-11-11
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it.
 ---
 
@@ -474,6 +474,14 @@ public. Now every reader also checks the letter's sender, which only the record'
 - **Group chats:** the admin is whoever set the group up first, as this device saw it; a later
   setup naming someone else is ignored. Two members' messages never replace each other.
 - **Send times:** a received message dated in the future is taken as sent when it arrived.
+- **One id, one message (2026-11-11):** in a conversation, an id names one message for good. A
+  later letter from the other side under an id already there changes nothing, whether that id was
+  one of theirs or one of this side's own: the first one stays as it was read, and the reader
+  says so when the second says something else. An answer pairs with what it answers by id (an
+  accepted change of hours, an accepted agreement), so neither side can reword what the other
+  already answered (`books/thread.ts` `addToThread`, `chain/thread.ts` `readThread`). ✅
+  Not yet covered: an answer doesn't carry a fingerprint of what it answered, and a message's
+  place in the order is still the time its sender wrote (a past time is taken as written). 🔜
 - **No sender shown:** the check stops with "Shield didn't say who sent a letter" rather than
   believing it. ✅
 - **Names:** the registrar stores whatever text it's given beside a name's hash, so anyone could
