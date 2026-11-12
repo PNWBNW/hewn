@@ -516,6 +516,11 @@ public. Now every reader also checks the letter's sender, which only the record'
   review list. A name is shown only when it hashes back to its hash and is a plain name (no
   look-alike characters); an application's name likewise; an account's primary name only while
   the account still owns it. Otherwise the account is shown. ✅
+  An offer's business name also has to belong to the account that sent the offer: the agreement
+  program (v5) binds the sending account but takes the name's hash as given, so the app asks the
+  registry who owns it, when the offer is read and again at Accept, and shows the account and
+  refuses Accept when it isn't the sender or the registry can't be asked
+  (`chain/work/employer_name.ts`, 2026-11-11). ✅
 
 ## T17 — Cards (2026-10-25)
 
