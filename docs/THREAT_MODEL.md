@@ -488,14 +488,27 @@ public. Now every reader also checks the letter's sender, which only the record'
 - **Group chats:** the admin is whoever set the group up first, as this device saw it; a later
   setup naming someone else is ignored. Two members' messages never replace each other.
 - **Send times:** a received message dated in the future is taken as sent when it arrived.
+- **Order (2026-11-11):** a conversation is ordered by this device's own clock: a message of
+  mine when I sent it, one of theirs when it arrived here (`books/thread_order.ts`). The time the
+  other side wrote on a message is shown beside it and decides nothing, so a message can't be
+  slid in ahead of what was already read and answered: a second offer dated before the first
+  doesn't take the customer's acceptance, and an acceptance dated before a revision doesn't
+  revive the terms the business had replaced. ✅
+  On a device restored from the chain nothing "arrived", so their place is rebuilt from the
+  written times, kept in the order of their slots (`chain/conversation_backup.ts`
+  `restoreHistory`): each side's own messages stay in the order they were sent, and how the two
+  sides' messages fall between each other is as good as those times. There, an agreement can
+  show as still waiting for an answer; it never shows as agreed on other terms, because an
+  acceptance names its revision and the first offer of a revision stands.
 - **One id, one message (2026-11-11):** in a conversation, an id names one message for good. A
   later letter from the other side under an id already there changes nothing, whether that id was
   one of theirs or one of this side's own: the first one stays as it was read, and the reader
   says so when the second says something else. An answer pairs with what it answers by id (an
   accepted change of hours, an accepted agreement), so neither side can reword what the other
   already answered (`books/thread.ts` `addToThread`, `chain/thread.ts` `readThread`). ✅
-  Not yet covered: an answer doesn't carry a fingerprint of what it answered, and a message's
-  place in the order is still the time its sender wrote (a past time is taken as written). 🔜
+  Not yet covered: on a device restored from the chain, the first of two messages under one id
+  is the first read, and with more than one key in use that may not be the first sent; an answer
+  carrying a fingerprint of what it answered would close that. 🔜
 - **No sender shown:** the check stops with "Shield didn't say who sent a letter" rather than
   believing it. ✅
 - **Names:** the registrar stores whatever text it's given beside a name's hash, so anyone could

@@ -49,6 +49,27 @@ describe("an agreement for one job", () => {
     expect(agreementsIn(t.items)[0]).toMatchObject({ status: "active", terms: { amount: "50000", scope: "Patch two tiles." } });
   });
 
+  it("stays the terms the customer accepted when a second offer of the same revision arrives dated before the first", () => {
+    // The customer's side: the offer arrives, they accept, and then another offer of revision 1
+    // arrives with other terms and an earlier time written on it.
+    const first: ThreadItem = { ...offer(terms({ amount: "50000", scope: "Patch two tiles." })), sentAt: "2026-10-26T10:00:00.000Z", receivedAt: "2026-10-26T10:00:05.000Z" };
+    const accept: ThreadItem = { ...answer(1, "accept"), sentAt: "2026-10-26T10:30:00.000Z" };
+    const second: ThreadItem = { ...offer(terms({ amount: "5000000", scope: "A whole new roof." })), sentAt: "2026-10-25T10:00:00.000Z", receivedAt: "2026-10-26T12:00:00.000Z" };
+    const t = [first, accept, second].reduce(addToThread, emptyThread());
+    expect(agreementsIn(t.items)).toHaveLength(1);
+    expect(agreementsIn(t.items)[0]).toMatchObject({ status: "active", terms: { amount: "50000", scope: "Patch two tiles." } });
+  });
+
+  it("isn't agreed by an answer to a revision the business had already replaced, whatever time is written on the answer", () => {
+    // The business's side: revision 1 goes out, then revision 2; an acceptance of revision 1
+    // arrives afterwards, dated between the two.
+    const rev1: ThreadItem = { ...offer(terms()), mine: true, sentAt: "2026-10-26T10:00:00.000Z" };
+    const rev2: ThreadItem = { ...offer(terms({ rev: 2, amount: "60000" })), mine: true, sentAt: "2026-10-26T11:00:00.000Z" };
+    const late: ThreadItem = { ...answer(1, "accept"), mine: false, sentAt: "2026-10-26T10:30:00.000Z", receivedAt: "2026-10-26T12:00:00.000Z" };
+    const t = [rev1, rev2, late].reduce(addToThread, emptyThread());
+    expect(agreementsIn(t.items)[0]).toMatchObject({ status: "offered", terms: { rev: 2, amount: "60000" } });
+  });
+
   it("can't be closed before it's agreed, and a declined one isn't invoiceable", () => {
     const items = [offer(terms()), item({ type: "agreement_close", id: ID, reason: "cancelled" }, "worker", true)];
     expect(agreementsIn(items)[0]!.status).toBe("offered");

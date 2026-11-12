@@ -16,6 +16,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [The sleep passes and the session hooks take no direction from what they read](progress/2026-11/2026-11-11.md#2026-11-11--the-sleep-passes-and-the-session-hooks-take-no-direction-from-what-they-read)
 - [An id names one message for good](progress/2026-11/2026-11-11.md#2026-11-11--an-id-names-one-message-for-good)
 - ["Stay logged in" is a choice, and the documents say what it is](progress/2026-11/2026-11-11.md#2026-11-11--stay-logged-in-is-a-choice-and-the-documents-say-what-it-is)
+- [A conversation is ordered by this device's clock, not the sender's](progress/2026-11/2026-11-11.md#2026-11-11--a-conversation-is-ordered-by-this-devices-clock-not-the-senders)
 
 ### [2026-11-09](progress/2026-11/2026-11-09.md)
 

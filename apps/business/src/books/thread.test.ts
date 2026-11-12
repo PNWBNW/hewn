@@ -3,6 +3,8 @@ import {
   type Proposal,
   type ThreadItem,
   addToThread,
+  inOrder,
+  placedAt,
   answerFor,
   draftOf,
   emptyThread,
@@ -295,5 +297,31 @@ describe("an id names one message for good", () => {
     expect(validateThread({ ...base, items: [mine, theirs(1, "Theirs", 0)] }).items.map(text)).toEqual(["Mine"]);
     expect(validateThread({ ...base, items: [theirs(1, "Theirs", 0), mine] }).items.map(text)).toEqual(["Mine"]);
     expect(validateThread({ ...base, items: [theirs(2, "First", 0), theirs(2, "Second", 1)] }).items.map(text)).toEqual(["First"]);
+  });
+});
+
+describe("the order of a conversation on this device", () => {
+  const say = (n: number, mine: boolean, sentAt: string, receivedAt?: string): ThreadItem => ({
+    ...item(n, mine ? "business" : "worker", { type: "text", text: `m${n}` }, mine, n),
+    sentAt,
+    ...(receivedAt ? { receivedAt } : {}),
+  });
+  const order = (t: { items: ThreadItem[] }) => t.items.map((i) => (i.body.type === "text" ? i.body.text : ""));
+
+  it("places mine when I sent it and theirs when it arrived, not by the time they wrote", () => {
+    let t = addToThread(emptyThread(), say(1, false, "2026-10-16T09:00:00.000Z", "2026-10-16T09:00:05.000Z"));
+    t = addToThread(t, say(2, true, "2026-10-16T10:00:00.000Z"));
+    // Arrives at 11:00 saying it was sent at 08:00, before everything.
+    t = addToThread(t, say(3, false, "2026-10-16T08:00:00.000Z", "2026-10-16T11:00:00.000Z"));
+    expect(order(t)).toEqual(["m1", "m2", "m3"]);
+    expect(placedAt(t.items[2]!)).toBe(Date.parse("2026-10-16T11:00:00.000Z"));
+    // Read back from the vault in any order, it is the same conversation.
+    expect(order(validateThread({ items: [...t.items].reverse(), nextIn: t.nextIn, nextOut: t.nextOut }))).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("keeps messages that arrived at the same moment in their slots' order, and ones without an arrival time by the time on them", () => {
+    const together = "2026-10-16T12:00:00.000Z";
+    const t = [say(5, false, "2026-10-16T11:30:00.000Z", together), say(4, false, "2026-10-16T11:45:00.000Z", together), say(6, false, "2026-10-16T07:00:00.000Z")].sort(inOrder);
+    expect(t.map((i) => i.seq)).toEqual([6, 4, 5]);
   });
 });

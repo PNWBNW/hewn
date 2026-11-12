@@ -24,6 +24,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Side, Thread, ThreadItem } from "./thread";
+import { inOrder } from "./thread_order";
 
 export const MAX_CHANGE_NOTE = 500;
 /** The longest shift a change may name or propose: a day and a half. */
@@ -113,11 +114,10 @@ export type HoursChange = { id: string; from: Side; sentAt: string; mine: boolea
 
 type ChangeItem = ThreadItem & { body: HoursChangeBody };
 type AnswerItem = ThreadItem & { body: HoursAnswerBody };
-const byTime = (a: ThreadItem, b: ThreadItem) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.seq - b.seq);
 
 /** Every change in the conversation, oldest first, each with its answer: the first one from the other side. */
 export function hoursChanges(thread: Thread | undefined): HoursChange[] {
-  const items = [...(thread?.items ?? [])].sort(byTime);
+  const items = [...(thread?.items ?? [])].sort(inOrder);
   const answers = items.filter((i): i is AnswerItem => i.body.type === "hours_change_answer");
   return items
     .filter((i): i is ChangeItem => i.body.type === "hours_change")
