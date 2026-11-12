@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -I \"${CLAUDE_PROJECT_DIR:-.}/scripts/sleep/snapshot.py\" consolidate",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-.}\"; t=\"$(mktemp)\" && git -C \"$d\" show origin/main:scripts/sleep/snapshot.py > \"$t\" 2>/dev/null && python3 -I \"$t\" consolidate --root \"$d\"; rm -f \"$t\"",
             "timeout": 30
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -I \"${CLAUDE_PROJECT_DIR:-.}/scripts/sleep/snapshot.py\" wake",
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-.}\"; t=\"$(mktemp)\" && git -C \"$d\" show origin/main:scripts/sleep/snapshot.py > \"$t\" 2>/dev/null && python3 -I \"$t\" wake --root \"$d\"; rm -f \"$t\"",
             "timeout": 30
           }
         ]
