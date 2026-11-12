@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-03
+updated: 2026-11-11
 summary: Every non-negotiable rule with an id, where it is enforced, its check, its threats and the SOC 2 and ISO 27001 items it satisfies; then the operating rules. The control list.
 ---
 

@@ -11,10 +11,10 @@ document's `status`, `updated` or `summary` line, then run `python3 -I scripts/d
 |---|---|---|
 | [`JOB_BOARD.md`](JOB_BOARD.md) | living · 2026-10-19 | The public job board on `hewn_jobs_v1.aleo`: what is public on purpose, how applications stay sealed, fees. |
 | [`LETTERS.md`](LETTERS.md) | living · 2026-10-26 | How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs. |
-| [`INVARIANTS.md`](INVARIANTS.md) | living · 2026-11-03 | Every non-negotiable rule with an id, where it is enforced, its check, its threats and the SOC 2 and ISO 27001 items it satisfies; then the operating rules. The control list. |
 | [`map/`](map/README.md) | living · 2026-11-03 | The map of Hewn in 3D on GitHub Pages: every file in both repositories, every rule and dependency, how they connect; its extractor, layout, viewer, query tool and build. |
-| [`security/DATA_FLOW.md`](security/DATA_FLOW.md) | living · 2026-11-03 | Where the data lives and what crosses between places: every store and flow classed private, sealed, public or control, each citing its rule; the map's data-flow view in writing. |
+| [`INVARIANTS.md`](INVARIANTS.md) | living · 2026-11-11 | Every non-negotiable rule with an id, where it is enforced, its check, its threats and the SOC 2 and ISO 27001 items it satisfies; then the operating rules. The control list. |
 | [`THREAT_MODEL.md`](THREAT_MODEL.md) | living · 2026-11-11 | What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it. |
+| [`security/DATA_FLOW.md`](security/DATA_FLOW.md) | living · 2026-11-11 | Where the data lives and what crosses between places: every store and flow classed private, sealed, public or control, each citing its rule; the map's data-flow view in writing. |
 | [`TWIN_CURVE_CONVERSATIONS.md`](TWIN_CURVE_CONVERSATIONS.md) | built · 2026-10-23 | The business ↔ team member conversation on key exchange (the handshake), and backups both people agree to. |
 | [`HEWN_ART.md`](HEWN_ART.md) | built · 2026-10-24 | The art drawn for every credential and paystub: a worker's land in 3D, a business's topographic map, the constellation, the paystub rings; in the app, the credential card (question 1) still open. |
 | [`CUSTOMERS.md`](CUSTOMERS.md) | built · 2026-10-26 | Customers as their own accounts with a portal: invoices sent as letters, bills paid from Shield, agreements with a clear end; Step 1 built, the directory of businesses and reviews still open. |

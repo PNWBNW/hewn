@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-12](progress/2026-11/2026-11-12.md)
+
+- [Light sleep: 2026-11-12](progress/2026-11/2026-11-12.md#2026-11-12--light-sleep-2026-11-12)
+
 ### [2026-11-11](progress/2026-11/2026-11-11.md)
 
 - [The sleep passes and the session hooks take no direction from what they read](progress/2026-11/2026-11-11.md#2026-11-11--the-sleep-passes-and-the-session-hooks-take-no-direction-from-what-they-read)
