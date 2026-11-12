@@ -1,7 +1,7 @@
 ---
 status: living
 updated: 2026-11-11
-summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it.
+summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
 # Hewn — Threat Model
@@ -620,3 +620,58 @@ from the network's copy of each transaction, so the business may give the books 
   logged in) can read the key, and with it the account's history even after the business leaves
   the app. Forgetting it in Settings removes it from the books; a key already copied can't be
   taken back, short of moving the money to a new account.
+
+## T21 — The admin key over the upgradable programs (2026-11-11)
+
+Nine of the programs the app relies on have an `@admin` constructor: the name registry and the
+registrar, worker and employer profiles, `employer_agreement_v4`, `payroll_core_v2`,
+`paystub_receipts`, the router and `credential_nft_v3` (`@pnw/config` `EDITIONS`; a tenth,
+`credential_nft_v4`, is deployed and not used). One address is the admin of all of them, and of
+eleven archived programs that are still deployed. The address is written into each constructor,
+so the key can't be replaced. T18 covers how the key could leak; this is what it can do.
+
+**What an upgrade is.** Whoever holds the key can upgrade any of those programs in place. An
+upgrade can add functions, mappings, records and imports, and it can change the logic inside any
+function or finalize people already use, keeping its name, inputs and outputs (snarkVM
+`check_upgrade_is_valid`; `pnw_mvp_v2` `docs/migrations/2026-11-11-upgrades-found-on-chain.md`).
+It can't remove anything or change a mapping, a record or a constructor. A wallet proves against
+the newest edition and doesn't say which.
+
+**What the holder could do.**
+- Change what `create_worker_profile` does with the name, age, state and the rest a worker gives
+  it at setup, including who ends up owning the record.
+- Change the registry so a name resolves to another account, or so its ownership check passes
+  for anyone or for no one. Adding a team member, sending an offer, reading an application,
+  posting a job and issuing a card all rest on that check. Even without an upgrade the admin
+  account can register any free name and say which program is the registrar.
+- Stop registration, or `employer_agreement_v4` agreements, from working.
+
+**What the holder can't do.** Spend, move or read records people already hold: USDCx, letters,
+profiles and agreements already made. Change a program with a `@noupgrade` constructor:
+`employer_agreement_v5`, letters, credentials, the job board, cards. (The job board and cards
+take their ownership check from the registry, which is upgradable.)
+
+- **The chain is watched.** `pnw_mvp_v2`'s manifest records every program's edition and the hash
+  of its text on chain, and `scripts/check_chain.py` compares them with the chain on every pull
+  request there and once a day (`chain-watch`). An upgrade nobody recorded fails it within a
+  day. ✅
+- **The app refuses to sign against a changed program.** Before any transaction goes to Shield,
+  the app reads each upgradable program's edition from the network and stops when one isn't an
+  edition this version was made for, naming it; an explorer that can't be reached stops it too
+  (`chain/editions.ts`, called from the one place every write passes, `chain/shield.ts`). It
+  checks all nine, not only the program being called, because a payment to a registered name
+  relies on the registry. `packages/config/src/programs.test.ts` keeps the pins equal to the
+  manifest and covering every `@admin` program the app names. ✅
+- **The key signs only from `main`, with Joshua's approval** (GitHub's environment protection and
+  a ruleset, set 2026-11-11; `pnw_mvp_v2` #234). These are settings on GitHub, not code, so
+  nothing in the repositories proves they are still on. ⚠️
+- ⚠️ **Not covered:** the check asks the explorer, so its operator can make the app refuse, and
+  one who answers an old edition for a changed program makes the check pass; the daily watch
+  reads the same explorer. Someone who signs in the wallet without the app isn't covered. Names
+  the app resolves by reading the registry are read between checks. An installed copy of the app
+  keeps its pins, so after a planned upgrade it refuses until it is updated. And this is
+  noticing, not preventing: the key still decides what these programs do next.
+- 🔜 **What closes it:** successors with `@noupgrade` constructors (worker profiles first, since
+  it takes legal names; the registry and registrar when names move to mainnet), and the key
+  kept off GitHub, signing from a device that isn't online. `docs/PAPER.md` promises no
+  upgradable programs on mainnet.

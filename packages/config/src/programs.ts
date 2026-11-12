@@ -1,8 +1,6 @@
 // ============================================================
 // Program ID Registry
-// Mirrors pnw_mvp_v2/config/testnet.manifest.json
-// Synced from commit: b1f9dfb (pnw_mvp_v2 main)
-// Synced on: 2026-03-26
+// Mirrors pnw_mvp_v2/config/testnet.manifest.json (program ids; editions since 2026-11-11)
 // ============================================================
 
 export const PROGRAMS = {
@@ -65,6 +63,32 @@ export const PROGRAMS = {
     pnw_name_registry_v1: "pnw_name_registry.aleo",
   },
 } as const;
+
+/**
+ * The edition of each upgradable program this version of the app was made for.
+ *
+ * A program whose constructor is `@admin` can be upgraded in place by whoever holds the admin
+ * key, and an upgrade may change the logic inside a function people already use, under the same
+ * name, inputs and outputs. A wallet proves against the newest edition without saying so. So
+ * before the app asks for any signature it reads each of these from the network and refuses if
+ * one is at an edition not listed here (apps/business/src/chain/editions.ts; docs/THREAT_MODEL.md
+ * T21). A program whose constructor is `@noupgrade` can never change, so it isn't listed.
+ *
+ * Mirrors `edition` in pnw_mvp_v2/config/testnet.manifest.json, which is checked against the
+ * chain every day there (programs.test.ts keeps the two in step). A planned upgrade lists both
+ * editions here first, ships, and drops the old one afterwards.
+ */
+export const EDITIONS: Readonly<Record<string, readonly number[]>> = {
+  [PROGRAMS.layer1.pnw_name_registry]: [1],
+  [PROGRAMS.layer1.pnw_name_registrar]: [1],
+  [PROGRAMS.layer1.worker_profiles]: [0],
+  [PROGRAMS.layer1.employer_profiles]: [0],
+  [PROGRAMS.layer1.employer_agreement]: [2],
+  [PROGRAMS.layer1.payroll_core]: [1],
+  [PROGRAMS.layer1.paystub_receipts]: [0],
+  [PROGRAMS.layer1.pnw_router]: [0],
+  [PROGRAMS.layer2.credential_nft]: [0],
+};
 
 /** Current version tags — must match deployed program expectations */
 export const VERSIONS = {
