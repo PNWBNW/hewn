@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-11
+updated: 2026-11-12
 summary: The sleep cycle for the agents that build Hewn, after Google's sleep framework for continual learning: consolidate before the fast store is wiped, at three rhythms (every compaction, nightly, weekly), and a monthly REM pass that practises and keeps only what finds something; as hooks and skills a plugin can carry to any repository. Extends docs/MEMORY.md. Built except the plugin (step 5), and the first REM run by hand.
 ---
 
@@ -76,9 +76,13 @@ the exact paths and commands in use; not the chatter), and only then is the cont
 
 What a hook prints is read by the model as its own notes, and a pass that runs unattended reads
 whatever is in front of it. So two things hold since 2026-11-11. The hooks run the copy of the
-snapshot script on `origin/main`, not the working tree's, and the snapshot names commits by short
-id and the log by path and count: no commit title or entry heading, which anyone with a branch
-can write, reaches the model that way. And the light sleep and the dream recognise their own
+snapshot script on main, not the working tree's, named in full (`refs/remotes/origin/main`, since
+2026-11-12: a tag or a local branch called `origin/main` would otherwise stand in for it), and
+the snapshot names commits by short id and the log by path and count, and shows a file, branch or
+note name only when it has no spaces: no commit title, entry heading or sentence-shaped name,
+which anyone with a branch can write, reaches the model that way. The hook commands themselves
+live in the checked-out `.claude/settings.json`, so an outside branch is read as a diff and never
+checked out in the project folder. And the light sleep and the dream recognise their own
 pull request by who opened it and where its branch lives, never by its title, and read no other
 pull request's title or body (`.claude/skills/README.md`).
 
