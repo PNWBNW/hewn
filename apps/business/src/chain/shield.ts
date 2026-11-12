@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
-import { checkEditions, warmEditions } from "./editions";
+import { checkEditions } from "./editions";
 import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, shieldRoute } from "./shield_route";
 
 export type { ShieldRoute };
@@ -50,7 +50,6 @@ export function useShield() {
 
   // Ask the network for the programs' editions as the page opens, so the check at the moment
   // of sending is already answered.
-  useEffect(() => warmEditions(), []);
 
   // Selecting is one render and connecting the next: the adaptor's connect()
   // reads the selected wallet from its own state. On the relay route that
