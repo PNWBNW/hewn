@@ -7,6 +7,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
 import { useBooks } from "./BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "./NewPassphrase";
+import { StayChoice } from "./StayChoice";
 import type { RestoreStart } from "./RestoreScreen";
 import type { Role } from "./work";
 
@@ -60,7 +61,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
   const [confirm, setConfirm] = useState("");
   const [username, setUsername] = useState("");
   const [passphrase, setPassphrase] = useState("");
-  const [stay, setStay] = useState(true);
+  const [stay, setStay] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [choices, setChoices] = useState<Role[] | null>(null);
@@ -197,10 +198,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
           />
         </Field>
         <NewPassphraseFields username={username.trim().toLowerCase()} passphrase={next} onPassphrase={setNext} confirm={confirm} onConfirm={setConfirm} />
-        <label className="flex min-h-11 items-center gap-3 text-sm">
-          <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={stay} onChange={(e) => setStay(e.target.checked)} />
-          <span>Stay logged in on this device for 24 hours</span>
-        </label>
+        <StayChoice checked={stay} onChange={setStay} />
         <FormError message={error} />
         <Button type="submit" className="h-11" disabled={busy || !ready}>
           {busy ? "Checking…" : "Set the new passphrase and log in"}
@@ -262,13 +260,7 @@ function LoginForm({ onNewHere, onRestore }: { onNewHere: () => void; onRestore:
         <PassphraseInput value={passphrase} onChange={setPassphrase} inputRef={passphraseRef} />
       </Field>
 
-      <label className="flex min-h-11 items-center gap-3 text-sm">
-        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={stay} onChange={(e) => setStay(e.target.checked)} />
-        <span>
-          Stay logged in on this device for 24 hours
-          <span className="block text-xs text-muted-foreground">Until you log out. Leave it off on a shared device.</span>
-        </span>
-      </label>
+      <StayChoice checked={stay} onChange={setStay} />
 
       <FormError message={error} />
       <Button type="submit" className="h-11" disabled={busy || !passphrase || (!legacy && !username.trim())}>

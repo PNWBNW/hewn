@@ -259,14 +259,19 @@ export class VaultSession {
 
   /**
    * "Stay logged in": keeps this session's data key on this device until `expiresAt`, so the books
-   * reopen without the passphrase (resumeSession). The key is the browser's non-extractable
-   * CryptoKey: whoever holds the device can use it to open the books until it expires or
-   * forgetSession runs, but nobody can read it out or copy it elsewhere.
+   * reopen without the passphrase (resumeSession). It is a choice the person makes, never a
+   * default, because of what it is: for that time the books are as good as unlocked on this device.
+   *
+   * The key is the browser's non-extractable CryptoKey. That stops a page's script from exporting
+   * it; it is not encryption at rest. The browser writes the key's bytes into its own storage, so
+   * whoever can use this device, or copy its browser profile, can open the books with it, and the
+   * bytes can outlast forgetSession on disk until the browser tidies its files (checked in
+   * Chromium, 2026-11-11). The passphrase protects a device only while nothing is remembered.
    */
-  async remember(store: VaultStore, expiresAt: Date): Promise<void> {
+  async remember(store: VaultStore, expiresAt: Date, now: Date = new Date()): Promise<void> {
     const key = this.#requireKey();
     if (key.extractable) throw new VaultError("CORRUPT", "Only a non-extractable key can be remembered");
-    await store.saveRemembered({ vaultId: this.#record.id, key, expiresAt: expiresAt.toISOString() });
+    await store.saveRemembered({ vaultId: this.#record.id, key, expiresAt: expiresAt.toISOString(), seenAt: now.toISOString() });
   }
 
   lock(): void {
@@ -277,19 +282,29 @@ export class VaultSession {
 /** The longest a remembered session may last. */
 export const REMEMBER_MS = 24 * 60 * 60 * 1000;
 
+/** How far behind the last time it was used a clock may read before the session is refused: clocks get corrected by a little. */
+export const CLOCK_SLACK_MS = 5 * 60 * 1000;
+
+/** When the remembered session was last used, or NaN when it doesn't say. */
+const seenTime = (r: { seenAt?: string }) => (r.seenAt === undefined ? Number.NaN : Date.parse(r.seenAt));
+
 /**
  * Reopens the remembered session, if there is one and it hasn't expired. Anything wrong with it
- * (expired, an expiry further out than REMEMBER_MS, an extractable key, a missing or damaged
- * record) clears it and returns null.
+ * (expired, an expiry further out than REMEMBER_MS, a clock that reads earlier than the last time
+ * the session was used, an extractable key, a missing or damaged record) clears it and returns
+ * null. Nothing here runs while the app is closed, so an expired key waits in the browser's
+ * storage until the app is next opened; the time limit is this device's clock and no more.
  */
 export async function resumeSession(store: VaultStore, now: Date = new Date()): Promise<{ session: VaultSession; expiresAt: Date } | null> {
   const r = await store.loadRemembered();
   if (!r) return null;
   const expires = Date.parse(r.expiresAt);
+  const seen = seenTime(r);
   const usable =
     Number.isFinite(expires) &&
     expires > now.getTime() &&
     expires - now.getTime() <= REMEMBER_MS &&
+    (r.seenAt === undefined || (Number.isFinite(seen) && now.getTime() >= seen - CLOCK_SLACK_MS)) &&
     typeof r.key === "object" &&
     r.key !== null &&
     r.key.extractable === false;
@@ -298,6 +313,7 @@ export async function resumeSession(store: VaultStore, now: Date = new Date()): 
     try {
       const session = new VaultSession(r.key, record);
       await session.read();
+      if (!(seen >= now.getTime())) await store.saveRemembered({ ...r, seenAt: now.toISOString() });
       return { session, expiresAt: new Date(expires) };
     } catch {
       // the key doesn't open this record: forget it below
@@ -305,6 +321,17 @@ export async function resumeSession(store: VaultStore, now: Date = new Date()): 
   }
   await store.clearRemembered();
   return null;
+}
+
+/**
+ * Notes that the remembered session is in use now, so a clock set back to before this moment
+ * won't reopen it. Called as the app goes to the background. Does nothing when nothing is
+ * remembered, and never moves the time back.
+ */
+export async function noteSeen(store: VaultStore, now: Date = new Date()): Promise<void> {
+  const r = await store.loadRemembered();
+  if (!r || seenTime(r) >= now.getTime()) return;
+  await store.saveRemembered({ ...r, seenAt: now.toISOString() });
 }
 
 /** Forgets the remembered session on this device (Log out). */

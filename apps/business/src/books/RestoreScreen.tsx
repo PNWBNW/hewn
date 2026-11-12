@@ -8,6 +8,7 @@ import { BRAND } from "@/brand";
 import { LEGACY_VAULT_ID } from "./account";
 import { useBooks } from "./BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "./NewPassphrase";
+import { StayChoice } from "./StayChoice";
 import { pickerAccept } from "./save_file";
 
 /** Where a restore starts: a backup file, or the backup kept with the Shield account (with the username typed so far). */
@@ -57,6 +58,7 @@ function FileRestore({ onCancel, replacing }: { onCancel: () => void; replacing:
   const { restore, restoreWithRecovery } = useBooks();
   // Forgot the backup's passphrase: the recovery key sets a new one as it restores.
   const [recovering, setRecovering] = useState(false);
+  const [stay, setStay] = useState(false);
   const [code, setCode] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -98,8 +100,8 @@ function FileRestore({ onCancel, replacing }: { onCancel: () => void; replacing:
         setBusy(true);
         setError(null);
         try {
-          if (withKey) await restoreWithRecovery(text, username, code, next);
-          else await restore(text, legacy ? null : username, passphrase);
+          if (withKey) await restoreWithRecovery(text, username, code, next, stay);
+          else await restore(text, legacy ? null : username, passphrase, stay);
         } catch (err) {
           setError(errorMessage(err));
           setBusy(false);
@@ -172,6 +174,7 @@ function FileRestore({ onCancel, replacing }: { onCancel: () => void; replacing:
           If this account already has books on this device, restoring replaces them. Save a backup of them first if you might need them.
         </p>
       )}
+      <StayChoice checked={stay} onChange={setStay} />
       <FormError message={error} />
       <div className="flex gap-3">
         <Button type="button" variant="outline" className="h-11 flex-1" onClick={onCancel} disabled={busy}>

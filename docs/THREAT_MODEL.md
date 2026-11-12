@@ -50,15 +50,29 @@ No server, no database. ✅ Structural, from the architecture.
   before any round runs (`MAX_KDF_ITERATIONS`, 2026-10-22). ✅
 - Log out drops the key and plaintext from memory. Without "stay logged in": auto-lock after 15
   idle minutes, and any reload locks. ✅
-- ⚠️ **Stay logged in** (ticked by default at login, Joshua 2026-10-15): the open data key is also
-  kept in IndexedDB as the browser's non-extractable `CryptoKey`, with an expiry 24 hours after
-  login, so a phone switching apps (which suspends or reloads the page) doesn't log the user out.
-  It can decrypt but can't be exported, so it can't be copied off the device; anyone holding the
-  unlocked device can open the books until it expires or Log out forgets it. `resumeSession`
-  refuses an expired key, an expiry further out than 24 hours, an extractable key, or one that
-  doesn't open its record, and clears it. One remembered session per device. Accepted: on a phone
-  the books open inside the Shield app, which itself needs a fingerprint. ✅ `@pnw/vault`
-  (`remember`, `resumeSession`, `forgetSession`)
+- ⚠️ **Stay logged in** (the person's choice, unticked wherever books are opened: Joshua
+  2026-11-11; it was ticked by default from 2026-10-15): the open data key is also kept in
+  IndexedDB as the browser's non-extractable `CryptoKey`, with an expiry 24 hours after login, so
+  a phone switching apps (which suspends or reloads the page) doesn't log the user out.
+  **While it is kept, the passphrase protects nothing on that device.** Non-extractable stops a
+  page's script from exporting the key; it is not encryption at rest. The browser writes the
+  key's bytes into its own storage, so anyone who can use the device, or copy its browser profile
+  (a stolen laptop without disk encryption, malware that copies profiles, a disk image or a
+  backup of the profile), can open the books with it, and the bytes can outlast Log out on disk
+  until the browser tidies its files (checked in Chromium, 2026-11-11). The data key doesn't
+  change afterwards, so a key copied once also opens later backups. The tick box says so in plain
+  words (`books/StayChoice.tsx`).
+  **The 24 hours are this device's clock.** Nothing runs while the app is closed, so an expired
+  key waits in storage until the app is next opened. `resumeSession` refuses and clears an
+  expired key, an expiry further out than 24 hours, a clock that reads earlier than the last time
+  the session was used, an extractable key, or one that doesn't open its record; an open page
+  checks the time again whenever it comes back to the front. Someone holding the device who sets
+  the clock to a moment between the last use and the expiry still gets in: without a server,
+  that can't be closed. One remembered session per device. ✅ `@pnw/vault` (`remember`,
+  `resumeSession`, `noteSeen`, `forgetSession`)
+  Not yet covered: keeping the key wrapped under something that isn't on the disk (a passkey),
+  changing the data key so one that touched a disk can be retired, and Log out reaching other
+  open tabs. 🔜
 - **Username + passphrase.** The unlock secret is the normalised username and the passphrase
   together (`hewn:v1\n<username>\n<passphrase>`), so a stolen file needs both to open; the
   passphrase alone does not. The vault id is `acct-` plus 32 hex of SHA-256 over role and username,
@@ -191,9 +205,9 @@ The highest risk for a browser app.
 
 ### T8 — Compromised device or lost passphrase
 - ⚠️ Malware on the user's own machine sees what the user sees. Mitigation is limited to
-  auto-lock and short key lifetime. With "stay logged in", a remembered key (24 hours at most,
-  non-extractable) lets anyone holding the unlocked device open the books until it expires or
-  Log out; untick it on a shared device.
+  auto-lock and short key lifetime. With "stay logged in", which is off unless the person ticks
+  it, a remembered key lets anyone holding the device or a copy of its browser profile open the
+  books (T2); leave it off on a shared device.
 - ✅ **The recovery key** (2026-10-24, `@pnw/vault` `addRecovery` / `resetWithRecovery`). Made in
   Settings with the passphrase; 16 random bytes shown once as 28 characters with a check byte,
   never stored. HKDF-SHA256 over it (random salt, the vault id in the info) wraps a second copy of
