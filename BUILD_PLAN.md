@@ -450,6 +450,10 @@ they raise stay in Decisions below.
   done): the registry, the registrar, agreements and worker profiles are `@admin` under one key
   today, so an upgrade could change who passes their checks. `@noupgrade`, or a multisig with a
   timelock, before mainnet.
+  - [ ] Explore a multisig for whatever must stay upgradable (Joshua, 2026-11-12): for one
+    person, several keys on separate devices (a hardware wallet, the laptop, the phone), any two
+    of three to approve. Mainnet gets new keys, never testnet's, and the admin key never signs in
+    a browser.
 - [ ] GitHub hardening, parked (Joshua, 2026-10-22, after a review of the GitHub incidents; nothing
   changed yet). Settings, the only kind that stops someone holding Joshua's login: a ruleset on
   `main` in both repos (pull request and CI required, no force-push or deletion; a stuck CI badge

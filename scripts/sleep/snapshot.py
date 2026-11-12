@@ -23,7 +23,11 @@ contents, so nothing it writes can carry a key (INV-06).
 What it prints is read by the model as its own notes, so it carries nobody's sentences: commits
 are short ids, the log is a path and a count, and a day file dated after tomorrow is not "the
 newest". A commit's title or an entry's heading is read with git or from the file, where it is
-plainly somebody's text. The hooks run the copy of this script on `origin/main`, not the one in
+plainly somebody's text. A file, branch or folder name is printed only when it is a plain name
+(letters, digits and `._/@+=:~-`, at most 100 characters): a name with spaces could carry a
+sentence. The snapshot is never written through a symlink. The hooks run the copy of this script
+on `refs/remotes/origin/main` (the full name: a tag or local branch called `origin/main` can't
+stand in for it), not the one in
 the working tree, so a branch that is only checked out runs nothing. Standard library only.
 """
 import json
@@ -37,6 +41,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 SNAPSHOT = Path(".claude") / "sleep" / "snapshot.md"
 HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2})(?: — |: )(.+)$")
+MAIN = "refs/remotes/origin/main"  # the full name: `origin/main` alone would find a tag or a local branch first
+PLAIN = re.compile(r"[A-Za-z0-9._/@+=:~-]{1,100}")
+WITHHELD = "(a name with spaces or unusual characters, not shown)"
 LIMIT = 40  # lines of dirty files, commits, worktrees or notes before "… and N more"
 STDOUT_LIMIT = 10_000  # the harness truncates a PreCompact hook's output beyond this
 
@@ -65,6 +72,35 @@ def run(args, cwd):
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return done.stdout.strip() if done.returncode == 0 else ""
+
+
+def plain(name):
+    """A name as it is, when it can't carry a sentence; otherwise a note that it was withheld."""
+    return name if PLAIN.fullmatch(name) else WITHHELD
+
+
+def dirty_lines(root):
+    """`git status` lines, each path shown only when it is a plain name."""
+    out = []
+    for line in run(["git", "status", "--porcelain=v1", "--untracked-files=normal"], root).splitlines():
+        code, _, path = line[:2], line[2:3], line[3:]
+        out.append(f"{code} " + " -> ".join(plain(part) for part in path.split(" -> ")))
+    return out
+
+
+def worktree_lines(root):
+    """One line per worktree: path, commit, branch, each a plain name or withheld."""
+    out, entry = [], {}
+    for line in run(["git", "worktree", "list", "--porcelain"], root).splitlines() + [""]:
+        if not line:
+            if entry:
+                branch = entry.get("branch", "").removeprefix("refs/heads/") or "(detached)"
+                out.append(f"{plain(entry.get('worktree', ''))}  {entry.get('HEAD', '')[:7]} [{plain(branch) if branch != '(detached)' else branch}]")
+            entry = {}
+            continue
+        key, _, value = line.partition(" ")
+        entry[key] = value
+    return out
 
 
 def clipped(lines):
@@ -97,19 +133,20 @@ def notes(scratchpad):
     folder = Path(scratchpad)
     if not folder.is_dir():
         return []
-    return sorted(p.name for p in folder.iterdir() if p.is_file() and p.suffix in {".md", ".txt"})
+    return sorted(plain(p.name) for p in folder.iterdir() if p.is_file() and p.suffix in {".md", ".txt"})
 
 
 def state(root, hook):
     """The snapshot, as Markdown. Git metadata and file names only; commits by short id, never by title."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    branch = run(["git", "branch", "--show-current"], root) or "(detached)"
+    current = run(["git", "branch", "--show-current"], root)
+    branch = plain(current) if current else "(detached)"
     head = run(["git", "log", "-1", "--format=%h"], root) or "(no commits)"
-    dirty = clipped(run(["git", "status", "--porcelain=v1", "--untracked-files=normal"], root).splitlines())
-    base = "origin/main" if run(["git", "rev-parse", "--verify", "-q", "origin/main"], root) else ""
+    dirty = clipped(dirty_lines(root))
+    base = MAIN if run(["git", "rev-parse", "--verify", "-q", MAIN], root) else ""
     ahead = clipped(run(["git", "log", "--format=%h", f"{base}..HEAD"], root).splitlines()) if base else []
     behind = run(["git", "rev-list", "--count", f"HEAD..{base}"], root) if base else ""
-    worktrees = clipped(run(["git", "worktree", "list"], root).splitlines())
+    worktrees = clipped(worktree_lines(root))
     progress = newest_progress(root)
     lines = [
         "# Consolidation snapshot",
@@ -120,11 +157,11 @@ def state(root, hook):
         f"- Branch: `{branch}` at {head}",
     ]
     if base:
-        lines.append(f"- Against {base}: {len([l for l in ahead if not l.startswith('…')])} commit(s) ahead, {behind or '0'} behind")
+        lines.append(f"- Against origin/main: {len([l for l in ahead if not l.startswith('…')])} commit(s) ahead, {behind or '0'} behind")
     lines += ["", "## Dirty files (uncommitted)", ""]
     lines += [f"    {line}" for line in dirty] or ["    (clean)"]
     if base:
-        lines += ["", f"## Commits not on {base} (short ids; `git log --oneline {base}..HEAD` shows them)", ""]
+        lines += ["", f"## Commits not on origin/main (short ids; `git log --oneline {base}..HEAD` shows them)", ""]
         lines += [f"    {line}" for line in ahead] or ["    (none)"]
     lines += ["", "## Worktrees", ""]
     lines += [f"    {line}" for line in worktrees] or ["    (none)"]
@@ -140,10 +177,23 @@ def state(root, hook):
     return "\n".join(lines) + "\n"
 
 
+def write_snapshot(path, text):
+    """Writes the snapshot, never through a symlink (a branch could plant one pointing anywhere)."""
+    for part in (path.parent.parent, path.parent):
+        if part.is_symlink():
+            raise OSError(f"{part} is a symlink; the snapshot isn't written through one")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def consolidate(root, hook):
     path = root / SNAPSHOT
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(state(root, hook), encoding="utf-8")
+    try:
+        write_snapshot(path, state(root, hook))
+    except OSError as e:
+        sys.stderr.write(f"snapshot not written: {e}\n")
     out = INSTRUCTIONS.format(snapshot=SNAPSHOT.as_posix())
     assert len(out) < STDOUT_LIMIT
     sys.stdout.write(out)
@@ -157,7 +207,8 @@ def wake(root, hook):
             text = "Context was compacted; no consolidation snapshot was found (docs/SLEEP.md). Run `git status` and `git log --oneline -5` before continuing."
         else:
             snapshot = path.read_text(encoding="utf-8")
-            branch = run(["git", "branch", "--show-current"], root) or "(detached)"
+            current = run(["git", "branch", "--show-current"], root)
+            branch = plain(current) if current else "(detached)"
             then = re.search(r"^- Branch: `([^`]*)`", snapshot, re.M)
             warning = ""
             if then and then.group(1) != branch:
@@ -171,7 +222,8 @@ def wake(root, hook):
             )
     else:
         progress = newest_progress(root)
-        branch = run(["git", "branch", "--show-current"], root) or "(detached)"
+        current = run(["git", "branch", "--show-current"], root)
+        branch = plain(current) if current else "(detached)"
         dirty = run(["git", "status", "--porcelain=v1"], root).splitlines()
         where = f"`{progress[0]}` ({progress[1]} entries)" if progress else "none yet"
         text = (

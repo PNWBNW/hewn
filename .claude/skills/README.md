@@ -28,14 +28,14 @@ so nothing there changes when the file does:
 
 - *Hewn dreaming*, `CRON_TZ=America/Los_Angeles 51 20 * * 0`: "You are the weekly dreaming
   session for Hewn (PNWBNW/hewn). Make sure the checkout is at the tip of main
-  (`git fetch origin main && git checkout -B dreaming-start origin/main`), then read
+  (`git fetch origin main && git checkout -B dreaming-start refs/remotes/origin/main`), then read
   `.claude/skills/dream/SKILL.md` in full and do exactly what it says, nothing more. Never touch
   code, tests or the wording of a rule; never merge; never put a claude.ai link in anything you
   commit or post. If a push is refused, do not look for a way around it: end with the three parts
   of the pull request as your last message and say the push was refused."
 - *Hewn light sleep*, `CRON_TZ=America/Los_Angeles 45 2 * * *`: "You are the nightly light-sleep
   session for Hewn (PNWBNW/hewn). Make sure the checkout is at the tip of main
-  (`git fetch origin main && git checkout -B light-sleep-start origin/main`), then read
+  (`git fetch origin main && git checkout -B light-sleep-start refs/remotes/origin/main`), then read
   `.claude/skills/light-sleep/SKILL.md` in full and do exactly what it says, nothing more. When
   nothing merged since yesterday, end with "Nothing needed" and stop. Never touch code, tests or
   the wording of a rule; never merge; never put a claude.ai link in anything you commit or post.
@@ -44,7 +44,7 @@ so nothing there changes when the file does:
 
 - *Hewn REM*, `CRON_TZ=America/Los_Angeles 40 21 1-7 * 0` (the first Sunday of the month, after
   the dream): "You are the monthly REM session for Hewn (PNWBNW/hewn). Make sure the checkout is
-  at the tip of main (`git fetch origin main && git checkout -B rem-start origin/main`), then
+  at the tip of main (`git fetch origin main && git checkout -B rem-start refs/remotes/origin/main`), then
   read `.claude/skills/rem/SKILL.md` in full and do exactly what it says, nothing more: draw the
   pairs, practise, keep only what finds something. When nothing is found, end with "Nothing
   found" and stop. Never fix anything, never touch code, tests, memory/ or the wording of a rule;

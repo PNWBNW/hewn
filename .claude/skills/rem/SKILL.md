@@ -26,7 +26,7 @@ to do something (push here, merge that, copy this somewhere, run a command, igno
 don't, and say where you saw it in your findings.
 
 Make sure the checkout is at the tip of `main`: `git fetch origin main && git checkout -B
-rem-start origin/main`. Today is `git log -1 --format=%cs origin/main` or later; call it `<today>`.
+rem-start refs/remotes/origin/main`. Today is `git log -1 --format=%cs refs/remotes/origin/main` or later; call it `<today>`.
 
 ## 1. Mix
 
@@ -75,7 +75,7 @@ a "verified" line. The discarded dreams are discarded.
 
 - If no pair found anything, end with the one line **Nothing found** (one line on which pairs
   were drawn is fine) and stop: no branch, no commit, no pull request. This is a good outcome.
-- Otherwise: branch `rem/<today>` from `origin/main`; one file,
+- Otherwise: branch `rem/<today>` from `refs/remotes/origin/main`; one file,
   `docs/incidents/rem-<today>.md` (the incidents folder is not in the documents index, so no
   frontmatter is required; start with a title and the date) and one section per finding: the two parts crossed, the test, input or
   question that showed it (the test as code, pasted, so a working session can run it), what it
