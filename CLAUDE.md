@@ -161,8 +161,11 @@ The dates and who decided each rule are in `memory/decisions.md`.
   unchanged (INV-21). (OPS-09)
 - Commit messages and PR descriptions never carry a `https://claude.ai/...` session link (Joshua,
   2026-10-29), as in `pnw_mvp_v2`.
-- A PR merges only after Joshua approves it in the chat session (2026-11-03); the merge commit's
-  message says "Approved by Joshua in session, <date>" (`docs/COMPLIANCE_MAP.md`). (OPS-01)
+- A PR merges only after Joshua approves it in the chat session (2026-11-03) and on GitHub from
+  his own account (2026-11-12): agent sessions and Routines act on GitHub as `hewn-builder`, which
+  can push branches and open pull requests but can't approve them, and the ruleset on `main` in
+  both repositories needs one approval, renewed after any later push. The merge commit's message
+  says "Approved by Joshua in session, <date>" (`docs/COMPLIANCE_MAP.md`). (OPS-01)
 - If something in the existing code contradicts this file or the build plan, stop and ask. Don't
   silently pick one.
 

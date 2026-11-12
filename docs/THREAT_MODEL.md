@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-11
+updated: 2026-11-12
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
@@ -156,6 +156,12 @@ The highest risk for a browser app.
 - Install scripts allowed only for an explicit list (`onlyBuiltDependencies`). ✅
 - Unused wallet adaptors removed (Shield only): fewer packages, smaller attack surface. ✅
 - Dependabot for npm and Actions. ✅
+- Code reaches every user from `main` (Vercel builds production from a merge whose title says
+  `[deploy]`), so `main` changes only with Joshua's approval on GitHub: agent sessions and Routines
+  act as `hewn-builder`, which can push branches and open pull requests but can't approve them; the
+  ruleset requires one approval, dismissed by a later push, with no one on its bypass list; tags
+  can't be created (2026-11-12). These are settings on GitHub, not code. ⚠️ A stolen login of
+  Joshua's own account is still enough; passkey 2FA is the guard there.
 - Signed, installable builds with published hashes so users can verify the code they run;
   release hash anchored on Aleo once anchoring exists. 🔜 (before first external user)
 - Pin GitHub Actions to commit SHAs. 🔜
@@ -668,8 +674,11 @@ take their ownership check from the registry, which is upgradable.)
   relies on the registry. `packages/config/src/programs.test.ts` keeps the pins equal to the
   manifest and covering every `@admin` program the app names. ✅
 - **The key signs only from `main`, with Joshua's approval** (GitHub's environment protection and
-  a ruleset, set 2026-11-11; `pnw_mvp_v2` #234). These are settings on GitHub, not code, so
-  nothing in the repositories proves they are still on. ⚠️
+  a ruleset, set 2026-11-11; `pnw_mvp_v2` #234), and `main` itself changes only with his approval
+  on GitHub, which the agents' account `hewn-builder` can't give (2026-11-12). The signing
+  workflows build with no key and show the approver the bytecode and its change against the chain
+  before the key is used (`pnw_mvp_v2` #236). These are settings on GitHub, not code, so nothing
+  in the repositories proves they are still on. ⚠️
 - ⚠️ **Not covered:** the check asks the explorer, so its operator can make the app refuse, and
   one who answers an old edition for a changed program makes the check pass; the daily watch
   reads the same explorer. Someone who signs in the wallet without the app isn't covered. Names
