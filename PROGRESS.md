@@ -14,6 +14,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 ### [2026-11-11](progress/2026-11/2026-11-11.md)
 
 - [The sleep passes and the session hooks take no direction from what they read](progress/2026-11/2026-11-11.md#2026-11-11--the-sleep-passes-and-the-session-hooks-take-no-direction-from-what-they-read)
+- [An id names one message for good](progress/2026-11/2026-11-11.md#2026-11-11--an-id-names-one-message-for-good)
 
 ### [2026-11-09](progress/2026-11/2026-11-09.md)
 

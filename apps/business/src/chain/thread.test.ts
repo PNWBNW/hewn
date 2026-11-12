@@ -84,6 +84,22 @@ describe("the thread through the mailbox", () => {
     expect(second.seq).toBe(1);
   });
 
+  it("takes a second letter under an id already here as nothing new, and says so when it says something else", async () => {
+    const box = fakeMailbox();
+    const business = side();
+    const first = await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "Twenty hours a week." }, now: NOW });
+    await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip });
+    // The same id again in the next two slots: once word for word (a letter sent twice), once reworded.
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 1, id: first.id, body: { type: "text", text: "Twenty hours a week." }, now: NOW });
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 2, id: first.id, body: { type: "text", text: "Forty hours a week." }, now: NOW });
+    const r = await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip });
+    expect(r.received).toEqual([]);
+    expect(r.skipped).toEqual([{ seq: 2, message: expect.stringMatching(/reused the id/) }]);
+    expect(business.thread.items.map((i) => (i.body.type === "text" ? i.body.text : ""))).toEqual(["Twenty hours a week."]);
+    expect(business.thread.nextIn).toBe(3); // both slots are used up; neither is read again
+    for (const seq of [0, 1, 2]) expect(box.slots.has(lookupId(partiesKeyFromHex(KEY), THREAD_KINDS.worker, seq))).toBe(false); // and their pins are gone
+  });
+
   it("skips a slot that holds something the other side may not send, and moves on", async () => {
     const box = fakeMailbox();
     const key = partiesKeyFromHex(KEY);

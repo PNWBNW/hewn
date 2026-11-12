@@ -256,3 +256,44 @@ describe("counter-offers on employment type and hours", () => {
     expect(proposalOf({ ...OFFERED })).not.toHaveProperty("hoursPerWeek");
   });
 });
+
+describe("an id names one message for good", () => {
+  const theirs = (n: number, text: string, seq: number): ThreadItem => item(n, "worker", { type: "text", text }, false, seq);
+  const text = (i: ThreadItem) => (i.body.type === "text" ? i.body.text : "");
+
+  it("keeps the first of theirs when a later one reuses its id, and still moves past the slot", () => {
+    let t = addToThread(emptyThread(), theirs(1, "Twenty hours a week.", 0));
+    t = addToThread(t, { ...theirs(1, "Forty hours a week.", 1), sentAt: "2026-10-16T09:00:00.000Z" });
+    expect(t.items.map(text)).toEqual(["Twenty hours a week."]);
+    expect(t.nextIn).toBe(2); // the second letter's slot is used up, so it isn't read again
+  });
+
+  it("never lets one of theirs replace or erase one of mine", () => {
+    let t = addToThread(emptyThread(), item(1, "business", { type: "text", text: "We agreed 20 hours, no more." }, true, 0));
+    t = addToThread(t, theirs(1, "(theirs now)", 5));
+    expect(t.items.map((i) => [i.mine, text(i)])).toEqual([[true, "We agreed 20 hours, no more."]]);
+    expect(t.nextIn).toBe(6);
+  });
+
+  it("keeps what this side marked on a message when the same letter is read again", () => {
+    let t = markThreadRead(addToThread(emptyThread(), theirs(1, "Hi", 0)));
+    t = addToThread(t, theirs(1, "Hi", 0));
+    expect(t.items).toHaveLength(1);
+    expect(t.items[0]!.read).toBe(true);
+  });
+
+  it("lets this side write its own message again under the same id", () => {
+    let t = addToThread(emptyThread(), item(1, "business", { type: "text", text: "Payday is Thursday" }, true, 0));
+    t = addToThread(t, { ...item(1, "business", { type: "text", text: "Payday is Thursday" }, true, 0), receivedAt: "2026-10-16T12:00:00.000Z" });
+    expect(t.items).toHaveLength(1);
+    expect(t.items[0]!.receivedAt).toBe("2026-10-16T12:00:00.000Z");
+  });
+
+  it("holds when a thread is read back from the vault: mine stays, else the first", () => {
+    const mine = item(1, "business", { type: "text", text: "Mine" }, true, 0);
+    const base = { nextIn: 3, nextOut: 1 };
+    expect(validateThread({ ...base, items: [mine, theirs(1, "Theirs", 0)] }).items.map(text)).toEqual(["Mine"]);
+    expect(validateThread({ ...base, items: [theirs(1, "Theirs", 0), mine] }).items.map(text)).toEqual(["Mine"]);
+    expect(validateThread({ ...base, items: [theirs(2, "First", 0), theirs(2, "Second", 1)] }).items.map(text)).toEqual(["First"]);
+  });
+});

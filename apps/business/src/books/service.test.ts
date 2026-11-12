@@ -38,6 +38,17 @@ describe("an agreement for one job", () => {
     expect(invoiceableAgreements(items)).toHaveLength(1); // a final invoice can still name it
   });
 
+  it("stays the terms the customer accepted when the business sends other terms under the same message id", () => {
+    const first = offer(terms({ amount: "50000", scope: "Patch two tiles." }));
+    let t = addToThread(emptyThread(), first);
+    t = addToThread(t, answer(1, "accept"));
+    expect(agreementsIn(t.items)[0]).toMatchObject({ status: "active", terms: { amount: "50000", scope: "Patch two tiles." } });
+    // A later letter, in its own slot, reusing the offer's id.
+    t = addToThread(t, { ...first, seq: first.seq + 50, body: { type: "agreement_offer", terms: terms({ amount: "5000000", scope: "A whole new roof." }) } });
+    expect(agreementsIn(t.items)).toHaveLength(1);
+    expect(agreementsIn(t.items)[0]).toMatchObject({ status: "active", terms: { amount: "50000", scope: "Patch two tiles." } });
+  });
+
   it("can't be closed before it's agreed, and a declined one isn't invoiceable", () => {
     const items = [offer(terms()), item({ type: "agreement_close", id: ID, reason: "cancelled" }, "worker", true)];
     expect(agreementsIn(items)[0]!.status).toBe("offered");
