@@ -71,9 +71,9 @@ The browser that holds the books: the encrypted vault, the books open in memory 
 |---|---|---|---|---|
 | The app, in this tab | process | Control | The ledger, payroll, sales and reports, running in the page. Code only; it carries no data of its own. | [INV-16](../INVARIANTS.md) |
 | The books (open) | store | Private | The plaintext books: entries, team, wages, invoices. In memory for this session only. | [INV-01](../INVARIANTS.md) [INV-02](../INVARIANTS.md) |
-| Data key | key | Private | A random AES-256-GCM key, non-extractable, that encrypts the books. Wrapped by the unlock secret; never stored in plaintext. | [INV-07](../INVARIANTS.md) |
+| Data key | key | Private | A random AES-256-GCM key, non-extractable, that encrypts the books. Wrapped by the unlock secret; never stored in plaintext, except while Stay logged in keeps it. | [INV-07](../INVARIANTS.md) |
 | The vault (IndexedDB) | store | Sealed | The books as ciphertext. The one durable store on the device. | [INV-10](../INVARIANTS.md) [T2](../THREAT_MODEL.md) |
-| Stay logged in | store | Private | The open data key, non-extractable, for at most 24 hours from login. Forgotten on Log out. | [INV-08](../INVARIANTS.md) |
+| Stay logged in | store | Private | Only when the person ticks it: the open data key, non-extractable, in the browser's storage for at most 24 hours by this device's clock. Forgotten on Log out. While kept, anyone with the device or a copy of its browser profile can open the books. | [INV-08](../INVARIANTS.md) |
 | Web storage flags | store | Public | Five flags and nothing else: an account exists here, this device was counted, the step a load stuck at. Never a name, a number or an id. | [INV-10](../INVARIANTS.md) |
 | Chain code | process | Control | The part of the app that talks to Shield and the explorer. Loads only on the pages that need it. | [INV-16](../INVARIANTS.md) [INV-17](../INVARIANTS.md) |
 | The one door to Shield | process | Control | The single module that touches the wallet adapter. Nothing else in the app can send a transaction. | [INV-11](../INVARIANTS.md) |
@@ -151,7 +151,7 @@ Who sees what regardless of Hewn: anyone reading public state, and the stablecoi
 | Recovery key | Data key | a second wrapped copy of the data key, for a lost passphrase | Private | [INV-09](../INVARIANTS.md) |
 | Data key | The vault (IndexedDB) | encrypts the books into the vault and opens them from it | Private | [INV-07](../INVARIANTS.md) |
 | The vault (IndexedDB) | The books (open) | the books, opened in memory for this session | Private | [INV-02](../INVARIANTS.md) |
-| Data key | Stay logged in | kept non-extractable for at most 24 hours | Private | [INV-08](../INVARIANTS.md) |
+| Data key | Stay logged in | kept, when the person chooses, for at most 24 hours | Private | [INV-08](../INVARIANTS.md) |
 | The books (open) | The app, in this tab | the ledger, payroll and reports read and post entries | Private | [INV-16](../INVARIANTS.md) |
 | The books (open) | Web storage flags | five yes/no flags, never data | Public | [INV-10](../INVARIANTS.md) |
 | The vault (IndexedDB) | Backup file | the sealed record itself, written out through the share sheet | Sealed | [T19](../THREAT_MODEL.md) |

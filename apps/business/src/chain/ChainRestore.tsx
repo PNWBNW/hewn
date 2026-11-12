@@ -18,6 +18,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { Field, FormError, PassphraseInput, errorMessage, inputClass } from "@/books/AuthCard";
 import { useBooks } from "@/books/BooksProvider";
 import { NewPassphraseFields, newPassphraseReady } from "@/books/NewPassphrase";
+import { StayChoice } from "@/books/StayChoice";
 import { shortAddress } from "@/books/rail";
 import { restoreBackup } from "./books_backup";
 import { AWAY_HINT_MS, CONNECT_HINT_MS, type FindChain, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
@@ -54,6 +55,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
 
   const [username, setUsername] = useState(initialUsername);
   const [passphrase, setPassphrase] = useState("");
+  const [stay, setStay] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [code, setCode] = useState("");
   const [next, setNext] = useState("");
@@ -90,6 +92,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
         (normalized, openSlots) => restoreBackup({ read, username: normalized, address, openSlots }),
         username,
         recovering ? { code, next } : { passphrase },
+        stay,
       );
       const report = await pending;
       if (!report) {
@@ -273,6 +276,7 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
       ) : awayHint({ route, busy, waited }) ? (
         <ShieldAway what="your books" href={wakeUrl()} />
       ) : null}
+      <StayChoice checked={stay} onChange={setStay} />
       <FormError message={error} />
       <div className="flex gap-3">
         <Button type="button" variant="outline" className="h-11 flex-1" onClick={onCancel} disabled={busy}>

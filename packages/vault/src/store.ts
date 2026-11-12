@@ -18,8 +18,12 @@
 
 import type { SealedAttachment, VaultRecord } from "./vault";
 
-/** A session kept for "stay logged in": the open data key (non-extractable) and its expiry. */
-export type RememberedSession = { vaultId: string; key: CryptoKey; expiresAt: string };
+/**
+ * A session kept for "stay logged in": the open data key (non-extractable) and its expiry.
+ * `seenAt` is the latest time this device used it; it only moves forward, so a clock set back
+ * to before it doesn't reopen the books (resumeSession). Sessions kept before 2026-11-11 have none.
+ */
+export type RememberedSession = { vaultId: string; key: CryptoKey; expiresAt: string; seenAt?: string };
 
 export interface VaultStore {
   load(id: string): Promise<VaultRecord | null>;
@@ -207,7 +211,7 @@ export class IndexedDbStore implements VaultStore {
     const found = (await this.#tx([SESSION], "readonly", (tx) => tx.objectStore(SESSION).get(SLOT))) as
       | (RememberedSession & { slot: string })
       | undefined;
-    return found ? { vaultId: found.vaultId, key: found.key, expiresAt: found.expiresAt } : null;
+    return found ? { vaultId: found.vaultId, key: found.key, expiresAt: found.expiresAt, ...(typeof found.seenAt === "string" ? { seenAt: found.seenAt } : {}) } : null;
   }
 
   async saveRemembered(remembered: RememberedSession): Promise<void> {

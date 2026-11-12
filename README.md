@@ -98,7 +98,8 @@ by country, with no account).
 
 - **The vault.** A random AES-256-GCM key encrypts your books. Your username and passphrase only
   unlock that key (PBKDF2-SHA256, 600k rounds); they are never sent anywhere. "Stay logged in"
-  keeps an unlocked key on the device for at most 24 hours. A forgotten passphrase can be
+  is off unless you tick it; it keeps an unlocked key on the device for at most 24 hours, and for
+  that time anyone who can use the device or copy its browser data can open your books. A forgotten passphrase can be
   replaced with a recovery key, if you made one in Settings; otherwise it can't. Keep backups.
 - **The wallet.** Shield is the only wallet. Every on-chain action is signed in Shield, so you
   always see what you are signing. A Shield account holds one kind of account, a business's or a

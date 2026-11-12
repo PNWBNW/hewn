@@ -79,9 +79,11 @@ it, and the threats it answers (CI keeps the two in step: `scripts/check_invaria
   the normalised username and the passphrase; the vault id a hash of role + username; an email
   is a valid username). One username holds a business, or a person's worker and customer
   accounts, never a business with either. The key is never stored in plaintext and never leaves
-  the vault module; the one exception is "stay logged in": the open data key, as a
-  non-extractable `CryptoKey`, kept in IndexedDB for at most 24 hours from login, forgotten on Log
-  out (`@pnw/vault` `remember` / `resumeSession` / `forgetSession`). There is no server account:
+  the vault module; the one exception is "stay logged in", which the person chooses and is
+  never ticked for them: the open data key, as a non-extractable `CryptoKey`, kept in IndexedDB
+  for at most 24 hours from login, forgotten on Log out (`@pnw/vault` `remember` /
+  `resumeSession` / `forgetSession`). While it is kept, anyone with the device or a copy of its
+  browser profile can open the books (`docs/THREAT_MODEL.md` T2). There is no server account:
   nothing is sent or verified remotely, and a lost passphrase is replaced only with the account's
   recovery key (Settings; `@pnw/vault` `addRecovery`, `resetWithRecovery`), if one was made.
   Scheme (`@pnw/vault`): a random AES-256-GCM data key encrypts the books; the unlock secret
