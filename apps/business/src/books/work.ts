@@ -555,6 +555,14 @@ export function upsertAgreement(work: Work, agreement: WorkAgreement): Work {
   return validateWork({ ...work, agreements: [...work.agreements.filter((a) => a.agreementId !== fresh.agreementId), merged] });
 }
 
+/** Drops the business name stored for an agreement (it turned out not to belong to the account that sent the offer). */
+export function forgetEmployerName(work: Work, agreementId: string): Work {
+  const a = agreementFor(work, agreementId);
+  if (!a?.employerName) return work;
+  const { employerName: _dropped, ...rest } = a;
+  return validateWork({ ...work, agreements: work.agreements.map((x) => (x.agreementId === agreementId ? rest : x)) });
+}
+
 export function setProfile(work: Work, profile: WorkProfile): Work {
   return validateWork({ ...work, profile });
 }
