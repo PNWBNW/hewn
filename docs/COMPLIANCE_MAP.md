@@ -1,6 +1,6 @@
 ---
 status: review
-updated: 2026-11-03
+updated: 2026-11-12
 summary: The Audit-Ready Plan checked against SOC 2, ISO 27001, HITRUST, FedRAMP and CMMC (and SOC 1): what's met, what's missing, Steps 8 to 14, and the internal audit that stands in for a Type I and Type II until mainnet.
 ---
 
@@ -71,12 +71,13 @@ Worth knowing beyond the list:
 
 The gaps an auditor would raise first, by priority:
 
-1. **Change approval and separation of duties (SOC 2 CC8.1; ISO 8.32; SOC 1).** Today an AI
-   agent writes the code and merges its own PRs once CI is green, with no independent human
-   approval. To an auditor that's one actor building, approving and shipping. Joshua must decide
-   on:
-   - branch protection on `main` that requires his approval (a CODEOWNERS file makes it automatic);
-   - a written rule for what an agent may merge on its own, if anything;
+1. **Change approval and separation of duties (SOC 2 CC8.1; ISO 8.32; SOC 1).** Until 2026-11-12
+   an AI agent wrote the code and merged its own PRs once CI was green, as Joshua's own GitHub
+   account. Since then agents act as a separate account, `hewn-builder`, with the Write role, and
+   `main` in both repositories requires one approval, which only Joshua's account can give; a push
+   after the approval dismisses it, and tags can't be created. Still to decide:
+   - a CODEOWNERS file, so the approval is asked of him automatically;
+   - a script over `main`'s history that checks every merge carries the approval;
    - signed commits.
 2. **Written policies and a security owner (CC1, CC2, CC5; ISO clauses 4 to 10).** Short
    documents: an information security policy, access control, change management, incident
@@ -148,9 +149,11 @@ land in the right place.
 1. **Agent merges:** while Hewn is being built, an agent merges a PR only after Joshua approves
    it in the chat session, on his own device. The merge commit's message says so ("Approved by
    Joshua in session, <date>"), so the approval is on record where an auditor looks. Required
-   GitHub approvals can come later, before a SOC 2 period starts.
+   GitHub approvals came on 2026-11-12: agents act as `hewn-builder`, and `main` needs Joshua's
+   approval on GitHub as well.
 2. **Access:** Joshua is the only person with access to GitHub and Vercel, and both have 2FA on.
-   Still to list: Upstash, the domain registrar, npm, and the agent sessions' GitHub access.
+   The agent sessions' GitHub access: `hewn-builder`, Write on the two repositories, no admin,
+   no environment or secret (2026-11-12). Still to list: Upstash, the domain registrar, npm.
 
 3. **No outside audit yet:** no CPA firm until Hewn is ready for mainnet and has funding. Until
    then, an internal audit that stands in for a SOC 2 Type I and Type II (below).

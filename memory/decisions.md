@@ -215,6 +215,7 @@ Who holds what, and what it takes to merge.
 
 - 2026-11-03 · A PR merges only after Joshua approves it in the chat session, on his own device; the merge commit says "Approved by Joshua in session, <date>" · Joshua · **OPS-01** · `docs/COMPLIANCE_MAP.md`
 - 2026-11-03 · Joshua alone holds GitHub and Vercel, both with 2FA · Joshua · **OPS-02** · `docs/COMPLIANCE_MAP.md`
+- 2026-11-12 · Agent sessions and Routines act on GitHub as their own account, `hewn-builder` (Write, no admin); `main` in both repositories needs one approval from Joshua's account, dismissed by a later push, with an empty bypass list; tag creation is restricted in both · Joshua · **OPS-01** · `docs/COMPLIANCE_MAP.md`
 - 2026-11-04 · When Joshua merges a PR himself on GitHub, he adds "Approved by Joshua in session, <date>" to the merge message; #293 (merged by him that day without it) is noted in `progress/2026-11/2026-11-04.md` · Joshua · **OPS-01** · `progress/2026-11/2026-11-04.md`
 
 ### Hardening

@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-03
+updated: 2026-11-12
 summary: Every non-negotiable rule with an id, where it is enforced, its check, its threats and the SOC 2 and ISO 27001 items it satisfies; then the operating rules. The control list.
 ---
 
@@ -78,7 +78,7 @@ and otherwise names the step of the refreshed plan that adds one.
 
 | Id | Rule | Set in | Evidence | Check | Frameworks |
 |---|---|---|---|---|---|
-| OPS-01 | A pull request merges only after Joshua approves it in the chat session, on his own device; the merge commit's message says "Approved by Joshua in session, <date>" (2026-11-03) | `CLAUDE.md`, working agreement | The commits on `main` from 2026-11-03 on | none (Step 8: a script over `main`'s history, then required reviews on GitHub) | SOC 2 CC8.1; ISO A.5.3, A.8.32 |
+| OPS-01 | A pull request merges only after Joshua approves it in the chat session, on his own device (2026-11-03), and on GitHub from his own account (2026-11-12); the merge commit's message says "Approved by Joshua in session, <date>" | `CLAUDE.md`, working agreement | The commits on `main` from 2026-11-03 on | none in the repository; on GitHub, the ruleset on `main` in both repositories requires one approval, dismissed by a later push; agent sessions act as `hewn-builder` (Write), which can't approve its own pull requests (2026-11-12). A script over `main`'s history is still to come | SOC 2 CC8.1; ISO A.5.3, A.8.32 |
 | OPS-02 | Joshua is the only person with access to GitHub and Vercel, both behind two-factor authentication (2026-11-03) | `docs/COMPLIANCE_MAP.md`, decisions | The settings pages of both accounts, seen by Joshua; the collaborator list on GitHub | none (Step 10: the account inventory and the first quarterly access review) | SOC 2 CC6.1, CC6.2, CC6.3; ISO A.5.15, A.5.18, A.8.5 |
 | OPS-03 | The admin key that deploys and upgrades the Leo programs lives only in the GitHub secret `ADMIN_PRIVATE_KEY` (environment `testnet-staging`), read by the manual deploy and upgrade workflows, which print a redacted form | `pnw_mvp_v2` `CLAUDE.md`, keys and secrets | The repository's environments and the two workflow files (`pnw_mvp_v2/.github/workflows/`) | none (Step 10: custody and rotation written down; the secrets scan, INV-06, proves it is in no tree) | SOC 2 CC6.1, CC6.7; ISO A.5.17, A.8.24 |
 | OPS-04 | Dependencies are installed from the lockfile exactly, must be at least 7 days old (`minimumReleaseAge`), fail the build on a moderate or worse advisory, and are bumped weekly by Dependabot in one batched pull request; the alpha wallet adapters are pinned on purpose | `pnpm-workspace.yaml`, `.github/dependabot.yml`, `CLAUDE.md`, known facts | Every pull request's CI run; Dependabot's pull requests | `.github/workflows/ci.yml` (frozen-lockfile install, `pnpm audit --audit-level=moderate`) | SOC 2 CC7.1, CC8.1, CC9.2; ISO A.5.21, A.8.8, A.8.19 |

@@ -14,6 +14,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 ### [2026-11-12](progress/2026-11/2026-11-12.md)
 
 - [Signing runs in two jobs; the session hooks name main in full](progress/2026-11/2026-11-12.md#2026-11-12--signing-runs-in-two-jobs-the-session-hooks-name-main-in-full)
+- [Agents work as their own GitHub account; main needs Joshua's approval](progress/2026-11/2026-11-12.md#2026-11-12--agents-work-as-their-own-github-account-main-needs-joshuas-approval)
 
 ### [2026-11-11](progress/2026-11/2026-11-11.md)
 
