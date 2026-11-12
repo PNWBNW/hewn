@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-09
+updated: 2026-11-11
 summary: The sleep cycle for the agents that build Hewn, after Google's sleep framework for continual learning: consolidate before the fast store is wiped, at three rhythms (every compaction, nightly, weekly), and a monthly REM pass that practises and keeps only what finds something; as hooks and skills a plugin can carry to any repository. Extends docs/MEMORY.md. Built except the plugin (step 5), and the first REM run by hand.
 ---
 
@@ -73,6 +73,14 @@ Claude Code's hooks make the fix mechanical, verified against its documentation 
 So the cycle is the paper's "compute, consolidate, then apply": the state is written down, the
 summariser is told what to keep (decisions pending with Joshua, work mid-flight, lessons learned,
 the exact paths and commands in use; not the chatter), and only then is the context replaced.
+
+What a hook prints is read by the model as its own notes, and a pass that runs unattended reads
+whatever is in front of it. So two things hold since 2026-11-11. The hooks run the copy of the
+snapshot script on `origin/main`, not the working tree's, and the snapshot names commits by short
+id and the log by path and count: no commit title or entry heading, which anyone with a branch
+can write, reaches the model that way. And the light sleep and the dream recognise their own
+pull request by who opened it and where its branch lives, never by its title, and read no other
+pull request's title or body (`.claude/skills/README.md`).
 
 Two limits, from the same documentation. Hooks checked into the repository apply in a cloud
 session **with one repository attached** (and in local sessions); a cloud session with several
