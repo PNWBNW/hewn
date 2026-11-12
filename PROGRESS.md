@@ -18,6 +18,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [Light sleep: 2026-11-12](progress/2026-11/2026-11-12.md#2026-11-12--light-sleep-2026-11-12)
 - [The sleep passes find their pull request by `hewn-builder`](progress/2026-11/2026-11-12.md#2026-11-12--the-sleep-passes-find-their-pull-request-by-hewn-builder)
 - [Security findings have a private home](progress/2026-11/2026-11-12.md#2026-11-12--security-findings-have-a-private-home)
+- [The edition check asks at every send, and covers the stablecoin](progress/2026-11/2026-11-12.md#2026-11-12--the-edition-check-asks-at-every-send-and-covers-the-stablecoin)
 
 ### [2026-11-11](progress/2026-11/2026-11-11.md)
 

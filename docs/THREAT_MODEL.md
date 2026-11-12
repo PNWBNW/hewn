@@ -671,8 +671,16 @@ take their ownership check from the registry, which is upgradable.)
   edition this version was made for, naming it; an explorer that can't be reached stops it too
   (`chain/editions.ts`, called from the one place every write passes, `chain/shield.ts`). It
   checks all nine, not only the program being called, because a payment to a registered name
-  relies on the registry. `packages/config/src/programs.test.ts` keeps the pins equal to the
-  manifest and covering every `@admin` program the app names. ✅
+  relies on the registry. It asks the network at every send, never from memory, and gives up on
+  an explorer that doesn't answer within ten seconds (2026-11-12: an answer kept for ten minutes
+  left a worker's second setup transaction unchecked). `packages/config/src/programs.test.ts`
+  keeps the pins equal to the manifest and covering every `@admin` program the app names. ✅
+- **The stablecoin is pinned too.** Every payment runs `test_usdcx_stablecoin`, whose issuer can
+  upgrade it (its constructor takes any edition its multisig core has approved, and the core has
+  an upgrader of its own). The app pins it and the three programs it imports
+  (`@pnw/config` `EXTERNAL_EDITIONS`) and checks them with ours, so an issuer's upgrade stops
+  payments here until a release lists the new edition, after someone has read what changed
+  (2026-11-12). ✅ The daily watch doesn't read them yet. 🔜
 - **The key signs only from `main`, with Joshua's approval** (GitHub's environment protection and
   a ruleset, set 2026-11-11; `pnw_mvp_v2` #234), and `main` itself changes only with his approval
   on GitHub, which the agents' account `hewn-builder` can't give (2026-11-12). The signing
@@ -681,7 +689,8 @@ take their ownership check from the registry, which is upgradable.)
   in the repositories proves they are still on. ⚠️
 - ⚠️ **Not covered:** the check asks the explorer, so its operator can make the app refuse, and
   one who answers an old edition for a changed program makes the check pass; the daily watch
-  reads the same explorer. Someone who signs in the wallet without the app isn't covered. Names
+  reads the same explorer. An upgrade in the seconds between the check and the network
+  accepting the transaction isn't seen. Someone who signs in the wallet without the app isn't covered. Names
   the app resolves by reading the registry are read between checks. An installed copy of the app
   keeps its pins, so after a planned upgrade it refuses until it is updated. And this is
   noticing, not preventing: the key still decides what these programs do next.
