@@ -8,6 +8,7 @@ import { MIN_NEW_PASSPHRASE, checkNewPassphrase, suggestPassphrase } from "@pnw/
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { AuthCard, Field, FormError, PassphraseInput, errorMessage, inputClass } from "./AuthCard";
+import { StayChoice } from "./StayChoice";
 import { MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH, isUsername } from "./account";
 import { BRAND } from "@/brand";
 import { useBooks } from "./BooksProvider";
@@ -25,6 +26,7 @@ type Step = "role" | "business" | "accounts" | "person" | "protect";
 export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onRestore: () => void }) {
   const { create } = useBooks();
   const [role, setRole] = useState<Role>("business");
+  const [stay, setStay] = useState(false);
   const [step, setStep] = useState<Step>("role");
   const [businessName, setBusinessName] = useState("");
   const [fiscalYearStartMonth, setFyStart] = useState(1);
@@ -50,8 +52,8 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
     setError(null);
     setBusy(true);
     try {
-      if (person) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", username, passphrase, role });
-      else await create({ businessName: businessName.trim(), fiscalYearStartMonth, template, username, passphrase, role });
+      if (person) await create({ businessName: businessName.trim(), fiscalYearStartMonth: 1, template: "blank", username, passphrase, role, stay });
+      else await create({ businessName: businessName.trim(), fiscalYearStartMonth, template, username, passphrase, role, stay });
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -324,6 +326,7 @@ export function SetupScreen({ onBack, onRestore }: { onBack: () => void; onResto
               </Link>
             </span>
           </label>
+          <StayChoice checked={stay} onChange={setStay} />
           <FormError message={error} />
           <div className="flex gap-3">
             <Button type="button" variant="outline" className="h-11 flex-1" onClick={back} disabled={busy}>

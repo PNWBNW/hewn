@@ -113,6 +113,38 @@ describe("the business questions a sent shift", () => {
     expect(updateWorkThread(work, PK, (t) => t).punches).toEqual(work.punches);
   });
 
+  it("can't be rewritten after the answer by a second letter under the same id, from either side", () => {
+    // The person asks for fifteen more minutes and the business accepts.
+    let { work, mailbox } = send(workday(), emptyMailbox());
+    const ask = letter(1, "worker", { type: "hours_change", agreementId: AID, shift: SHIFT, proposed: proposal(SHIFT.in, local("2026-10-14", "17:15")), note: "Left late." } as HoursChangeBody);
+    ({ work, mailbox } = deliver(work, mailbox, ask, "worker"));
+    ({ work, mailbox } = deliver(work, mailbox, letter(2, "business", { type: "hours_change_answer", changeId: id(1), answer: "accepted", note: "" }), "business"));
+    expect(card(mailbox)).toMatchObject([{ out: local("2026-10-14", "17:15"), minutes: 495, change: "agreed" }]);
+
+    // Then a new letter from the person reuses the accepted message's id and asks for 36 hours.
+    const forged = validateMessage(
+      { version: 1, id: id(1), from: "worker", sentAt: ask.asSent.sentAt, body: { type: "hours_change", agreementId: AID, shift: SHIFT, proposed: proposal(SHIFT.in, local("2026-10-15", "21:00")), note: "x" } },
+      "worker",
+    );
+    mailbox = updateThread(mailbox, PK, "w1", (t) => addToThread(t, { ...forged, mine: false, seq: 7 }));
+    expect(card(mailbox)).toMatchObject([{ out: local("2026-10-14", "17:15"), minutes: 495, change: "agreed" }]);
+    expect(hoursChanges(threadFor(mailbox, PK))).toMatchObject([{ body: { note: "Left late." }, answer: { answer: "accepted" } }]);
+    expect(unpaidHours(mailbox, "w1", WEEK, "2026-10-17").minutes).toBe(495);
+
+    // The other way round: the business questions a shift, the person agrees, and the business
+    // then sends other times under the same id. The person's punches stay where they agreed.
+    let side = send(workday(), emptyMailbox());
+    const question = letter(1, "business", { type: "hours_change", agreementId: AID, shift: SHIFT, proposed: proposal(SHIFT.in, local("2026-10-14", "16:30")), note: "Gate log says 4:30." } as HoursChangeBody);
+    side = deliver(side.work, side.mailbox, question, "business");
+    side = deliver(side.work, side.mailbox, letter(2, "worker", { type: "hours_change_answer", changeId: id(1), answer: "accepted", note: "" }), "worker");
+    const moved = validateMessage(
+      { version: 1, id: id(1), from: "business", sentAt: question.asSent.sentAt, body: { type: "hours_change", agreementId: AID, shift: SHIFT, proposed: proposal(SHIFT.in, local("2026-10-14", "12:00")), note: "x" } },
+      "business",
+    );
+    const after = updateWorkThread(side.work, PK, (t) => addToThread(t, { ...moved, mine: false, seq: 7 }));
+    expect(after.punches.find((p) => p.id === "out1")).toMatchObject({ at: local("2026-10-14", "16:30"), agreed: true });
+  });
+
   it("keeps the hours when the person keeps them as sent", () => {
     let { work, mailbox } = send(workday(), emptyMailbox());
     ({ work, mailbox } = deliver(work, mailbox, letter(1, "business", { type: "hours_change", agreementId: AID, shift: SHIFT, proposed: proposal(SHIFT.in, local("2026-10-14", "16:30")), note: "4:30?" } as HoursChangeBody), "business"));

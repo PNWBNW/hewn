@@ -1,7 +1,7 @@
 ---
 status: living
-updated: 2026-11-08
-summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T20, each tied to the rules that answer it.
+updated: 2026-11-11
+summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
 # Hewn — Threat Model
@@ -50,15 +50,29 @@ No server, no database. ✅ Structural, from the architecture.
   before any round runs (`MAX_KDF_ITERATIONS`, 2026-10-22). ✅
 - Log out drops the key and plaintext from memory. Without "stay logged in": auto-lock after 15
   idle minutes, and any reload locks. ✅
-- ⚠️ **Stay logged in** (ticked by default at login, Joshua 2026-10-15): the open data key is also
-  kept in IndexedDB as the browser's non-extractable `CryptoKey`, with an expiry 24 hours after
-  login, so a phone switching apps (which suspends or reloads the page) doesn't log the user out.
-  It can decrypt but can't be exported, so it can't be copied off the device; anyone holding the
-  unlocked device can open the books until it expires or Log out forgets it. `resumeSession`
-  refuses an expired key, an expiry further out than 24 hours, an extractable key, or one that
-  doesn't open its record, and clears it. One remembered session per device. Accepted: on a phone
-  the books open inside the Shield app, which itself needs a fingerprint. ✅ `@pnw/vault`
-  (`remember`, `resumeSession`, `forgetSession`)
+- ⚠️ **Stay logged in** (the person's choice, unticked wherever books are opened: Joshua
+  2026-11-11; it was ticked by default from 2026-10-15): the open data key is also kept in
+  IndexedDB as the browser's non-extractable `CryptoKey`, with an expiry 24 hours after login, so
+  a phone switching apps (which suspends or reloads the page) doesn't log the user out.
+  **While it is kept, the passphrase protects nothing on that device.** Non-extractable stops a
+  page's script from exporting the key; it is not encryption at rest. The browser writes the
+  key's bytes into its own storage, so anyone who can use the device, or copy its browser profile
+  (a stolen laptop without disk encryption, malware that copies profiles, a disk image or a
+  backup of the profile), can open the books with it, and the bytes can outlast Log out on disk
+  until the browser tidies its files (checked in Chromium, 2026-11-11). The data key doesn't
+  change afterwards, so a key copied once also opens later backups. The tick box says so in plain
+  words (`books/StayChoice.tsx`).
+  **The 24 hours are this device's clock.** Nothing runs while the app is closed, so an expired
+  key waits in storage until the app is next opened. `resumeSession` refuses and clears an
+  expired key, an expiry further out than 24 hours, a clock that reads earlier than the last time
+  the session was used, an extractable key, or one that doesn't open its record; an open page
+  checks the time again whenever it comes back to the front. Someone holding the device who sets
+  the clock to a moment between the last use and the expiry still gets in: without a server,
+  that can't be closed. One remembered session per device. ✅ `@pnw/vault` (`remember`,
+  `resumeSession`, `noteSeen`, `forgetSession`)
+  Not yet covered: keeping the key wrapped under something that isn't on the disk (a passkey),
+  changing the data key so one that touched a disk can be retired, and Log out reaching other
+  open tabs. 🔜
 - **Username + passphrase.** The unlock secret is the normalised username and the passphrase
   together (`hewn:v1\n<username>\n<passphrase>`), so a stolen file needs both to open; the
   passphrase alone does not. The vault id is `acct-` plus 32 hex of SHA-256 over role and username,
@@ -191,9 +205,9 @@ The highest risk for a browser app.
 
 ### T8 — Compromised device or lost passphrase
 - ⚠️ Malware on the user's own machine sees what the user sees. Mitigation is limited to
-  auto-lock and short key lifetime. With "stay logged in", a remembered key (24 hours at most,
-  non-extractable) lets anyone holding the unlocked device open the books until it expires or
-  Log out; untick it on a shared device.
+  auto-lock and short key lifetime. With "stay logged in", which is off unless the person ticks
+  it, a remembered key lets anyone holding the device or a copy of its browser profile open the
+  books (T2); leave it off on a shared device.
 - ✅ **The recovery key** (2026-10-24, `@pnw/vault` `addRecovery` / `resetWithRecovery`). Made in
   Settings with the passphrase; 16 random bytes shown once as 28 characters with a check byte,
   never stored. HKDF-SHA256 over it (random salt, the vault id in the info) wraps a second copy of
@@ -474,6 +488,27 @@ public. Now every reader also checks the letter's sender, which only the record'
 - **Group chats:** the admin is whoever set the group up first, as this device saw it; a later
   setup naming someone else is ignored. Two members' messages never replace each other.
 - **Send times:** a received message dated in the future is taken as sent when it arrived.
+- **Order (2026-11-11):** a conversation is ordered by this device's own clock: a message of
+  mine when I sent it, one of theirs when it arrived here (`books/thread_order.ts`). The time the
+  other side wrote on a message is shown beside it and decides nothing, so a message can't be
+  slid in ahead of what was already read and answered: a second offer dated before the first
+  doesn't take the customer's acceptance, and an acceptance dated before a revision doesn't
+  revive the terms the business had replaced. ✅
+  On a device restored from the chain nothing "arrived", so their place is rebuilt from the
+  written times, kept in the order of their slots (`chain/conversation_backup.ts`
+  `restoreHistory`): each side's own messages stay in the order they were sent, and how the two
+  sides' messages fall between each other is as good as those times. There, an agreement can
+  show as still waiting for an answer; it never shows as agreed on other terms, because an
+  acceptance names its revision and the first offer of a revision stands.
+- **One id, one message (2026-11-11):** in a conversation, an id names one message for good. A
+  later letter from the other side under an id already there changes nothing, whether that id was
+  one of theirs or one of this side's own: the first one stays as it was read, and the reader
+  says so when the second says something else. An answer pairs with what it answers by id (an
+  accepted change of hours, an accepted agreement), so neither side can reword what the other
+  already answered (`books/thread.ts` `addToThread`, `chain/thread.ts` `readThread`). ✅
+  Not yet covered: on a device restored from the chain, the first of two messages under one id
+  is the first read, and with more than one key in use that may not be the first sent; an answer
+  carrying a fingerprint of what it answered would close that. 🔜
 - **No sender shown:** the check stops with "Shield didn't say who sent a letter" rather than
   believing it. ✅
 - **Names:** the registrar stores whatever text it's given beside a name's hash, so anyone could
@@ -481,6 +516,11 @@ public. Now every reader also checks the letter's sender, which only the record'
   review list. A name is shown only when it hashes back to its hash and is a plain name (no
   look-alike characters); an application's name likewise; an account's primary name only while
   the account still owns it. Otherwise the account is shown. ✅
+  An offer's business name also has to belong to the account that sent the offer: the agreement
+  program (v5) binds the sending account but takes the name's hash as given, so the app asks the
+  registry who owns it, when the offer is read and again at Accept, and shows the account and
+  refuses Accept when it isn't the sender or the registry can't be asked
+  (`chain/work/employer_name.ts`, 2026-11-11). ✅
 
 ## T17 — Cards (2026-10-25)
 
@@ -585,3 +625,58 @@ from the network's copy of each transaction, so the business may give the books 
   logged in) can read the key, and with it the account's history even after the business leaves
   the app. Forgetting it in Settings removes it from the books; a key already copied can't be
   taken back, short of moving the money to a new account.
+
+## T21 — The admin key over the upgradable programs (2026-11-11)
+
+Nine of the programs the app relies on have an `@admin` constructor: the name registry and the
+registrar, worker and employer profiles, `employer_agreement_v4`, `payroll_core_v2`,
+`paystub_receipts`, the router and `credential_nft_v3` (`@pnw/config` `EDITIONS`; a tenth,
+`credential_nft_v4`, is deployed and not used). One address is the admin of all of them, and of
+eleven archived programs that are still deployed. The address is written into each constructor,
+so the key can't be replaced. T18 covers how the key could leak; this is what it can do.
+
+**What an upgrade is.** Whoever holds the key can upgrade any of those programs in place. An
+upgrade can add functions, mappings, records and imports, and it can change the logic inside any
+function or finalize people already use, keeping its name, inputs and outputs (snarkVM
+`check_upgrade_is_valid`; `pnw_mvp_v2` `docs/migrations/2026-11-11-upgrades-found-on-chain.md`).
+It can't remove anything or change a mapping, a record or a constructor. A wallet proves against
+the newest edition and doesn't say which.
+
+**What the holder could do.**
+- Change what `create_worker_profile` does with the name, age, state and the rest a worker gives
+  it at setup, including who ends up owning the record.
+- Change the registry so a name resolves to another account, or so its ownership check passes
+  for anyone or for no one. Adding a team member, sending an offer, reading an application,
+  posting a job and issuing a card all rest on that check. Even without an upgrade the admin
+  account can register any free name and say which program is the registrar.
+- Stop registration, or `employer_agreement_v4` agreements, from working.
+
+**What the holder can't do.** Spend, move or read records people already hold: USDCx, letters,
+profiles and agreements already made. Change a program with a `@noupgrade` constructor:
+`employer_agreement_v5`, letters, credentials, the job board, cards. (The job board and cards
+take their ownership check from the registry, which is upgradable.)
+
+- **The chain is watched.** `pnw_mvp_v2`'s manifest records every program's edition and the hash
+  of its text on chain, and `scripts/check_chain.py` compares them with the chain on every pull
+  request there and once a day (`chain-watch`). An upgrade nobody recorded fails it within a
+  day. ✅
+- **The app refuses to sign against a changed program.** Before any transaction goes to Shield,
+  the app reads each upgradable program's edition from the network and stops when one isn't an
+  edition this version was made for, naming it; an explorer that can't be reached stops it too
+  (`chain/editions.ts`, called from the one place every write passes, `chain/shield.ts`). It
+  checks all nine, not only the program being called, because a payment to a registered name
+  relies on the registry. `packages/config/src/programs.test.ts` keeps the pins equal to the
+  manifest and covering every `@admin` program the app names. ✅
+- **The key signs only from `main`, with Joshua's approval** (GitHub's environment protection and
+  a ruleset, set 2026-11-11; `pnw_mvp_v2` #234). These are settings on GitHub, not code, so
+  nothing in the repositories proves they are still on. ⚠️
+- ⚠️ **Not covered:** the check asks the explorer, so its operator can make the app refuse, and
+  one who answers an old edition for a changed program makes the check pass; the daily watch
+  reads the same explorer. Someone who signs in the wallet without the app isn't covered. Names
+  the app resolves by reading the registry are read between checks. An installed copy of the app
+  keeps its pins, so after a planned upgrade it refuses until it is updated. And this is
+  noticing, not preventing: the key still decides what these programs do next.
+- 🔜 **What closes it:** successors with `@noupgrade` constructors (worker profiles first, since
+  it takes legal names; the registry and registrar when names move to mainnet), and the key
+  kept off GitHub, signing from a device that isn't online. `docs/PAPER.md` promises no
+  upgradable programs on mainnet.

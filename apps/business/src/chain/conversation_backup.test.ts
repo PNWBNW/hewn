@@ -175,6 +175,32 @@ describe("a backup both sides agree to", () => {
     expect(restored.items.every((i) => !i.half)).toBe(true);
   });
 
+  it("puts a restored conversation's messages in the order of their slots, whatever times are written on them", async () => {
+    const box = chain();
+    const at = (iso: string) => () => new Date(iso);
+    const post = (from: Side, nextOut: number, text: string, when: string) => postToThread({ client: box, partiesKey: KEY, from, nextOut, body: { type: "text", text }, now: at(when) });
+    await post("business", 0, "The first one", "2026-10-23T09:00:00.000Z");
+    await post("worker", 0, "My answer", "2026-10-23T10:00:00.000Z");
+    // Sent after the answer, with the day before written on it.
+    await post("business", 1, "Dated before the first", "2026-10-22T09:00:00.000Z");
+
+    let restored: Thread = emptyThread();
+    const read = (l: string) => box.get(l);
+    await restoreHistory({
+      backup: { partiesKey: KEY, keys: [], side: "worker" } as never,
+      theirs: read,
+      mine: read,
+      store: async (i) => void (restored = addToThread(restored, i)),
+      now: () => "2026-11-11T00:00:00.000Z",
+    });
+    const texts = restored.items.map((i) => (i.body.type === "text" ? i.body.text : ""));
+    // Never ahead of the message in the slot before it. (Between the two sides, a restore has
+    // only the written times to go by: books/thread_order.ts.)
+    expect(texts[0]).toBe("The first one");
+    expect(texts).toHaveLength(3);
+    expect(restored.items.find((i) => i.body.type === "text" && i.body.text === "Dated before the first")).toMatchObject({ sentAt: "2026-10-22T09:00:00.000Z", receivedAt: "2026-10-23T09:00:00.000Z" });
+  });
+
   it("makes no copy and changes no keys when the other side declines", async () => {
     const { box, business, worker } = await talking();
     const out = business.thread.ring!.out;

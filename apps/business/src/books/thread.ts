@@ -22,6 +22,7 @@ import { LETTER_LABEL, type Letter, letterText, validateLetter } from "./offer_l
 import { type EmploymentType, type JobFields, cleanHours, employmentLabel, hoursLine, longDate, payLine, validateJobFields } from "./terms_words";
 import { MAX_SCHEDULE_NOTE, type ScheduleWeek, validateScheduleWeek } from "./schedule";
 import { type HoursAnswerBody, type HoursChangeBody, validateHoursAnswer, validateHoursChange } from "./hours_change";
+import { inOrder } from "./thread_order";
 import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from "./report";
 import { MAX_EVENT_TITLE } from "./events";
 import { type Bill, validateBill } from "./bill";
@@ -569,9 +570,13 @@ export function validateThread(raw: unknown): Thread {
   if (!isObject(raw)) throw new ThreadError("A thread must be an object");
   if (!Array.isArray(raw.items)) throw new ThreadError("A thread's messages must be a list");
   if (!isSeq(raw.nextIn) || !isSeq(raw.nextOut)) throw new ThreadError("A thread's slots must be whole numbers");
+  // An id names one message for good (addToThread): of two under one id, mine stays, else the first.
   const byId = new Map<string, ThreadItem>();
-  for (const item of raw.items.map(validateItem)) byId.set(item.id, item);
-  const thread: Thread = { items: [...byId.values()].sort(byTime), nextIn: raw.nextIn, nextOut: raw.nextOut };
+  for (const item of raw.items.map(validateItem)) {
+    const held = byId.get(item.id);
+    if (!held || (item.mine && !held.mine)) byId.set(item.id, item);
+  }
+  const thread: Thread = { items: [...byId.values()].sort(inOrder), nextIn: raw.nextIn, nextOut: raw.nextOut };
   if (raw.ring !== undefined) {
     try {
       thread.ring = validateKeyRing(raw.ring);
@@ -582,15 +587,23 @@ export function validateThread(raw: unknown): Thread {
   return thread;
 }
 
-const byTime = (a: ThreadItem, b: ThreadItem) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.id < b.id ? -1 : 1);
+/** Whether two messages say the same thing, whatever slot or time they came in. */
+export const sameMessage = (a: ThreadMessage, b: ThreadMessage): boolean => a.from === b.from && JSON.stringify(a.body) === JSON.stringify(b.body);
 
 /**
- * Keeps one message (the same id twice is kept once) and moves the right slot past it: the
- * agreement's, or the key pair's it travelled on. A key half it carries goes into the ring.
+ * Keeps one message and moves the right slot past it: the agreement's, or the key pair's it
+ * travelled on. A key half it carries goes into the ring.
+ *
+ * An id names one message for good. The same id twice is kept once, and the one kept is the
+ * first: a later message from the other side under an id already here changes nothing, whether
+ * that id was one of theirs or one of mine. So neither side can reword or erase what the other
+ * already read, answered or sent (answers pair with what they answer by id: books/hours_change.ts,
+ * books/service.ts). Only this side's own write replaces a message, as when it sends one again.
  */
 export function addToThread(thread: Thread, item: ThreadItem): Thread {
   const fresh = validateItem(item);
-  const items = [...thread.items.filter((i) => i.id !== fresh.id), fresh].sort(byTime);
+  const held = !fresh.mine && thread.items.some((i) => i.id === fresh.id);
+  const items = held ? thread.items : [...thread.items.filter((i) => i.id !== fresh.id), fresh].sort(inOrder);
   let next: Thread = { ...thread, items };
   if (!fresh.via) next = fresh.mine ? { ...next, nextOut: Math.max(thread.nextOut, fresh.seq + 1) } : { ...next, nextIn: Math.max(thread.nextIn, fresh.seq + 1) };
   if (fresh.via || fresh.half) {
@@ -821,3 +834,5 @@ export function proposalFromDraft(d: ProposalDraft): { proposal: Proposal } | { 
   const { rateText: _rateText, employmentType, hoursText: _hoursText, ...rest } = d;
   return { proposal: { ...rest, rate: cents.toString(), ...(employmentType ? { employmentType } : {}), ...(hours ? { hoursPerWeek: hours } : {}) } };
 }
+
+export { inOrder, placedAt } from "./thread_order";

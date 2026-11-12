@@ -59,7 +59,7 @@ test("documents: links, mentions, what a script reads, what a workflow runs and 
 });
 
 test("rules: every INV, OPS and T id is a point; a rule checks its file, answers its threats, and is cited", () => {
-  for (const id of ["INV-01", "INV-24", "OPS-01", "OPS-08", "T1", "T20"]) assert.ok(ids.has(id), id);
+  for (const id of ["INV-01", "INV-24", "OPS-01", "OPS-08", "T1", "T20", "T21"]) assert.ok(ids.has(id), id);
   assert.ok(has("INV-07", "packages/vault/src/vault.test.ts", "checks"));
   assert.ok(has("INV-07", "T2", "answers"));
   assert.ok(has("OPS-04", ".github/workflows/ci.yml", "checks"));

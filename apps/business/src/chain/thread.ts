@@ -27,7 +27,7 @@ import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { packPayload, unpackPayload } from "./compress";
 import { sendReceipt } from "./receipts";
 import { type KeyRing, emptyRing, noteReceived, sendPlan } from "../books/key_ring";
-import { GROUP_TYPES, type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, addToThread, emptyThread, newMessageId, skipIncoming, validateMessage } from "../books/thread";
+import { GROUP_TYPES, type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, addToThread, emptyThread, newMessageId, sameMessage, skipIncoming, validateMessage } from "../books/thread";
 import { pairKeyHex, pairStreams, sendingKey } from "./key_ring";
 
 export const THREAD_KINDS: Record<Side, string> = { business: "thread_b", worker: "thread_w" };
@@ -226,9 +226,14 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
           local = skipIncoming(local, seq, stream.via);
           continue; // the pin stays: nothing of it is in the vault
         }
+        // An id names one message for good (books/thread.ts `addToThread`): a second letter under an
+        // id already here moves its slot on and changes nothing, so it isn't news. Said aloud when it
+        // tries to say something else.
+        const held = local.items.find((i) => i.id === item.id);
         await store(item); // in the vault first…
         local = addToThread(local, item);
-        result.received.push(item);
+        if (!held) result.received.push(item);
+        else if (!sameMessage(held, item)) result.skipped.push({ seq, message: "That message reused the id of an earlier one; the earlier one stands" });
         await client.drop(lookup).catch(() => {}); // …then the pin goes
         if (client.put && !stream.via) await sendReceipt({ put: client.put.bind(client) }, partiesKey, kind, seq); // the sender learns it arrived
       }

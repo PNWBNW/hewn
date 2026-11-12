@@ -387,7 +387,7 @@ leaks the difference. Every public mapping in Hewn's programs is listed, with wh
 
 ## 9. Threats, and the limits we haven't solved
 
-Hewn keeps a living threat model (`docs/THREAT_MODEL.md`, threats T1 to T20), each threat tied to
+Hewn keeps a living threat model (`docs/THREAT_MODEL.md`, threats T1 to T21), each threat tied to
 the rules and the checks that answer it. Some limits are honest trade-offs rather than open bugs,
 and belong in plain view:
 

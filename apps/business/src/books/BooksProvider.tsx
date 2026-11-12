@@ -11,11 +11,13 @@
 // operation, then seals the result and saves it to IndexedDB before the
 // screen moves on. Plaintext exists only in this tab's memory.
 //
-// "Stay logged in" (ticked by default): the open vault key is also kept on
-// this device as a non-extractable key for 24 hours from login (@pnw/vault
+// "Stay logged in" (a choice, never the default: Joshua, 2026-11-11): the open
+// vault key is also kept on this device for 24 hours from login (@pnw/vault
 // remember / resumeSession), so switching apps on a phone, or a reload, opens
-// the books again without the passphrase. Log out forgets it. Without it, the
-// books lock after 15 idle minutes and on any reload, as before.
+// the books again without the passphrase. For that time the books are as good
+// as unlocked here: the browser stores the key where anyone with the device or
+// a copy of its browser data can use it. Log out forgets it. Without it, the
+// books lock after 15 idle minutes and on any reload.
 //
 // Receipt files are sealed one by one with the same vault key and kept in
 // their own IndexedDB store; a bill holds only a reference and the file's
@@ -72,6 +74,7 @@ import {
   createVault,
   exportBackup,
   forgetSession,
+  noteSeen,
   keySlotsOf,
   parseBackup,
   REMEMBER_MS,
@@ -176,7 +179,7 @@ type BooksContextValue = {
   calendar: SharedCalendar | null;
   create: (input: SetupInput) => Promise<void>;
   /** Log in with a username and passphrase. Throws a message that never says which of the two was wrong. */
-  /** `stay` (default true) keeps the books open on this device for 24 hours, until Log out. */
+  /** `stay` (default false: the person chooses it) keeps the books open on this device for 24 hours, until Log out. */
   unlock: (username: string, passphrase: string, stay?: boolean) => Promise<UnlockOutcome>;
   /** After `unlock` offered a choice: open the business or the worker account. */
   chooseAccount: (role: Role) => Promise<void>;
@@ -351,7 +354,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const [vaultId, setVaultId] = useState<string | null>(null);
   const [stayUntil, setStayUntil] = useState<Date | null>(null);
   const [recoveryMadeAt, setRecoveryMadeAt] = useState<string | null>(null);
-  const stayChoice = useRef(true);
+  const stayChoice = useRef(false);
 
   const show = useCallback(async (s: VaultSession) => {
     setOpening("reading your books");
@@ -437,7 +440,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, [store, show]);
 
   const create = useCallback(
-    async ({ template, username: rawUsername, passphrase, role, stay = true, ...settings }: SetupInput) => {
+    async ({ template, username: rawUsername, passphrase, role, stay = false, ...settings }: SetupInput) => {
       const username = normalizeUsername(rawUsername);
       checkAccountPassphrase(passphrase, username);
       const id = await vaultIdFor(username, role);
@@ -465,7 +468,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   );
 
   const unlock = useCallback(
-    async (username: string, passphrase: string, stay = true): Promise<UnlockOutcome> => {
+    async (username: string, passphrase: string, stay = false): Promise<UnlockOutcome> => {
       const found = await findAccounts(store, username, passphrase); // throws the one generic message
       writeAccountFlag();
       stayChoice.current = stay;
@@ -496,7 +499,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const unlockLegacy = useCallback(
-    async (passphrase: string, stay = true) => {
+    async (passphrase: string, stay = false) => {
       await open(await legacyOpen(store, passphrase), stay);
     },
     [store, open],
@@ -573,7 +576,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const restore = useCallback(
-    async (fileText: string, rawUsername: string | null, passphrase: string, stay = true) => {
+    async (fileText: string, rawUsername: string | null, passphrase: string, stay = false) => {
       const backup = parseBackup(fileText);
       let s: VaultSession;
       if (backup.record.id === LEGACY_VAULT_ID) {
@@ -598,7 +601,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   );
 
   const recover = useCallback(
-    async (username: string, code: string, nextPassphrase: string, stay = true): Promise<UnlockOutcome> => {
+    async (username: string, code: string, nextPassphrase: string, stay = false): Promise<UnlockOutcome> => {
       const found = await recoverAccounts(store, username, code, nextPassphrase); // throws the one generic message
       writeAccountFlag();
       stayChoice.current = stay;
@@ -614,7 +617,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   );
 
   const restoreWithRecovery = useCallback(
-    async (fileText: string, rawUsername: string, code: string, nextPassphrase: string, stay = true) => {
+    async (fileText: string, rawUsername: string, code: string, nextPassphrase: string, stay = false) => {
       const backup = parseBackup(fileText);
       const username = normalizeUsername(rawUsername);
       checkAccountPassphrase(nextPassphrase, username);
@@ -635,7 +638,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   );
 
   const restoreFromAccount = useCallback(
-    async (find: FindBooks, username: string, unlock: AccountUnlock, stay = true): Promise<(AccountRestoreReport & { open: () => Promise<void> }) | null> => {
+    async (find: FindBooks, username: string, unlock: AccountUnlock, stay = false): Promise<(AccountRestoreReport & { open: () => Promise<void> }) | null> => {
       const restored = await restoreIntoVault(store, find, username, unlock);
       if (!restored) return null;
       writeAccountFlag();
@@ -739,11 +742,24 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   );
 
   // Kept open: log out when the 24 hours are up. Not kept: auto-lock after inactivity.
+  // A timer doesn't run while a phone sleeps or a tab is frozen, so the time is checked again
+  // whenever the page comes back; and as it goes to the background the vault notes it was in
+  // use, so a clock set back to before then doesn't reopen the books (@pnw/vault noteSeen).
   useEffect(() => {
     if (status !== "open" || !stayUntil) return;
     const timer = setTimeout(lock, Math.max(0, stayUntil.getTime() - Date.now()));
-    return () => clearTimeout(timer);
-  }, [status, stayUntil, lock]);
+    const check = () => {
+      if (Date.now() >= stayUntil.getTime()) lock();
+      else if (document.visibilityState === "hidden") void noteSeen(store).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("pageshow", check);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("pageshow", check);
+    };
+  }, [status, stayUntil, lock, store]);
 
   useEffect(() => {
     if (status !== "open" || stayUntil) return;

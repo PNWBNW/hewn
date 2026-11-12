@@ -2,7 +2,8 @@
 
 // ---------------------------------------------------------------------------
 // Checking for offers: the person's agreement records from Shield, the
-// employer's registered name from the registry (best effort), the terms from
+// employer's registered name from the registry, shown only when the account
+// that sent the offer owns it (chain/work/employer_name.ts), the terms from
 // the sealed page sent with the offer, verified against the record's
 // terms_doc_hash, and Accept, which signs `accept_job_offer` in Shield. Every
 // agreement found is written to the vault so the Offers page lists it without
@@ -17,12 +18,11 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { AttachmentRef } from "@pnw/sales";
 import { checkAgreementStatus } from "@pnw/records/agreement_reader";
-import { nameMatchesHash, queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
-import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, seedAgreementPair, updateWorkThread, upsertAgreement, workThread } from "@/books/work";
+import { type AgreementStatus, type Terms, type WorkAgreement, agreementFor, forgetEmployerName, seedAgreementPair, updateWorkThread, upsertAgreement, workThread } from "@/books/work";
 import { ChangeList, QuotedNote } from "@/books/NegotiationView";
 import { addToThread, answerFor, openCounter, proposalChanges, proposalOf, revisedFrom, revisionOf, skipIncoming } from "@/books/thread";
 import { BRAND } from "@/brand";
@@ -35,6 +35,7 @@ import { type AgreementRecord, acceptCall, readAgreementRecords } from "./agreem
 import { carriesHalves } from "../agreement_programs";
 import { newHalf } from "../key_ring";
 import { executeAndWait } from "./execute";
+import { type EmployerName, NAME_NOT_THEIRS, NAME_UNCONFIRMED, employerNameFor } from "./employer_name";
 import { TERMS_MISMATCH, type TermsFetch, fetchTerms, termsMatchRecord } from "./terms";
 import { LetterBox, letterReader, letterThread } from "../letters";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
@@ -55,6 +56,8 @@ type Row = {
   record: AgreementRecord;
   status: AgreementStatus;
   employerName?: string;
+  /** Whether the account that sent the offer owns the business name it carries (read from the registry). */
+  nameState: EmployerName["state"];
   terms: TermsFetch;
   /** The terms hash to what the record commits to. */
   verified: boolean;
@@ -131,14 +134,14 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           const onChain = await checkAgreementStatus(record.agreementId, record.program).catch(() => null);
           if (record.kind === "final") status = STATUS_OF[onChain ?? "active"] ?? "active";
           else if (onChain === "terminated" || onChain === "withdrawn") status = "terminated"; // withdrawn before it was accepted
-          // A name kept from before names were checked is used only if it still checks out against the hash.
-          const keptName = previous?.employerName && nameMatchesHash(previous.employerName, record.employerNameHash) ? previous.employerName : undefined;
-          const employerName = keptName ?? ((await queryNamePlaintext(record.employerNameHash).catch(() => null)) || undefined);
+          // The business name is the sender's to claim only if the registry says the sender owns it.
+          const checked = await employerNameFor(record.employerNameHash, record.employerAddress, previous?.employerName);
+          const employerName = checked.state === "owned" ? checked.name : undefined;
           // Terms already in the vault are used as long as they still hash to the record; otherwise the page on the network.
           const kept: Terms | undefined = previous?.terms && termsMatchRecord(previous.terms, record.termsDocHash) ? previous.terms : undefined;
           const terms: TermsFetch = kept ? { terms: kept, lookup: "" } : await fetchTerms(record.partiesKey, record.agreementId, letterReader(letters.current, record.employerAddress));
           const verified = !!terms.terms && termsMatchRecord(terms.terms, record.termsDocHash);
-          const row: Row = { record, status, terms, verified, files: [] };
+          const row: Row = { record, status, nameState: checked.state, terms, verified, files: [] };
           const t = terms.terms;
           if (status === "pending" && verified && t?.version === 2 && isExpired(t.expiresAt)) {
             // Expired without an answer: it can't be accepted.
@@ -162,7 +165,9 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
         const now = new Date().toISOString();
         await updateWork((w) =>
           found.reduce((acc, row) => {
-            const next = upsertAgreement(acc, toAgreement(row, agreementFor(acc, row.record.agreementId)));
+            const kept = upsertAgreement(acc, toAgreement(row, agreementFor(acc, row.record.agreementId)));
+            // A name stored before this check, which the sender turns out not to own, is dropped.
+            const next = row.nameState === "not-theirs" ? forgetEmployerName(kept, row.record.agreementId) : kept;
             return row.record.kind === "final" ? seedFromRecord(next, row.record, now) : next;
           }, w),
         );
@@ -184,6 +189,9 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
     setError(null);
     setNote("Approve the acceptance in Shield, then wait for the network. This can take a minute or two.");
     try {
+      // Asked again now: the name has to belong to the sender at the moment this person accepts.
+      const named = await employerNameFor(row.record.employerNameHash, row.record.employerAddress, row.employerName);
+      if (named.state !== "owned") throw new Error(named.state === "not-theirs" ? NAME_NOT_THEIRS : NAME_UNCONFIRMED);
       const seconds = Math.floor(Date.now() / 1000);
       // To v5 the acceptance carries this person's public half; the private part is in the vault before Shield is asked.
       const twin = carriesHalves(row.record.program);
@@ -269,7 +277,8 @@ function OfferRow({
   const filesIn = offeredFiles.length === row.files.length;
   const needsReading = !!letter && (hasLetter(letter.letter) || offeredFiles.length > 0);
   const expired = status === "pending" && !!letter && isExpired(letter.expiresAt);
-  const ready = verified && filesIn && !row.filesProblem && (!needsReading || readIt) && !expired;
+  const named = row.nameState === "owned";
+  const ready = named && verified && filesIn && !row.filesProblem && (!needsReading || readIt) && !expired;
   const employer = row.employerName ? `${row.employerName}.${BRAND.nameSuffix}` : shortAddress(record.employerAddress);
   const t = terms.terms;
   return (
@@ -280,10 +289,15 @@ function OfferRow({
           {status === "terminated" && record.kind === "pending" ? (revisedTo ? "Replaced by a revised offer" : "Withdrawn") : STATUS_LABEL[status]}
         </span>
       </div>
+      {!named && <p className={row.nameState === "not-theirs" ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>{row.nameState === "not-theirs" ? NAME_NOT_THEIRS : NAME_UNCONFIRMED}</p>}
       {t && verified ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-          <dt className="text-muted-foreground">Business</dt>
-          <dd>{t.businessName}</dd>
+          {named && (
+            <>
+              <dt className="text-muted-foreground">Business</dt>
+              <dd>{t.businessName}</dd>
+            </>
+          )}
           <dt className="text-muted-foreground">Pay</dt>
           <dd>{t.payType === "hourly" ? `${dollars(t.rate)} per hour` : `${dollars(t.rate)} per year`}</dd>
           <dt className="text-muted-foreground">Paid</dt>

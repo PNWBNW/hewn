@@ -3,6 +3,8 @@ import {
   type Proposal,
   type ThreadItem,
   addToThread,
+  inOrder,
+  placedAt,
   answerFor,
   draftOf,
   emptyThread,
@@ -254,5 +256,72 @@ describe("counter-offers on employment type and hours", () => {
   it("starts from an offer's terms, job fields included", () => {
     expect(proposalOf({ ...WITH_JOB })).toEqual(WITH_JOB);
     expect(proposalOf({ ...OFFERED })).not.toHaveProperty("hoursPerWeek");
+  });
+});
+
+describe("an id names one message for good", () => {
+  const theirs = (n: number, text: string, seq: number): ThreadItem => item(n, "worker", { type: "text", text }, false, seq);
+  const text = (i: ThreadItem) => (i.body.type === "text" ? i.body.text : "");
+
+  it("keeps the first of theirs when a later one reuses its id, and still moves past the slot", () => {
+    let t = addToThread(emptyThread(), theirs(1, "Twenty hours a week.", 0));
+    t = addToThread(t, { ...theirs(1, "Forty hours a week.", 1), sentAt: "2026-10-16T09:00:00.000Z" });
+    expect(t.items.map(text)).toEqual(["Twenty hours a week."]);
+    expect(t.nextIn).toBe(2); // the second letter's slot is used up, so it isn't read again
+  });
+
+  it("never lets one of theirs replace or erase one of mine", () => {
+    let t = addToThread(emptyThread(), item(1, "business", { type: "text", text: "We agreed 20 hours, no more." }, true, 0));
+    t = addToThread(t, theirs(1, "(theirs now)", 5));
+    expect(t.items.map((i) => [i.mine, text(i)])).toEqual([[true, "We agreed 20 hours, no more."]]);
+    expect(t.nextIn).toBe(6);
+  });
+
+  it("keeps what this side marked on a message when the same letter is read again", () => {
+    let t = markThreadRead(addToThread(emptyThread(), theirs(1, "Hi", 0)));
+    t = addToThread(t, theirs(1, "Hi", 0));
+    expect(t.items).toHaveLength(1);
+    expect(t.items[0]!.read).toBe(true);
+  });
+
+  it("lets this side write its own message again under the same id", () => {
+    let t = addToThread(emptyThread(), item(1, "business", { type: "text", text: "Payday is Thursday" }, true, 0));
+    t = addToThread(t, { ...item(1, "business", { type: "text", text: "Payday is Thursday" }, true, 0), receivedAt: "2026-10-16T12:00:00.000Z" });
+    expect(t.items).toHaveLength(1);
+    expect(t.items[0]!.receivedAt).toBe("2026-10-16T12:00:00.000Z");
+  });
+
+  it("holds when a thread is read back from the vault: mine stays, else the first", () => {
+    const mine = item(1, "business", { type: "text", text: "Mine" }, true, 0);
+    const base = { nextIn: 3, nextOut: 1 };
+    expect(validateThread({ ...base, items: [mine, theirs(1, "Theirs", 0)] }).items.map(text)).toEqual(["Mine"]);
+    expect(validateThread({ ...base, items: [theirs(1, "Theirs", 0), mine] }).items.map(text)).toEqual(["Mine"]);
+    expect(validateThread({ ...base, items: [theirs(2, "First", 0), theirs(2, "Second", 1)] }).items.map(text)).toEqual(["First"]);
+  });
+});
+
+describe("the order of a conversation on this device", () => {
+  const say = (n: number, mine: boolean, sentAt: string, receivedAt?: string): ThreadItem => ({
+    ...item(n, mine ? "business" : "worker", { type: "text", text: `m${n}` }, mine, n),
+    sentAt,
+    ...(receivedAt ? { receivedAt } : {}),
+  });
+  const order = (t: { items: ThreadItem[] }) => t.items.map((i) => (i.body.type === "text" ? i.body.text : ""));
+
+  it("places mine when I sent it and theirs when it arrived, not by the time they wrote", () => {
+    let t = addToThread(emptyThread(), say(1, false, "2026-10-16T09:00:00.000Z", "2026-10-16T09:00:05.000Z"));
+    t = addToThread(t, say(2, true, "2026-10-16T10:00:00.000Z"));
+    // Arrives at 11:00 saying it was sent at 08:00, before everything.
+    t = addToThread(t, say(3, false, "2026-10-16T08:00:00.000Z", "2026-10-16T11:00:00.000Z"));
+    expect(order(t)).toEqual(["m1", "m2", "m3"]);
+    expect(placedAt(t.items[2]!)).toBe(Date.parse("2026-10-16T11:00:00.000Z"));
+    // Read back from the vault in any order, it is the same conversation.
+    expect(order(validateThread({ items: [...t.items].reverse(), nextIn: t.nextIn, nextOut: t.nextOut }))).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("keeps messages that arrived at the same moment in their slots' order, and ones without an arrival time by the time on them", () => {
+    const together = "2026-10-16T12:00:00.000Z";
+    const t = [say(5, false, "2026-10-16T11:30:00.000Z", together), say(4, false, "2026-10-16T11:45:00.000Z", together), say(6, false, "2026-10-16T07:00:00.000Z")].sort(inOrder);
+    expect(t.map((i) => i.seq)).toEqual([6, 4, 5]);
   });
 });

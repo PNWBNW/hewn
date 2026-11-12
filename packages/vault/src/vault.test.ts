@@ -12,6 +12,7 @@ import {
   createVault,
   exportBackup,
   forgetSession,
+  noteSeen,
   parseBackup,
   resumeSession,
   sha256Hex,
@@ -304,25 +305,54 @@ describe("stay logged in", () => {
       const store = make();
       const s = await createVault(PASS, "books", { ...FAST, id: "acct-1" });
       await store.save(s.record);
-      await s.remember(store, later(REMEMBER_MS));
+      await s.remember(store, later(REMEMBER_MS), t0);
       s.lock();
 
-      const resumed = await resumeSession(store, later(23 * HOUR));
+      const resumed = await resumeSession(store, later(HOUR));
       expect(await resumed!.session.read()).toBe("books");
       expect(resumed!.expiresAt.toISOString()).toBe(later(REMEMBER_MS).toISOString());
       // It reads the latest record, not the one remembered with the key.
       await store.save(await resumed!.session.write("books, edited"));
-      expect(await (await resumeSession(store, later(HOUR)))!.session.read()).toBe("books, edited");
+      expect(await (await resumeSession(store, later(23 * HOUR)))!.session.read()).toBe("books, edited");
 
       expect(await resumeSession(store, later(REMEMBER_MS))).toBeNull();
       expect(await store.loadRemembered()).toBeNull(); // an expired one is cleared
+    });
+
+    it(`${name}: a clock set back to before the session was last used doesn't reopen the books`, async () => {
+      const store = make();
+      const s = await createVault(PASS, "books", { ...FAST, id: "acct-clock" });
+      await store.save(s.record);
+      await s.remember(store, later(REMEMBER_MS), t0);
+      s.lock();
+      // Used at hour 10, and again noted as the app went to the background at hour 20.
+      expect(await resumeSession(store, later(10 * HOUR))).not.toBeNull();
+      await noteSeen(store, later(20 * HOUR));
+      await noteSeen(store, later(15 * HOUR)); // never moves back
+      expect((await store.loadRemembered())!.seenAt).toBe(later(20 * HOUR).toISOString());
+      // A few minutes' correction is fine; hours back is someone turning the clock.
+      expect(await resumeSession(store, later(20 * HOUR - 60_000))).not.toBeNull();
+      expect(await resumeSession(store, later(12 * HOUR))).toBeNull();
+      expect(await store.loadRemembered()).toBeNull(); // and it is cleared, so the honest time doesn't reopen it either
+      expect(await resumeSession(store, later(21 * HOUR))).toBeNull();
+    });
+
+    it(`${name}: a session kept before the last-used time existed still reopens, and gains one`, async () => {
+      const store = make();
+      const s = await createVault(PASS, "books", { ...FAST, id: "acct-old" });
+      await store.save(s.record);
+      await s.remember(store, later(REMEMBER_MS), t0);
+      const { seenAt: _dropped, ...old } = (await store.loadRemembered())!;
+      await store.saveRemembered(old);
+      expect(await resumeSession(store, later(HOUR))).not.toBeNull();
+      expect((await store.loadRemembered())!.seenAt).toBe(later(HOUR).toISOString());
     });
 
     it(`${name}: Log out forgets it`, async () => {
       const store = make();
       const s = await createVault(PASS, "books", { ...FAST, id: "acct-2" });
       await store.save(s.record);
-      await s.remember(store, later(HOUR));
+      await s.remember(store, later(HOUR), t0);
       await forgetSession(store);
       expect(await resumeSession(store, t0)).toBeNull();
     });
@@ -332,7 +362,7 @@ describe("stay logged in", () => {
     const store = new MemoryStore();
     const s = await createVault(PASS, "books", { ...FAST, id: "acct-3" });
     await store.save(s.record);
-    await s.remember(store, later(HOUR));
+    await s.remember(store, later(HOUR), t0);
     const kept = (await store.loadRemembered())!;
     expect(kept.key.extractable).toBe(false);
     await expect(globalThis.crypto.subtle.exportKey("raw", kept.key)).rejects.toThrow();
@@ -348,10 +378,10 @@ describe("stay logged in", () => {
 
     // Nor does a key that doesn't open the record, or a record that's gone.
     const other = await createVault(PASS, "other", { ...FAST, id: "acct-4" });
-    await other.remember(store, later(HOUR));
+    await other.remember(store, later(HOUR), t0);
     await store.saveRemembered({ ...(await store.loadRemembered())!, vaultId: "acct-3" });
     expect(await resumeSession(store, t0)).toBeNull();
-    await s.remember(store, later(HOUR));
+    await s.remember(store, later(HOUR), t0);
     await store.remove("acct-3");
     expect(await resumeSession(store, t0)).toBeNull();
     expect(await store.loadRemembered()).toBeNull();
