@@ -56,6 +56,9 @@ export const PROGRAMS = {
   external: {
     usdcx: "test_usdcx_stablecoin.aleo", // testnet only
     usdcx_freezelist: "test_usdcx_freezelist.aleo", // testnet only
+    // What the stablecoin imports, read only to pin their editions (EDITIONS below).
+    usdcx_multisig_core: "test_usdcx_multisig_core.aleo", // testnet only: approves the stablecoin's upgrades
+    merkle_tree: "merkle_tree.aleo",
   },
   // Superseded programs still read for what was made with them (never written to).
   legacy: {
@@ -65,7 +68,7 @@ export const PROGRAMS = {
 } as const;
 
 /**
- * The edition of each upgradable program this version of the app was made for.
+ * The edition of each of our upgradable programs this version of the app was made for.
  *
  * A program whose constructor is `@admin` can be upgraded in place by whoever holds the admin
  * key, and an upgrade may change the logic inside a function people already use, under the same
@@ -78,7 +81,7 @@ export const PROGRAMS = {
  * chain every day there (programs.test.ts keeps the two in step). A planned upgrade lists both
  * editions here first, ships, and drops the old one afterwards.
  */
-export const EDITIONS: Readonly<Record<string, readonly number[]>> = {
+export const OUR_EDITIONS: Readonly<Record<string, readonly number[]>> = {
   [PROGRAMS.layer1.pnw_name_registry]: [1],
   [PROGRAMS.layer1.pnw_name_registrar]: [1],
   [PROGRAMS.layer1.worker_profiles]: [0],
@@ -89,6 +92,24 @@ export const EDITIONS: Readonly<Record<string, readonly number[]>> = {
   [PROGRAMS.layer1.pnw_router]: [0],
   [PROGRAMS.layer2.credential_nft]: [0],
 };
+
+/**
+ * The stablecoin every payment runs, and the programs it imports. Its issuer can upgrade it: its
+ * constructor takes any edition the multisig core has approved, and the core can be upgraded by
+ * its own upgrader. So these are pinned like ours, at the editions read from the chain on
+ * 2026-11-12. An upgrade by the issuer stops payments in this app until a release lists the new
+ * edition, after someone has read what changed. `merkle_tree.aleo` has no constructor (deployed
+ * before upgrades existed); it is pinned anyway, at no cost.
+ */
+export const EXTERNAL_EDITIONS: Readonly<Record<string, readonly number[]>> = {
+  [PROGRAMS.external.usdcx]: [2],
+  [PROGRAMS.external.usdcx_freezelist]: [1],
+  [PROGRAMS.external.usdcx_multisig_core]: [0],
+  [PROGRAMS.external.merkle_tree]: [1],
+};
+
+/** Everything the app checks before any signature: its own upgradable programs and the stablecoin's. */
+export const EDITIONS: Readonly<Record<string, readonly number[]>> = { ...OUR_EDITIONS, ...EXTERNAL_EDITIONS };
 
 /** Current version tags — must match deployed program expectations */
 export const VERSIONS = {

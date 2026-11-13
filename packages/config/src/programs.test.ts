@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { EDITIONS, PROGRAMS } from "./programs";
+import { EDITIONS, EXTERNAL_EDITIONS, OUR_EDITIONS, PROGRAMS } from "./programs";
 
 const LEO = join(__dirname, "..", "..", "..", "pnw_mvp_v2");
 const MANIFEST = join(LEO, "config", "testnet.manifest.json");
@@ -31,7 +31,7 @@ describe("the pinned editions", () => {
 
   it.skipIf(!here)("are the editions the manifest records as on chain", () => {
     const deployments = JSON.parse(readFileSync(MANIFEST, "utf8")).deployments as Record<string, { edition?: number }>;
-    for (const [program, accepted] of Object.entries(EDITIONS)) {
+    for (const [program, accepted] of Object.entries(OUR_EDITIONS)) {
       expect(accepted.length, program).toBeGreaterThan(0);
       expect(accepted, `${program}: the manifest says edition ${deployments[program]?.edition}`).toContain(deployments[program]?.edition);
     }
@@ -40,6 +40,17 @@ describe("the pinned editions", () => {
   it.skipIf(!here)("cover every program the admin key can upgrade, and no program that can't change", () => {
     const upgradable = ours().filter((p) => source(p)?.includes("@admin"));
     expect(upgradable.length).toBeGreaterThan(0);
-    expect(Object.keys(EDITIONS).sort()).toEqual([...upgradable].sort());
+    expect(Object.keys(OUR_EDITIONS).sort()).toEqual([...upgradable].sort());
+  });
+});
+
+describe("the stablecoin's pinned editions", () => {
+  it("cover every outside program the app names, with at least one edition each", () => {
+    expect(Object.keys(EXTERNAL_EDITIONS).sort()).toEqual(Object.values(PROGRAMS.external).sort());
+    for (const accepted of Object.values(EXTERNAL_EDITIONS)) expect(accepted.length).toBeGreaterThan(0);
+  });
+
+  it("are checked with ours before every signature", () => {
+    for (const program of [...Object.keys(OUR_EDITIONS), ...Object.keys(EXTERNAL_EDITIONS)]) expect(EDITIONS[program], program).toBeDefined();
   });
 });
