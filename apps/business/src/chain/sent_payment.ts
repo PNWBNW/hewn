@@ -28,7 +28,10 @@
 //   found    a transfer to that payee for exactly that amount, accepted, that
 //            the books don't already hold: the one that spent the record the
 //            payment set aside, or the request's own transaction, or else the
-//            earliest at or after the height the payment was first asked at;
+//            earliest at or after the height the payment was first asked at.
+//            That last one is known by payee and amount alone, so it is never
+//            found while another open payment in the books is to the same
+//            payee for the same amount (`contested`): it could be either's;
 //   none     the record the payment set aside was spent by something that is
 //            not a payment to them (records combined, a split, another
 //            transfer), no transfer since has paid them that amount, and
@@ -86,6 +89,12 @@ export type SentPaymentQuery = {
   since?: number;
   /** Transactions the books already hold as some payment's settlement: never found again. */
   claimed: ReadonlySet<string>;
+  /**
+   * Another payment in the books, not settled and already asked of Shield, is to this payee for
+   * this amount. A transfer known only by its payee and amount could then be either payment's, so
+   * it is never found that way: only by the record this payment set aside or the request's own id.
+   */
+  contested: boolean;
   deps: SentPaymentDeps;
 };
 
@@ -163,7 +172,7 @@ async function readOne(id: string, deps: SentPaymentDeps, wait: number): Promise
 
 /** Looks for one payment in the account's own sent transfers. Never throws: what can't be read makes the answer "unknown". */
 export async function findSentPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
-  const { to, minor, attempt, since, claimed, deps } = query;
+  const { to, minor, attempt, since, claimed, contested, deps } = query;
   const wait = deps.shieldWaitMs ?? SHIELD_WAIT_MS;
   const cache = deps.cache ?? new Map<string, SentRead>();
 
@@ -222,7 +231,8 @@ export async function findSentPayment(query: SentPaymentQuery): Promise<PaymentL
   if (request) return { found: request.id };
 
   // c. Any other transfer that paid them this amount, in a block at or after the one the payment was
-  //    first asked at: the earliest. One that could be it but can't be placed or opened leaves doubt.
+  //    first asked at: the earliest. One that could be it but can't be placed or opened leaves doubt,
+  //    and so does one that could as well be another open payment's (`contested`).
   let doubt = false;
   let earliest: { id: string; height: number } | null = null;
   for (const r of reads) {
@@ -240,7 +250,8 @@ export async function findSentPayment(query: SentPaymentQuery): Promise<PaymentL
     else if (!paid(r)) doubt = true; // since the floor, and Shield couldn't open it
     else if (!earliest || r.height < earliest.height) earliest = { id: r.id, height: r.height };
   }
-  if (earliest) return { found: earliest.id };
+  if (earliest && !contested) return { found: earliest.id };
+  if (earliest) doubt = true;
 
   // d. Not paid: its record went into something that isn't a payment to them, and nothing was left unread.
   const elsewhere = spender !== undefined && !(spender.kind === "transfer" && spender.sealed);

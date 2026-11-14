@@ -4,8 +4,10 @@
 // invites a second payment.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { type RailNetwork, RailNetworkError, recordTag } from "@pnw/rail";
+import type { Paycheck, Settlement } from "@pnw/payroll";
+import { type RailNetwork, RailNetworkError, centsToMinor, recordTag } from "@pnw/rail";
 import { USDCX_PROGRAM } from "./balances";
+import { claimedTransfers, rivalPayments } from "./pay_outcome";
 import { type SentPaymentDeps, type SentRead, findSentPayment } from "./sent_payment";
 
 const ME = "aleo1" + "m".repeat(58);
@@ -113,7 +115,7 @@ function world(sent: Sent[], opts: { history?: unknown[] | "down" | "odd"; recor
 }
 
 const none = new Set<string>();
-const look = (deps: SentPaymentDeps, over: Partial<Parameters<typeof findSentPayment>[0]> = {}) => findSentPayment({ to: ANA, minor: PAY, since: FLOOR, claimed: none, deps, ...over });
+const look = (deps: SentPaymentDeps, over: Partial<Parameters<typeof findSentPayment>[0]> = {}) => findSentPayment({ to: ANA, minor: PAY, since: FLOOR, claimed: none, contested: false, deps, ...over });
 /** Shield's record list holding the record the payment set aside, spent, with the chain's tag for it. */
 const records = (tag: string | undefined) => [{ recordName: "Token", spent: true, recordPlaintext: PLAIN, ...(tag ? { tag } : {}) }];
 
@@ -200,6 +202,56 @@ describe("findSentPayment, without the record's tag", () => {
     expect(await look(w.deps, { minor: PAY + 2n })).toBe("unknown");
     expect(await look(w.deps, { since: FLOOR + 10 })).toBe("unknown");
     expect(await look(w.deps, { since: FLOOR + 4 })).toEqual({ found: tx(4) }); // the floor's own block counts
+  });
+
+  it("while another open payment is to the same payee for the same amount, a transfer known only by payee and amount is found for neither", async () => {
+    const attempt = await recordTag(PLAIN);
+    const transfer: Sent = { n: 4, to: ANA, minor: PAY, height: FLOOR + 4, spends: chainTag(7) };
+    const w = world([transfer], { records: records(chainTag(7)) });
+    expect(await look(w.deps)).toEqual({ found: tx(4) });
+    expect(await look(w.deps, { contested: true })).toBe("unknown");
+    // The payment whose record it spent, or whose request it was, is still found: those say which payment it is.
+    expect(await look(w.deps, { contested: true, attempt })).toEqual({ found: tx(4) });
+    expect(await look(w.deps, { contested: true, ids: [tx(4)] })).toEqual({ found: tx(4) });
+    // And it is never none for the other one: its record went into a join, but a transfer to them for the amount stands since its floor.
+    const other = world([{ n: 1, fn: "join", spends: chainTag(7) }, { ...transfer, spends: chainTag(6) }], { records: records(chainTag(7)) });
+    expect(await look(other.deps, { contested: true, attempt })).toBe("unknown");
+    // With nothing since the floor to them for the amount, a contested look still says none when the record went elsewhere.
+    const quiet = world([{ n: 1, fn: "join", spends: chainTag(7) }], { records: records(chainTag(7)) });
+    expect(await look(quiet.deps, { contested: true, attempt })).toBe("none");
+  });
+
+  it("two open runs pay the same person the same amount: the one transfer that landed settles the run that sent it, never the other", async () => {
+    // Run A's line was asked of Shield and never landed. Run B's, a week on, set aside another record; Shield called it
+    // failed and it landed. The books, as the pay panel reads them (pay_outcome.ts), and each line's look.
+    const recordB = PLAIN.replace("7group", "8group");
+    const [tagA, tagB] = [await recordTag(PLAIN), await recordTag(recordB)];
+    const cents = 17_00n;
+    const check = (settlement: Settlement) => ({ workerId: "ana", net: cents, settlement }) as Paycheck;
+    const runs = [
+      { id: "run-a", mode: "rail" as const, paychecks: [check({ status: "pending", failure: "No answer from Shield in time", attempt: tagA, since: FLOOR })] },
+      { id: "run-b", mode: "rail" as const, paychecks: [check({ status: "pending", failure: "Shield reported a problem (failed)", attempt: tagB, since: FLOOR + 100 })] },
+    ];
+    const links = new Map([["ana", ANA]]);
+    const minor = centsToMinor(cents);
+    const w = world([{ n: 2, to: ANA, minor, height: FLOOR + 120, spends: chainTag(8) }], {
+      records: [
+        { recordName: "Token", spent: false, recordPlaintext: PLAIN, tag: chainTag(7) },
+        { recordName: "Token", spent: true, recordPlaintext: recordB, tag: chainTag(8) },
+      ],
+    });
+    const lookFor = (runId: string, attempt: string, since: number) => {
+      const rival = rivalPayments(runs, links, { runId, workerId: "ana" }, { to: ANA, minor, attempt });
+      return findSentPayment({ to: ANA, minor, since, claimed: claimedTransfers(runs), contested: rival.contested, ...(rival.sameRecord ? {} : { attempt }), deps: w.deps });
+    };
+    // Run A reopened first: the transfer is at or after its floor, to the same person for the same amount, and is not taken for it.
+    expect(await lookFor("run-a", tagA, FLOOR)).toBe("unknown");
+    // Run B: it spent the record run B set aside.
+    expect(await lookFor("run-b", tagB, FLOOR + 100)).toEqual({ found: tx(2) });
+    // Once the books hold it as run B's, run A is no longer contested, and still isn't handed it.
+    runs[1]!.paychecks[0] = check({ status: "settled", reference: tx(2), height: FLOOR + 120 });
+    expect(rivalPayments(runs, links, { runId: "run-a", workerId: "ana" }, { to: ANA, minor, attempt: tagA })).toEqual({ contested: false, sameRecord: false });
+    expect(await lookFor("run-a", tagA, FLOOR)).toBe("unknown");
   });
 
   it("believes nothing in a history entry but its id: the explorer says what each transaction was", async () => {

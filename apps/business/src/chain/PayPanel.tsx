@@ -49,8 +49,7 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { transactionIdOf } from "./history_probe";
-import { FOUND_NOTE, payAgainTarget, unconfirmedLabel } from "./pay_outcome";
+import { FOUND_NOTE, claimedTransfers, payAgainTarget, rivalPayments, unconfirmedLabel } from "./pay_outcome";
 import { type SentRead, findSentPayment } from "./sent_payment";
 import { useShield } from "./shield";
 import { usePaystubDelivery } from "./usePaystubDelivery";
@@ -104,7 +103,7 @@ type Stage =
   /** `found`: Shield never confirmed it; the queue found it in the account's own transfers. */
   | { kind: "settled"; transactionId: string; feeMicrocredits?: bigint; found?: true }
   | { kind: "failed"; failure: string }
-  /** It may have gone through: never sent again unless the person says so. */
+  /** It may have gone through: it goes again only by spending the same record (Continue), or when the person says so (Pay again). */
   | { kind: "unconfirmed"; failure: string };
 
 /** What a paycheck looks like before the queue says anything about it this session. */
@@ -325,20 +324,20 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       const latest = books.payroll.runs.find((r) => r.id === runId)!;
       const network = explorerNetwork();
       // Before a payment is called unconfirmed, it is looked for in this account's own transfers. Transfers the
-      // books already hold as someone's settled paycheck are never found a second time.
-      const claimed = new Set(
-        books.payroll.runs
-          .flatMap((r) => r.paychecks)
-          .flatMap((p) => (p.settlement.status === "settled" ? [transactionIdOf(p.settlement.reference ?? "")] : []))
-          .filter((id): id is string => id !== null),
-      );
-      const findPayment = (q: PaymentQuery) =>
-        findSentPayment({
+      // books already hold as someone's settled paycheck are never found a second time, and while another open
+      // paycheck is to the same person for the same amount, one known only by payee and amount is found for neither.
+      const claimed = claimedTransfers(books.payroll.runs);
+      // Each person's account on the rail, payable right now or not: for telling whose a transfer could be, more is safer.
+      const accounts = new Map((books.rail?.links ?? []).map((l) => [l.workerId, l.address]));
+      const findPayment = (q: PaymentQuery) => {
+        const rival = rivalPayments(books.payroll.runs, accounts, { runId, workerId: q.workerId }, q);
+        return findSentPayment({
           to: q.to,
           minor: q.minor,
           ids: q.ids,
           claimed,
-          ...(q.attempt ? { attempt: q.attempt } : {}),
+          contested: rival.contested,
+          ...(q.attempt && !rival.sameRecord ? { attempt: q.attempt } : {}),
           ...(q.since !== undefined ? { since: q.since } : {}),
           deps: {
             wallet: {
@@ -351,6 +350,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
             cache: reads.current,
           },
         });
+      };
       await runPayQueue({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
       loadedFor.current = null; // re-read the balance
       setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
