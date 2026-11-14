@@ -33,6 +33,18 @@ export function isPairingCancelled(message: string): boolean {
 }
 
 /**
+ * Shield refuses a call to a program it was not asked to allow when this site connected ("<id> is
+ * not in the allowed programs, request it when connect"). The list it is asked for grows with the
+ * app (`WALLET_PROGRAMS` in @pnw/wallet), and a connection made before a program joined the list
+ * keeps the old one. The cure is the person's: connect again. This says so in their words, or
+ * returns null for any other error.
+ */
+export function notAllowedProgramHint(message: string): string | null {
+  if (!/not in the allowed programs/i.test(message)) return null;
+  return "Shield was connected to this site before this part of it existed, so it hasn't been asked to allow it. In Shield, disconnect this site, then connect again here and try once more. Nothing was sent.";
+}
+
+/**
  * Whether a fresh connect may be asked for yet: only once the provider shows the old pairing
  * gone. Asking straight after the disconnect lets the provider fold "forget the wallet" and
  * "pick it again" into one update, so it never sees the change, keeps showing the closed pairing

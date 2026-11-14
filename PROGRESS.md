@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-14](progress/2026-11/2026-11-14.md)
+
+- [The wallet asks Shield for every program the app calls](progress/2026-11/2026-11-14.md#2026-11-14--the-wallet-asks-shield-for-every-program-the-app-calls)
+
 ### [2026-11-12](progress/2026-11/2026-11-12.md)
 
 - [Signing runs in two jobs; the session hooks name main in full](progress/2026-11/2026-11-12.md#2026-11-12--signing-runs-in-two-jobs-the-session-hooks-name-main-in-full)
