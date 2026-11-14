@@ -42,6 +42,14 @@ is anchored (one `anchor_event`). This document is about **when and how a busine
      means the range matched too, since any later movement is recorded as well.
    - **No paycheck in the range is still settling.** Wait for it to confirm, or resolve it.
    - **No draft dated in the range** (an unsent invoice, an unposted bill): send, post or delete it.
+   - **Every outflow kept out of the books in the range is checked.** A movement out of the Shield
+     account that was excluded in For review still left the account, and the Shield check counts
+     it as explained, so the line lists each one dated in the range (date, amount, account) and
+     passes when there are none or the business has ticked that it checked them
+     (`closeChecks`/`closeRange` take `excludedChecked`, asked again at each close). The close
+     panel doesn't offer the tick yet: until it does, such an outflow is reviewed again in For
+     review (recorded, or matched to its entry) before the range closes. The Dashboard's Shield
+     card and the close's Shield line list the same outflows under Matches.
 3. **Review screen.** The range, entry counts, totals (income, expenses, the cash and Shield
    balances at the end date), and exactly what goes on chain: one 32-byte hash and the block
    height it lands in. No amounts, names or accounts.

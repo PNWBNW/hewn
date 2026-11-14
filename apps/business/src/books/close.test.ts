@@ -4,7 +4,7 @@ import { emptySales } from "@pnw/sales";
 import { checkPeriodProof, periodProofToJson, readPeriodProof } from "@pnw/ledger";
 import { closeChecks, closeRange, closeReminder, lockCloses, nextStart, periodProofFor, proofFileName, recordAnchor, reopenCloses, standingCloses, suggestedEnd, validateClosing } from "./close";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
-import { addReviewItems } from "./review";
+import { type ReviewItem, addReviewItems, excludeItem } from "./review";
 
 const SECRET = "ab".repeat(32);
 const TX = `at1${"q".repeat(58)}`;
@@ -65,7 +65,7 @@ describe("closing a period", () => {
     const c = october();
     const sales = { ...emptySales(), invoices: [{ id: "i1", number: "INV-1", customerId: "c", date: "2026-10-30", dueDate: "2026-11-30", terms: "net30", lines: [], taxRateBp: 0, state: "draft" }] } as unknown as Company["sales"];
     const lines = closeChecks({ ...c, sales }, "2026-10-25", "2026-10-31", "2026-11-02");
-    expect(lines.map((l) => [l.id, l.ok])).toEqual([["date", true], ["review", true], ["payroll", true], ["drafts", false]]);
+    expect(lines.map((l) => [l.id, l.ok])).toEqual([["date", true], ["review", true], ["payroll", true], ["drafts", false], ["excluded", true]]);
     expect(lines.find((l) => l.id === "drafts")).toMatchObject({ href: "/sales" });
   });
 
@@ -166,5 +166,35 @@ describe("the period proof of a close", () => {
   it("names the file for the business and the range", () => {
     expect(proofFileName("Day & Co.", { start: "2026-10-25", end: "2026-10-31" })).toBe("day-co-period-proof-2026-10-25-to-2026-10-31.json");
     expect(proofFileName("***", { start: "2026-10-25", end: "2026-10-31" })).toBe("books-period-proof-2026-10-25-to-2026-10-31.json");
+  });
+});
+
+describe("outflows kept out of the books, at the close", () => {
+  const out = (n: number, date: string, direction: "in" | "out" = "out", within = false): ReviewItem => ({
+    id: `at1${String(n).padStart(58, "x")}`,
+    date,
+    direction,
+    minor: "2500000000",
+    counterparty: `aleo1${"t".repeat(58)}`,
+    kind: "transfer_private",
+    status: "new",
+    ...(within ? { within: true as const } : {}),
+  });
+  const excluded = (c: Company, ...items: ReviewItem[]) => items.reduce((x, i) => excludeItem(x, i.id), addReviewItems(c, items));
+
+  it("excluded: refuses to close while a $2,500 outflow kept out of the books is unticked, and closes once it is", () => {
+    const c = excluded(october(), out(1, "2026-10-28"));
+    const line = closeChecks(c, "2026-10-25", "2026-10-31", "2026-11-02").find((l) => l.id === "excluded");
+    expect(line).toMatchObject({ ok: false, href: "/transactions?tab=review", outflows: [{ date: "2026-10-28", minor: 2_500_000_000n }] });
+    expect(line!.detail).toContain("2,500.00");
+    expect(() => closeRange(c, "2026-10-31", opts())).toThrow(/kept out of the books/);
+    expect(closeRange(c, "2026-10-31", { ...opts(), excludedChecked: true }).company.books.marks.closedThrough).toBe("2026-10-31");
+  });
+
+  it("excluded: leaves out an inflow, a move within the account, and an outflow dated after the range", () => {
+    const c = excluded(october(), out(1, "2026-10-28", "in"), out(2, "2026-10-29", "out", true), out(3, "2026-11-01"));
+    expect(closeChecks(c, "2026-10-25", "2026-10-31", "2026-11-02").find((l) => l.id === "excluded")).toMatchObject({ ok: true, outflows: [] });
+    expect(() => closeRange(c, "2026-10-31", opts())).not.toThrow();
+    expect(() => closeRange(c, "2026-11-01", opts())).toThrow(/kept out of the books/);
   });
 });

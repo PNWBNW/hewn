@@ -26,6 +26,7 @@ import {
   buildPeriodProof,
   closeThrough,
   entriesInRange,
+  formatCents,
   lockThrough,
   nextDay,
   periodEnd,
@@ -35,7 +36,9 @@ import {
   reopenFrom,
 } from "@pnw/ledger";
 import type { Company } from "./company";
-import { payableLinks } from "./rail";
+import { minorToCents } from "./opening";
+import { payableLinks, shortAddress } from "./rail";
+import { type ExcludedOutflow, excludedOutflows } from "./reconcile";
 
 export type CloseRecord = {
   start: IsoDate;
@@ -130,19 +133,34 @@ export function suggestedEnd(start: IsoDate, today: IsoDate): IsoDate {
 }
 
 export type CheckLine = {
-  id: "date" | "review" | "payroll" | "drafts";
+  id: "date" | "review" | "payroll" | "drafts" | "excluded";
   ok: boolean;
   label: string;
   /** What's left, when it doesn't pass. */
   detail?: string;
   /** Where to fix it. */
   href?: string;
+  /** On the `excluded` line: the outflows kept out of the books, dated in the range. */
+  outflows?: ExcludedOutflow[];
 };
+
+/** How an outflow kept out of the books reads in the checklist: its date, amount and account. */
+const outflowText = (o: ExcludedOutflow) => [o.date, formatCents(minorToCents(o.minor)), ...(o.counterparty ? [shortAddress(o.counterparty)] : [])].join(" · ");
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** The checklist for closing `start` through `end` (docs/CLOSE_PERIOD.md). Every line must pass. */
-export function closeChecks(company: Pick<Company, "books" | "review" | "payroll" | "sales">, start: IsoDate, end: IsoDate, today: IsoDate): CheckLine[] {
+/**
+ * The checklist for closing `start` through `end` (docs/CLOSE_PERIOD.md). Every line must pass.
+ * Outflows kept out of the books in the range pass only once the business has ticked that it
+ * checked them (`excludedChecked`, asked again at each close).
+ */
+export function closeChecks(
+  company: Pick<Company, "books" | "review" | "payroll" | "sales">,
+  start: IsoDate,
+  end: IsoDate,
+  today: IsoDate,
+  options: { excludedChecked?: boolean } = {},
+): CheckLine[] {
   const waiting = (company.review?.items ?? []).filter((i) => i.status === "new" && i.date <= end).length;
   let settling = 0;
   for (const run of company.payroll.runs) {
@@ -151,6 +169,8 @@ export function closeChecks(company: Pick<Company, "books" | "review" | "payroll
   }
   const drafts = company.sales.invoices.filter((i) => i.state === "draft" && i.date <= end).length;
   const dateOk = DATE.test(end) && end >= start && end < today;
+  const outflows = excludedOutflows(company.review).filter((o) => o.date >= start && o.date <= end);
+  const excludedOk = outflows.length === 0 || options.excludedChecked === true;
   return [
     {
       id: "date",
@@ -175,6 +195,18 @@ export function closeChecks(company: Pick<Company, "books" | "review" | "payroll
       ok: drafts === 0,
       label: "No draft invoices dated in the range",
       ...(drafts ? { detail: `${plural(drafts, "draft invoice", "draft invoices")}: send or delete them`, href: "/sales" } : {}),
+    },
+    {
+      id: "excluded",
+      ok: excludedOk,
+      label: "Every outflow kept out of the books in the range is checked",
+      outflows,
+      ...(excludedOk
+        ? {}
+        : {
+            detail: `${plural(outflows.length, "outflow", "outflows")} kept out of the books: ${outflows.map(outflowText).join("; ")}. Review ${outflows.length === 1 ? "it" : "them"} again in For review`,
+            href: "/transactions?tab=review",
+          }),
     },
   ];
 }
@@ -201,16 +233,17 @@ const fromHex = (hex: string): Uint8Array => Uint8Array.from(hex.match(/../g)!.m
 
 /**
  * Closes the books through `end`. `newSecret` is 32 random hex bytes, used only for the first
- * close; `shieldMatches` is the chain side's check. Throws unless every line passes.
+ * close; `shieldMatches` is the chain side's check; `excludedChecked` the business's tick on the
+ * outflows kept out of the books in the range. Throws unless every line passes.
  */
 export function closeRange(
   company: Company,
   end: IsoDate,
-  options: { today: IsoDate; now: string; shieldMatches: boolean; newSecret: string },
+  options: { today: IsoDate; now: string; shieldMatches: boolean; newSecret: string; excludedChecked?: boolean },
 ): { company: Company; record: CloseRecord } {
   const start = nextStart(company);
   if (!start) throw new CloseError("There's nothing in the books to close yet");
-  const failing = closeChecks(company, start, end, options.today).filter((c) => !c.ok);
+  const failing = closeChecks(company, start, end, options.today, { excludedChecked: options.excludedChecked }).filter((c) => !c.ok);
   if (failing.length) throw new CloseError(failing[0]!.detail ?? failing[0]!.label);
   if (!options.shieldMatches) throw new CloseError("The Shield check has to say Matches before closing");
   const closing: Closing = company.closing ?? { version: 1, secret: options.newSecret, records: [] };

@@ -9,7 +9,10 @@
 //
 // The two can differ for reasons that are fine, and the check says which:
 //   - movements waiting in For review: on the network, not yet in the books;
-//   - movements excluded on purpose: on the network, kept out of the books;
+//   - movements excluded on purpose: on the network, kept out of the books.
+//     Every result lists the outflows among them (`excludedOut`), since money
+//     that left the account but not the books is what a business most needs
+//     to see; the close checklist lists them too (close.ts);
 //   - a fraction of a cent: the books keep cents, the coin keeps six decimals,
 //     so each accepted movement and the opening balance may drop under a cent;
 //   - pay still settling: a rail paycheck is in the books from the moment the
@@ -32,7 +35,10 @@ import type { Company } from "./company";
 import { fundBalances, isShieldFamily } from "./funds";
 import { MINOR_PER_CENT, minorToCents } from "./opening";
 
-export type Reconciliation =
+/** A movement out of the Shield account that the business excluded from the books in For review. */
+export type ExcludedOutflow = { id: string; date: IsoDate; minor: bigint; counterparty?: string };
+
+export type Reconciliation = (
   /** The books don't follow a Shield account yet: nothing to compare. */
   | { kind: "not_started" }
   /** The account's stablecoin isn't fully read (Shield not connected, or a read failed). */
@@ -44,7 +50,19 @@ export type Reconciliation =
   /** They differ, and pay is still settling: check again once it has. */
   | { kind: "settling"; books: Cents; shield: Cents; count: number }
   /** They differ by an amount nothing explains: `gap` is Shield minus the books, in minor units. */
-  | { kind: "off"; books: Cents; shield: Cents; gap: bigint; waiting: number };
+  | { kind: "off"; books: Cents; shield: Cents; gap: bigint; waiting: number }
+) & {
+  /** Outflows kept out of the books, oldest first: the check counts them as explained, and says so. */
+  excludedOut: ExcludedOutflow[];
+};
+
+/** Outflows excluded in For review (a move within the account isn't one), oldest first. */
+export function excludedOutflows(review: Company["review"]): ExcludedOutflow[] {
+  return (review?.items ?? [])
+    .filter((i) => i.status === "excluded" && i.direction === "out" && !i.within)
+    .map((i) => ({ id: i.id, date: i.date, minor: BigInt(i.minor), ...(i.counterparty ? { counterparty: i.counterparty } : {}) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
 
 /** Signed: money in adds to Shield, money out takes from it. */
 const signed = (direction: "in" | "out", minor: bigint) => (direction === "in" ? minor : -minor);
@@ -57,9 +75,10 @@ export function reconcileShield(
   company: Pick<Company, "books" | "funds" | "review" | "rail" | "payroll">,
   shieldMinor: bigint | null,
 ): Reconciliation {
-  if (!company.rail?.start) return { kind: "not_started" };
+  const excludedOut = excludedOutflows(company.review);
+  if (!company.rail?.start) return { kind: "not_started", excludedOut };
   const books = fundBalances(company).total;
-  if (shieldMinor === null) return { kind: "unread", books };
+  if (shieldMinor === null) return { kind: "unread", books, excludedOut };
   const shield = minorToCents(shieldMinor);
 
   // What the books already account for, in minor units: everything posted, plus the movements
@@ -83,9 +102,9 @@ export function reconcileShield(
   // The opening balance dropped up to a cent less one minor unit; nothing else rounds.
   const residual = shieldMinor - books * MINOR_PER_CENT - decided;
   const withinRounding = (r: bigint) => r >= 0n && r < MINOR_PER_CENT;
-  if (withinRounding(residual) && waitingCount === 0) return { kind: "matches", books, shield };
+  if (withinRounding(residual) && waitingCount === 0) return { kind: "matches", books, shield, excludedOut };
   if (withinRounding(residual - waitingMinor)) {
-    return waitingCount === 0 ? { kind: "matches", books, shield } : { kind: "waiting", books, shield, count: waitingCount, minor: waitingMinor };
+    return waitingCount === 0 ? { kind: "matches", books, shield, excludedOut } : { kind: "waiting", books, shield, count: waitingCount, minor: waitingMinor, excludedOut };
   }
 
   // Rail pay posted from the Shield account whose transfer hasn't confirmed: the books already
@@ -95,9 +114,9 @@ export function reconcileShield(
     if (run.mode !== "rail" || !isShieldFamily(company, run.bankAccountId)) continue;
     for (const p of run.paychecks) if (p.net > 0n && p.settlement.status !== "settled") settling += 1;
   }
-  if (settling > 0) return { kind: "settling", books, shield, count: settling };
+  if (settling > 0) return { kind: "settling", books, shield, count: settling, excludedOut };
 
-  return { kind: "off", books, shield, gap: residual - waitingMinor, waiting: waitingCount };
+  return { kind: "off", books, shield, gap: residual - waitingMinor, waiting: waitingCount, excludedOut };
 }
 
 export type DifferenceInput = {
