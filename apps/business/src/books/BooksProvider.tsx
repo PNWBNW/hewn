@@ -646,9 +646,12 @@ export function BooksProvider({ children }: { children: ReactNode }) {
         throw e instanceof VaultError && e.code === "WRONG_RECOVERY_KEY" ? new AccountError("That recovery key doesn't open this backup") : e;
       });
       const s = await unlockVault(record, secret);
-      companyFromJson(await s.read()); // the books inside are intact
+      const json = await s.read();
+      companyFromJson(json); // the books inside are intact
       for (const a of backup.attachments) await s.openAttachment(a); // and every file
-      await store.replace(s.record, backup.attachments);
+      // The same books in a new write, as `recoverAccounts` saves them: a tab still open on these
+      // books sees a change and stops, instead of saving the old passphrase's record back.
+      await store.replace(await s.write(json), backup.attachments);
       writeAccountFlag();
       await open(s, stay);
     },

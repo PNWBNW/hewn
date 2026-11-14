@@ -74,3 +74,39 @@ describe("a recovery key made while the books are open", () => {
     await expect(findAccounts(store, "ana", PASS, FAST)).rejects.toThrow();
   }, 60_000);
 });
+
+describe("a backup file restored with the recovery key while the books are open elsewhere", () => {
+  it("is written as a new save of the books, so the open tab stops instead of saving the old passphrase's record back", async () => {
+    const { addRecovery, exportBackup, parseBackup, resetWithRecovery } = await import("@pnw/vault");
+    const { accountSecret, vaultIdFor } = await import("./account");
+    const FAST = { iterations: 1_000 };
+    const NEXT = "a whole new phrase!";
+    const store = new MemoryStore();
+    const secret = accountSecret("ana", PASS);
+    const id = await vaultIdFor("ana", "business");
+    const made = await addRecovery((await createVault(secret, '{"n":0}', { id, ...FAST })).record, secret);
+    await store.save(made.record);
+    // A backup of the books exactly as they are stored, and a tab open on them.
+    const file = exportBackup((await store.load(id))!, []);
+    const session = await unlockVault((await store.load(id))!, secret);
+    const tab = { session, last: session.record.payload.iv as string | null };
+
+    // What the app does on Restore → from a file, with the recovery key (BooksProvider `restoreWithRecovery`).
+    const backup = parseBackup(file);
+    const next = accountSecret("ana", NEXT);
+    const s = await unlockVault(await resetWithRecovery(backup.record, made.code, next, FAST), next);
+    const json = await s.read();
+    await store.replace(await s.write(json), backup.attachments);
+
+    await expect(saveOver(store, tab.session, '{"n":1}', tab.last, undefined)).rejects.toThrow(CHANGED_ELSEWHERE);
+    expect(await (await unlockVault((await store.load(id))!, next)).read()).toBe('{"n":0}');
+    await expect(unlockVault((await store.load(id))!, secret)).rejects.toThrow();
+    // And the provider does write the books again before it replaces them.
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const provider = readFileSync(join(__dirname, "BooksProvider.tsx"), "utf8");
+    const restore = provider.slice(provider.indexOf("const restoreWithRecovery = useCallback("), provider.indexOf("const restoreFromAccount = useCallback("));
+    expect(restore).toContain("await store.replace(await s.write(json), backup.attachments);");
+    expect(restore).not.toContain("store.replace(s.record");
+  }, 60_000);
+});
