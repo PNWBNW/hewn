@@ -247,6 +247,21 @@ describe("decideLines", () => {
     ]);
   });
 
+  it("two payments to one account over one period read the same lines", () => {
+    // Matched by payee, period and amount alone: at one amount both are sent to the one record named, so a caller doesn't mark such a run.
+    const twice = listed(marker(3, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(1), minor: 500n }]), 100);
+    expect(decideLines([twice], [payment("w1", ADDR(1), 500n), payment("w2", ADDR(1), 500n)], [ID(3)])).toEqual([
+      { workerId: "w1", kind: "resume", marker: ID(3), since: 100, tag: TAG(1) },
+      { workerId: "w2", kind: "resume", marker: ID(3), since: 100, tag: TAG(1) },
+    ]);
+    // At two amounts, each is another amount to the other: neither is paid from here.
+    const apart = listed(marker(4, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(1), minor: 510n }]), 100);
+    expect(decideLines([apart], [payment("w1", ADDR(1), 500n), payment("w2", ADDR(1), 510n)], [ID(4)])).toEqual([
+      { workerId: "w1", kind: "refused", why: "other-amount" },
+      { workerId: "w2", kind: "refused", why: "other-amount" },
+    ]);
+  });
+
   it("decides each payment on its own, in the order given", () => {
     const out = decideLines([phone], [payment("w9", ADDR(9), 1n), payment("w1", ADDR(1), 2n), payment("w2", ADDR(2), 700n)]);
     expect(out.map((d) => [d.workerId, d.kind])).toEqual([
@@ -277,6 +292,13 @@ describe("beaten", () => {
     expect(beaten([phone, again], ID(5))).toBe(false);
     // The same marker listed twice is not its own rival.
     expect(beaten([laptop, { ...laptop, height: 99 }], ID(2))).toBe(false);
+  });
+
+  it("a marker that repeats a payment already marked reads as beaten by it: a marker holds fresh payments only", () => {
+    const repeats = listed(marker(6, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(4), minor: 300n }]), 120);
+    expect(beaten([phone, repeats], ID(6))).toBe(true);
+    const freshOnly = listed(marker(7, [{ to: ADDR(4), minor: 300n, tag: TAG(7) }]), 120);
+    expect(beaten([phone, freshOnly], ID(7))).toBe(false);
   });
 
   it("can't be said of a marker that isn't listed", () => {

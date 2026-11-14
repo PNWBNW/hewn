@@ -30,6 +30,10 @@
 //     progress elsewhere), to be settled only by looking for the payment
 //     itself.
 //
+// A payment is matched by payee, period and amount, so two payments to one
+// account over one period are not told apart: both read the same lines. A
+// caller doesn't mark a run that holds two.
+//
 // Two devices can mark the same payment at nearly the same moment. Each reads
 // the markers again once its own is listed, and the later one stands down
 // (`beaten`).
@@ -244,7 +248,9 @@ export function decideLines(listed: readonly ListedMarker[], payments: readonly 
 /**
  * Whether the marker with this id came second: a marker accepted before it holds a live line for
  * one of its payees over a period that overlaps its own. The device that sent it then pays nothing
- * for this run and drops the records it set aside. Throws when no marker with this id is listed.
+ * for this run and drops the records it set aside. Every line of the marker is read, so a marker
+ * holds only the payments `decideLines` called fresh: one that repeats a payment already marked
+ * reads as beaten by it. Throws when no marker with this id is listed.
  */
 export function beaten(listed: readonly ListedMarker[], id: string): boolean {
   const ordered = orderMarkers(listed);
