@@ -1,16 +1,39 @@
 // ---------------------------------------------------------------------------
-// The pay queue: settles a posted rail run, one `transfer_private` per payee.
+// The pay queue: settles a posted rail run, one `transfer_private` per payee,
+// one payee at a time.
 //
-//   1. Plan: which record pays whom (plan.ts); split records first if there
-//      aren't enough (sequential, each split spends the last one's remainder).
+//   1. Plan: can the run be paid from the records the wallet lists (plan.ts)?
+//      If not, nothing is asked of Shield.
 //   2. Prove once: the sender's freeze-list exclusion proof, shared by every
 //      transfer (exclusion.ts).
-//   3. Fire every transfer at once. Each: ask the wallet (Shield prompts
-//      once) → poll the wallet until it reports the on-chain id and
-//      acceptance, or gives up → read the confirmed transaction back from
-//      the explorer for the fee the employer actually paid and the block
-//      height → report settled; a definite failure → report failed;
-//      anything else → report unconfirmed.
+//   3. Pay in the run's order, with one Shield prompt open at a time. For
+//      each payee: read the wallet's records again and pick the one this
+//      payment spends (plan.ts `pickRecord`) → the caller keeps that record's
+//      tag → ask the wallet (Shield prompts once) → poll the wallet until it
+//      reports the on-chain id and acceptance, or gives up → read the
+//      confirmed transaction back from the explorer for the fee the employer
+//      actually paid and the block height → report settled → wait until the
+//      wallet lists what the payment left (its change), and go on to the
+//      next payee. A definite failure → report failed; anything else →
+//      report unconfirmed.
+//
+// Nothing is split beforehand. A transfer spends one record whole and the
+// rest comes back as one new record, so with a single record on the rail each
+// payment is made from the change of the one before it. Shield combines an
+// account's records on its own, and a record it is combining can't be relied
+// on to be there when a prompt is approved; a run that never holds two fresh
+// records at once gives it nothing to combine.
+//
+// Where the run stops (2026-11-14). The first payment that doesn't settle
+// ends the run: the payees after it are not asked for, nothing is kept or
+// said for them, and the next run takes them up (`stalled`, with where it
+// stopped). So a prompt left to expire, or turned down, costs a pause, never
+// a line. The run also stops when, two minutes after a payment, the wallet
+// still lists no record that covers the next one. One case is carried on
+// from: the record a payment set aside went into something else before
+// Shield spent it (money arrived and Shield combined the two) and the look
+// in the account's transfers says nothing paid them. That payment is asked
+// again, from a record listed now, its new tag kept first.
 //
 // What is definite (2026-11-14). Shield has two answers that mean nothing
 // moved: a rejection that says why, and an approval left until it expired
@@ -33,27 +56,36 @@
 // run, a paycheck with that tag is sent again only by spending the same
 // record, so if the first transfer is still on its way the network lets
 // only one through; if the record is gone, the payment may have gone out,
-// and it is reported unconfirmed instead (the person checks Shield's
-// activity, and pays again only by choice). A transfer Shield never answered
-// for, or accepted without an id, is unconfirmed too, never failed, and an
-// explorer that can't be reached only delays confirming.
+// and it is looked for and reported, never asked again on its own (the
+// person checks Shield's activity, and pays again only by choice). No other
+// payee is given a record a paycheck has set aside. A transfer Shield never
+// answered for, or accepted without an id, is unconfirmed too, never failed,
+// and an explorer that can't be reached only delays confirming.
 //
 // Failures are per payee. The queue takes whatever is still pending or
-// failed in the run, so calling it again resumes: a pending paycheck that
-// already carries the wallet's id for its transfer (sent before a reload) is
-// polled, never sent twice. The caller writes each outcome to the vault as
-// the events arrive; the queue itself keeps no state.
+// failed in the run, so calling it again resumes, after a pause or a reload
+// alike: a pending paycheck that already carries the wallet's id for its
+// transfer is polled, never sent twice; one that carries only its record's
+// tag is asked again with that record, or looked for if the record is gone.
+// Those are dealt with first, and whatever they turn out to be, the payees
+// never yet asked for are then paid in order. The caller writes each outcome
+// to the vault as the events arrive; the queue itself keeps no state.
 // ---------------------------------------------------------------------------
 
 import type { PayRun, Paycheck } from "@pnw/payroll";
 import { TransactionRejected, confirmTransaction, type ConfirmedTransaction } from "./confirm";
 import { type MerkleTreeApi, exclusionProofFor } from "./exclusion";
-import { type RecordRef, type SplitStep, type Transfer, type TransferPlan, planTransfers } from "./plan";
+import { pickRecord, planTransfers } from "./plan";
 import { USDCX_PROGRAM, type TokenRecord, centsToMinor, fetchTokenRecords } from "./records";
 import { type Clock, RailError, type RailNetwork, type RailWallet, type Sleep, stoppedBeforeWallet, systemClock, systemSleep } from "./types";
 
 export const TRANSFER_FUNCTION = "transfer_private";
-export const SPLIT_FUNCTION = "split";
+
+/**
+ * How many times one payment is asked of Shield in a run. It is asked again only when the record it
+ * set aside went into something else and the look says nothing paid them.
+ */
+export const MAX_ASKS = 3;
 
 export type PayQueueLimits = {
   /** How long to wait on the wallet for one transaction. Default 15 minutes. */
@@ -62,7 +94,7 @@ export type PayQueueLimits = {
   resumeCapMs: number;
   /** After the wallet reports acceptance, how long to wait for the explorer to index it. Default 3 minutes. */
   confirmCapMs: number;
-  /** After a split, how long to wait for the wallet to show the new records. Default 2 minutes. */
+  /** After a payment, how long to wait for the wallet to list what it left before the next one. Default 2 minutes. */
   recordWaitMs: number;
   recordPollMs: number;
   pollMinMs: number;
@@ -87,11 +119,14 @@ export const DEFAULT_LIMITS: PayQueueLimits = {
 };
 
 export type PayQueueEvent =
-  | { kind: "planned"; transfers: number; splits: number; change: bigint }
-  | { kind: "splitting"; step: number; of: number }
-  | { kind: "split_done"; step: number; of: number }
-  /** Waiting on the wallet to prove and sign (Shield is showing its prompt). */
-  | { kind: "approving"; workerId: string }
+  /** `transfers`: how many payments this run of the queue will ask for or, sent on an earlier run, ask about. */
+  | { kind: "planned"; transfers: number }
+  /**
+   * Waiting on the wallet to prove and sign (Shield is showing its prompt, the only one open). `to`
+   * and `minor` are the payee's account and the amount exactly as Shield was given them; `step` of
+   * `of`: where this payment comes among the ones this run asks for.
+   */
+  | { kind: "approving"; workerId: string; to: string; minor: bigint; step: number; of: number }
   /** The wallet took it; `reference` is the wallet's id for the transfer, to resume from after a reload. */
   | { kind: "sent"; workerId: string; reference: string; attempt?: string; since?: number }
   /** The wallet reported the on-chain id. */
@@ -104,7 +139,12 @@ export type PayQueueEvent =
    * Its outcome isn't known: never sent again on its own. `failure` says where it stands and what to
    * check; `endedAt` is when the try ended (the first time it was reported, kept after that).
    */
-  | { kind: "unconfirmed"; workerId: string; failure: string; reference?: string; attempt?: string; since?: number; endedAt?: string };
+  | { kind: "unconfirmed"; workerId: string; failure: string; reference?: string; attempt?: string; since?: number; endedAt?: string }
+  /** The run stopped before payment `at` of `of` was made: that one and the ones after it wait for the next run. `why` says what stopped it. */
+  | ({ kind: "stalled" } & Stall);
+
+/** Where a run stopped short: before payment `at` of the `of` it set out to ask for was made, and why. */
+export type Stall = { at: number; of: number; why: string };
 
 /** One payment the queue asks about: who it was to, how much, and what is known of the try. */
 export type PaymentQuery = {
@@ -144,9 +184,10 @@ export type PayQueueContext = {
   /** Test seam for the SDK's Merkle tree. */
   tree?: MerkleTreeApi;
   /**
-   * Called, and awaited, before Shield is asked for each transfer, with the tag of the record it
-   * will spend and the chain's height when the payment was first asked for (when the explorer
-   * said): the caller keeps both (books/PayPanel). If it throws, that transfer isn't sent.
+   * Called, and awaited, just before Shield is asked for each transfer, with the tag of the record
+   * it will spend and the chain's height when the payment was first asked for (when the explorer
+   * said): the caller keeps both (books/PayPanel). If it throws, that transfer isn't sent, and the
+   * run stops there.
    */
   beforeSend?: (workerId: string, attempt: string, since?: number) => Promise<void>;
   /**
@@ -161,6 +202,8 @@ export type PayQueueResult = {
   failed: { workerId: string; failure: string }[];
   /** May have gone through: check before paying again. */
   unconfirmed: { workerId: string; failure: string }[];
+  /** Set when the run stopped before everyone it set out to ask for was paid. */
+  stalled?: Stall;
 };
 
 /** A transfer whose outcome isn't known: it may have gone through. `said`: the wallet's own words, when it gave any. */
@@ -194,8 +237,11 @@ const NOT_PAID_RECORD_USED = `${NOT_PAID}: the record set aside for this payment
 const RECORD_GONE = `The record this payment was spending is gone, so it may have gone through. ${CHECK}`;
 /** Shield gave up on the request, or threw on it, in words that don't say whether the transfer reached the chain. */
 const problem = (said: string) => `Shield reported a problem (${said.replace(/\s+/g, " ").trim().slice(0, 200)}); the payment may still go through. ${CHECK}`;
-/** What a payee reads when the record their payment needed wasn't prepared and Shield gave no words of its own for why. */
-export const SPLIT_NOT_FINISHED = "Preparing the record for this payment didn't finish, so the payment wasn't sent";
+// Why a run stopped, to follow "Stalled at 2 of 3: ".
+/** The wallet lists no record that covers the next payment, two minutes after the last one. */
+export const NOT_LISTED = "Shield hasn't listed a record that covers the next payment yet (what the last payment left can take a minute to show), so nothing more was asked for";
+/** A payment didn't settle: its own line says what became of it. */
+export const NOT_ASKED = "that payment didn't settle, so the ones after it weren't asked for";
 
 /** A tag for a record: the first 16 bytes of SHA-256 over its plaintext, hex. Enough to find it again; the plaintext itself isn't kept. */
 export async function recordTag(plaintext: string): Promise<string> {
@@ -240,6 +286,12 @@ async function latestHeight(network: RailNetwork): Promise<number | undefined> {
 /** What is kept with a payment between runs: the wallet's id for it, its record's tag, its floor, and when its last try ended. */
 type Kept = { reference?: string; attempt?: string; since?: number; endedAt?: string };
 type Line = { workerId: string; to: string; minor: bigint };
+/** A record as the wallet lists it now, with its tag. */
+type Listed = TokenRecord & { tag: string };
+/** What became of asking for one transfer. "none": its record went into something else and nothing paid them, so it may be asked again. */
+type Outcome = "settled" | "stopped" | "none";
+
+const total = (records: readonly TokenRecord[]): bigint => records.reduce((sum, r) => sum + r.amount, 0n);
 
 class Timer {
   constructor(
@@ -260,6 +312,11 @@ class Timer {
       interval = Math.min(Math.round(interval * 1.5), this.limits.pollMaxMs);
     }
   }
+
+  /** `probe` now, and if it has nothing yet, polled until it has or `capMs` passes. */
+  async soon<T>(capMs: number, probe: () => Promise<T | null | undefined>): Promise<T | undefined> {
+    return (await probe()) ?? (await this.until(capMs, probe));
+  }
 }
 
 export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult> {
@@ -277,8 +334,11 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
 
   // Every transaction this run has settled a payment with: one transfer settles one payment.
   const used = new Set<string>();
+  // Whether a payment settled in this run of the queue: what it left may not be listed yet, so a record is worth waiting for.
+  let arriving = false;
   const settle = (workerId: string, c: ConfirmedTransaction, found = false) => {
     used.add(c.transactionId);
+    arriving = true;
     const entry = {
       workerId,
       transactionId: c.transactionId,
@@ -297,6 +357,8 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     result.unconfirmed.push({ workerId, failure });
     emit({ kind: "unconfirmed", workerId, failure, ...kept });
   };
+  /** An unconfirmed line, with when its try ended: the first time it was reported, kept after that. */
+  const ended = (kept: Kept): Kept & { endedAt: string } => ({ ...kept, endedAt: kept.endedAt ?? new Date(clock.now()).toISOString() });
 
   /** The caller's look in the account's own transfers; "unknown" without one, when it throws, or when it names a transfer already used. */
   const look = async (line: Line, kept: Kept, ids: readonly string[]): Promise<PaymentLookup> => {
@@ -319,24 +381,35 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
    * if it says the transaction was rejected). Otherwise it is unconfirmed, and `failure` says which
    * of three things is known: its record went into something else (not paid); its try ended a while
    * ago and its record is still unspent (`listed`: not seen on chain yet); or neither (`why`).
+   * With `again`, a payment known not to have been paid is not reported: "none" comes back instead,
+   * for the caller to ask for it again from another record.
    */
-  const unknown = async (line: Line, why: string, kept: Kept, ids: readonly string[], listed = false): Promise<void> => {
+  const unknown = async (line: Line, why: string, kept: Kept, ids: readonly string[], listed = false, again = false): Promise<Outcome> => {
     const answer = await look(line, kept, ids);
     if (typeof answer === "object") {
       try {
-        return settle(line.workerId, (await confirmTransaction(network, answer.found)) ?? { transactionId: answer.found }, true);
+        settle(line.workerId, (await confirmTransaction(network, answer.found)) ?? { transactionId: answer.found }, true);
+        return "settled";
       } catch (e) {
-        if (!(e instanceof TransactionRejected)) return settle(line.workerId, { transactionId: answer.found }, true);
+        if (!(e instanceof TransactionRejected)) {
+          settle(line.workerId, { transactionId: answer.found }, true);
+          return "settled";
+        }
       }
     }
-    const endedAt = kept.endedAt ?? new Date(clock.now()).toISOString();
-    const waited = clock.now() - Date.parse(endedAt) >= limits.notSeenAfterMs;
+    if (answer === "none" && again) return "none";
+    const at = ended(kept);
+    const waited = clock.now() - Date.parse(at.endedAt) >= limits.notSeenAfterMs;
     const failure = answer === "none" ? NOT_PAID_RECORD_USED : listed && waited ? NOT_SEEN_YET : why;
-    unconfirmed(line.workerId, failure, { ...kept, endedAt });
+    unconfirmed(line.workerId, failure, at);
+    return "stopped";
   };
   /** What became of a transfer the wallet took: failed only on a definite answer; anything else is looked for, then unconfirmed. */
-  const conclude = (line: Line, e: unknown, kept: Kept, ids: readonly string[], listed = false): void | Promise<void> =>
-    e instanceof DefiniteFailure || e instanceof TransactionRejected ? fail(line.workerId, message(e), kept) : unknown(line, message(e), kept, ids, listed);
+  const conclude = async (line: Line, e: unknown, kept: Kept, ids: readonly string[], listed = false, again = false): Promise<Outcome> => {
+    if (!(e instanceof DefiniteFailure || e instanceof TransactionRejected)) return unknown(line, message(e), kept, ids, listed, again);
+    fail(line.workerId, message(e), kept);
+    return "stopped";
+  };
 
   /** Polls the wallet for one transaction, then the explorer; resolves the confirmed transaction, or throws (UnknownOutcome when it may still go through). */
   async function awaitTransaction(walletId: string, onBroadcast?: (id: string) => void, capMs = limits.walletCapMs): Promise<ConfirmedTransaction> {
@@ -374,15 +447,13 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     return confirmed ?? { transactionId: onChainId };
   }
 
-  // ---- Plan -----------------------------------------------------------------
-  const known = new Set<string>();
-  let records = await fetchTokenRecords(wallet);
-  for (const r of records) known.add(r.plaintext);
-  // Paychecks already sent before a reload are resumed, not planned again.
-  const inFlight = due.filter((p) => p.settlement.status === "pending" && p.settlement.reference);
-  // One that got as far as asking Shield goes again only by spending the very record it tried, if that's still here.
-  const byTag = new Map<string, TokenRecord>();
-  for (const r of records) byTag.set(await recordTag(r.plaintext), r);
+  // ---- Where each payment stands ---------------------------------------------------
+  const list = async (): Promise<Listed[]> => Promise.all((await fetchTokenRecords(wallet)).map(async (r) => ({ ...r, tag: await recordTag(r.plaintext) })));
+  /** The wallet's records now; null when it couldn't be asked this time (a later ask may do). */
+  const relist = (): Promise<Listed[] | null> => list().catch(() => null);
+  // The first read isn't caught: if the wallet can't list the account's records, nothing is asked of it.
+  let records = await list();
+
   // The floor for a later look at a payment first asked for in this run. One asked for on an earlier run keeps
   // the floor it was given then; none is made up for one that never had one.
   const neverAsked = (p: QueuedPayment) => !p.settlement.attempt && !p.settlement.reference;
@@ -396,152 +467,22 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
       ...(p.settlement.endedAt ? { endedAt: p.settlement.endedAt } : {}),
     };
   };
-  const sinceOf = new Map(due.map((p) => [p.workerId, keptOf(p).since]));
-  const pinned: Transfer[] = [];
-  const spent: QueuedPayment[] = [];
-  const toSend: QueuedPayment[] = [];
-  for (const p of due) {
-    if (inFlight.includes(p)) continue;
+
+  // Paychecks already sent before a reload are asked about, never sent again.
+  const inFlight = due.filter((p) => p.settlement.status === "pending" && p.settlement.reference);
+  /** The record a payment's last try set aside, if the wallet still lists it and it still covers the payment. */
+  const own = (p: QueuedPayment, among: readonly Listed[]): Listed | undefined => {
     const tag = p.settlement.attempt;
-    if (!tag) {
-      toSend.push(p);
-      continue;
-    }
-    const same = byTag.get(tag);
-    if (same && same.amount >= centsToMinor(p.net)) pinned.push({ workerId: p.workerId, amount: centsToMinor(p.net), record: { kind: "existing", plaintext: same.plaintext, amount: same.amount } });
-    else spent.push(p);
-  }
-  const free = records.filter((r) => !pinned.some((t) => t.record.kind === "existing" && t.record.plaintext === r.plaintext));
-  const fresh: TransferPlan =
-    toSend.length > 0
-      ? planTransfers(
-          toSend.map((p) => ({ workerId: p.workerId, amount: centsToMinor(p.net) })),
-          free,
-        )
-      : { splits: [], transfers: [], change: free.reduce((s, r) => s + r.amount, 0n) };
-  const plan: TransferPlan = { ...fresh, transfers: [...pinned, ...fresh.transfers] };
-  emit({ kind: "planned", transfers: plan.transfers.length + inFlight.length, splits: plan.splits.length, change: plan.change });
-  // A record that is gone was spent by this payment or by something else: the account's transfers say which, when they can.
-  for (const p of spent) await unknown(lineOf(p), RECORD_GONE, keptOf(p), []);
-
-  // ---- One proof per run -------------------------------------------------------
-  const proof = plan.transfers.length > 0 ? await exclusionProofFor(wallet.address, network, ctx.tree) : "";
-
-  // ---- Splits, in order --------------------------------------------------------
-  const outputs = new Map<string, TokenRecord>(); // "<split>:<amount|remainder>" → the record the wallet now holds
-  const brokenSplits = new Map<number, string>(); // split index → why it didn't happen
-  const resolve = (ref: RecordRef): TokenRecord | null => {
-    if (ref.kind === "existing") return { plaintext: ref.plaintext, amount: ref.amount };
-    return outputs.get(`${ref.split}:${ref.output}`) ?? null;
+    const same = tag ? among.find((r) => r.tag === tag) : undefined;
+    return same && same.amount >= centsToMinor(p.net) ? same : undefined;
   };
-  const dependsOnBroken = (ref: RecordRef): string | null => {
-    if (ref.kind !== "split") return null;
-    return brokenSplits.get(ref.split) ?? null;
-  };
+  // One that got as far as asking Shield goes again only by spending the very record it tried. If that record is
+  // gone, it was spent by this payment or by something else: it is looked for, never asked again here.
+  const gone = due.filter((p) => !inFlight.includes(p) && p.settlement.attempt && !own(p, records));
+  // The rest are asked of Shield, in the run's order.
+  const chain = due.filter((p) => !inFlight.includes(p) && !gone.includes(p));
+  emit({ kind: "planned", transfers: chain.length + inFlight.length });
 
-  for (const step of plan.splits) {
-    const upstream = dependsOnBroken(step.source);
-    if (upstream) {
-      brokenSplits.set(step.index, upstream);
-      continue;
-    }
-    emit({ kind: "splitting", step: step.index + 1, of: plan.splits.length });
-    try {
-      await executeSplit(step);
-      emit({ kind: "split_done", step: step.index + 1, of: plan.splits.length });
-    } catch (e) {
-      // What the payees waiting on this record read. Nothing was sent to them, so never the words for a payment
-      // whose outcome isn't known: Shield's own reason when it gave one, else that the record wasn't prepared.
-      brokenSplits.set(step.index, e instanceof UnknownOutcome ? (e.said ?? SPLIT_NOT_FINISHED) : message(e));
-    }
-  }
-
-  async function executeSplit(step: SplitStep): Promise<void> {
-    const source = resolve(step.source);
-    if (!source) throw new RailError("A record the split needed is missing");
-    const { transactionId } = await wallet.executeTransaction({
-      program: USDCX_PROGRAM,
-      function: SPLIT_FUNCTION,
-      inputs: [source.plaintext, `${step.amount}u128`],
-      privateFee: false,
-    });
-    known.add(source.plaintext);
-    await awaitTransaction(transactionId);
-    // The wallet's record view lags the chain; wait until both outputs show up.
-    const found = await timer.until(limits.recordWaitMs, async () => {
-      records = await fetchTokenRecords(wallet);
-      const fresh = records.filter((r) => !known.has(r.plaintext));
-      const amount = fresh.find((r) => r.amount === step.amount);
-      const remainder = fresh.find((r) => r.amount === step.remainder && r !== amount);
-      return amount && remainder ? { amount, remainder } : null;
-    });
-    if (!found) throw new RailError("The split went through but the wallet hasn't shown the new records yet; try again in a minute");
-    known.add(found.amount.plaintext);
-    known.add(found.remainder.plaintext);
-    outputs.set(`${step.index}:amount`, found.amount);
-    outputs.set(`${step.index}:remainder`, found.remainder);
-  }
-
-  // ---- Transfers, all at once --------------------------------------------------
-  // First, in turn, each one's record and its tag, kept by the caller before anything is asked of
-  // Shield (if a tag can't be kept, that transfer isn't sent); then every transfer fires at once.
-  type Ready = { t: TransferPlan["transfers"][number]; record: TokenRecord; attempt: string; since?: number };
-  const ready: Ready[] = [];
-  for (const t of plan.transfers) {
-    const broken = dependsOnBroken(t.record);
-    if (broken) {
-      fail(t.workerId, broken);
-      continue;
-    }
-    const record = resolve(t.record);
-    if (!record) {
-      fail(t.workerId, "The record for this payment is missing");
-      continue;
-    }
-    const attempt = await recordTag(record.plaintext);
-    const since = sinceOf.get(t.workerId);
-    try {
-      await ctx.beforeSend?.(t.workerId, attempt, since);
-    } catch (e) {
-      fail(t.workerId, message(e));
-      continue;
-    }
-    ready.push({ t, record, attempt, ...(since !== undefined ? { since } : {}) });
-  }
-  const sendOne = async ({ t, record, attempt, since }: Ready) => {
-    const line: Line = { workerId: t.workerId, to: links.get(t.workerId)!, minor: t.amount };
-    const kept: Kept = { attempt, ...(since !== undefined ? { since } : {}) };
-    let transactionId: string;
-    try {
-      emit({ kind: "approving", workerId: t.workerId });
-      ({ transactionId } = await wallet.executeTransaction({
-        program: USDCX_PROGRAM,
-        function: TRANSFER_FUNCTION,
-        inputs: [line.to, `${t.amount}u128`, record.plaintext, proof],
-        privateFee: false,
-      }));
-    } catch (e) {
-      // A request the app stopped before Shield was asked, and an approval left until it expired, moved nothing:
-      // the line fails and keeps its record for the retry. Whatever else Shield throws (turned down, interrupted,
-      // restarted, an error after the transfer went out) doesn't say either way: the next run asks again with the
-      // same record if it is still listed, so only one of the two can land.
-      if (stoppedBeforeWallet(e) || APPROVAL_EXPIRED.test(message(e))) return fail(t.workerId, message(e), kept);
-      return unknown(line, problem(message(e)), kept, []);
-    }
-    emit({ kind: "sent", workerId: t.workerId, reference: transactionId, ...kept });
-    const ids = isOnChainId(transactionId) ? [transactionId] : [];
-    try {
-      settle(
-        t.workerId,
-        await awaitTransaction(transactionId, (id) => {
-          ids.push(id);
-          emit({ kind: "broadcast", workerId: t.workerId, transactionId: id });
-        }),
-      );
-    } catch (e) {
-      await conclude(line, e, { reference: transactionId, ...kept }, ids);
-    }
-  };
   const resumeOne = async (p: QueuedPayment) => {
     const reference = p.settlement.reference!;
     const kept = keptOf(p);
@@ -565,6 +506,181 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
       await conclude(lineOf(p), e, { reference, ...kept }, ids, listed);
     }
   };
-  await Promise.allSettled([...ready.map(sendOne), ...inFlight.map(resumeOne)]);
+  // ---- First, the payments earlier runs left open: no prompt is raised for any of them ----
+  await Promise.allSettled(inFlight.map(resumeOne));
+  for (const p of gone) await unknown(lineOf(p), RECORD_GONE, keptOf(p), []);
+  if (chain.length === 0) return result;
+
+  // ---- Plan ---------------------------------------------------------------------
+  // Records this run has spent, or learned were spent: the wallet's list can be a moment behind the chain.
+  const spent = new Set<string>();
+  // The tag each open payment in the run has set aside: its record is no other payee's to take.
+  const setAside = new Map(due.flatMap((p) => (p.settlement.attempt ? [[p.settlement.attempt, p.workerId] as const] : [])));
+  /** The records free to pay `p` from: listed, not spent in this run, and not set aside for anyone else. */
+  const freeFor = (p: QueuedPayment, among: readonly Listed[]): Listed[] => among.filter((r) => !spent.has(r.plaintext) && (setAside.get(r.tag) ?? p.workerId) === p.workerId);
+  /** Throws, in the plan's own words, when the payments still to ask for can't be made from `among`. */
+  const check = (among: readonly Listed[]) => {
+    const payees = chain.map((p) => {
+      const same = own(p, among);
+      return { workerId: p.workerId, amount: centsToMinor(p.net), ...(same ? { record: same.plaintext } : {}) };
+    });
+    // A record someone has set aside is in the plan only as that payee's own.
+    const theirs = new Set(payees.flatMap((p) => (p.record !== undefined ? [p.record] : [])));
+    planTransfers(
+      payees,
+      among.filter((r) => !spent.has(r.plaintext) && (!setAside.has(r.tag) || theirs.has(r.plaintext))),
+    );
+  };
+  const fits = (among: readonly Listed[]): boolean => {
+    try {
+      check(among);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  // What a payment settled just now left behind may not be listed yet: give it the wait a payment's change gets.
+  if (!fits(records) && arriving) {
+    await timer.until(limits.recordWaitMs, async () => {
+      const now = await relist();
+      if (now) records = now;
+      return now && fits(now) ? true : null;
+    });
+  }
+  check(records); // short, or no single record covers someone: nothing is asked of Shield
+
+  // ---- One proof per run -------------------------------------------------------
+  const proof = await exclusionProofFor(wallet.address, network, ctx.tree);
+
+  // ---- Payments, one at a time -----------------------------------------------------
+  const of = chain.length;
+  const stall = (at: number, why: string) => {
+    result.stalled = { at, of, why };
+    emit({ kind: "stalled", at, of, why });
+  };
+
+  /** A record for `p` from what the wallet lists now; when something this run settled may still be on its way, waited for. */
+  const recordFor = async (p: QueuedPayment): Promise<Listed | null> => {
+    const pick = async () => {
+      const now = await relist();
+      if (now) records = now;
+      return now ? (pickRecord(centsToMinor(p.net), freeFor(p, now)) ?? null) : null;
+    };
+    return (await (arriving ? timer.soon(limits.recordWaitMs, pick) : pick())) ?? null;
+  };
+
+  /** Asks Shield for one transfer from `record` (its tag already kept) and waits for what became of it. */
+  const sendOne = async (line: Line, record: Listed, kept: Kept, step: number, again: boolean): Promise<Outcome> => {
+    let transactionId: string;
+    try {
+      emit({ kind: "approving", workerId: line.workerId, to: line.to, minor: line.minor, step, of });
+      ({ transactionId } = await wallet.executeTransaction({
+        program: USDCX_PROGRAM,
+        function: TRANSFER_FUNCTION,
+        inputs: [line.to, `${line.minor}u128`, record.plaintext, proof],
+        privateFee: false,
+      }));
+    } catch (e) {
+      // A request the app stopped before Shield was asked, and an approval left until it expired, moved nothing:
+      // the line fails and keeps its record for the retry. Whatever else Shield throws (turned down, interrupted,
+      // restarted, an error after the transfer went out) doesn't say either way: the next run asks again with the
+      // same record if it is still listed, so only one of the two can land.
+      if (stoppedBeforeWallet(e) || APPROVAL_EXPIRED.test(message(e))) {
+        fail(line.workerId, message(e), kept);
+        return "stopped";
+      }
+      return unknown(line, problem(message(e)), kept, [], false, again);
+    }
+    emit({ kind: "sent", workerId: line.workerId, reference: transactionId, ...kept });
+    const ids = isOnChainId(transactionId) ? [transactionId] : [];
+    try {
+      settle(
+        line.workerId,
+        await awaitTransaction(transactionId, (id) => {
+          ids.push(id);
+          emit({ kind: "broadcast", workerId: line.workerId, transactionId: id });
+        }),
+      );
+      return "settled";
+    } catch (e) {
+      return conclude(line, e, { reference: transactionId, ...kept }, ids, false, again);
+    }
+  };
+
+  /**
+   * Pays one payee, from `first`. Resolves the record the payment spent and what was free to it
+   * beforehand, or null when it didn't settle (its line has said why).
+   */
+  const payOne = async (p: QueuedPayment, first: Listed, step: number): Promise<{ record: Listed; before: bigint } | null> => {
+    const line = lineOf(p);
+    const since = keptOf(p).since;
+    // What the caller holds for this payment: the tag an earlier run kept, then each one kept here.
+    let held: Kept = p.settlement.attempt ? { attempt: p.settlement.attempt, ...(since !== undefined ? { since } : {}) } : {};
+    let record = first;
+    for (let asks = 1; ; asks++) {
+      const before = total(freeFor(p, records));
+      const kept: Kept = { attempt: record.tag, ...(since !== undefined ? { since } : {}) };
+      try {
+        await ctx.beforeSend?.(p.workerId, record.tag, since);
+      } catch (e) {
+        // Nothing was asked with this record. The line keeps only what the caller already held for it.
+        fail(p.workerId, message(e), held);
+        return null;
+      }
+      held = kept;
+      const outcome = await sendOne(line, record, kept, step, asks < MAX_ASKS);
+      if (outcome === "stopped") return null;
+      spent.add(record.plaintext); // by this payment, or by whatever it went into: the wallet's list may still show it
+      if (outcome === "settled") return { record, before };
+      // Its record went into something else and nothing paid them: ask again, from a record listed now.
+      arriving = true;
+      const next = await recordFor(p);
+      if (!next) {
+        unconfirmed(p.workerId, NOT_PAID_RECORD_USED, ended(kept));
+        return null;
+      }
+      record = next;
+    }
+  };
+
+  for (const [index, p] of chain.entries()) {
+    const step = index + 1;
+    let record: Listed | null;
+    if (p.settlement.attempt) {
+      const now = await relist();
+      if (now) records = now;
+      record = now ? (own(p, now.filter((r) => !spent.has(r.plaintext))) ?? null) : null;
+      if (now && !record) {
+        // Its record has gone since this run began: looked for, like the ones that were gone at the start, and the run goes on.
+        await unknown(lineOf(p), RECORD_GONE, keptOf(p), []);
+        continue;
+      }
+    } else {
+      record = await recordFor(p);
+    }
+    if (!record) {
+      stall(step, NOT_LISTED);
+      break;
+    }
+    const paid = await payOne(p, record, step);
+    if (!paid) {
+      if (step < of) stall(step, NOT_ASKED);
+      break;
+    }
+    // Before the next payment is asked for, what this one left has to be listed: as its change, or as part of a
+    // record Shield combined it into. Until then, a record picked now could be gone by the time its prompt is approved.
+    if (step < of && paid.record.amount > centsToMinor(p.net)) {
+      const expected = paid.before - centsToMinor(p.net);
+      const seen = await timer.soon(limits.recordWaitMs, async () => {
+        const now = await relist();
+        if (now) records = now;
+        return now && total(freeFor(p, now)) >= expected ? true : null;
+      });
+      if (!seen) {
+        stall(step + 1, NOT_LISTED);
+        break;
+      }
+    }
+  }
   return result;
 }

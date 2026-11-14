@@ -3,7 +3,7 @@
 // a wallet that keeps exactly what it was handed: one transition and its wait (work/execute.ts,
 // which letters, names, cards and the rest go through), sending an offer and withdrawing one
 // (offer.ts), and the last step before the adaptor, where the fee mode is applied
-// (@pnw/wallet/fee-mode). The pay queue's splits and transfers are checked beside its other tests
+// (@pnw/wallet/fee-mode). The pay queue's transfers are checked beside its other tests
 // (packages/rail/src/queue.test.ts).
 import { describe, expect, it } from "vitest";
 import { withFeeMode } from "@pnw/wallet/fee-mode";

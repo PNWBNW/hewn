@@ -1,55 +1,68 @@
 // ---------------------------------------------------------------------------
 // Which record pays whom.
 //
-// Every payee gets one `transfer_private`, and the transfers are fired at
-// once, so each needs its own input record holding at least the payee's net.
-// The plan assigns records to payees deterministically:
+// A run is paid one person at a time, in the order the payees are given.
+// Each `transfer_private` spends one record whole: the payee's amount goes to
+// them and the rest comes back to the account as one new record, the change.
+// Nothing is prepared beforehand, so with a single record on the rail every
+// payment after the first is made from the change of the one before it.
 //
-//   1. exact fit: a record whose amount equals a payee's net goes to that payee;
-//   2. largest first: the remaining payees, biggest net first, each take the
-//      smallest free record that covers them (best fit, so big records stay
-//      free for splitting);
-//   3. split: payees still unassigned are carved out of the free records,
-//      biggest record first, one `split(token, amount)` per payee. Each split
-//      consumes the previous one's remainder, so the splits for one source
-//      record run in order; the final remainder is the change, kept as one
-//      record. When a payee exactly empties a remainder, that remainder is
-//      used as is (no split for it).
+// For each payee in turn, the record it spends is:
+//
+//   1. the record set aside for it on an earlier try, when it has one (a
+//      retry spends the very record the first try did);
+//   2. else a record whose amount equals the payee's exactly;
+//   3. else the smallest record that covers it, so the large ones stay whole
+//      for the larger payments still to come.
+//
+// A record set aside for another payee is never taken, and the change a
+// payment leaves is a record like any other for the payees after it.
 //
 // The plan fails, before anything is signed, when the balance is short or
-// when no single record can cover a payee (that needs a `join` first).
+// when no single record can cover a payee (records have to be combined
+// first). The queue plans once this way, to refuse a run it can't pay, and
+// then picks each payment's record afresh from what the wallet lists at that
+// moment, by the same rule (`pickRecord`).
 // ---------------------------------------------------------------------------
 
 import type { TokenRecord } from "./records";
 import { RailError } from "./types";
 
-export type Payee = { workerId: string; amount: bigint };
+export type Payee = {
+  workerId: string;
+  amount: bigint;
+  /** The plaintext of the record an earlier try set aside for this payment: it spends that one and no other. */
+  record?: string;
+};
 
-/** A record the plan refers to: one the wallet already holds, or an output of a planned split. */
+/** A record the plan refers to: one the wallet holds now, or the change a planned payment will leave. */
 export type RecordRef =
   | { kind: "existing"; plaintext: string; amount: bigint }
-  | { kind: "split"; split: number; output: "amount" | "remainder"; amount: bigint };
-
-export type SplitStep = {
-  /** Position in `splits`; later steps may use this one's remainder. */
-  index: number;
-  source: RecordRef;
-  /** The first output holds exactly this; the second holds the rest. */
-  amount: bigint;
-  remainder: bigint;
-};
+  /** `of`: the position in `transfers` of the payment that leaves it. */
+  | { kind: "change"; of: number; amount: bigint };
 
 export type Transfer = { workerId: string; amount: bigint; record: RecordRef };
 
 export type TransferPlan = {
-  splits: SplitStep[];
+  /** One per payee, in the order they were given: the order they are paid in. */
   transfers: Transfer[];
-  /** Records left untouched plus every split's final remainder, for the balance line. */
+  /** What is left on the rail once everyone is paid, for the balance line. */
   change: bigint;
 };
 
-const byAmountDesc = <T extends { amount: bigint }>(a: T, b: T) => (a.amount === b.amount ? 0 : a.amount > b.amount ? -1 : 1);
-const byAmountAsc = <T extends { amount: bigint }>(a: T, b: T) => -byAmountDesc(a, b);
+/**
+ * The record a payment of `amount` spends, out of the ones free to it: one that fits exactly, else
+ * the smallest that covers it; between equals, the first as listed. Undefined when none covers it.
+ */
+export function pickRecord<R extends { amount: bigint }>(amount: bigint, free: readonly R[]): R | undefined {
+  let best: R | undefined;
+  for (const r of free) {
+    if (r.amount < amount) continue;
+    if (r.amount === amount) return r;
+    if (!best || r.amount < best.amount) best = r;
+  }
+  return best;
+}
 
 export function planTransfers(payees: readonly Payee[], records: readonly TokenRecord[]): TransferPlan {
   const seen = new Set<string>();
@@ -58,71 +71,30 @@ export function planTransfers(payees: readonly Payee[], records: readonly TokenR
     if (seen.has(p.workerId)) throw new RailError("A person is listed twice");
     seen.add(p.workerId);
   }
-  const usable = records.filter((r) => r.amount > 0n).map((r, i) => ({ ...r, order: i }));
+  const usable = records.filter((r) => r.amount > 0n);
   const needed = payees.reduce((s, p) => s + p.amount, 0n);
   const balance = usable.reduce((s, r) => s + r.amount, 0n);
   if (needed > balance) throw new RailError("Not enough balance on the rail for this run");
 
-  // Stable order: biggest first, ties by the order the wallet listed them / by worker id.
-  const queue = [...payees].sort((a, b) => byAmountDesc(a, b) || a.workerId.localeCompare(b.workerId));
-  const free = [...usable].sort((a, b) => byAmountAsc(a, b) || a.order - b.order);
+  // Records set aside for a payee stay out of everyone else's reach until that payee has been paid from them.
+  const setAside = new Set(payees.flatMap((p) => (p.record !== undefined ? [p.record] : [])));
+  const pool: RecordRef[] = usable.map((r) => ({ kind: "existing", plaintext: r.plaintext, amount: r.amount }));
   const transfers: Transfer[] = [];
-  const take = (p: Payee, r: (typeof free)[number]) => {
-    free.splice(free.indexOf(r), 1);
-    transfers.push({ workerId: p.workerId, amount: p.amount, record: { kind: "existing", plaintext: r.plaintext, amount: r.amount } });
-  };
-
-  // 1. Exact fits.
-  const unassigned: Payee[] = [];
-  for (const p of queue) {
-    const exact = free.find((r) => r.amount === p.amount);
-    if (exact) take(p, exact);
-    else unassigned.push(p);
-  }
-
-  // 2. Best fit, largest payee first, but only when there are enough free
-  //    records to go round; with fewer records than payees, handing a big
-  //    record to one person would starve the others, so they all go to 3.
-  const waiting: Payee[] = [];
-  const enough = free.length >= unassigned.length;
-  for (const p of unassigned) {
-    const fit = enough ? free.find((r) => r.amount >= p.amount) : undefined; // ascending: the smallest that covers
-    if (fit) take(p, fit);
-    else waiting.push(p);
-  }
-
-  // 3. Split the free records, biggest first, one split per remaining payee.
-  const splits: SplitStep[] = [];
-  const sources = [...free].sort((a, b) => byAmountDesc(a, b) || a.order - b.order);
-  let remaining = [...waiting];
-  for (const src of sources) {
-    if (remaining.length === 0) break;
-    let current: RecordRef = { kind: "existing", plaintext: src.plaintext, amount: src.amount };
-    const next: Payee[] = [];
-    for (const p of remaining) {
-      if (p.amount > current.amount) {
-        next.push(p);
-        continue;
-      }
-      if (p.amount === current.amount) {
-        transfers.push({ workerId: p.workerId, amount: p.amount, record: current });
-        current = { ...current, amount: 0n };
-        continue;
-      }
-      const step: SplitStep = { index: splits.length, source: current, amount: p.amount, remainder: current.amount - p.amount };
-      splits.push(step);
-      transfers.push({ workerId: p.workerId, amount: p.amount, record: { kind: "split", split: step.index, output: "amount", amount: p.amount } });
-      current = { kind: "split", split: step.index, output: "remainder", amount: step.remainder };
+  payees.forEach((p, position) => {
+    let record: RecordRef | undefined;
+    if (p.record !== undefined) {
+      record = pool.find((r) => r.kind === "existing" && r.plaintext === p.record && r.amount >= p.amount);
+      if (!record) throw new RailError("The record set aside for one of the payments is missing");
+    } else {
+      record = pickRecord(
+        p.amount,
+        pool.filter((r) => r.kind !== "existing" || !setAside.has(r.plaintext)),
+      );
+      if (!record) throw new RailError("No single record on the rail is large enough for one of the payments; combine records first");
     }
-    remaining = next;
-  }
-  if (remaining.length > 0) {
-    throw new RailError("No single record on the rail is large enough for one of the payments; combine records first");
-  }
-
-  const paid = transfers.reduce((s, t) => s + t.amount, 0n);
-  // Transfers keep the order the payees were given, so progress reads top to bottom.
-  const position = new Map(payees.map((p, i) => [p.workerId, i]));
-  transfers.sort((a, b) => position.get(a.workerId)! - position.get(b.workerId)!);
-  return { splits, transfers, change: balance - paid };
+    pool.splice(pool.indexOf(record), 1);
+    transfers.push({ workerId: p.workerId, amount: p.amount, record });
+    if (record.amount > p.amount) pool.push({ kind: "change", of: position, amount: record.amount - p.amount });
+  });
+  return { transfers, change: balance - needed };
 }

@@ -2,8 +2,15 @@
 
 // ---------------------------------------------------------------------------
 // The pay panel: settles one rail run through Shield, one private USDCx
-// transfer per person, all fired at once (@pnw/rail). Opened from the pay
-// runs list right after a rail run posts, and again from Continue / Retry.
+// transfer per person, one at a time, each made from what the last one left
+// (@pnw/rail). Opened from the pay runs list right after a rail run posts,
+// and again from Continue / Retry.
+//
+// Shield has one prompt open at a time. While a payment's prompt is open, its
+// line shows the payee's full account and the amount in millionths of a
+// dollar, the two things Shield's own screen gives for it. A payment that
+// doesn't settle stops the run there: the people after it wait, untouched,
+// and Continue takes them up.
 //
 // Every outcome is written to the vault as it happens, so closing the tab
 // loses nothing: a transfer Shield has taken keeps its id on the pending
@@ -98,7 +105,8 @@ function settleTo(payroll: Payroll, runId: string, workerId: string, target: Set
 
 type Stage =
   | { kind: "waiting" }
-  | { kind: "approving" }
+  /** Shield's prompt for this payment is open: `to` and `minor` are the account and the amount it was given. */
+  | { kind: "approving"; to: string; minor: bigint }
   | { kind: "sent" }
   /** `found`: Shield never confirmed it; the queue found it in the account's own transfers. */
   | { kind: "settled"; transactionId: string; feeMicrocredits?: bigint; found?: true }
@@ -249,17 +257,13 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
-          setNote(e.splits > 0 ? `Preparing ${e.splits === 1 ? "a record" : `${e.splits} records`} first, then paying ${e.transfers}.` : null);
           for (const p of due) setStage(p.workerId, { kind: "waiting" });
           break;
-        case "splitting":
-          setNote(`Preparing records… ${e.step} of ${e.of}. Approve each in Shield.`);
-          break;
-        case "split_done":
-          if (e.step === e.of) setNote("Records ready. Approve each payment in Shield.");
-          break;
         case "approving":
-          setStage(e.workerId, { kind: "approving" });
+          setStage(e.workerId, { kind: "approving", to: e.to, minor: e.minor });
+          break;
+        case "stalled":
+          setNote(`Stalled at ${e.at} of ${e.of}: ${e.why}.`);
           break;
         case "sent":
           setStage(e.workerId, { kind: "sent" });
@@ -313,8 +317,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
       }
     };
-    // The record each transfer will spend is kept before Shield is asked, with the chain's height then: a later
-    // run checks the record instead of paying twice, and a later look reads back no further than that height.
+    // The record each transfer will spend is kept just before Shield is asked for it, with the chain's height when
+    // the run began: a later run, after a pause or a reload, checks the record instead of paying twice, and a later
+    // look reads back no further than that height.
     const beforeSend = async (workerId: string, attempt: string, since?: number) => {
       await write(workerId, { status: "pending", attempt, ...(since !== undefined ? { since } : {}) });
     };
@@ -441,6 +446,13 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
                     )}
                   >
                     {stageLabel(s)}
+                    {s.kind === "approving" && (
+                      <>
+                        {" · to "}
+                        <span className="break-all">{s.to}</span>
+                        {` · ${s.minor.toString()} millionths of a dollar (how Shield's Advanced details show them)`}
+                      </>
+                    )}
                     {s.kind === "failed" && !running && (
                       <Button type="button" variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={() => void start(address)}>
                         Retry
@@ -470,8 +482,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           </ul>
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           <p className="text-xs text-muted-foreground">
-            Shield asks you to approve each payment; they all go out together and settle on their own. The employer pays the network fee on each
-            one; nothing is taken from anyone&apos;s pay.
+            Shield asks you to approve each payment, one at a time: each is paid from what the last one left, so the next prompt comes up once the
+            one before has settled. The employer pays the network fee on each one; nothing is taken from anyone&apos;s pay.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button className="min-h-11 sm:min-h-9" disabled={running || short || balance === null || unlinked.length > 0} onClick={() => void start(address)}>
