@@ -15,7 +15,9 @@
 // What is definite (2026-11-14). Shield has two answers that mean nothing
 // moved: a rejection that says why, and an approval left until it expired
 // (that line keeps its record for the retry). The explorer saying a
-// transaction was rejected is the third. Everything else Shield may say
+// transaction was rejected is the third, and a request the app itself
+// stopped before Shield was asked (`stoppedBeforeWallet`) is the fourth: it
+// keeps its record too. Everything else Shield may say
 // (failed, interrupted, restarted, an error thrown by the request, no
 // answer) doesn't say either way: a transfer reported failed has reached the
 // chain afterwards. Before such a payment is called anything, it is looked
@@ -48,7 +50,7 @@ import { TransactionRejected, confirmTransaction, type ConfirmedTransaction } fr
 import { type MerkleTreeApi, exclusionProofFor } from "./exclusion";
 import { type RecordRef, type SplitStep, type Transfer, type TransferPlan, planTransfers } from "./plan";
 import { USDCX_PROGRAM, type TokenRecord, centsToMinor, fetchTokenRecords } from "./records";
-import { type Clock, RailError, type RailNetwork, type RailWallet, type Sleep, systemClock, systemSleep } from "./types";
+import { type Clock, RailError, type RailNetwork, type RailWallet, type Sleep, stoppedBeforeWallet, systemClock, systemSleep } from "./types";
 
 export const TRANSFER_FUNCTION = "transfer_private";
 export const SPLIT_FUNCTION = "split";
@@ -192,6 +194,8 @@ const NOT_PAID_RECORD_USED = `${NOT_PAID}: the record set aside for this payment
 const RECORD_GONE = `The record this payment was spending is gone, so it may have gone through. ${CHECK}`;
 /** Shield gave up on the request, or threw on it, in words that don't say whether the transfer reached the chain. */
 const problem = (said: string) => `Shield reported a problem (${said.replace(/\s+/g, " ").trim().slice(0, 200)}); the payment may still go through. ${CHECK}`;
+/** What a payee reads when the record their payment needed wasn't prepared and Shield gave no words of its own for why. */
+export const SPLIT_NOT_FINISHED = "Preparing the record for this payment didn't finish, so the payment wasn't sent";
 
 /** A tag for a record: the first 16 bytes of SHA-256 over its plaintext, hex. Enough to find it again; the plaintext itself isn't kept. */
 export async function recordTag(plaintext: string): Promise<string> {
@@ -446,7 +450,9 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
       await executeSplit(step);
       emit({ kind: "split_done", step: step.index + 1, of: plan.splits.length });
     } catch (e) {
-      brokenSplits.set(step.index, e instanceof UnknownOutcome && e.said ? e.said : message(e));
+      // What the payees waiting on this record read. Nothing was sent to them, so never the words for a payment
+      // whose outcome isn't known: Shield's own reason when it gave one, else that the record wasn't prepared.
+      brokenSplits.set(step.index, e instanceof UnknownOutcome ? (e.said ?? SPLIT_NOT_FINISHED) : message(e));
     }
   }
 
@@ -515,10 +521,11 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
         privateFee: false,
       }));
     } catch (e) {
-      // An approval left until it expired moved nothing, and the line keeps its record for the retry. Whatever else
-      // Shield throws (turned down, interrupted, restarted, an error after the transfer went out) doesn't say either
-      // way: the next run asks again with the same record if it is still listed, so only one of the two can land.
-      if (APPROVAL_EXPIRED.test(message(e))) return fail(t.workerId, message(e), kept);
+      // A request the app stopped before Shield was asked, and an approval left until it expired, moved nothing:
+      // the line fails and keeps its record for the retry. Whatever else Shield throws (turned down, interrupted,
+      // restarted, an error after the transfer went out) doesn't say either way: the next run asks again with the
+      // same record if it is still listed, so only one of the two can land.
+      if (stoppedBeforeWallet(e) || APPROVAL_EXPIRED.test(message(e))) return fail(t.workerId, message(e), kept);
       return unknown(line, problem(message(e)), kept, []);
     }
     emit({ kind: "sent", workerId: t.workerId, reference: transactionId, ...kept });

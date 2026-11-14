@@ -5,6 +5,7 @@ import fixture from "./fixtures/transaction.json";
 import {
   NOT_PAID,
   NOT_SEEN,
+  SPLIT_NOT_FINISHED,
   type PayQueueEvent,
   type PaymentLookup,
   type PaymentQuery,
@@ -286,6 +287,24 @@ describe("runPayQueue", () => {
     ]);
   });
 
+  it("a split Shield gave up on without a reason, or never answered for, fails the payees waiting on it in words about the record, never 'may still go through'", async () => {
+    // Nothing was sent to these payees: their line says the record wasn't prepared, and a retry is all it needs.
+    for (const said of [[{ status: "failed" }], [{ status: "interrupted" }], [{ status: "pending" }]] satisfies Status[][]) {
+      const wallet = new FakeWallet([centsToMinor(100_00n), centsToMinor(40_00n)], (c, n) => (c.function === SPLIT_FUNCTION ? said : accepted(AT(n))));
+      const { result, events } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 40_00n), paycheck("w2", 30_00n), paycheck("w3", 30_00n)], { limits: { recordPollMs: 1, pollMinMs: 1, walletCapMs: 50 } });
+      expect(result.settled.map((s) => s.workerId)).toEqual(["w1"]);
+      expect(result.unconfirmed).toEqual([]);
+      expect(result.failed).toEqual([
+        { workerId: "w2", failure: SPLIT_NOT_FINISHED },
+        { workerId: "w3", failure: SPLIT_NOT_FINISHED },
+      ]);
+      for (const f of result.failed) expect(f.failure).not.toMatch(/may still go through|paying again/);
+      // No transfer was asked of Shield for them, and no record was set aside.
+      expect(wallet.calls.filter((c) => c.function === TRANSFER_FUNCTION)).toHaveLength(1);
+      expect(events.filter((e): e is Extract<PayQueueEvent, { kind: "failed" }> => e.kind === "failed").every((e) => e.attempt === undefined)).toBe(true);
+    }
+  });
+
   it("a wallet reporting failed, interrupted, aborted, expired, cancelled or refunded, or rejected without saying why, ends the wait at once as not confirmed, never failed", async () => {
     // None of these words says whether the transfer reached the chain: one reported failed has landed afterwards.
     const said: Status[] = [
@@ -506,6 +525,44 @@ describe("runPayQueue: what became of a payment", () => {
       const c = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "failed", failure: expired, attempt: tag, since: HEIGHT })]);
       expect(c.result.settled.map((r) => r.workerId)).toEqual(["w1"]);
       expect(wallet.calls.at(-1)!.inputs[2]).toBe(wallet.records[0]!.recordPlaintext);
+    }
+  });
+
+  it("a request the app stopped before Shield was asked is failed in its own words, keeps its record, and is never looked for", async () => {
+    // The app's own check before signing (the programs' editions) refuses, and marks its error: Shield never saw the request.
+    const refusal = "Couldn't check the programs on the network before sending, so nothing was sent. Try again in a moment.";
+    const wallet = new FakeWallet([centsToMinor(25_00n)], (_c, n) => accepted(AT(n)));
+    const exec = wallet.executeTransaction.bind(wallet);
+    let first = true;
+    wallet.executeTransaction = async (o) => {
+      if (!first) return exec(o);
+      first = false;
+      throw Object.assign(new Error(refusal), { nothingSent: true });
+    };
+    const asked: PaymentQuery[] = [];
+    const a = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)], { findPayment: lookup(wallet, asked) });
+    expect(a.result).toEqual({ settled: [], failed: [{ workerId: "w1", failure: refusal }], unconfirmed: [] });
+    expect(a.result.failed[0]!.failure).not.toMatch(/may still go through/);
+    expect(asked).toEqual([]);
+    const tag = await recordTag(wallet.records[0]!.recordPlaintext);
+    expect(failedIn(a.events)).toMatchObject({ attempt: tag, since: HEIGHT });
+
+    // The retry spends the record the stopped try had set aside, whatever else has arrived.
+    wallet.addRecord(centsToMinor(10_00n));
+    const b = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "failed", failure: refusal, attempt: tag, since: HEIGHT })]);
+    expect(b.result.settled.map((r) => r.workerId)).toEqual(["w1"]);
+    expect(wallet.calls).toHaveLength(1);
+    expect(wallet.calls[0]!.inputs[2]).toBe(wallet.records[0]!.recordPlaintext);
+
+    // The mark is the only thing believed: the same words without it, or the mark on something that isn't an error, are not confirmed.
+    for (const thrown of [new Error(refusal), { nothingSent: true, message: refusal }]) {
+      const other = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
+      other.executeTransaction = async () => {
+        throw thrown;
+      };
+      const c = await settleRun(other, fakeNetwork(), [paycheck("w1", 10_00n)]);
+      expect(c.result.failed).toEqual([]);
+      expect(c.result.unconfirmed.map((u) => u.workerId)).toEqual(["w1"]);
     }
   });
 
