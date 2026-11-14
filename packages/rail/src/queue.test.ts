@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Paycheck, PayRun, Settlement } from "@pnw/payroll";
-import { FREEZELIST_PROGRAM } from "./exclusion";
+import { FREEZELIST_PROGRAM, ZERO_ADDRESS } from "./exclusion";
+import freezeList from "./fixtures/freeze_list.json";
 import fixture from "./fixtures/transaction.json";
 import { type PayQueueEvent, SPLIT_FUNCTION, TRANSFER_FUNCTION, outstanding, recordTag, runPayQueue } from "./queue";
 import { USDCX_PROGRAM, centsToMinor } from "./records";
@@ -92,17 +93,23 @@ class FakeWallet implements RailWallet {
 const accepted = (id: string, pendingPolls = 0): Status[] => [...Array<Status>(pendingPolls).fill({ status: "pending" }), { status: "accepted", transactionId: id }];
 const AT = (n: number) => `at1tx${n}`.padEnd(61, "x");
 
-function fakeNetwork(opts: { frozen?: string[]; fail?: Set<string> } = {}): RailNetwork & { calls: string[] } {
+/**
+ * The explorer. The freeze list answers as the deployed program did with nobody frozen (the
+ * fixture), unless `frozen` lists addresses, which then need the `root` the tree in use gives them.
+ */
+function fakeNetwork(opts: { frozen?: string[]; root?: string; fail?: Set<string> } = {}): RailNetwork & { calls: string[] } {
   const calls: string[] = [];
-  const frozen = opts.frozen ?? [];
+  const slots = [ZERO_ADDRESS, ...(opts.frozen ?? [])];
   const base = `program/${FREEZELIST_PROGRAM}/mapping`;
   return {
     calls,
     async fetchJson(path) {
       calls.push(path);
-      if (path === `${base}/freeze_list_count/1u8`) return `${frozen.length}u32`;
-      const leaf = /freeze_list\/(\d+)u32$/.exec(path);
-      if (leaf) return frozen[Number(leaf[1])];
+      if (path === `${base}/freeze_list_last_index/true`) return `${slots.length - 1}u32`;
+      const slot = /freeze_list_index\/(\d+)u32$/.exec(path);
+      if (slot) return slots[Number(slot[1])] ?? null;
+      if (path === `${base}/freeze_list_root/1u8`) return opts.root ?? freezeList.mappings.freeze_list_root["1u8"];
+      if (path.startsWith(`${base}/`)) return null; // a mapping or key the program doesn't have
       const tx = /^transaction\/(at1\S+)$/.exec(path);
       if (tx) {
         if (opts.fail?.has(tx[1]!)) return { status: "rejected", error: "insufficient balance" };
@@ -200,7 +207,8 @@ describe("runPayQueue", () => {
 
   it("builds the exclusion proof once for N transfers", async () => {
     const wallet = new FakeWallet([centsToMinor(10_00n), centsToMinor(10_00n), centsToMinor(10_00n), centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
-    const network = fakeNetwork({ frozen: ["aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px"] });
+    // The stand-in tree below gives one frozen address two leaves, so its root is the second node.
+    const network = fakeNetwork({ frozen: ["aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px"], root: "1field" });
     let formats = 0;
     const tree = {
       generateLeaves: (a: string[]) => a.map((_x, i) => `${i + 1}field`).concat("0field"),
@@ -212,8 +220,34 @@ describe("runPayQueue", () => {
     const { result } = await settleRun(wallet, network, ["w1", "w2", "w3", "w4"].map((w) => paycheck(w, 10_00n)), { tree });
     expect(result.settled).toHaveLength(4);
     expect(formats).toBe(1);
-    expect(network.calls.filter((p) => p.includes("freeze_list_count"))).toHaveLength(1);
+    expect(network.calls.filter((p) => p.includes("freeze_list_last_index"))).toHaveLength(1);
+    expect(network.calls.filter((p) => p.includes("freeze_list_root"))).toHaveLength(1);
     expect(wallet.calls.every((c) => c.inputs[3] === "[PROOF]")).toBe(true);
+  });
+
+  it("asks Shield for nothing, not even a split, when the freeze list's root isn't the chain's", async () => {
+    const wallet = new FakeWallet([centsToMinor(1000_00n)], (_c, n) => accepted(AT(n)));
+    const kept: string[] = [];
+    // One address is frozen on chain; the root served is over a list this read didn't get whole.
+    const network = fakeNetwork({ frozen: ["aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px"] });
+    const going = settleRun(wallet, network, [paycheck("w1", 100_00n), paycheck("w2", 250_00n)], { beforeSend: async (w) => void kept.push(w) });
+    await expect(going).rejects.toThrow(/freeze list didn't read back whole, so nothing was sent/);
+    expect(wallet.calls).toEqual([]);
+    expect(kept).toEqual([]);
+  });
+
+  it("asks Shield for nothing when the paying account is on the freeze list", async () => {
+    const wallet = new FakeWallet([centsToMinor(100_00n)], (_c, n) => accepted(AT(n)));
+    const tree = {
+      generateLeaves: (a: string[]) => a.map((_x, i) => `${i + 1}field`).concat("0field"),
+      buildTree: (l: string[]) => l.map((_x, i) => BigInt(i)),
+      getLeafIndices: () => [0, 1] as [number, number],
+      getSiblingPath: (_t: bigint[], leaf_index: number, depth: number) => ({ siblings: Array<bigint>(depth).fill(0n), leaf_index }),
+      formatMerkleProof: () => "[PROOF]",
+    };
+    const going = settleRun(wallet, fakeNetwork({ frozen: [EMPLOYER], root: "1field" }), [paycheck("w1", 100_00n)], { tree });
+    await expect(going).rejects.toThrow(/on the stablecoin's freeze list/);
+    expect(wallet.calls).toEqual([]);
   });
 
   it("splits one big record into what the transfers need, in order, before paying", async () => {

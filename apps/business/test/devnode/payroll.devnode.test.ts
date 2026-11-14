@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FinalizeRevertError, waitForConfirmation } from "@provablehq/veil-core";
 import { type Books, type Entry, addAccount, applyTemplate, createBooks, verifyChain } from "@pnw/ledger";
 import { type Payroll, type Settlement, type W4, addWorker, emptyPayroll, markPaycheckSettlement, postPayRun } from "@pnw/payroll";
-import { type PayQueueEvent, type RailNetwork, RailNetworkError, type RailWallet, USDCX_PROGRAM, centsToMinor, explorerNetwork, runPayQueue } from "@pnw/rail";
+import { type PayQueueEvent, type RailNetwork, type RailWallet, USDCX_PROGRAM, ZERO_ADDRESS, centsToMinor, explorerNetwork, freezeListRoot, runPayQueue } from "@pnw/rail";
 import { FREEZELIST_PROGRAM } from "@pnw/rail";
 import { type Aleo, type Clients, type Devnode, type Listed, type Output, deploy, opened, outputsOf, send, sendTx, start } from "./harness";
 
@@ -119,19 +119,22 @@ class DevnodeWallet implements RailWallet {
 
 /**
  * The devnode's REST API as the rail reads the explorer. The freeze-list program isn't on a
- * devnode, so its mapping reads answer "not found", which the rail takes as an empty list, as it
- * would from the explorer before the first address is frozen.
+ * devnode, and the rail sends nothing when it can't read the list, so its mapping reads answer
+ * what the deployed program holds while nobody is frozen: one slot, holding the zero address, and
+ * the root of an empty list. Any other key answers null, as the explorer does.
  */
 function devnodeNetwork(): RailNetwork {
   const rest = explorerNetwork(DEVNODE_REST, fetch);
+  const freezeList = `program/${FREEZELIST_PROGRAM}/mapping/`;
+  const nobodyFrozen: Record<string, string> = {
+    "freeze_list_last_index/true": "0u32",
+    "freeze_list_index/0u32": ZERO_ADDRESS,
+    "freeze_list_root/1u8": freezeListRoot([]),
+  };
   return {
     async fetchJson(path: string) {
-      try {
-        return await rest.fetchJson(path);
-      } catch (e) {
-        if (path.startsWith(`program/${FREEZELIST_PROGRAM}/`) && e instanceof RailNetworkError) throw new RailNetworkError("not found", 404);
-        throw e;
-      }
+      if (path.startsWith(freezeList)) return nobodyFrozen[path.slice(freezeList.length)] ?? null;
+      return rest.fetchJson(path);
     },
   };
 }
