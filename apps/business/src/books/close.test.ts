@@ -4,7 +4,10 @@ import { emptySales } from "@pnw/sales";
 import { checkPeriodProof, periodProofToJson, readPeriodProof } from "@pnw/ledger";
 import { closeChecks, closeRange, closeReminder, lockCloses, nextStart, periodProofFor, proofFileName, recordAnchor, reopenCloses, standingCloses, suggestedEnd, validateClosing } from "./close";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
-import { type ReviewItem, addReviewItems, excludeItem } from "./review";
+import { startFromShield } from "./opening";
+import type { Rail } from "./rail";
+import { reconcileShield } from "./reconcile";
+import { type ReviewItem, acceptItem, addReviewItems, excludeItem, undoReview } from "./review";
 
 const SECRET = "ab".repeat(32);
 const TX = `at1${"q".repeat(58)}`;
@@ -188,13 +191,38 @@ describe("outflows kept out of the books, at the close", () => {
     expect(line).toMatchObject({ ok: false, href: "/transactions?tab=review", outflows: [{ date: "2026-10-28", minor: 2_500_000_000n }] });
     expect(line!.detail).toContain("2,500.00");
     expect(() => closeRange(c, "2026-10-31", opts())).toThrow(/kept out of the books/);
-    expect(closeRange(c, "2026-10-31", { ...opts(), excludedChecked: true }).company.books.marks.closedThrough).toBe("2026-10-31");
+    expect(closeRange(c, "2026-10-31", { ...opts(), excluded: "ticked" }).company.books.marks.closedThrough).toBe("2026-10-31");
   });
 
-  it("excluded: leaves out an inflow, a move within the account, and an outflow dated after the range", () => {
+  it("excluded: leaves out an inflow, a move within the account, and an outflow dated after the range's end", () => {
     const c = excluded(october(), out(1, "2026-10-28", "in"), out(2, "2026-10-29", "out", true), out(3, "2026-11-01"));
     expect(closeChecks(c, "2026-10-25", "2026-10-31", "2026-11-02").find((l) => l.id === "excluded")).toMatchObject({ ok: true, outflows: [] });
     expect(() => closeRange(c, "2026-10-31", opts())).not.toThrow();
     expect(() => closeRange(c, "2026-11-01", opts())).toThrow(/kept out of the books/);
+  });
+
+  it("excluded: with no tick to offer, the close goes ahead with them listed, one under a cent included", () => {
+    const small = { ...out(2, "2026-10-29"), minor: "5000" };
+    const c = excluded(october(), out(1, "2026-10-28"), small);
+    // Without a tick even an outflow under a cent, which can't be posted or matched, holds the close.
+    expect(() => closeRange(excluded(october(), small), "2026-10-31", opts())).toThrow(/kept out of the books/);
+    const line = closeChecks(c, "2026-10-25", "2026-10-31", "2026-11-02", { excluded: "listed" }).find((l) => l.id === "excluded");
+    expect(line).toMatchObject({ ok: true, label: "2 outflows kept out of the books, listed under the Shield check", outflows: [{ date: "2026-10-28" }, { date: "2026-10-29", minor: 5000n }] });
+    expect(line!.detail).toContain("2026-10-28 · 2,500.00");
+    expect(closeRange(c, "2026-10-31", { ...opts(), excluded: "listed" }).company.books.marks.closedThrough).toBe("2026-10-31");
+  });
+
+  it("excluded: an outflow from a closed range, sent back and excluded after the close, is counted by the next close", () => {
+    const rail: Rail = { version: 1, network: "testnet", address: `aleo1${"q".repeat(58)}`, linkedAt: "2026-10-14T18:00:00.000Z", links: [] };
+    const tools = addAccount(createBooks({ businessName: "T", fiscalYearStartMonth: 1 }), { name: "Tools", type: "expense" });
+    const start = startFromShield({ ...emptyCompany(tools.books), rail }, { date: "2026-10-15", minor: 20_000_000n, at: "2026-10-15T10:00:00Z" });
+    const item: ReviewItem = { ...out(5, "2026-10-20"), minor: "2500000" };
+    const october = closeRange(acceptItem(addReviewItems(start, [item]), item.id, { accountId: tools.account.id }), "2026-10-31", opts()).company;
+    const later = excludeItem(undoReview(october, item.id, "2026-11-03"), item.id);
+    expect(reconcileShield(later, 17_500_000n)).toMatchObject({ kind: "matches", books: 2000n, excludedOut: [{ date: "2026-10-20" }] });
+    const november = { today: "2026-12-02", now: "2026-12-02T10:00:00.000Z" };
+    expect(closeChecks(later, "2026-11-01", "2026-11-30", november.today).find((l) => l.id === "excluded")).toMatchObject({ ok: false, outflows: [{ date: "2026-10-20" }] });
+    expect(() => closeRange(later, "2026-11-30", opts(november))).toThrow(/kept out of the books/);
+    expect(closeRange(later, "2026-11-30", { ...opts(november), excluded: "ticked" }).company.books.marks.closedThrough).toBe("2026-11-30");
   });
 });
