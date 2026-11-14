@@ -2,7 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { Paycheck, PayRun, Settlement } from "@pnw/payroll";
 import { FREEZELIST_PROGRAM } from "./exclusion";
 import fixture from "./fixtures/transaction.json";
-import { type PayQueueEvent, SPLIT_FUNCTION, TRANSFER_FUNCTION, outstanding, recordTag, runPayQueue } from "./queue";
+import {
+  NOT_PAID,
+  NOT_SEEN,
+  type PayQueueEvent,
+  type PaymentLookup,
+  type PaymentQuery,
+  SPLIT_FUNCTION,
+  TRANSFER_FUNCTION,
+  outstanding,
+  recordStillListed,
+  recordTag,
+  runPayQueue,
+} from "./queue";
 import { USDCX_PROGRAM, centsToMinor } from "./records";
 import { type RailNetwork, RailNetworkError, type RailWallet } from "./types";
 
@@ -27,6 +39,8 @@ class FakeWallet implements RailWallet {
   calls: Call[] = [];
   records: { recordName: string; spent: boolean; recordPlaintext: string }[] = [];
   recordRequests = 0;
+  /** Every transfer that reached the chain: who it paid, how much, and its id. */
+  landed: { to: string; minor: bigint; transactionId: string }[] = [];
   private n = 0;
   private scripts = new Map<string, Status[]>();
   private minted = 0;
@@ -66,31 +80,46 @@ class FakeWallet implements RailWallet {
     const script = this.scripts.get(id);
     if (!script || script.length === 0) throw new Error("not found");
     const status = script.length > 1 ? script.shift()! : script[0]!;
-    if (status.status === "accepted") this.settle(id);
+    if (status.status === "accepted") this.land(id, status.transactionId);
     return status;
   }
 
-  /** On acceptance, spend the input record; for a split, mint its two outputs. */
-  private settle(id: string) {
+  /**
+   * The chain taking a request, whatever the wallet goes on to say about it: spends the input
+   * record (once: the network lets a record be spent one time); for a split, mints its two outputs.
+   * True when it went through.
+   */
+  land(id: string, transactionId = "") {
     const call = this.calls.find((c) => c.walletId === id);
-    if (!call) return;
+    if (!call) return false;
     const inputIndex = call.function === SPLIT_FUNCTION ? 0 : 2;
     const source = this.records.find((r) => r.recordPlaintext === call.inputs[inputIndex]);
-    if (!source || source.spent) return;
+    if (!source || source.spent) return false;
     source.spent = true;
     const sourceAmount = BigInt(/amount:\s*(\d+)u128/.exec(source.recordPlaintext)![1]!);
     const amount = BigInt(call.inputs[1]!.replace("u128", ""));
     if (call.function === SPLIT_FUNCTION) {
       this.addRecord(amount);
       this.addRecord(sourceAmount - amount);
-    } else if (sourceAmount > amount) {
-      this.addRecord(sourceAmount - amount); // change
+    } else {
+      this.landed.push({ to: call.inputs[0]!, minor: amount, transactionId });
+      if (sourceAmount > amount) this.addRecord(sourceAmount - amount); // change
     }
+    return true;
+  }
+
+  /** Shield combining the account's records on its own: every unspent one goes into a single new record. */
+  combine() {
+    const open = this.records.filter((r) => !r.spent);
+    for (const r of open) r.spent = true;
+    this.addRecord(open.reduce((sum, r) => sum + BigInt(/amount:\s*(\d+)u128/.exec(r.recordPlaintext)![1]!), 0n));
   }
 }
 
 const accepted = (id: string, pendingPolls = 0): Status[] => [...Array<Status>(pendingPolls).fill({ status: "pending" }), { status: "accepted", transactionId: id }];
 const AT = (n: number) => `at1tx${n}`.padEnd(61, "x");
+
+const HEIGHT = 4_000_000;
 
 function fakeNetwork(opts: { frozen?: string[]; fail?: Set<string> } = {}): RailNetwork & { calls: string[] } {
   const calls: string[] = [];
@@ -100,6 +129,7 @@ function fakeNetwork(opts: { frozen?: string[]; fail?: Set<string> } = {}): Rail
     calls,
     async fetchJson(path) {
       calls.push(path);
+      if (path === "block/height/latest") return HEIGHT;
       if (path === `${base}/freeze_list_count/1u8`) return `${frozen.length}u32`;
       const leaf = /freeze_list\/(\d+)u32$/.exec(path);
       if (leaf) return frozen[Number(leaf[1])];
@@ -114,8 +144,8 @@ function fakeNetwork(opts: { frozen?: string[]; fail?: Set<string> } = {}): Rail
 }
 
 /** Time that passes only when the queue sleeps. */
-function fakeTime() {
-  let now = 0;
+function fakeTime(start = 0) {
+  let now = start;
   return { clock: { now: () => now }, sleep: async (ms: number) => { now += ms; await Promise.resolve(); } };
 }
 
@@ -256,13 +286,24 @@ describe("runPayQueue", () => {
     ]);
   });
 
-  it("a wallet reporting aborted, expired, cancelled or refunded fails the payee at once", async () => {
-    // The newer wallet statuses for a transaction that will never land; each ends the wait as a failure, not a timeout.
-    for (const status of ["aborted", "expired", "cancelled", "refunded"]) {
-      const wallet = new FakeWallet([centsToMinor(10_00n)], () => [{ status, error: `Shield: ${status}` }]);
+  it("a wallet reporting failed, interrupted, aborted, expired, cancelled or refunded, or rejected without saying why, ends the wait at once as not confirmed, never failed", async () => {
+    // None of these words says whether the transfer reached the chain: one reported failed has landed afterwards.
+    const said: Status[] = [
+      ...["failed", "interrupted", "aborted", "expired", "cancelled", "refunded"].map((status) => ({ status, error: `Shield: ${status}` })),
+      { status: "failed" },
+      { status: "rejected" },
+      { status: "Failed", error: "Wallet restarted. Inspect transaction history" },
+    ];
+    for (const status of said) {
+      const wallet = new FakeWallet([centsToMinor(10_00n)], () => [status]);
       const { result, events } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)]);
-      expect(result).toEqual({ settled: [], failed: [{ workerId: "w1", failure: `Shield: ${status}` }], unconfirmed: [] });
-      expect(events.some((e) => e.kind === "failed")).toBe(true);
+      expect(result.failed).toEqual([]);
+      expect(result.settled).toEqual([]);
+      expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/may still go through.*Check Shield's activity/) }]);
+      if (status.error) expect(result.unconfirmed[0]!.failure).toContain(status.error);
+      expect(events.some((e) => e.kind === "failed")).toBe(false);
+      // It keeps the wallet's id and the record's tag: the next run asks about it, and never spends another record for it.
+      expect(events.find((e) => e.kind === "unconfirmed")).toMatchObject({ reference: "shield_0", attempt: expect.stringMatching(/^[0-9a-f]{32}$/) });
     }
   });
 
@@ -382,5 +423,297 @@ describe("runPayQueue", () => {
     await expect(runPayQueue({ ...base, run: run([paycheck("w1", 20_00n)]), links: links("w1") })).rejects.toThrow(/Not enough balance/);
     expect(wallet.calls).toEqual([]);
     expect(await runPayQueue({ ...base, run: run([paycheck("w1", 10_00n, { status: "settled" })]), links: links("w1") })).toEqual({ settled: [], failed: [], unconfirmed: [] });
+  });
+});
+
+// ---- What became of a payment ---------------------------------------------------
+
+/** A look in the account's own transfers, over what the fake chain took: found by payee and amount, else unknown. */
+const lookup =
+  (wallet: FakeWallet, asked: PaymentQuery[] = []) =>
+  async (q: PaymentQuery): Promise<PaymentLookup> => {
+    asked.push(q);
+    const hit = wallet.landed.find((l) => l.to === q.to && l.minor === q.minor);
+    return hit ? { found: hit.transactionId } : "unknown";
+  };
+
+type Unconfirmed = Extract<PayQueueEvent, { kind: "unconfirmed" }>;
+type Failed = Extract<PayQueueEvent, { kind: "failed" }>;
+const unconfirmedIn = (events: PayQueueEvent[]) => events.find((e): e is Unconfirmed => e.kind === "unconfirmed")!;
+const failedIn = (events: PayQueueEvent[]) => events.find((e): e is Failed => e.kind === "failed")!;
+/** What the caller keeps for a line the queue couldn't confirm (books/PayPanel writes exactly this). */
+const keptFrom = (e: Unconfirmed): Settlement => ({
+  status: "pending",
+  failure: e.failure,
+  ...(e.reference ? { reference: e.reference } : {}),
+  ...(e.attempt ? { attempt: e.attempt } : {}),
+  ...(e.since !== undefined ? { since: e.since } : {}),
+  ...(e.endedAt ? { endedAt: e.endedAt } : {}),
+});
+const NOON = Date.parse("2026-11-14T12:00:00.000Z");
+const MINUTE = 60_000;
+
+describe("runPayQueue: what became of a payment", () => {
+  it("Shield says failed, the payment lands 20 s later: the line reads Not confirmed, never Failed", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n)], () => [{ status: "failed", error: "The operation did not return a conclusive result" }]);
+    const first = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)], { findPayment: lookup(wallet), ...fakeTime(NOON) });
+    expect(first.result.failed).toEqual([]);
+    expect(first.result.settled).toEqual([]);
+    expect(first.result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/did not return a conclusive result.*may still go through/) }]);
+    expect(first.events.some((e) => e.kind === "failed")).toBe(false);
+    const kept = unconfirmedIn(first.events);
+    expect(kept).toMatchObject({ reference: "shield_0", attempt: await recordTag(wallet.records[0]!.recordPlaintext), since: HEIGHT });
+    expect(Date.parse(kept.endedAt!)).toBeGreaterThanOrEqual(NOON);
+
+    // Twenty seconds on, the transfer Shield gave up on reaches the chain.
+    expect(wallet.land("shield_0", AT(1))).toBe(true);
+    const second = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, keptFrom(kept))], { findPayment: lookup(wallet), ...fakeTime(NOON + 20_000) });
+    expect(second.result.settled).toEqual([expect.objectContaining({ workerId: "w1", transactionId: AT(1), found: true })]);
+    expect(second.result.failed).toEqual([]);
+    expect(second.result.unconfirmed).toEqual([]);
+    // Asked of Shield once, paid once.
+    expect(wallet.calls).toHaveLength(1);
+    expect(wallet.landed).toHaveLength(1);
+  });
+
+  it("only a rejection that says why and an approval left to expire are definite, and an expired line keeps its record", async () => {
+    // Rejected with its reason: nothing moved.
+    const rejected = new FakeWallet([centsToMinor(10_00n)], () => [{ status: "rejected", error: "test_usdcx_stablecoin.aleo/transfer_private: the proof is stale" }]);
+    const a = await settleRun(rejected, fakeNetwork(), [paycheck("w1", 10_00n)]);
+    expect(a.result).toEqual({ settled: [], failed: [{ workerId: "w1", failure: "test_usdcx_stablecoin.aleo/transfer_private: the proof is stale" }], unconfirmed: [] });
+
+    // The approval was left until it expired, as a status and as what the request itself threw: nothing moved either time.
+    const expired = "Approval expired. Request a fresh action.";
+    for (const how of ["status", "thrown"] as const) {
+      const wallet = new FakeWallet([centsToMinor(25_00n)], (_c, n) => (how === "status" && n === 0 ? [{ status: "rejected", error: expired }] : accepted(AT(n))));
+      if (how === "thrown") {
+        const exec = wallet.executeTransaction.bind(wallet);
+        let first = true;
+        wallet.executeTransaction = async (o) => {
+          if (!first) return exec(o);
+          first = false;
+          wallet.calls.push({ ...o, walletId: "never" });
+          throw new Error(expired);
+        };
+      }
+      const b = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)]);
+      expect(b.result).toEqual({ settled: [], failed: [{ workerId: "w1", failure: expired }], unconfirmed: [] });
+      const tag = await recordTag(wallet.records[0]!.recordPlaintext);
+      expect(failedIn(b.events)).toMatchObject({ attempt: tag, since: HEIGHT });
+
+      // A record that fits exactly arrives; the retry still spends the one the expired try had set aside.
+      wallet.addRecord(centsToMinor(10_00n));
+      const c = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "failed", failure: expired, attempt: tag, since: HEIGHT })]);
+      expect(c.result.settled.map((r) => r.workerId)).toEqual(["w1"]);
+      expect(wallet.calls.at(-1)!.inputs[2]).toBe(wallet.records[0]!.recordPlaintext);
+    }
+  });
+
+  it("a request Shield throws on is not confirmed, never failed: restarted, interrupted or turned down, the same record goes again", async () => {
+    for (const thrown of ["Wallet restarted. Inspect transaction history", "The request was interrupted", "User rejected the request"]) {
+      const wallet = new FakeWallet([centsToMinor(25_00n)], (_c, n) => accepted(AT(n)));
+      const exec = wallet.executeTransaction.bind(wallet);
+      let first = true;
+      wallet.executeTransaction = async (o) => {
+        if (!first) return exec(o);
+        first = false;
+        throw new Error(thrown);
+      };
+      const a = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)]);
+      expect(a.result.failed).toEqual([]);
+      expect(a.result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringContaining(thrown) }]);
+      const kept = unconfirmedIn(a.events);
+      expect(kept.reference).toBeUndefined();
+      expect(kept.attempt).toBe(await recordTag(wallet.records[0]!.recordPlaintext));
+
+      // The next run: its record is still listed, so it is asked again with that same record, whatever else has arrived.
+      wallet.addRecord(centsToMinor(10_00n));
+      const b = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, keptFrom(kept))]);
+      expect(b.result.settled.map((r) => r.workerId)).toEqual(["w1"]);
+      expect(wallet.calls).toHaveLength(1);
+      expect(wallet.calls[0]!.inputs[2]).toBe(wallet.records[0]!.recordPlaintext);
+      expect(wallet.landed).toHaveLength(1);
+    }
+  });
+
+  it("Shield throws after the transfer landed: the payee is settled, not failed", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n)], () => [{ status: "pending" }]);
+    const exec = wallet.executeTransaction.bind(wallet);
+    wallet.executeTransaction = async (o) => {
+      const { transactionId } = await exec(o);
+      wallet.land(transactionId, AT(4));
+      throw new Error("Transaction already exists in the ledger");
+    };
+    const asked: PaymentQuery[] = [];
+    const { result, events } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)], { findPayment: lookup(wallet, asked) });
+    expect(result.failed).toEqual([]);
+    expect(result.unconfirmed).toEqual([]);
+    // Settled from the account's own transfers, with the fee and the height read back like any other.
+    expect(result.settled).toEqual([{ workerId: "w1", transactionId: AT(4), found: true, height: expect.any(Number), feeMicrocredits: 51_580n }]);
+    expect(events.find((e) => e.kind === "settled")).toMatchObject({ found: true });
+    expect(asked).toEqual([{ workerId: "w1", to: ADDR(1), minor: centsToMinor(10_00n), attempt: await recordTag(wallet.records[0]!.recordPlaintext), ids: [], since: HEIGHT }]);
+    expect(wallet.landed).toHaveLength(1);
+  });
+
+  it("the look is given the ids Shield named for the request, and one that throws or finds a transfer already used counts as unknown", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n), centsToMinor(10_00n)], (c) => [{ status: "pending", transactionId: c.inputs[0] === ADDR(1) ? AT(5) : AT(6) }, { status: "failed" }]);
+    const asked: PaymentQuery[] = [];
+    const same = async (q: PaymentQuery): Promise<PaymentLookup> => (asked.push(q), { found: AT(9) });
+    const a = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n), paycheck("w2", 10_00n)], { findPayment: same });
+    expect(asked.map((q) => q.ids).sort()).toEqual([[AT(5)], [AT(6)]]);
+    // One transfer settles one payment: the second line to be handed the same id stays not confirmed.
+    expect(a.result.settled).toHaveLength(1);
+    expect(a.result.unconfirmed).toHaveLength(1);
+    expect(a.result.failed).toEqual([]);
+
+    const down = new FakeWallet([centsToMinor(10_00n)], () => [{ status: "failed" }]);
+    const b = await settleRun(down, fakeNetwork(), [paycheck("w1", 10_00n)], { findPayment: async () => Promise.reject(new Error("Shield didn't answer")) });
+    expect(b.result).toEqual({ settled: [], failed: [], unconfirmed: [{ workerId: "w1", failure: expect.stringMatching(/may still go through/) }] });
+
+    // A transfer the look calls paid but the network rejected is not taken as paid.
+    const odd = new FakeWallet([centsToMinor(10_00n)], () => [{ status: "failed" }]);
+    const c = await settleRun(odd, fakeNetwork({ fail: new Set([AT(7)]) }), [paycheck("w1", 10_00n)], { findPayment: async () => ({ found: AT(7) }) });
+    expect(c.result.settled).toEqual([]);
+    expect(c.result.unconfirmed).toHaveLength(1);
+  });
+
+  it("a turned-down payment whose record Shield then combined reads Not paid when the look says so, and paying again pays once", async () => {
+    const wallet = new FakeWallet([centsToMinor(25_00n), centsToMinor(40_00n)], (_c, n) => accepted(AT(n)));
+    const exec = wallet.executeTransaction.bind(wallet);
+    let first = true;
+    wallet.executeTransaction = async (o) => {
+      if (!first) return exec(o);
+      first = false;
+      throw new Error("User rejected the request");
+    };
+    const a = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)]);
+    const kept = unconfirmedIn(a.events);
+    wallet.combine(); // the record it had set aside goes into a join
+
+    // The look found what spent that record, and it wasn't a payment to them.
+    const b = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, keptFrom(kept))], { findPayment: async () => "none" });
+    expect(b.result.settled).toEqual([]);
+    expect(b.result.failed).toEqual([]);
+    expect(b.result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(new RegExp(`^${NOT_PAID}`)) }]);
+    expect(unconfirmedIn(b.events)).toMatchObject({ attempt: kept.attempt });
+    expect(wallet.calls).toEqual([]); // nothing is sent again without the person saying so
+
+    // Without that answer, or without a look at all, it stays "may have gone through".
+    for (const findPayment of [undefined, async (): Promise<PaymentLookup> => "unknown"]) {
+      const c = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, keptFrom(kept))], findPayment ? { findPayment } : {});
+      expect(c.result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/record this payment was spending is gone.*may have gone through/) }]);
+    }
+
+    // Pay again, chosen by the person: a fresh record, one payment.
+    const d = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "failed", failure: "Marked to pay again after checking Shield" })]);
+    expect(d.result.settled.map((r) => r.workerId)).toEqual(["w1"]);
+    expect(wallet.landed).toHaveLength(1);
+  });
+
+  it("from 5 minutes after the try ended, while its record is still unspent, the line reads Not seen on chain yet, never Not sent", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
+    wallet.know("shield_old", [{ status: "failed" }]);
+    const tag = await recordTag(wallet.records[0]!.recordPlaintext);
+    const line = (endedAgoMs: number): Settlement => ({
+      status: "pending",
+      reference: "shield_old",
+      attempt: tag,
+      failure: "Shield reported a problem (failed); the payment may still go through.",
+      since: HEIGHT - 10,
+      endedAt: new Date(NOON - endedAgoMs).toISOString(),
+    });
+
+    // Two minutes after: still only "not confirmed".
+    const early = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, line(2 * MINUTE))], { findPayment: lookup(wallet), ...fakeTime(NOON) });
+    expect(early.result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(/may still go through/) }]);
+    expect(early.result.unconfirmed[0]!.failure.startsWith(NOT_SEEN)).toBe(false);
+
+    // Six minutes after, the record still listed and nothing found.
+    const late = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, line(6 * MINUTE))], { findPayment: lookup(wallet), ...fakeTime(NOON) });
+    expect(late.result.failed).toEqual([]);
+    expect(late.result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(new RegExp(`^${NOT_SEEN}`)) }]);
+    expect(NOT_SEEN).toBe("Not seen on chain yet");
+    expect(late.result.unconfirmed[0]!.failure).not.toMatch(/not sent/i);
+    // A label only: the line keeps its id, its record's tag, its floor and when it ended, and nothing is sent.
+    expect(unconfirmedIn(late.events)).toMatchObject({ reference: "shield_old", attempt: tag, since: HEIGHT - 10, endedAt: line(6 * MINUTE).endedAt });
+    expect(wallet.calls).toEqual([]);
+
+    // Six minutes after with the record gone: that isn't "not seen", it may have gone through.
+    wallet.combine();
+    const gone = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, line(6 * MINUTE))], { findPayment: lookup(wallet), ...fakeTime(NOON) });
+    expect(gone.result.unconfirmed[0]!.failure.startsWith(NOT_SEEN)).toBe(false);
+    expect(gone.result.unconfirmed[0]!.failure).toMatch(/may still go through/);
+  });
+
+  it("Shield says failed, two records are listed, the payment lands 6 minutes later: the worker is paid once", async () => {
+    let wallet!: FakeWallet;
+    wallet = new FakeWallet([centsToMinor(25_00n)], (_c, n) => {
+      if (n === 0) return [{ status: "failed" }];
+      // While the second request is with Shield, the first one, given up on six minutes ago, reaches the chain.
+      wallet.land("shield_0", AT(1));
+      return [{ status: "rejected", error: "The record this spends was already spent" }];
+    });
+    const find = lookup(wallet);
+    const a = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)], { findPayment: find, ...fakeTime(NOON) });
+    const first = unconfirmedIn(a.events);
+    const setAside = wallet.records[0]!.recordPlaintext;
+    wallet.addRecord(centsToMinor(10_00n)); // a deposit: now two records are listed, and this one fits exactly
+
+    // Six minutes on, nothing has landed and the record it set aside is still there.
+    const b = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, keptFrom(first))], { findPayment: find, ...fakeTime(NOON + 6 * MINUTE) });
+    const second = unconfirmedIn(b.events);
+    expect(second.failure.startsWith(NOT_SEEN)).toBe(true);
+    expect(await recordStillListed(wallet, second.attempt!)).toBe(true);
+
+    // The person pays again. Its record is still listed, so the line keeps the tag and spends that same record.
+    const again: Settlement = { status: "failed", failure: "Marked to pay again after checking Shield", attempt: second.attempt!, since: second.since! };
+    const c = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, again)], { findPayment: find, ...fakeTime(NOON + 7 * MINUTE) });
+    expect(wallet.calls).toHaveLength(2);
+    expect(wallet.calls[1]!.inputs[2]).toBe(setAside);
+    // The network let one of the two through: the late one. The second try is a rejection that says why.
+    expect(c.result.failed).toEqual([{ workerId: "w1", failure: "The record this spends was already spent" }]);
+
+    // The next run finds the payment that did land.
+    const d = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "failed", failure: c.result.failed[0]!.failure, attempt: failedIn(c.events).attempt!, since: failedIn(c.events).since! })], {
+      findPayment: find,
+      ...fakeTime(NOON + 8 * MINUTE),
+    });
+    expect(d.result.settled).toEqual([expect.objectContaining({ workerId: "w1", transactionId: AT(1), found: true })]);
+    expect(wallet.calls).toHaveLength(2);
+    expect(wallet.landed).toEqual([{ to: ADDR(1), minor: centsToMinor(10_00n), transactionId: AT(1) }]);
+    expect(await recordStillListed(wallet, second.attempt!)).toBe(false);
+  });
+
+  it("hands the caller the chain's height with each tag before Shield is asked, and keeps a line's own floor on later runs", async () => {
+    const wallet = new FakeWallet([centsToMinor(25_00n)], () => [{ status: "failed" }]);
+    const seen: [string, string, number | undefined][] = [];
+    const a = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n)], { beforeSend: async (w, tag, since) => void seen.push([w, tag, since]) });
+    const kept = unconfirmedIn(a.events);
+    expect(seen).toEqual([["w1", kept.attempt, HEIGHT]]);
+    expect(a.events.find((e) => e.kind === "sent")).toMatchObject({ since: HEIGHT });
+
+    // A later run, the chain further on: the line still carries the height it was first asked at.
+    wallet.know("shield_0", [{ status: "failed" }]);
+    const asked: PaymentQuery[] = [];
+    const b = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { ...keptFrom(kept), since: HEIGHT - 500 })], { findPayment: lookup(wallet, asked) });
+    expect(asked[0]).toMatchObject({ since: HEIGHT - 500, attempt: kept.attempt });
+    expect(unconfirmedIn(b.events)).toMatchObject({ since: HEIGHT - 500, endedAt: kept.endedAt });
+
+    // One asked for before heights were kept gets none made up for it.
+    const { since: _s, ...old } = keptFrom(kept);
+    const c = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, old)], { findPayment: lookup(wallet, asked) });
+    expect(asked.at(-1)).not.toHaveProperty("since");
+    expect(unconfirmedIn(c.events)).not.toHaveProperty("since");
+  });
+});
+
+describe("recordStillListed", () => {
+  it("says whether the record a payment set aside is still among the account's unspent ones", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n), centsToMinor(20_00n)], (_c, n) => accepted(AT(n)));
+    const tag = await recordTag(wallet.records[1]!.recordPlaintext);
+    expect(await recordStillListed(wallet, tag)).toBe(true);
+    wallet.records[1]!.spent = true;
+    expect(await recordStillListed(wallet, tag)).toBe(false);
+    expect(await recordStillListed(wallet, "ab".repeat(16))).toBe(false);
   });
 });
