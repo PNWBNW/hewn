@@ -163,15 +163,23 @@ export class RailError extends Error {
   }
 }
 
-export const isRailAddress = (s: unknown): s is string => typeof s === "string" && ADDRESS.test(s);
+/** The account nobody holds a key for: whatever is sent to it can never be spent. */
+const ZERO_ADDRESS = "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
+
+/** Written like an account. Only for reading saved books, so a file that already holds the zero address still opens. */
+const isAddressShape = (s: unknown): s is string => typeof s === "string" && ADDRESS.test(s);
+
+/** An account someone can be found at or paid on: written like one, and not the zero address. Every way in asks this. */
+export const isRailAddress = (s: unknown): s is string => isAddressShape(s) && s !== ZERO_ADDRESS;
 
 /**
  * Who can be paid on the rail: people whose agreement both sides approved (`linked`), by team
  * member id → account. An offer not yet accepted (`offered`) isn't enough: its account came from a
- * name lookup, not from an agreement they signed (the security review, 2026-10-22).
+ * name lookup, not from an agreement they signed (the security review, 2026-10-22). A link saved
+ * with the zero address is left out: nobody could spend what was sent there.
  */
 export const payableLinks = (rail: Rail | null | undefined): Map<string, string> =>
-  new Map((rail?.links ?? []).filter((l) => l.status === "linked").map((l) => [l.workerId, l.address]));
+  new Map((rail?.links ?? []).filter((l) => l.status === "linked" && isRailAddress(l.address)).map((l) => [l.workerId, l.address]));
 
 /** `aleo1abcd…wxyz`: enough to recognise an account, short enough for a phone. */
 export function shortAddress(address: string): string {
@@ -204,7 +212,7 @@ export function validateLink(raw: unknown, options: ValidateOptions = {}): RailL
   const l = raw as Partial<RailLink> | null;
   if (!l || typeof l !== "object") throw new RailError("Each link must be an object");
   if (typeof l.workerId !== "string" || !l.workerId) throw new RailError("Each link needs a team member");
-  if (!isRailAddress(l.address)) throw new RailError("Each link needs a valid account");
+  if (!isAddressShape(l.address)) throw new RailError("Each link needs a valid account");
   if (typeof l.nameHash !== "string" || typeof l.agreementId !== "string") throw new RailError("Each link needs a name hash and an agreement id");
   if (l.status !== undefined && l.status !== "offered" && l.status !== "linked") throw new RailError("Each link is offered or linked");
   const link: RailLink = { workerId: l.workerId, address: l.address, nameHash: l.nameHash, agreementId: l.agreementId, status: l.status ?? "linked" };
@@ -282,7 +290,7 @@ export function validatePartyLink(raw: unknown): PartyLink {
   if (!LINK_STATUSES.includes(p.status as LinkStatus)) throw new RailError("Each party link is typed, offered or linked");
   const link: PartyLink = { kind: p.kind as PartyKind, id: p.id, status: p.status as LinkStatus };
   if (p.address !== undefined) {
-    if (!isRailAddress(p.address)) throw new RailError(ADDRESS_HINT);
+    if (!isAddressShape(p.address)) throw new RailError(ADDRESS_HINT);
     link.address = p.address;
   }
   const nameHash = optionalString(p.nameHash, "A party's name hash");
@@ -309,7 +317,7 @@ export function validateRail(raw: unknown, options: ValidateOptions = {}): Rail 
   if (!r || typeof r !== "object") throw new RailError("Rail must be an object");
   if (r.version !== 1) throw new RailError("Unknown rail version");
   if (typeof r.network !== "string" || !r.network) throw new RailError("Rail needs a network");
-  if (!isRailAddress(r.address)) throw new RailError("Rail needs a valid account");
+  if (!isAddressShape(r.address)) throw new RailError("Rail needs a valid account");
   if (typeof r.linkedAt !== "string" || Number.isNaN(Date.parse(r.linkedAt))) throw new RailError("Rail needs the date it was linked");
   if (!Array.isArray(r.links)) throw new RailError("Rail links must be a list");
   if (r.partyLinks !== undefined && !Array.isArray(r.partyLinks)) throw new RailError("Rail party links must be a list");

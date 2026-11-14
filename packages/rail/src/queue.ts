@@ -32,7 +32,7 @@
 
 import type { PayRun, Paycheck } from "@pnw/payroll";
 import { TransactionRejected, confirmTransaction, type ConfirmedTransaction } from "./confirm";
-import { type MerkleTreeApi, exclusionProofFor } from "./exclusion";
+import { type MerkleTreeApi, ZERO_ADDRESS, exclusionProofFor } from "./exclusion";
 import { type RecordRef, type SplitStep, type Transfer, type TransferPlan, planTransfers } from "./plan";
 import { USDCX_PROGRAM, type TokenRecord, centsToMinor, fetchTokenRecords } from "./records";
 import { type Clock, RailError, type RailNetwork, type RailWallet, type Sleep, systemClock, systemSleep } from "./types";
@@ -170,6 +170,8 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
   const due = outstanding(run);
   if (due.length === 0) return result;
   for (const p of due) if (!links.get(p.workerId)) throw new RailError("Someone in this run has no account on the rail yet");
+  // Nobody holds a key for the zero address, so a payment to it could never be spent: stop before records are read or anything is signed.
+  for (const p of due) if (links.get(p.workerId) === ZERO_ADDRESS) throw new RailError("Someone in this run has an account that can't be paid; nothing was sent");
 
   const settle = (workerId: string, c: ConfirmedTransaction) => {
     const entry = { workerId, transactionId: c.transactionId, ...(c.height !== undefined ? { height: c.height } : {}), ...(c.feeMicrocredits !== undefined ? { feeMicrocredits: c.feeMicrocredits } : {}) };

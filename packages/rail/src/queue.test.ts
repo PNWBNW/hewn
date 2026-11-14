@@ -250,6 +250,19 @@ describe("runPayQueue", () => {
     expect(wallet.calls).toEqual([]);
   });
 
+  it("stops before the wallet is asked for anything when a payee's account is the zero address", async () => {
+    const wallet = new FakeWallet([centsToMinor(100_00n), centsToMinor(200_00n)], (_c, n) => accepted(AT(n)));
+    const network = fakeNetwork();
+    const going = settleRun(wallet, network, [paycheck("w1", 100_00n), paycheck("w2", 200_00n)], { links: new Map([["w1", ADDR(1)], ["w2", ZERO_ADDRESS]]) });
+    await expect(going).rejects.toThrow(/an account that can't be paid; nothing was sent/);
+    expect(wallet.calls).toEqual([]);
+    expect(wallet.recordRequests).toBe(0);
+    expect(network.calls).toEqual([]);
+    // Once that person is settled another way, the rest of the run goes out.
+    const rest = await settleRun(wallet, network, [paycheck("w1", 100_00n), paycheck("w2", 200_00n, { status: "settled" })], { links: new Map([["w1", ADDR(1)], ["w2", ZERO_ADDRESS]]) });
+    expect(rest.result.settled.map((x) => x.workerId)).toEqual(["w1"]);
+  });
+
   it("splits one big record into what the transfers need, in order, before paying", async () => {
     const wallet = new FakeWallet([centsToMinor(1000_00n)], (c, n) => accepted(AT(n), c.function === SPLIT_FUNCTION ? 1 : 0));
     const { events, result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 100_00n), paycheck("w2", 250_00n), paycheck("w3", 50_00n)]);

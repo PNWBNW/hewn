@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADDRESS_HINT,
   type PartyLink,
   type Rail,
   type RailLink,
@@ -33,6 +34,8 @@ import {
 
 const ADDR = "aleo1" + "q".repeat(58);
 const ADDR_B = "aleo1" + "z".repeat(58);
+/** The account nobody holds a key for. */
+const ZERO = "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
 const KEY = "ab".repeat(32);
 const KEY_B = "cd".repeat(32);
 
@@ -116,6 +119,35 @@ describe("rail", () => {
     expect(isRailAddress(ADDR + "q")).toBe(false);
     expect(isRailAddress(42)).toBe(false);
     expect(shortAddress(ADDR)).toBe("aleo1qqqq…qqqq");
+  });
+});
+
+describe("the account nobody holds", () => {
+  it("isRailAddress refuses the zero address", () => {
+    expect(isRailAddress(ZERO)).toBe(false);
+    expect(isRailAddress(ADDR)).toBe(true); // the same shape, another account
+  });
+
+  it("isn't taken for a customer, a vendor or a team member, typed or found by name", () => {
+    expect(() => setPartyAddress(rail, "vendor", "vend-1", ZERO)).toThrow(ADDRESS_HINT);
+    expect(() => setPartyAddress(rail, "customer", "cust-1", ` ${ZERO} `)).toThrow(ADDRESS_HINT);
+    expect(() => setRegistered(rail, "worker", "wkr-2", { address: ZERO, nameHash: "77", name: "nobody" })).toThrow(ADDRESS_HINT);
+  });
+
+  it("doesn't stop books that already hold it from opening, and that person isn't paid", () => {
+    const held: Rail = {
+      ...rail,
+      links: [link, { ...link, workerId: "wkr-2", address: ZERO, agreementId: "02".repeat(32), partiesKey: KEY_B }],
+      partyLinks: [{ kind: "vendor", id: "vend-1", address: ZERO, status: "typed" }],
+    };
+    const opened = railFromJson(JSON.stringify(held));
+    expect(opened).toEqual(held);
+    expect(railFromJson(railToJson(opened))).toEqual(held);
+    expect(linkStatus(opened, "worker", "wkr-2")).toBe("linked");
+    expect([...payableLinks(opened)]).toEqual([["wkr-1", link.address]]);
+    // The rest of the books keep working around it.
+    expect(bumpSeq(opened, "wkr-1", "paystub").links).toHaveLength(2);
+    expect(railFromJson(JSON.stringify({ ...rail, address: ZERO })).address).toBe(ZERO);
   });
 });
 
