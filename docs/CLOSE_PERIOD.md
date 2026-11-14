@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-08
+updated: 2026-11-14
 summary: Closing a period through any date after it ends, once every check passes, the root anchored through `payroll_audit_log`, reopening and locking, and the period proof with a public page anyone can check it on.
 ---
 
@@ -83,8 +83,11 @@ it. The file's half (`@pnw/ledger` `checkPeriodProof`): every entry hashes to it
 every entry is dated in the range and in journal order, and everything recomputes to the root.
 Then the chain's half (`chain/period_check.ts`), only if the file passes: the root is in
 `payroll_audit_log`'s `audit_event_height`, the block it landed in came after the range ended,
-and every payment's transaction is on chain. The only things looked up are the root and the
-transaction ids, both already public. Every line passes or says what failed.
+and every payment's transaction is on chain. The page doesn't check **who** anchored the root:
+`anchor_event` records no caller, and the business name in the file isn't part of the root, so the
+page shows the name as the file's own claim ("as the file says; not checked") until a close
+program records who anchored. The only things looked up are the root and the transaction ids, both
+already public. Every line passes or says what failed.
 
 **Not in it yet:** each payment's view key, which would let the checker see that a transfer paid
 the paystub's net to that address (AUDIT_DESIGN §3, check 4); the one-paycheck and worker's-year
