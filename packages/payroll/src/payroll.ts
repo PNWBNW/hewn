@@ -449,6 +449,12 @@ export type PayRunInput = {
    * lines, so the labour shows up in the project's profit.
    */
   lines: { workerId: string; hours?: number; overtime?: Overtime; callout?: Overtime; onCall?: OnCall; tags?: Tags }[];
+  /**
+   * The team members whose earlier paycheck for this pay date or an overlapping pay period was
+   * shown and confirmed (`checkDoublePay`'s `overlap`). Without it, such a run doesn't post.
+   * It never lets an exact repeat through, and it isn't kept on the run.
+   */
+  confirmedOverlaps?: string[];
 };
 
 /** Computes every paycheck without touching the books, for the review screen. */
@@ -471,22 +477,32 @@ export function previewPayRun(payroll: Payroll, input: PayRunInput): PaycheckDra
 
 export const SETTLEMENT_MODES: SettlementMode[] = ["external", "rail"];
 
+/** An earlier paycheck a line of this run would pay again: whose, in which run, and what the two runs share. */
+export type DoublePayMatch = {
+  workerId: string;
+  runId: string;
+  /** `period`: the two pay periods share at least a day. `date`: only the pay date is the same. */
+  by: "period" | "date";
+};
+
 export type DoublePayCheck = {
-  /** Same person, same pay date, same gross as a paycheck that is paid or on its way: don't post. */
-  blocked: { workerId: string; runId: string }[];
-  /** Same person, same pay date, a different amount (or a failed payment): ask first. */
-  sameDay: { workerId: string; runId: string }[];
+  /** Same person and gross as a paycheck that is paid or on its way, for an overlapping pay period or the same pay date: don't post. */
+  blocked: DoublePayMatch[];
+  /** Same person, an overlapping pay period or the same pay date, another amount (or a failed payment): ask first. */
+  overlap: DoublePayMatch[];
 };
 
 /**
- * Looks for a run that already pays someone on this run's pay date, before
- * anything posts. The two tiers come from the old on-chain guard: an exact
- * repeat (worker, date, gross) with a settled or pending paycheck is blocked;
- * any other same-day paycheck is a question for the user. A deliberate second
- * payment passes by differing in amount.
+ * Looks for a run that already pays someone for any day of this run's pay
+ * period, or on its pay date, before anything posts. The two tiers come from
+ * the old on-chain guard: an exact repeat (worker, gross) with a settled or
+ * pending paycheck is blocked; any other paycheck found is a question for the
+ * user. A deliberate second payment passes by differing in amount, once it is
+ * confirmed. Moving the pay date doesn't get round it: the period is the key.
+ * `postPayRun` runs this itself, so nothing posts past it.
  */
-export function checkDoublePay(payroll: Payroll, input: Pick<PayRunInput, "payDate" | "lines">): DoublePayCheck {
-  const result: DoublePayCheck = { blocked: [], sameDay: [] };
+export function checkDoublePay(payroll: Payroll, input: Pick<PayRunInput, "payDate" | "periodStart" | "periodEnd" | "lines">): DoublePayCheck {
+  const result: DoublePayCheck = { blocked: [], overlap: [] };
   for (const line of input.lines) {
     const worker = payroll.workers.find((w) => w.id === line.workerId);
     if (!worker) continue;
@@ -497,15 +513,37 @@ export function checkDoublePay(payroll: Payroll, input: Pick<PayRunInput, "payDa
       gross = null; // hours missing: previewPayRun will say so; nothing to compare yet
     }
     for (const run of payroll.runs) {
-      if (run.payDate !== input.payDate) continue;
+      // ISO dates compare as text. Two periods overlap when each starts on or before the other's last day.
+      const samePeriod = run.periodStart <= input.periodEnd && input.periodStart <= run.periodEnd;
+      if (!samePeriod && run.payDate !== input.payDate) continue;
       for (const p of run.paychecks) {
         if (p.workerId !== worker.id) continue;
         const exact = gross !== null && p.gross === gross && p.settlement.status !== "failed";
-        (exact ? result.blocked : result.sameDay).push({ workerId: worker.id, runId: run.id });
+        (exact ? result.blocked : result.overlap).push({ workerId: worker.id, runId: run.id, by: samePeriod ? "period" : "date" });
       }
     }
   }
   return result;
+}
+
+const namesOf = (payroll: Payroll, matches: readonly DoublePayMatch[]): string[] => [
+  ...new Set(matches.map((m) => payroll.workers.find((w) => w.id === m.workerId)?.name ?? m.workerId)),
+];
+
+/**
+ * Why this run can't post as it is, in words for the person running payroll, or null: the people
+ * a line would pay the same amount again, those already paid for the period first.
+ */
+export function doublePayRefusal(
+  payroll: Payroll,
+  input: Pick<PayRunInput, "payDate" | "periodStart" | "periodEnd" | "lines">,
+  check: DoublePayCheck = checkDoublePay(payroll, input),
+): string | null {
+  const byPeriod = namesOf(payroll, check.blocked.filter((m) => m.by === "period"));
+  if (byPeriod.length > 0) return `Already paid for ${input.periodStart} to ${input.periodEnd} for the same amount: ${byPeriod.join(", ")}. Change the amount to pay again.`;
+  const byDate = namesOf(payroll, check.blocked);
+  if (byDate.length > 0) return `Already paid on ${input.payDate} for the same amount: ${byDate.join(", ")}. Change the amount or the pay date to pay again.`;
+  return null;
 }
 
 export function postPayRun(
@@ -524,7 +562,18 @@ export function postPayRun(
   if (input.reference !== undefined && typeof input.reference !== "string") throw new PayrollError("The payment reference must be text");
   const reference = input.reference?.trim() || undefined;
   if (reference && mode === "rail") throw new PayrollError("A payment reference is only for runs paid outside the app");
+  if (input.confirmedOverlaps !== undefined && !(Array.isArray(input.confirmedOverlaps) && input.confirmedOverlaps.every((id) => typeof id === "string"))) {
+    throw new PayrollError("The confirmed team members must be a list");
+  }
   const computed = previewPayRun(payroll, input);
+  // Nobody is paid twice for the same days: an exact repeat never posts, and another amount posts only once it was confirmed.
+  const repeats = checkDoublePay(payroll, input);
+  const refusal = doublePayRefusal(payroll, input, repeats);
+  if (refusal) throw new PayrollError(refusal);
+  const unconfirmed = namesOf(payroll, repeats.overlap.filter((m) => !input.confirmedOverlaps?.includes(m.workerId)));
+  if (unconfirmed.length > 0) {
+    throw new PayrollError(`${unconfirmed.join(", ")} ${unconfirmed.length === 1 ? "has" : "have"} another paycheck for this pay date or pay period. Confirm it before posting this one.`);
+  }
 
   let { books: next, accounts } = ensurePayrollAccounts(books);
   const runId = `run-${payroll.runs.length + 1}`;
