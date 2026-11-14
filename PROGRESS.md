@@ -14,6 +14,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 ### [2026-11-14](progress/2026-11/2026-11-14.md)
 
 - [The wallet asks Shield for every program the app calls](progress/2026-11/2026-11-14.md#2026-11-14--the-wallet-asks-shield-for-every-program-the-app-calls)
+- [Eleven fix pull requests from one run, none merged](progress/2026-11/2026-11-14.md#2026-11-14--eleven-fix-pull-requests-from-one-run-none-merged)
 
 ### [2026-11-12](progress/2026-11/2026-11-12.md)
 
