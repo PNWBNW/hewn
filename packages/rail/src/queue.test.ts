@@ -275,6 +275,24 @@ describe("runPayQueue", () => {
     expect(wallet.calls).toHaveLength(3);
   });
 
+  it("records of 1,000.00 and 600.00 pay 400.00, 600.00 and 500.00 in that order, with three prompts and no split", async () => {
+    const wallet = new FakeWallet([centsToMinor(1000_00n), centsToMinor(600_00n)], (_c, n) => accepted(AT(n)));
+    const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 400_00n), paycheck("w2", 600_00n), paycheck("w3", 500_00n)]);
+    const spends = (i: number) => /amount: (\d+)u128/.exec(wallet.calls[i]!.inputs[2]!)![1];
+    // w1 from the 1,000.00, though the 600.00 is the smallest that covers 400.00: taking that one would leave
+    // 200.00 and 400.00 for w3. w2 takes the 600.00 that fits exactly, and w3 the 600.00 w1's payment left.
+    expect([spends(0), spends(1), spends(2)]).toEqual([`${centsToMinor(1000_00n)}`, `${centsToMinor(600_00n)}`, `${centsToMinor(600_00n)}`]);
+    expect(wallet.calls[1]!.inputs[2]).not.toBe(wallet.calls[2]!.inputs[2]);
+    expect(wallet.calls.map((c) => [c.function, c.inputs[0], c.inputs[1]])).toEqual([
+      [TRANSFER_FUNCTION, ADDR(1), `${centsToMinor(400_00n)}u128`],
+      [TRANSFER_FUNCTION, ADDR(2), `${centsToMinor(600_00n)}u128`],
+      [TRANSFER_FUNCTION, ADDR(3), `${centsToMinor(500_00n)}u128`],
+    ]);
+    expect(result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(result.stalled).toBeUndefined();
+    expect(wallet.records.filter((r) => !r.spent).map((r) => r.recordPlaintext)).toEqual([expect.stringContaining(`amount: ${centsToMinor(100_00n)}u128`)]);
+  });
+
   it("names no fee on any call to Shield: the wallet charges its own estimate", async () => {
     const wallet = new FakeWallet([centsToMinor(500_00n)], (_c, n) => accepted(AT(n)));
     const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 100_00n), paycheck("w2", 250_00n)]);
@@ -1010,6 +1028,39 @@ describe("runPayQueue: one payment at a time, each from what the last one left",
     expect(shield.calls).toHaveLength(3);
     expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
     expect((await shield.listed()).reduce((a, b) => a + b, 0n)).toBe(centsToMinor(9_00n));
+  });
+
+  it("two records that only one order of picks pays everyone from: each payee paid once, one prompt open at a time, three prompts", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n), centsToMinor(6_00n)]);
+    const books = keeper([paycheck("w1", 4_00n), paycheck("w2", 6_00n), paycheck("w3", 5_00n)]);
+    const { result, events } = await payWith(shield, books);
+    expect(result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(result.failed).toEqual([]);
+    expect(result.unconfirmed).toEqual([]);
+    expect(result.stalled).toBeUndefined();
+    expect(promptsFor(events)).toEqual(["w1", "w2", "w3"]);
+    expect(shield.calls.every((c) => c.function === TRANSFER_FUNCTION)).toBe(true);
+    expect(shield.calls[0]!.inputs[2]).toContain(`amount: ${centsToMinor(10_00n)}u128`);
+    expect(shield.mostOpen).toBe(1);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
+    expect(await shield.listed()).toEqual([centsToMinor(1_00n)]);
+  });
+
+  it("a later payee's set-aside record goes mid-run, so no plan pays everyone still to come: the payee whose turn it is is paid all the same", async () => {
+    const shield = new TimedShield([centsToMinor(5_00n), centsToMinor(3_00n)], {
+      // While the first prompt is open, the 3.00 that w3's earlier try set aside goes into something else.
+      onRaise: (n, s) => void (n === 0 && s.lose(1)),
+    });
+    const tag = await recordTag(plaintextOf(centsToMinor(3_00n), "t2"));
+    const books = keeper([paycheck("w1", 1_00n), paycheck("w2", 4_00n), paycheck("w3", 3_00n, { status: "failed", failure: EXPIRED, attempt: tag, since: HEIGHT })]);
+    const { result, events } = await payWith(shield, books);
+    // What w1's payment left covers w2 and not w2 and w3 together: w2 is paid from it, and w3 is looked for at its turn.
+    expect(result.settled.map((s) => s.workerId)).toEqual(["w1", "w2"]);
+    expect(result.unconfirmed).toEqual([{ workerId: "w3", failure: expect.stringMatching(new RegExp(`^${NOT_PAID}`)) }]);
+    expect(result.failed).toEqual([]);
+    expect(result.stalled).toBeUndefined();
+    expect(promptsFor(events)).toEqual(["w1", "w2"]);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 0]);
   });
 
   it("money arriving between two payments is combined with the change: the next payment is made from the combined record, and each person is paid once", async () => {

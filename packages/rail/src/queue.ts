@@ -7,8 +7,9 @@
 //   2. Prove once: the sender's freeze-list exclusion proof, shared by every
 //      transfer (exclusion.ts).
 //   3. Pay in the run's order, with one Shield prompt open at a time. For
-//      each payee: read the wallet's records again and pick the one this
-//      payment spends (plan.ts `pickRecord`) → the caller keeps that record's
+//      each payee: read the wallet's records again and plan the payments
+//      still to make from them, so this one spends a record that leaves the
+//      people after it covered (plan.ts) → the caller keeps that record's
 //      tag → ask the wallet (Shield prompts once) → poll the wallet until it
 //      reports the on-chain id and acceptance, or gives up → read the
 //      confirmed transaction back from the explorer for the fee the employer
@@ -518,19 +519,21 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
   const setAside = new Map(due.flatMap((p) => (p.settlement.attempt ? [[p.settlement.attempt, p.workerId] as const] : [])));
   /** The records free to pay `p` from: listed, not spent in this run, and not set aside for anyone else. */
   const freeFor = (p: QueuedPayment, among: readonly Listed[]): Listed[] => among.filter((r) => !spent.has(r.plaintext) && (setAside.get(r.tag) ?? p.workerId) === p.workerId);
-  /** Throws, in the plan's own words, when the payments still to ask for can't be made from `among`. */
-  const check = (among: readonly Listed[]) => {
-    const payees = chain.map((p) => {
-      const same = own(p, among);
+  /** The plan for the payments from `from` on (a position in `chain`), made from `among`. Throws, in the plan's own words, when they can't all be made. */
+  const planFrom = (from: number, among: readonly Listed[]) => {
+    const open = among.filter((r) => !spent.has(r.plaintext));
+    const payees = chain.slice(from).map((p) => {
+      const same = own(p, open);
       return { workerId: p.workerId, amount: centsToMinor(p.net), ...(same ? { record: same.plaintext } : {}) };
     });
     // A record someone has set aside is in the plan only as that payee's own.
     const theirs = new Set(payees.flatMap((p) => (p.record !== undefined ? [p.record] : [])));
-    planTransfers(
+    return planTransfers(
       payees,
-      among.filter((r) => !spent.has(r.plaintext) && (!setAside.has(r.tag) || theirs.has(r.plaintext))),
+      open.filter((r) => !setAside.has(r.tag) || theirs.has(r.plaintext)),
     );
   };
+  const check = (among: readonly Listed[]) => void planFrom(0, among);
   const fits = (among: readonly Listed[]): boolean => {
     try {
       check(among);
@@ -538,6 +541,24 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     } catch {
       return false;
     }
+  };
+  /**
+   * The record the payment at `index` in `chain` spends, out of `among`: the one the plan for the
+   * payments still to make gives it, so the people after it are left a record that covers them. When
+   * no plan pays them all from what is listed (a record the people after it were counting on went
+   * elsewhere mid-run), the one this payment alone would take: it is made if it can be, and the run
+   * stops where it can't go on.
+   */
+  const choose = (index: number, among: readonly Listed[]): Listed | undefined => {
+    const p = chain[index]!;
+    try {
+      const first = planFrom(index, among).transfers[0]?.record;
+      const planned = first?.kind === "existing" ? among.find((r) => r.plaintext === first.plaintext) : undefined;
+      if (planned) return planned;
+    } catch {
+      // No plan for everyone still to come: this payment's own pick, below.
+    }
+    return pickRecord(centsToMinor(p.net), freeFor(p, among));
   };
   // What a payment settled just now left behind may not be listed yet: give it the wait a payment's change gets.
   if (!fits(records) && arriving) {
@@ -559,12 +580,12 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     emit({ kind: "stalled", at, of, why });
   };
 
-  /** A record for `p` from what the wallet lists now; when something this run settled may still be on its way, waited for. */
-  const recordFor = async (p: QueuedPayment): Promise<Listed | null> => {
+  /** A record for the payment at `index` in `chain` from what the wallet lists now; when something this run settled may still be on its way, waited for. */
+  const recordFor = async (index: number): Promise<Listed | null> => {
     const pick = async () => {
       const now = await relist();
       if (now) records = now;
-      return now ? (pickRecord(centsToMinor(p.net), freeFor(p, now)) ?? null) : null;
+      return now ? (choose(index, now) ?? null) : null;
     };
     return (await (arriving ? timer.soon(limits.recordWaitMs, pick) : pick())) ?? null;
   };
@@ -611,7 +632,9 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
    * Pays one payee, from `first`. Resolves the record the payment spent and what was free to it
    * beforehand, or null when it didn't settle (its line has said why).
    */
-  const payOne = async (p: QueuedPayment, first: Listed, step: number): Promise<{ record: Listed; before: bigint } | null> => {
+  const payOne = async (index: number, first: Listed): Promise<{ record: Listed; before: bigint } | null> => {
+    const p = chain[index]!;
+    const step = index + 1;
     const line = lineOf(p);
     const since = keptOf(p).since;
     // What the caller holds for this payment: the tag an earlier run kept, then each one kept here.
@@ -634,7 +657,7 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
       if (outcome === "settled") return { record, before };
       // Its record went into something else and nothing paid them: ask again, from a record listed now.
       arriving = true;
-      const next = await recordFor(p);
+      const next = await recordFor(index);
       if (!next) {
         unconfirmed(p.workerId, NOT_PAID_RECORD_USED, ended(kept));
         return null;
@@ -656,13 +679,13 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
         continue;
       }
     } else {
-      record = await recordFor(p);
+      record = await recordFor(index);
     }
     if (!record) {
       stall(step, NOT_LISTED);
       break;
     }
-    const paid = await payOne(p, record, step);
+    const paid = await payOne(index, record);
     if (!paid) {
       if (step < of) stall(step, NOT_ASKED);
       break;
