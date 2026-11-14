@@ -436,6 +436,28 @@ describe("stay logged in", () => {
       await forgetSession(store);
       expect(await resumeSession(store, t0)).toBeNull();
     });
+
+    it(`${name}: Log out leaves nothing remembered, even a login another tab kept while it was looking`, async () => {
+      const store = make();
+      const s = await createVault(PASS, "books", { ...FAST, id: "acct-both" });
+      await store.save(s.record);
+      await s.remember(store, later(HOUR), t0);
+      // Another tab logs in with "stay logged in" right after this tab's delete, before it looks that the session went.
+      const clear = store.clearRemembered.bind(store);
+      let landed = false;
+      store.clearRemembered = async () => {
+        await clear();
+        if (landed) return;
+        landed = true;
+        await s.remember(store, later(2 * HOUR), t0);
+      };
+      // The second delete takes that login too. The other tab's books stay open until it is
+      // reloaded, and then it asks for the passphrase: never the other way round.
+      expect(await forgetSession(store)).toBe(true);
+      expect(landed).toBe(true);
+      expect(await store.loadRemembered()).toBeNull();
+      expect(await resumeSession(store, later(HOUR / 2))).toBeNull();
+    });
   }
 
   it("indexeddb: the last-used time has a row of its own, with no key in it, and Log out leaves no row", async () => {
