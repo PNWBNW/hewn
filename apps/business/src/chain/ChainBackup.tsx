@@ -23,6 +23,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { markBackedUp } from "@/books/backup_reminder";
+import { noteProgress } from "@/books/idle_lock";
 import { shortAddress } from "@/books/rail";
 import { type BackupPlan, planBackup } from "./books_backup";
 import { useLetters } from "./letter_reader";
@@ -95,6 +96,7 @@ function Backup() {
         setStep({ kind: "sending", plan: p, sent });
         await box.put(page.lookup, page.envelope, { feeMode });
         sent++;
+        noteProgress(); // each page is a step: the idle lock waits while pages keep landing
       }
       await updateCompany((c) => ({ ...markBackedUp(c), chainBackup: p.next }));
       setStep({ kind: "done", what: p.kind === "snapshot" ? "Your books are backed up with your account." : "The changes since your last backup are saved with your account." });

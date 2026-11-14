@@ -37,6 +37,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money } from "@/books/display";
+import { noteProgress } from "@/books/idle_lock";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { useShield } from "./shield";
@@ -119,6 +120,13 @@ function stageLabel(stage: Stage): string {
   }
 }
 
+/**
+ * The queue events that end a step of the run. Each counts as activity for the idle lock, so books
+ * left open while the person approves in Shield don't lock mid-run; a wait for an approval
+ * ("splitting", "approving") doesn't count.
+ */
+const STEP_DONE: ReadonlySet<PayQueueEvent["kind"]> = new Set(["planned", "split_done", "sent", "settled", "failed", "unconfirmed"]);
+
 // ---- Paystub delivery, per person ---------------------------------------------------------
 
 /** Where this session's send of one paystub stands; the vault's `delivery` covers earlier sessions. */
@@ -146,6 +154,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     setDeliveries((all) => ({ ...all, [workerId]: { kind: "sending" } }));
     try {
       await sendPaystub(runId, workerId);
+      noteProgress();
       setDeliveries((all) => ({ ...all, [workerId]: { kind: "sent" } }));
     } catch (e) {
       setDeliveries((all) => ({ ...all, [workerId]: { kind: "failed", message: errorMessage(e) } }));
@@ -221,6 +230,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
     const settled: Promise<string | null>[] = [];
     const onProgress = (e: PayQueueEvent) => {
+      if (STEP_DONE.has(e.kind)) noteProgress();
       switch (e.kind) {
         case "planned":
           setNote(e.splits > 0 ? `Preparing ${e.splits === 1 ? "a record" : `${e.splits} records`} first, then paying ${e.transfers}.` : null);

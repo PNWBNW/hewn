@@ -1,0 +1,179 @@
+// The idle lock (idle_lock.ts): page input and each completed step of a long send count as
+// activity, and the time since the last one is checked on a timer and whenever the page wakes.
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IDLE_LOCK_MS, PROGRESS_EVENT, idleTracker, noteProgress, watchIdle } from "./idle_lock";
+
+const SRC = join(__dirname, "..");
+const read = (file: string) => readFileSync(join(SRC, file), "utf8");
+const MINUTE = 60_000;
+
+/** A window and a document that only carry events, as the browser's do. */
+function page() {
+  const win = new EventTarget();
+  const doc = Object.assign(new EventTarget(), { visibilityState: "visible" as DocumentVisibilityState });
+  return { win, doc };
+}
+
+describe("the idle tracker", () => {
+  it("locks once, when the time since the last activity reaches 15 minutes", () => {
+    let t = 0;
+    const lock = vi.fn();
+    const idle = idleTracker({ now: () => t, lock });
+    t = 14 * MINUTE;
+    expect(idle.check()).toBe(false);
+    expect(idle.remaining()).toBe(MINUTE);
+    t = 15 * MINUTE;
+    expect(idle.check()).toBe(true);
+    expect(idle.check()).toBe(true);
+    expect(lock).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts from the last touch", () => {
+    let t = 0;
+    const lock = vi.fn();
+    const idle = idleTracker({ now: () => t, lock });
+    t = 10 * MINUTE;
+    idle.touch();
+    t = 24 * MINUTE;
+    expect(idle.check()).toBe(false);
+    t = 25 * MINUTE;
+    expect(idle.check()).toBe(true);
+    expect(lock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the idle lock on a page", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("stays open for 40 minutes while steps complete every 10 minutes, and locks 15 minutes after the last", () => {
+    const { win, doc } = page();
+    const lock = vi.fn();
+    const stop = watchIdle({ lock, win, doc });
+    for (let m = 10; m <= 40; m += 10) {
+      vi.advanceTimersByTime(10 * MINUTE);
+      noteProgress(win);
+    }
+    expect(lock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(14 * MINUTE);
+    expect(lock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(MINUTE);
+    expect(lock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("locks at 15 minutes during the same run when only page input counts", () => {
+    const { win, doc } = page();
+    const lock = vi.fn();
+    const stop = watchIdle({ lock, win, doc });
+    vi.advanceTimersByTime(10 * MINUTE);
+    expect(lock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(5 * MINUTE);
+    expect(lock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("counts page input as activity", () => {
+    const { win, doc } = page();
+    const lock = vi.fn();
+    const stop = watchIdle({ lock, win, doc });
+    for (const e of ["pointerdown", "keydown", "scroll"]) {
+      vi.advanceTimersByTime(10 * MINUTE);
+      win.dispatchEvent(new Event(e));
+    }
+    vi.advanceTimersByTime(14 * MINUTE);
+    expect(lock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(MINUTE);
+    expect(lock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("a page frozen for 20 minutes locks the moment it wakes, though no timer fired", () => {
+    for (const wake of ["visibilitychange", "pageshow", "focus"] as const) {
+      vi.setSystemTime(0);
+      const { win, doc } = page();
+      const lock = vi.fn();
+      const stop = watchIdle({ lock, win, doc });
+      vi.setSystemTime(20 * MINUTE); // the clock moved; the frozen page ran no timer
+      expect(lock, wake).not.toHaveBeenCalled();
+      (wake === "visibilitychange" ? doc : win).dispatchEvent(new Event(wake));
+      expect(lock, wake).toHaveBeenCalledTimes(1);
+      stop();
+    }
+  });
+
+  it("a step 5 minutes before waking keeps the books open", () => {
+    const { win, doc } = page();
+    const lock = vi.fn();
+    const stop = watchIdle({ lock, win, doc });
+    vi.setSystemTime(15 * MINUTE);
+    noteProgress(win); // a step completed while the person was approving in another app
+    vi.setSystemTime(20 * MINUTE);
+    win.dispatchEvent(new Event("pageshow"));
+    expect(lock).not.toHaveBeenCalled();
+    vi.setSystemTime(30 * MINUTE);
+    win.dispatchEvent(new Event("focus"));
+    expect(lock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("does not count waking up as activity", () => {
+    const { win, doc } = page();
+    const lock = vi.fn();
+    const stop = watchIdle({ lock, win, doc });
+    vi.advanceTimersByTime(10 * MINUTE);
+    win.dispatchEvent(new Event("focus"));
+    doc.dispatchEvent(new Event("visibilitychange"));
+    vi.advanceTimersByTime(5 * MINUTE);
+    expect(lock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("stops listening when stopped", () => {
+    const { win, doc } = page();
+    const lock = vi.fn();
+    const stop = watchIdle({ lock, win, doc });
+    stop();
+    vi.setSystemTime(IDLE_LOCK_MS * 2);
+    win.dispatchEvent(new Event("pageshow"));
+    vi.advanceTimersByTime(IDLE_LOCK_MS * 2);
+    expect(lock).not.toHaveBeenCalled();
+  });
+
+  it("noteProgress sends the progress event, and does nothing without a window", () => {
+    const win = new EventTarget();
+    const heard = vi.fn();
+    win.addEventListener(PROGRESS_EVENT, heard);
+    noteProgress(win);
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(() => noteProgress()).not.toThrow();
+  });
+});
+
+describe("where the idle lock is wired", () => {
+  it("the provider runs the idle lock, listening for progress and for the page waking", () => {
+    const provider = read("books/BooksProvider.tsx");
+    expect(provider).toContain("watchIdle({ lock })");
+    expect(provider).not.toMatch(/setTimeout\(lock, IDLE_LOCK_MS\)/);
+    const idle = read("books/idle_lock.ts");
+    for (const e of ["PROGRESS_EVENT", '"pointerdown"', '"keydown"', '"scroll"', '"visibilitychange"', '"pageshow"', '"focus"']) expect(idle, e).toContain(e);
+  });
+
+  it("the pay panel and the backup to the account note each completed step", () => {
+    const pay = read("chain/PayPanel.tsx");
+    expect(pay).toContain('import { noteProgress } from "@/books/idle_lock";');
+    // The queue events that end a step count; the waits for an approval ("splitting", "approving") don't.
+    expect(pay).toContain('new Set(["planned", "split_done", "sent", "settled", "failed", "unconfirmed"])');
+    expect(pay).toContain("if (STEP_DONE.has(e.kind)) noteProgress();");
+    expect(pay).toMatch(/await sendPaystub\(runId, workerId\);\s*noteProgress\(\);/);
+    const backup = read("chain/ChainBackup.tsx");
+    expect(backup).toContain('import { noteProgress } from "@/books/idle_lock";');
+    expect(backup).toMatch(/await box\.put\(page\.lookup, page\.envelope, \{ feeMode \}\);\s*sent\+\+;\s*noteProgress\(\);/);
+  });
+});
