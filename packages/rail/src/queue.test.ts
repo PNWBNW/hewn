@@ -236,6 +236,14 @@ describe("runPayQueue", () => {
     expect(wallet.records.filter((r) => !r.spent).map((r) => r.recordPlaintext)).toHaveLength(1); // the change
   });
 
+  it("names no fee on any call to Shield, splits and transfers alike: the wallet charges its own estimate", async () => {
+    const wallet = new FakeWallet([centsToMinor(500_00n)], (_c, n) => accepted(AT(n)));
+    const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 100_00n), paycheck("w2", 250_00n)]);
+    expect(result.settled).toHaveLength(2);
+    expect(wallet.calls.map((c) => c.function).sort()).toEqual([SPLIT_FUNCTION, SPLIT_FUNCTION, TRANSFER_FUNCTION, TRANSFER_FUNCTION]);
+    for (const call of wallet.calls) expect(call).not.toHaveProperty("fee");
+  });
+
   it("a failed split fails only the payees that depended on it", async () => {
     const wallet = new FakeWallet([centsToMinor(100_00n), centsToMinor(40_00n)], (c, n) =>
       c.function === SPLIT_FUNCTION ? [{ status: "failed", error: "split rejected" }] : accepted(AT(n)),

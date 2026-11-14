@@ -30,7 +30,8 @@ export function useShield() {
   const adaptor = useWallet();
   const wallet = {
     ...adaptor,
-    executeTransaction: async (opts: Parameters<typeof adaptor.executeTransaction>[0] & { feeMode?: FeeMode }) => {
+    // No `fee` in what a caller may pass: the app never names an amount, so Shield charges its own estimate.
+    executeTransaction: async (opts: Omit<Parameters<typeof adaptor.executeTransaction>[0], "fee"> & { feeMode?: FeeMode }) => {
       const { feeMode, ...call } = opts;
       // Before Shield is asked to sign anything: the upgradable programs are still the editions
       // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
