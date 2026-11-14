@@ -127,8 +127,8 @@ describe("the sequential releaser's prompt plan", () => {
     // What Shield was asked, in order, is what the plan said: the same programs and functions, and for each payment
     // the same payee and amount.
     expect(wallet.calls.map((c) => [c.program, c.function])).toEqual(plan.map((p) => [p.program, p.fn]));
-    expect(wallet.calls.slice(0, 12).map((c) => [c.inputs[0], c.inputs[1]])).toEqual(plan.slice(0, 12).map((p) => [p.to, `${p.minor}u128`]));
-    expect(wallet.calls.slice(12).map((c) => c.inputs[0])).toEqual(plan.slice(12).map((p) => start.links.get(p.workerId)));
+    expect(wallet.calls.slice(0, 12).map((c) => [c.inputs[0], c.inputs[1]])).toEqual(plan.slice(0, 12).map((p) => (p.kind === "payment" ? [p.to, `${p.minor}u128`] : [])));
+    expect(wallet.calls.slice(12).map((c) => c.inputs[0])).toEqual(plan.slice(12).map((p) => (p.kind === "paystub" ? start.links.get(p.workerId) : undefined)));
     expect(wallet.calls.filter((c) => c.program === USDCX).every((c) => c.function === TRANSFER_FUNCTION)).toBe(true);
   });
 
@@ -149,7 +149,7 @@ describe("the sequential releaser's prompt plan", () => {
     let payroll = markPaycheckSettlement(start.company.payroll, start.runId, a, { status: "settled", reference: AT(1) });
     payroll = markPaycheckSettlement(payroll, start.runId, b, { status: "pending", reference: "shield_7", attempt: "ab".repeat(16) });
     const plan = sequentialReleaser.prompts(payroll.runs[0]!, start.links);
-    expect(plan.map((p) => [p.kind, p.workerId])).toEqual([
+    expect(plan.map((p) => [p.kind, p.kind === "marker" ? "" : p.workerId])).toEqual([
       ["payment", c],
       ["paystub", b],
       ["paystub", c],
@@ -198,12 +198,15 @@ describe("pickReleaser", () => {
 });
 
 describe("promptSummary", () => {
-  const prompt = (kind: Prompt["kind"]): Prompt => ({ kind, program: "p.aleo", fn: "f", workerId: "w" });
+  const prompt = (kind: Prompt["kind"]): Prompt => (kind === "marker" ? { kind, program: "p.aleo", fn: "f", lines: 2 } : { kind, program: "p.aleo", fn: "f", workerId: "w" });
   it("says how many times Shield will ask, and for what, in the order it will ask", () => {
     const start = setup(12);
     expect(promptSummary(sequentialReleaser.prompts(start.company.payroll.runs[0]!, start.links))).toBe("Shield will ask you 24 times, one at a time: 12 payments, then 12 paystubs.");
     expect(promptSummary([prompt("payment"), prompt("paystub")])).toBe("Shield will ask you 2 times, one at a time: 1 payment, then 1 paystub.");
     expect(promptSummary([prompt("paystub")])).toBe("Shield will ask you once: 1 paystub.");
+    expect(promptSummary([prompt("marker"), prompt("payment"), prompt("payment"), prompt("paystub"), prompt("paystub")])).toBe(
+      "Shield will ask you 5 times, one at a time: 1 note to your own account, then 2 payments, then 2 paystubs.",
+    );
     expect(promptSummary([])).toBeNull();
   });
 });

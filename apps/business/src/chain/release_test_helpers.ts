@@ -101,7 +101,7 @@ export const account = (n: number) => `aleo1${"qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 const BASE_HEIGHT = 4_000_000;
 const BLOCK_MS = 5_000;
 
-type Token = { plaintext: string; amount: bigint; chainTag: string; spent: boolean; from: string | null; height: number; at: number };
+type Token = { plaintext: string; amount: bigint; chainTag: string; spent: boolean; from: string | null; height: number; at: number; busy: number };
 type LetterRecord = { recordName: "Letter" | "Page" | "SentLetter"; recordPlaintext: string; blockHeight: number; transactionId: string; at: number };
 export type ChainTx = { id: string; height: number; at: number; fn: string; to?: string; minor?: bigint; spends: string[] };
 type Call = { program: string; function: string; inputs: string[] };
@@ -131,6 +131,8 @@ export class Chain {
   /** Whether Shield's record list carries the chain's own tag for a record, and the transaction that made it. */
   showTags = true;
   showOrigins = true;
+  /** Whether Shield leaves a record out of its list while a request that spends it is under way. */
+  hidesBusy = false;
   private minted = 0;
   private count = 0;
   private readonly t0: number;
@@ -150,7 +152,7 @@ export class Chain {
 
   private mint(amount: bigint, from: string | null, at = this.vt.now) {
     const n = ++this.minted;
-    this.tokens.push({ plaintext: `{\n  owner: ${this.address}.private,\n  amount: ${amount}u128.private,\n  _nonce: ${n}group.public\n}`, amount, chainTag: `${7_000_000 + n}field`, spent: false, from, height: this.height(at), at });
+    this.tokens.push({ plaintext: `{\n  owner: ${this.address}.private,\n  amount: ${amount}u128.private,\n  _nonce: ${n}group.public\n}`, amount, chainTag: `${7_000_000 + n}field`, spent: false, from, height: this.height(at), at, busy: 0 });
   }
 
   private accept(tx: Omit<ChainTx, "id" | "height" | "at">): ChainTx {
@@ -160,9 +162,9 @@ export class Chain {
     return accepted;
   }
 
-  /** Money arriving in the account: a new record. */
+  /** Money arriving in the account: a new record. Its transaction is someone else's, and isn't in this account's history. */
   deposit(amount: bigint) {
-    this.mint(amount, this.accept({ fn: "transfer_private", spends: [] }).id);
+    this.mint(amount, `at1in${this.minted}`.padEnd(61, "q"));
   }
 
   /** Shield combining the account's records on its own: every unspent one goes into a single new record. */
@@ -301,7 +303,7 @@ export class Shield {
     const listed = (at: number) => at + this.lagMs <= this.vt.now;
     if (program === USDCX) {
       return this.chain.tokens
-        .filter((t) => listed(t.at))
+        .filter((t) => listed(t.at) && !(this.chain.hidesBusy && t.busy > 0 && !t.spent))
         .map((t) => ({
           recordName: "Token",
           spent: t.spent,
@@ -341,9 +343,13 @@ export class Shield {
     if (does === "expired") throw new Error("Approval expired. Request a fresh action.");
     this.approvals++;
     const id = `shield_${this.name}_${n}`;
+    const spending = this.chain.tokens.find((t) => call.program === USDCX && t.plaintext === call.inputs[2]);
+    if (spending) spending.busy++;
     const land = () => {
+      if (spending) spending.busy--;
       const tx = this.chain.land(call);
-      return tx ? { status: "accepted", transactionId: tx.id } : { status: "rejected", error: "The network rejected it: an input was already spent" };
+      // A request whose record was already spent: Shield gives up on it without saying why.
+      return tx ? { status: "accepted", transactionId: tx.id } : { status: "interrupted" };
     };
     if (does === "landed, then threw") {
       await this.vt.sleep(this.landMs);
@@ -394,7 +400,11 @@ const SECRET = "hewn:v1\nalder\ncorrect horse battery staple";
 const KEY = (n: number) => n.toString(16).padStart(2, "0").repeat(32);
 
 /** Books with a posted rail run for `n` hourly people, each paid a different amount to an account of their own. */
-export function postedRun(n: number, period: { payDate: string; periodStart: string; periodEnd: string } = { payDate: "2026-11-13", periodStart: "2026-11-07", periodEnd: "2026-11-13" }) {
+export function postedRun(
+  n: number,
+  period: { payDate: string; periodStart: string; periodEnd: string } = { payDate: "2026-11-13", periodStart: "2026-11-07", periodEnd: "2026-11-13" },
+  hours: (i: number) => number = (i) => 20 + i,
+) {
   let books: Books = applyTemplate(createBooks({ businessName: "Day Construction", fiscalYearStartMonth: 1 }), "service");
   const rail = ensureRailAccount(books);
   books = rail.books;
@@ -404,7 +414,7 @@ export function postedRun(n: number, period: { payDate: string; periodStart: str
     payroll = added.payroll;
     return added.worker.id;
   });
-  const posted = postPayRun(books, payroll, { ...period, bankAccountId: rail.accountId, mode: "rail", lines: workers.map((workerId, i) => ({ workerId, hours: 20 + i })) }, { now: () => "2026-11-13T12:00:00.000Z" });
+  const posted = postPayRun(books, payroll, { ...period, bankAccountId: rail.accountId, mode: "rail", lines: workers.map((workerId, i) => ({ workerId, hours: hours(i) })) }, { now: () => "2026-11-13T12:00:00.000Z" });
   const links = workers.map((workerId, i) => ({ workerId, address: account(i + 1), nameHash: `${i + 1}`, agreementId: KEY(i + 1).slice(0, 8), status: "linked" as const, partiesKey: KEY(i + 1) }));
   const company: Company = {
     books: posted.books,

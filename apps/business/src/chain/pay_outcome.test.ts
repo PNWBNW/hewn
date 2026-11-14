@@ -9,6 +9,7 @@ describe("how an unconfirmed payment reads", () => {
     expect(unconfirmedLabel("No answer from Shield in time; it may still go through.")).toMatch(/^Not confirmed · /);
     expect(unconfirmedLabel(`${NOT_SEEN}: the record this payment spends is still unspent.`)).toBe("Not seen on chain yet: the record this payment spends is still unspent.");
     expect(unconfirmedLabel(`${NOT_PAID}: the record set aside for this payment went into something else.`)).toMatch(/^Not paid: /);
+    expect(unconfirmedLabel("Not confirmed: check again at 3:45 PM.")).toBe("Not confirmed: check again at 3:45 PM.");
     for (const failure of ["anything", `${NOT_SEEN}: x`, `${NOT_PAID}: x`]) expect(unconfirmedLabel(failure)).not.toMatch(/not sent/i);
   });
 });
@@ -20,9 +21,9 @@ describe("pay again", () => {
     expect(payAgainTarget({ attempt: tag, since: 4_210_000 }, true)).toEqual({ status: "failed", failure: PAY_AGAIN_NOTE, attempt: tag, since: 4_210_000 });
   });
 
-  it("takes a fresh record only once the old one is gone, and still keeps the height it was first asked at", () => {
-    expect(payAgainTarget({ attempt: tag, since: 4_210_000 }, false)).toEqual({ status: "failed", failure: PAY_AGAIN_NOTE, since: 4_210_000 });
-    expect(payAgainTarget({ attempt: tag }, false)).toEqual({ status: "failed", failure: PAY_AGAIN_NOTE });
+  it("takes a fresh record only once the old one is gone, keeps the old tag as the one it gave up, and the height it was first asked at", () => {
+    expect(payAgainTarget({ attempt: tag, since: 4_210_000 }, false)).toEqual({ status: "failed", failure: PAY_AGAIN_NOTE, replaces: tag, since: 4_210_000 });
+    expect(payAgainTarget({ attempt: tag }, false)).toEqual({ status: "failed", failure: PAY_AGAIN_NOTE, replaces: tag });
   });
 
   it("has nothing to keep for a payment that never set a record aside", () => {

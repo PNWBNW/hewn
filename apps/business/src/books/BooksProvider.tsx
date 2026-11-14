@@ -103,6 +103,9 @@ export type BackupOutcome = "shared" | "downloaded" | "cancelled";
 
 export type BackupSealer = { seal(id: string, bytes: Uint8Array<ArrayBuffer>): Promise<SealedAttachment>; slots: KeySlots };
 
+/** Seals and opens a small file with the open books' data key, as a receipt file is sealed and opened. */
+export type NoteSealer = { seal(id: string, bytes: Uint8Array<ArrayBuffer>): Promise<SealedAttachment>; open(sealed: SealedAttachment): Promise<Uint8Array<ArrayBuffer>> };
+
 export type UnlockOutcome = { opened: true } | { opened: false; choices: Role[] };
 
 // Only records that an account exists on this device (to tell the front page which button to
@@ -209,6 +212,13 @@ type BooksContextValue = {
    * session itself never leaves this provider.
    */
   backupSealer: () => BackupSealer | null;
+  /**
+   * What a note the account keeps for itself as a letter needs from the open books (a pay run's
+   * marker, chain/run_marker.ts): sealing it with their data key and opening it again, so only
+   * these books, on any device they are restored to, read it. Null while locked. Neither the key
+   * nor the session leaves this provider.
+   */
+  noteSealer: () => NoteSealer | null;
   /** The open company as it stands now (read-only), for work that needs the whole document; null while locked. */
   currentCompany: () => Company | null;
   /**
@@ -575,6 +585,12 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     return { seal: (id, bytes) => s.sealAttachment(id, bytes), slots: keySlotsOf(s.record) };
   }, []);
 
+  const noteSealer = useCallback((): NoteSealer | null => {
+    const s = session.current;
+    if (!s || s.locked) return null;
+    return { seal: (id, bytes) => s.sealAttachment(id, bytes), open: (sealed) => s.openAttachment(sealed) };
+  }, []);
+
   const restore = useCallback(
     async (fileText: string, rawUsername: string | null, passphrase: string, stay = false) => {
       const backup = parseBackup(fileText);
@@ -817,6 +833,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       downloadBackup,
       confirmBackupSaved,
       backupSealer,
+      noteSealer,
       currentCompany,
       restore,
       backupKey,
@@ -849,6 +866,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       downloadBackup,
       confirmBackupSaved,
       backupSealer,
+      noteSealer,
       currentCompany,
       restore,
       backupKey,

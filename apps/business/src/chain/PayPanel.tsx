@@ -23,8 +23,14 @@
 // queue first looks for it in the account's own transfers (sent_payment.ts:
 // Shield's history for ids, the explorer for what each was) and settles it if
 // it is there. "Pay again" keeps the record the last try set aside while that
-// record is still listed, so only one of the two tries can land
-// (pay_outcome.ts).
+// record is still listed, so only one of the two tries can land, and takes
+// another only once that record is known to have gone into something that
+// didn't pay them (release.ts `payAgain`).
+//
+// Before the first payment of a run, one note goes to the business's own
+// account saying what the run is about to pay (run_marker.ts), so another
+// device with the same books pays nobody again: there, a line already being
+// paid says so, and nothing is sent for it.
 //
 // The moment a paycheck settles its paystub goes to the person through the
 // mailbox (deliver.ts). That is a courtesy on top of the payment: a send that
@@ -44,7 +50,6 @@ import {
   fetchTokenRecords,
   formatMinorAsDollars,
   outstanding,
-  recordStillListed,
   totalBalance,
 } from "@pnw/rail";
 import { Button } from "@pnw/ui/button";
@@ -56,8 +61,9 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, payAgainTarget, unconfirmedLabel } from "./pay_outcome";
-import { promptSummary, releaseRun, settleTo } from "./release";
+import { FOUND_NOTE, unconfirmedLabel } from "./pay_outcome";
+import { type ReleaseContext, payAgain as payAgainFrom, promptSummary, releaseRun } from "./release";
+import { markerDesk } from "./run_marker";
 import type { SentRead } from "./sent_payment";
 import { useShield } from "./shield";
 import { usePaystubDelivery } from "./usePaystubDelivery";
@@ -101,7 +107,9 @@ type Stage =
   | { kind: "settled"; transactionId: string; feeMicrocredits?: bigint; found?: true }
   | { kind: "failed"; failure: string }
   /** It may have gone through: it goes again only by spending the same record (Continue), or when the person says so (Pay again). */
-  | { kind: "unconfirmed"; failure: string };
+  | { kind: "unconfirmed"; failure: string }
+  /** Nothing is sent for it from this device this time: `why` says what it waits on (release.ts `onHeld`). */
+  | { kind: "held"; why: string };
 
 /** What a paycheck looks like before the queue says anything about it this session. */
 function stageOf(p: Paycheck): Stage {
@@ -126,6 +134,8 @@ function stageLabel(stage: Stage): string {
       return `Failed · ${stage.failure}`;
     case "unconfirmed":
       return unconfirmedLabel(stage.failure);
+    case "held":
+      return stage.why;
   }
 }
 
@@ -137,7 +147,7 @@ type Delivery = { kind: "sending" } | { kind: "sent" } | { kind: "failed"; messa
 // ---- The flow ----------------------------------------------------------------------------
 
 function PayFlow({ runId, onClose }: PayPanelProps) {
-  const { rail, payroll, updateCompany } = useOpenBooks();
+  const { rail, payroll, username, noteSealer, updateCompany } = useOpenBooks();
   const { state, route, connect, error: shieldError, wallet } = useShield();
   const sendPaystub = usePaystubDelivery(wallet);
   const run = payroll.runs.find((r) => r.id === runId);
@@ -208,23 +218,37 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const links = payableLinks(rail);
   const unlinked = due.filter((p) => !links.has(p.workerId));
 
+  /** What a release and "pay again" both read: Shield as the queue asks it, the explorer, and the look for a payment Shield didn't confirm. */
+  const reach = (current: string): Pick<ReleaseContext, "wallet" | "network" | "runId" | "links" | "updateCompany" | "lookup"> => ({
+    wallet: toRailWallet(wallet, current),
+    network: explorerNetwork(),
+    runId,
+    links,
+    updateCompany,
+    lookup: {
+      wallet: {
+        requestRecords: (program, all) => wallet.requestRecords(program, all),
+        requestTransactionHistory: (program) => wallet.requestTransactionHistory(program),
+        transitionViewKeys: (id) => wallet.transitionViewKeys(id),
+      },
+      decrypt: decryptTransition,
+      cache: reads.current,
+    },
+  });
+
   /**
    * The person checked Shield's activity and found no payment: this paycheck is paid again on the
-   * next run. While the record its last try set aside is still listed, it keeps that record, so the
-   * network lets only one of the two tries through; once it's gone, it takes a fresh one. If Shield
-   * can't be asked, the record is kept and the next run finds out.
+   * next run (release.ts `payAgain`). While the record its last try set aside is still listed, it
+   * keeps that record, so the network lets only one of the two tries through. It takes another
+   * only once that record is known to have gone into something that didn't pay them; until that
+   * can be read, the line says when to check again and nothing is sent.
    */
   async function payAgain(workerId: string) {
     setAgainFor(null);
     setError(null);
+    if (!address) return;
     try {
-      const tried = run?.paychecks.find((p) => p.workerId === workerId)?.settlement.attempt;
-      const listed = !!tried && !!address && (await recordStillListed(toRailWallet(wallet, address), tried).catch(() => true));
-      await updateCompany((c) => {
-        const now = c.payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.settlement;
-        // A tag that changed since Shield was asked is one nothing was checked for: it is kept.
-        return { ...c, payroll: settleTo(c.payroll, runId, workerId, payAgainTarget(now, now?.attempt === tried ? listed : true)) };
-      });
+      await payAgainFrom(reach(address), workerId);
       setStages((all) => {
         const { [workerId]: _gone, ...rest } = all;
         return rest;
@@ -239,13 +263,17 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     setRunning(true);
     setError(null);
     setNote(null);
-    const railWallet = toRailWallet(wallet, current);
+    const within = reach(current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
+    // What an earlier release said was waiting on another device is asked afresh.
+    setStages((all) => Object.fromEntries(Object.entries(all).filter(([, s]) => s.kind !== "held")));
+    // The lines this release has already spoken for before the queue plans: held, or found paid from another device.
+    const spoken = new Set<string>();
     let stalled = false;
     const onEvent = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
-          for (const p of due) setStage(p.workerId, { kind: "waiting" });
+          for (const p of due) if (!spoken.has(p.workerId)) setStage(p.workerId, { kind: "waiting" });
           break;
         case "approving":
           setStage(e.workerId, { kind: "approving", to: e.to, minor: e.minor });
@@ -259,6 +287,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
         case "broadcast":
           break;
         case "settled":
+          spoken.add(e.workerId);
           setStage(e.workerId, {
             kind: "settled",
             transactionId: e.transactionId,
@@ -277,29 +306,25 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     try {
       // The release itself (release.ts): the run as the books hold it now, every outcome written as it happens, then
       // each paystub settled this time. This panel only shows it.
+      // The account's notes about its pay runs are sealed by the open books, and read and sent through Shield.
+      const seal = noteSealer();
+      if (!seal) throw new Error("The books are locked");
       ({ stalled } = await releaseRun({
-        wallet: railWallet,
-        network: explorerNetwork(),
-        runId,
-        links,
-        updateCompany,
-        lookup: {
-          wallet: {
-            requestRecords: (program, all) => wallet.requestRecords(program, all),
-            requestTransactionHistory: (program) => wallet.requestTransactionHistory(program),
-            transitionViewKeys: (id) => wallet.transitionViewKeys(id),
-          },
-          decrypt: decryptTransition,
-          cache: reads.current,
-        },
+        ...within,
+        markers: markerDesk({ wallet, address: current, username: username ?? "", seal }),
         deliver,
         // First, how many times Shield will ask.
         onPrompts: (prompts) => setNote(promptSummary(prompts)),
         onEvent,
+        // A payment another device is paying, or one this device won't pay as its books hold it: its line says why.
+        onHeld: (workerId, why) => {
+          spoken.add(workerId);
+          setStage(workerId, { kind: "held", why });
+        },
         onError: (e) => setError(errorMessage(e)),
         onPaid: async () => {
           loadedFor.current = null; // re-read the balance
-          setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
+          setRecords(await fetchTokenRecords(within.wallet).catch(() => records ?? []));
         },
       }));
     } catch (e) {
@@ -382,7 +407,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
                         ? "text-money-positive"
                         : s.kind === "failed"
                           ? "text-money-negative"
-                          : s.kind === "unconfirmed"
+                          : s.kind === "unconfirmed" || s.kind === "held"
                             ? "text-amber-700 dark:text-amber-400"
                             : "text-muted-foreground",
                     )}
@@ -424,6 +449,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           </ul>
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           <p className="text-xs text-muted-foreground">
+            {!attempted && "First, one note to your own account so no other device pays this run again (one approval). "}
             Shield asks you to approve each payment, one at a time: each is paid from what the last one left, so the next prompt comes up once the
             one before has settled. The employer pays the network fee on each one; nothing is taken from anyone&apos;s pay.
           </p>
