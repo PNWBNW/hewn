@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PROGRAMS, PROGRAM_ADDRESSES } from "@pnw/config/programs";
 import { computeNameHash } from "@pnw/records/registry/name_registry";
 import {
   DirectoryError,
@@ -69,6 +70,17 @@ describe("lookupName", () => {
     expect(asked).toBe(false);
   });
 
+  it("doesn't answer with a name whose owner is a program or the zero address", async () => {
+    const letters = PROGRAM_ADDRESSES[PROGRAMS.letters.hewn_letters]!;
+    for (const owner of [letters, "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc"]) {
+      let described = false;
+      const r = reads({ nameOwner: async () => owner, namePlaintext: async () => ((described = true), "dayco") });
+      await expect(lookupName("dayco", "hewn", r)).rejects.toThrow("dayco.hewn isn't held by a person or a business");
+      await expect(lookup("dayco.hewn", "hewn", r)).rejects.toThrow(DirectoryError);
+      expect(described).toBe(false);
+    }
+  });
+
   it("falls back to the owner's own primary name when the kind mapping misses", async () => {
     const r = reads({ nameKind: async () => null });
     expect((await lookupName("dayco", "hewn", r)).kind).toBe("business");
@@ -102,6 +114,18 @@ describe("lookupAddress", () => {
     const count = async () => (asked++, null);
     const r = reads({ employerName: count, workerName: count, nameOwner: count });
     await expect(lookupAddress("aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc", r)).rejects.toThrow(DirectoryError);
+    expect(asked).toBe(0);
+  });
+
+  it("refuses a program's address, the stablecoin's among them, without asking the registry", async () => {
+    let asked = 0;
+    const count = async () => (asked++, null);
+    const r = reads({ employerName: count, workerName: count, nameOwner: count });
+    expect(Object.values(PROGRAM_ADDRESSES)).toContain(PROGRAM_ADDRESSES[PROGRAMS.external.usdcx]);
+    for (const program of Object.values(PROGRAM_ADDRESSES)) {
+      await expect(lookupAddress(program, r), program).rejects.toThrow("That account is a program's, not a person's or a business's");
+      await expect(lookup(` ${program} `, "hewn", r), program).rejects.toThrow(DirectoryError);
+    }
     expect(asked).toBe(0);
   });
 

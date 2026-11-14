@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PROGRAM_ADDRESSES } from "@pnw/config/programs";
 import type { Paycheck, PayRun, Settlement } from "@pnw/payroll";
 import { FREEZELIST_PROGRAM, ZERO_ADDRESS } from "./exclusion";
 import freezeList from "./fixtures/freeze_list.json";
@@ -261,6 +262,21 @@ describe("runPayQueue", () => {
     // Once that person is settled another way, the rest of the run goes out.
     const rest = await settleRun(wallet, network, [paycheck("w1", 100_00n), paycheck("w2", 200_00n, { status: "settled" })], { links: new Map([["w1", ADDR(1)], ["w2", ZERO_ADDRESS]]) });
     expect(rest.result.settled.map((x) => x.workerId)).toEqual(["w1"]);
+  });
+
+  it("stops before any prompt when a payee's account is the stablecoin's own, or any program's the app knows", async () => {
+    const programs = Object.values(PROGRAM_ADDRESSES);
+    expect(programs).toContain(PROGRAM_ADDRESSES[USDCX_PROGRAM]);
+    expect(programs.length).toBeGreaterThan(20);
+    for (const program of programs) {
+      const wallet = new FakeWallet([centsToMinor(100_00n), centsToMinor(200_00n)], (_c, n) => accepted(AT(n)));
+      const network = fakeNetwork();
+      const going = settleRun(wallet, network, [paycheck("w1", 100_00n), paycheck("w2", 200_00n)], { links: new Map([["w1", ADDR(1)], ["w2", program]]) });
+      await expect(going, program).rejects.toThrow(/an account that can't be paid; nothing was sent/);
+      expect(wallet.calls).toEqual([]);
+      expect(wallet.recordRequests).toBe(0);
+      expect(network.calls).toEqual([]);
+    }
   });
 
   it("splits one big record into what the transfers need, in order, before paying", async () => {

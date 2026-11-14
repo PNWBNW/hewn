@@ -30,6 +30,7 @@
 // the events arrive; the queue itself keeps no state.
 // ---------------------------------------------------------------------------
 
+import { isProgramAddress } from "@pnw/config/programs";
 import type { PayRun, Paycheck } from "@pnw/payroll";
 import { TransactionRejected, confirmTransaction, type ConfirmedTransaction } from "./confirm";
 import { type MerkleTreeApi, ZERO_ADDRESS, exclusionProofFor } from "./exclusion";
@@ -129,6 +130,9 @@ const ACCEPTED = new Set(["accepted", "finalized", "confirmed", "completed"]);
 // What a wallet may report for a transaction that will never land (adapter 1.5.0's `TransactionStatus`, plus the two older words).
 const REJECTED = new Set(["rejected", "failed", "aborted", "expired", "cancelled", "refunded"]);
 
+/** An account no payment may go to: the zero address, or the address of a program the app knows (`@pnw/config`). */
+export const isUnpayable = (address: string): boolean => address === ZERO_ADDRESS || isProgramAddress(address);
+
 export const isOnChainId = (id: string | undefined): id is string => typeof id === "string" && id.startsWith("at1");
 
 /** The paychecks a run still owes: pending (sent or not) and failed, with something to pay. */
@@ -170,8 +174,8 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
   const due = outstanding(run);
   if (due.length === 0) return result;
   for (const p of due) if (!links.get(p.workerId)) throw new RailError("Someone in this run has no account on the rail yet");
-  // Nobody holds a key for the zero address, so a payment to it could never be spent: stop before records are read or anything is signed.
-  for (const p of due) if (links.get(p.workerId) === ZERO_ADDRESS) throw new RailError("Someone in this run has an account that can't be paid; nothing was sent");
+  // Nobody holds a key for the zero address or for a program's, so a payment to one could never be spent: stop before records are read or anything is signed.
+  for (const p of due) if (isUnpayable(links.get(p.workerId)!)) throw new RailError("Someone in this run has an account that can't be paid; nothing was sent");
 
   const settle = (workerId: string, c: ConfirmedTransaction) => {
     const entry = { workerId, transactionId: c.transactionId, ...(c.height !== undefined ? { height: c.height } : {}), ...(c.feeMicrocredits !== undefined ? { feeMicrocredits: c.feeMicrocredits } : {}) };
