@@ -15,6 +15,7 @@ import {
   usernameConflict,
   vaultIdFor,
 } from "./account";
+import { CHANGED_ELSEWHERE, saveOver } from "./vault_write";
 
 // Low rounds keep the tests fast; the production default is checked in the vault's own tests.
 const FAST = { iterations: 1_000 };
@@ -293,6 +294,55 @@ describe("recoverAccounts (a forgotten passphrase)", () => {
     const found = await recoverAccounts(store, "ana", workerCode, NEXT, FAST);
     expect(found.map((f) => f.role)).toEqual(["worker"]);
     expect((await findAccounts(store, "ana", PASS, FAST)).map((f) => f.role)).toEqual(["business"]);
+  });
+
+  it("writes the books again, so a tab still open on them stops instead of saving the old passphrase back", async () => {
+    const store = new MemoryStore();
+    const code = await withRecovery(store, "ana", "business");
+    const id = await vaultIdFor("ana", "business");
+    // Tab A: open since before the reset, holding the record as it was.
+    const a = await unlockVault((await store.load(id))!, accountSecret("ana", PASS));
+    const lastSeen = a.record.payload.iv;
+
+    // Tab B: the passphrase is forgotten and reset with the recovery key.
+    const found = await recoverAccounts(store, "ana", code, NEXT, FAST);
+    const stored = (await store.load(id))!;
+    expect(await found[0]!.session.read()).toBe("business books");
+
+    // Tab A saves: refused, and nothing it holds reaches the store.
+    await expect(saveOver(store, a, "business books, edited in the old tab", lastSeen, undefined)).rejects.toThrow(CHANGED_ELSEWHERE);
+    expect(await store.load(id)).toEqual(stored);
+    // The new passphrase opens the books; the old one doesn't.
+    expect(await (await findAccounts(store, "ana", NEXT, FAST))[0]!.session.read()).toBe("business books");
+    await expect(findAccounts(store, "ana", PASS, FAST)).rejects.toThrow(NO_MATCH_MESSAGE);
+    // How: the reset is a new write of the same books, and the session it returns saves over that write next.
+    expect(stored.payload.iv).not.toBe(lastSeen);
+    expect(stored.payload.iv).toBe(found[0]!.session.record.payload.iv);
+    expect(stored.recovery).toBeDefined(); // the recovery key is kept
+  });
+
+  it("refuses the reset when the books were written between its read and its save, and can be tried again", async () => {
+    const store = new MemoryStore();
+    const code = await withRecovery(store, "ana", "business");
+    const id = await vaultIdFor("ana", "business");
+    const a = await unlockVault((await store.load(id))!, accountSecret("ana", PASS));
+    // Another tab's save lands after the reset read the record (here: on its first read) and before it saves.
+    const load = store.load.bind(store);
+    let landed = false;
+    store.load = async (vaultId: string) => {
+      const record = await load(vaultId);
+      if (vaultId === id && !landed) {
+        landed = true;
+        await store.save(await a.write("business books, edited meanwhile"));
+      }
+      return record;
+    };
+    await expect(recoverAccounts(store, "ana", code, NEXT, FAST)).rejects.toThrow(CHANGED_ELSEWHERE);
+    // The edit is still there under the old passphrase; the second try carries it over.
+    expect(await (await findAccounts(store, "ana", PASS, FAST))[0]!.session.read()).toBe("business books, edited meanwhile");
+    const found = await recoverAccounts(store, "ana", code, NEXT, FAST);
+    expect(await found[0]!.session.read()).toBe("business books, edited meanwhile");
+    await expect(findAccounts(store, "ana", PASS, FAST)).rejects.toThrow(NO_MATCH_MESSAGE);
   });
 
   it("must fail with one message whatever was wrong, and changes nothing", async () => {
