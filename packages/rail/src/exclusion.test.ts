@@ -88,7 +88,7 @@ describe("exclusion proof", () => {
     // The chain's root is over two addresses and one was read: no proof is built.
     const short = exclusionProofFor(SENDER, freezeListNetwork([ZERO_ADDRESS, A], { root: rootOf([A, B]) }));
     await expect(short).rejects.toThrow(RailError);
-    await expect(short).rejects.toThrow(/didn't read back whole, so nothing was sent/);
+    await expect(short).rejects.toThrow(/freeze list doesn't match the network's, so nothing was sent/);
   });
 
   it("skips a slot that was unfrozen, and the root is the chain's with or without it", async () => {
@@ -105,7 +105,7 @@ describe("exclusion proof", () => {
   });
 
   it("refuses when the list can't be read, instead of proving over an empty one", async () => {
-    const unreadable = /freeze list can't be read; nothing was sent/;
+    const unreadable = /freeze list couldn't be read, so nothing was sent/;
     await expect(exclusionProofFor(SENDER, { fetchJson: async () => null })).rejects.toThrow(unreadable);
     await expect(exclusionProofFor(SENDER, { fetchJson: async () => { throw new RailNetworkError("not found", 404); } })).rejects.toThrow(unreadable);
     for (const lastIndex of ["", "u32", "-1u32", "1.5u32", "70000u32", 3, "aleo1"]) {

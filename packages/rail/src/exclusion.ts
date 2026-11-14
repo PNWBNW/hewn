@@ -35,8 +35,8 @@ export const FREEZELIST_PROGRAM = PROGRAMS.external.usdcx_freezelist;
 /** The address nobody holds a key for. The freeze list keeps it in every slot that holds no one. */
 export const ZERO_ADDRESS = "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
 
-const UNREADABLE = "The stablecoin's freeze list can't be read; nothing was sent";
-const NOT_WHOLE = "The stablecoin's freeze list didn't read back whole, so nothing was sent. Try again in a minute; if it keeps happening, pay in Shield and record it";
+const UNREADABLE = "The stablecoin's freeze list couldn't be read, so nothing was sent. Try again in a minute";
+const NOT_WHOLE = "What was read of the stablecoin's freeze list doesn't match the network's, so nothing was sent. Try again in a minute; if it keeps happening, pay in Shield and record it";
 const SENDER_FROZEN = "This account is on the stablecoin's freeze list, so the network would refuse every payment from it; nothing was sent";
 
 const ADDRESS = /^aleo1[a-z0-9]{58}$/;

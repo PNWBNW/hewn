@@ -232,7 +232,7 @@ describe("runPayQueue", () => {
     // One address is frozen on chain; the root served is over a list this read didn't get whole.
     const network = fakeNetwork({ frozen: ["aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px"] });
     const going = settleRun(wallet, network, [paycheck("w1", 100_00n), paycheck("w2", 250_00n)], { beforeSend: async (w) => void kept.push(w) });
-    await expect(going).rejects.toThrow(/freeze list didn't read back whole, so nothing was sent/);
+    await expect(going).rejects.toThrow(/freeze list doesn't match the network's, so nothing was sent/);
     expect(wallet.calls).toEqual([]);
     expect(kept).toEqual([]);
   });
