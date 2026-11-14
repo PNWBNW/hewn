@@ -530,17 +530,28 @@ const namesOf = (payroll: Payroll, matches: readonly DoublePayMatch[]): string[]
   ...new Set(matches.map((m) => payroll.workers.find((w) => w.id === m.workerId)?.name ?? m.workerId)),
 ];
 
+/** The pay periods of the earlier runs these matches point at, oldest first, each as "start to end". */
+export function paidPeriods(payroll: Payroll, matches: readonly DoublePayMatch[]): string[] {
+  const ids = new Set(matches.map((m) => m.runId));
+  const runs = payroll.runs.filter((r) => ids.has(r.id)).sort((a, b) => (a.periodStart < b.periodStart ? -1 : a.periodStart > b.periodStart ? 1 : 0));
+  return [...new Set(runs.map((r) => `${r.periodStart} to ${r.periodEnd}`))];
+}
+
 /**
  * Why this run can't post as it is, in words for the person running payroll, or null: the people
- * a line would pay the same amount again, those already paid for the period first.
+ * a line would pay the same amount again, those already paid for the period first. It names the
+ * period that was paid, not this run's, and the pay period is the first thing to check: a run
+ * whose period reaches back into the last one (a weekly run over two weeks) lands here too.
  */
 export function doublePayRefusal(
   payroll: Payroll,
   input: Pick<PayRunInput, "payDate" | "periodStart" | "periodEnd" | "lines">,
   check: DoublePayCheck = checkDoublePay(payroll, input),
 ): string | null {
-  const byPeriod = namesOf(payroll, check.blocked.filter((m) => m.by === "period"));
-  if (byPeriod.length > 0) return `Already paid for ${input.periodStart} to ${input.periodEnd} for the same amount: ${byPeriod.join(", ")}. Change the amount to pay again.`;
+  const byPeriod = check.blocked.filter((m) => m.by === "period");
+  if (byPeriod.length > 0) {
+    return `Already paid the same amount for ${paidPeriods(payroll, byPeriod).join(" and ")}: ${namesOf(payroll, byPeriod).join(", ")}. Check this run's pay period (${input.periodStart} to ${input.periodEnd}), or change the amount to pay again.`;
+  }
   const byDate = namesOf(payroll, check.blocked);
   if (byDate.length > 0) return `Already paid on ${input.payDate} for the same amount: ${byDate.join(", ")}. Change the amount or the pay date to pay again.`;
   return null;

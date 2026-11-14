@@ -13,6 +13,7 @@ import {
   employerTaxes,
   ensureRailAccount,
   grossFor,
+  paidPeriods,
   postPayRun,
   withheld,
   yearToDate,
@@ -141,6 +142,8 @@ export default function RunPayrollPage() {
   const overlapNames = (by: "period" | "date") => [...new Set((confirmOverlap ?? []).filter((m) => m.by === by).map((m) => names.get(m.workerId) ?? m.workerId))];
   const samePeriod = overlapNames("period");
   const sameDate = overlapNames("date").filter((n) => !samePeriod.includes(n));
+  // What those earlier paychecks were for, so the box says which period was paid, not only this run's.
+  const earlier = paidPeriods(payroll, (confirmOverlap ?? []).filter((m) => m.by === "period")).join(" and ");
 
   /** Before posting: refuse an exact repeat of a payment for this period or on this date; ask about any other pay for either. */
   function submit() {
@@ -404,7 +407,7 @@ export default function RunPayrollPage() {
           <DialogHeader>
             <DialogTitle>{samePeriod.length > 0 ? "Already paid in this pay period" : `Already paid on ${payDate}`}</DialogTitle>
             <DialogDescription>
-              {samePeriod.length > 0 && `${samePeriod.join(", ")} ${samePeriod.length === 1 ? "has" : "have"} another paycheck for a pay period that overlaps ${periodStart} to ${periodEnd}. `}
+              {samePeriod.length > 0 && `${samePeriod.join(", ")} ${samePeriod.length === 1 ? "has" : "have"} another paycheck for ${earlier}, which overlaps this run's pay period (${periodStart} to ${periodEnd}). `}
               {sameDate.length > 0 && `${sameDate.join(", ")} ${sameDate.length === 1 ? "has" : "have"} another paycheck dated ${payDate}. `}
               Post this one as well?
             </DialogDescription>

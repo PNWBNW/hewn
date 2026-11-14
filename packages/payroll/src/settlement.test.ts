@@ -10,9 +10,11 @@ import {
   findRailAccount,
   addWorker,
   checkDoublePay,
+  doublePayRefusal,
   emptyPayroll,
   ensureRailAccount,
   markPaycheckSettlement,
+  paidPeriods,
   postPayRun,
   withheld,
   yearToDate,
@@ -186,14 +188,54 @@ describe("posting a run someone was already paid in", () => {
     const first = postPayRun(s.books, s.payroll, s.input, clock);
     const later = { ...s.input, payDate: "2026-10-17" };
     expect(() => postPayRun(first.books, first.payroll, later, clock)).toThrow(PayrollError);
-    expect(() => postPayRun(first.books, first.payroll, later, clock)).toThrow("Already paid for 2026-10-01 to 2026-10-14 for the same amount: Ana, Ben. Change the amount to pay again.");
+    expect(() => postPayRun(first.books, first.payroll, later, clock)).toThrow("Already paid the same amount for 2026-10-01 to 2026-10-14: Ana, Ben. Check this run's pay period (2026-10-01 to 2026-10-14), or change the amount to pay again.");
     // Saying it was confirmed doesn't let an exact repeat through.
-    expect(() => postPayRun(first.books, first.payroll, { ...later, confirmedOverlaps: [s.ana.id, s.ben.id] }, clock)).toThrow(/Already paid for 2026-10-01 to 2026-10-14/);
+    expect(() => postPayRun(first.books, first.payroll, { ...later, confirmedOverlaps: [s.ana.id, s.ben.id] }, clock)).toThrow(/Already paid the same amount for 2026-10-01 to 2026-10-14/);
     expect(first.payroll.runs).toHaveLength(1); // pure: nothing was added
     // Nor does a period that only shares some of its days, or a rail run still on its way.
-    expect(() => postPayRun(first.books, first.payroll, { ...s.input, payDate: "2026-10-30", periodStart: "2026-10-10", periodEnd: "2026-10-23" }, clock)).toThrow(/Already paid for 2026-10-10 to 2026-10-23 for the same amount: Ana, Ben/);
+    expect(() => postPayRun(first.books, first.payroll, { ...s.input, payDate: "2026-10-30", periodStart: "2026-10-10", periodEnd: "2026-10-23" }, clock)).toThrow(/Already paid the same amount for 2026-10-01 to 2026-10-14: Ana, Ben\. Check this run's pay period \(2026-10-10 to 2026-10-23\)/);
     const rail = postPayRun(s.books, s.payroll, { ...s.input, mode: "rail" }, clock);
-    expect(() => postPayRun(rail.books, rail.payroll, { ...later, mode: "rail" }, clock)).toThrow(/Already paid for/);
+    expect(() => postPayRun(rail.books, rail.payroll, { ...later, mode: "rail" }, clock)).toThrow(/Already paid the same amount for/);
+  });
+
+  // A run's period is entered by hand and starts as the two weeks to today, so a weekly run, or a
+  // semimonthly one in February, reaches back into the days the last run paid unless it is changed.
+  it("names the period already paid and says to check this run's, when the period reaches back into the last run", () => {
+    const s = setup();
+    const daysBefore = (date: string, n: number) => new Date(Date.parse(date) - n * 86_400_000).toISOString().slice(0, 10);
+    const run = (payDate: string, periodStart = daysBefore(payDate, 13)) => ({ payDate, periodStart, periodEnd: payDate, bankAccountId: s.bankId, lines: [{ workerId: s.ana.id }] });
+    // Weekly, on salary: the same gross every time.
+    const week1 = postPayRun(s.books, s.payroll, run("2026-11-06"), clock);
+    expect(() => postPayRun(week1.books, week1.payroll, run("2026-11-13"), clock)).toThrow(
+      "Already paid the same amount for 2026-10-24 to 2026-11-06: Ana. Check this run's pay period (2026-10-31 to 2026-11-13), or change the amount to pay again.",
+    );
+    // With the period starting the day after the last one ended, the same run posts and nothing is asked.
+    const week2 = run("2026-11-13", "2026-11-07");
+    expect(checkDoublePay(week1.payroll, week2)).toEqual({ blocked: [], overlap: [] });
+    expect(postPayRun(week1.books, week1.payroll, week2, clock).run.id).toBe("run-2");
+    // Semimonthly, the 15th and the last day of February: 13 days apart.
+    const half1 = postPayRun(s.books, s.payroll, run("2027-02-15"), clock);
+    expect(() => postPayRun(half1.books, half1.payroll, run("2027-02-28"), clock)).toThrow(/Already paid the same amount for 2027-02-02 to 2027-02-15: Ana\. Check this run's pay period \(2027-02-15 to 2027-02-28\)/);
+    expect(postPayRun(half1.books, half1.payroll, run("2027-02-28", "2027-02-16"), clock).run.id).toBe("run-2");
+  });
+
+  it("lists each earlier period once, oldest first, when a run reaches back into more than one", () => {
+    const s = setup();
+    const only = (workerId: string, hours?: number) => [{ workerId, ...(hours === undefined ? {} : { hours }) }];
+    const first = postPayRun(s.books, s.payroll, { ...s.input, lines: only(s.ana.id) }, clock);
+    const second = postPayRun(first.books, first.payroll, { ...s.input, payDate: "2026-10-30", periodStart: "2026-10-15", periodEnd: "2026-10-28", lines: only(s.ben.id, 80) }, clock);
+    const wide = { ...s.input, payDate: "2026-11-02", periodStart: "2026-10-01", periodEnd: "2026-10-28" };
+    const check = checkDoublePay(second.payroll, wide);
+    expect(paidPeriods(second.payroll, check.blocked)).toEqual(["2026-10-01 to 2026-10-14", "2026-10-15 to 2026-10-28"]);
+    expect(paidPeriods(second.payroll, [...check.blocked].reverse())).toEqual(["2026-10-01 to 2026-10-14", "2026-10-15 to 2026-10-28"]);
+    expect(paidPeriods(second.payroll, [])).toEqual([]);
+    expect(doublePayRefusal(second.payroll, wide)).toBe(
+      "Already paid the same amount for 2026-10-01 to 2026-10-14 and 2026-10-15 to 2026-10-28: Ana, Ben. Check this run's pay period (2026-10-01 to 2026-10-28), or change the amount to pay again.",
+    );
+    // The question for another amount carries the earlier period the same way.
+    const hours = checkDoublePay(second.payroll, { ...wide, lines: only(s.ben.id, 10) });
+    expect(hours.blocked).toEqual([]);
+    expect(paidPeriods(second.payroll, hours.overlap)).toEqual(["2026-10-15 to 2026-10-28"]);
   });
 
   it("refuses the same pay date and amount for another period, as the check did before posting", () => {
