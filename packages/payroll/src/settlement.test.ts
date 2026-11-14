@@ -98,6 +98,26 @@ describe("settlement fee and in-flight reference", () => {
     expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, since: 1.5 })).toThrow(/whole number/);
     expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, endedAt: "soon" })).toThrow(/must be a time/);
   });
+
+  it("a paycheck keeps the marker a device sent for it and the record it stopped waiting on, and they survive the vault", () => {
+    const s = setup();
+    const r = postPayRun(s.books, s.payroll, { ...s.input, mode: "rail" }, clock);
+    const [tag, old, marker] = ["ab".repeat(16), "cd".repeat(16), "ef".repeat(16)];
+    // The marker alone is something to note on a paycheck Shield hasn't been asked for yet.
+    const marked = markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", marker });
+    expect(marked.runs[0]!.paychecks[0]!.settlement).toEqual({ status: "pending", marker });
+    // Paid again from another record: the one given up is kept beside the new one.
+    const again = markPaycheckSettlement(markPaycheckSettlement(marked, r.run.id, s.ana.id, { status: "failed", failure: "Marked to pay again", replaces: old, marker }), r.run.id, s.ana.id, { status: "pending", replaces: old, marker });
+    expect(again.runs[0]!.paychecks[0]!.settlement).toEqual({ status: "pending", replaces: old, marker });
+    const trying = markPaycheckSettlement(again, r.run.id, s.ana.id, { status: "pending", attempt: tag, replaces: old, marker });
+    expect(payrollFromJson(payrollToJson(trying))).toEqual(trying);
+    expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, replaces: "nope" })).toThrow(/32 hex/);
+    expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, marker: "AB".repeat(16) })).toThrow(/32 hex/);
+    // A record can't take its own place.
+    expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, replaces: tag })).toThrow(/its own place/);
+    // Still nothing to note: a bare pending on a pending paycheck.
+    expect(() => markPaycheckSettlement(marked, r.run.id, s.ana.id, { status: "pending" })).toThrow(/can't become pending/);
+  });
 });
 
 describe("checkDoublePay", () => {
