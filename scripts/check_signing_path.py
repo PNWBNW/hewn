@@ -9,8 +9,16 @@ its wallet from there. This check keeps that door the only one. Outside tests, i
   2. a file other than chain/shield.ts takes `useWallet` from @pnw/wallet/wallet-provider;
   3. a file outside apps/business/src/chain, packages/rail and packages/wallet calls
      `.executeTransaction(`;
-  4. a file that imports @provablehq/sdk uses its execute path (ProgramManager, buildExecution...,
-     .execute(, broadcast);
+  4. a file that imports @provablehq/sdk (or @provablehq/wasm, beneath it) uses its execute path
+     (ProgramManager..., buildExecution..., .execute(, broadcast);
+  4a. any file names the SDK's external-signing or proving-request calls (computeExternalSigningInputs,
+     ...ExternallySigned..., ExecutionRequest, build...Authorization..., ProvingRequest,
+     submitProvingRequest...), however it reaches them: they sign or prove outside Shield;
+  4b. chain/shield.ts asks the adapter to sign (`.executeTransaction(`, `.executeDeployment(`)
+     anywhere but after `await checkEditions()` in the same function, with checkEditions taken from
+     ./editions.ts; outside shield.ts and packages/wallet, a file calls the adapter's own
+     executeTransaction or executeDeployment, or names executeDeployment at all (the app deploys
+     nothing; the wallet useShield() returns passes the adapter's deployment through unchecked);
   5. any file imports child_process (no snarkos, no shelling out);
   6. any file imports a CLI adapter (the pasted-key path, deleted; it must not come back);
   7. any file imports Veil's local-key or local-node packages (@provablehq/veil-aleo-sdk,
@@ -37,7 +45,31 @@ NAMED_FROM = re.compile(r"""import\s+(?:type\s+)?(\{[^}]*\}|\*\s+as\s+\w+|\w+)\s
 GENERATED_FACTORY = re.compile(r"\bcreate[A-Z]\w*Contract\s*\(")
 GENERATED = "apps/business/src/chain/generated/"
 TEST_ONLY = ("@provablehq/veil-aleo-sdk", "@provablehq/veil-aleo-devnode", "@provablehq/veil-leo", "@provablehq/aleo-devnode")
-SDK_EXECUTE = re.compile(r"\bProgramManager\b|\bbuildExecution\w*|\bbuildDevnodeExecution\w*|\.execute\s*\(|\bbroadcast\w*\s*\(")
+SDK = ("@provablehq/sdk", "@provablehq/wasm")
+SDK_EXECUTE = re.compile(r"\bProgramManager\w*|\bbuildExecution\w*|\bbuildDevnodeExecution\w*|\.execute\s*\(|\bbroadcast\w*\s*\(")
+
+EXTERNAL_SIGNING = re.compile(
+    r"\bcomputeExternalSigningInputs\b|\b\w*ExternallySigned\w*|\bExecutionRequest\b|\bbuild\w*Authorization\w*"
+    r"|\bProvingRequest\w*|\bsubmitProvingRequest\w*"
+)
+SIGN_CALL = re.compile(r"\.\s*(?:executeTransaction|executeDeployment)\s*\(")
+ADAPTER_SIGN = re.compile(r"\badapt[eo]r\s*\??\.\s*(?:executeTransaction|executeDeployment)\b")
+EDITION_CHECK = re.compile(r"\bawait\s+checkEditions\s*\(")
+EDITIONS_IMPORT = re.compile(r"""import\s*\{[^}]*\bcheckEditions\b[^}]*\}\s*from\s*["']\./editions["']""")
+EDITIONS_SHADOW = re.compile(r"\b(?:const|let|var|function|class)\s+checkEditions\b")
+
+
+def unchecked_sends(code: str) -> int:
+    """How many of shield.ts's requests for a signature aren't preceded, in their own async
+    function, by `await checkEditions()` (taken from ./editions.ts and not redefined here)."""
+    if not EDITIONS_IMPORT.search(code) or EDITIONS_SHADOW.search(code):
+        return max(1, len(SIGN_CALL.findall(code)))
+    missing = 0
+    for call in SIGN_CALL.finditer(code):
+        start = code.rfind("async", 0, call.start())
+        if start < 0 or not EDITION_CHECK.search(code, start, call.start()):
+            missing += 1
+    return missing
 
 
 def sources():
@@ -72,8 +104,18 @@ def main() -> int:
             problems.append(f"{rel}: takes useWallet itself; get the wallet from useShield() in {SHIELD}")
         if ".executeTransaction(" in code and not rel.startswith(SEND_OK):
             problems.append(f"{rel}: sends a transaction outside src/chain, rail or wallet")
-        if any(i == "@provablehq/sdk" or i.startswith("@provablehq/sdk/") for i in imports) and SDK_EXECUTE.search(code):
+        if any(i == s or i.startswith(s + "/") for i in imports for s in SDK) and SDK_EXECUTE.search(code):
             problems.append(f"{rel}: uses the SDK's execute path; every write goes through Shield")
+        if EXTERNAL_SIGNING.search(code):
+            problems.append(f"{rel}: uses the SDK's external signing or proving request; every write is signed and proved in Shield")
+        if rel == SHIELD:
+            if unchecked_sends(code):
+                problems.append(f"{rel}: asks the adapter to sign without `await checkEditions()` first (./editions.ts)")
+        elif not rel.startswith("packages/wallet/"):
+            if ADAPTER_SIGN.search(code):
+                problems.append(f"{rel}: asks the wallet adapter itself to sign; send through useShield() in {SHIELD}")
+            if re.search(r"\bexecuteDeployment\b", code):
+                problems.append(f"{rel}: asks for a deployment; the app deploys nothing, and a deployment would skip the edition check")
         if any(i in ("child_process", "node:child_process") for i in imports):
             problems.append(f"{rel}: imports child_process (no snarkos, no shelling out)")
         if any(re.search(r"aleo_cli_adapter|cli_adapter", i) for i in imports):

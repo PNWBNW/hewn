@@ -26,18 +26,25 @@ export type { ShieldRoute };
 
 export type ShieldState = { kind: "missing" } | { kind: "ready" } | { kind: "connecting" } | { kind: "connected"; address: string };
 
+type Sender = Pick<ReturnType<typeof useWallet>, "executeTransaction">;
+
+/**
+ * The adapter's send, behind the edition check and with the fee mode applied. Every transaction
+ * the app sends goes through this (scripts/check_signing_path.py keeps it so).
+ */
+export function checkedSend(adaptor: Sender) {
+  return async (opts: Parameters<Sender["executeTransaction"]>[0] & { feeMode?: FeeMode }) => {
+    const { feeMode, ...call } = opts;
+    // Before Shield is asked to sign anything: the upgradable programs are still the editions
+    // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
+    await checkEditions();
+    return adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()));
+  };
+}
+
 export function useShield() {
   const adaptor = useWallet();
-  const wallet = {
-    ...adaptor,
-    executeTransaction: async (opts: Parameters<typeof adaptor.executeTransaction>[0] & { feeMode?: FeeMode }) => {
-      const { feeMode, ...call } = opts;
-      // Before Shield is asked to sign anything: the upgradable programs are still the editions
-      // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
-      await checkEditions();
-      return adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()));
-    },
-  };
+  const wallet = { ...adaptor, executeTransaction: checkedSend(adaptor) };
   const shield = wallet.wallets[0]; // Shield is the only adapter registered
   const [asked, setAsked] = useState(false);
   const [reconnect, setReconnect] = useState(false); // restart: a fresh connect waits for the old pairing to go
