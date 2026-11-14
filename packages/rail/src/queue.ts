@@ -63,6 +63,15 @@
 // answered for, or accepted without an id, is unconfirmed too, never failed,
 // and an explorer that can't be reached only delays confirming.
 //
+// One step before the first payment (`beforeTransfers`, when the caller has
+// one): once the first payment's tag is kept and before Shield is asked for
+// it, the caller is handed every payment this run is about to ask for, with
+// the tags held so far, and awaited. It is where a caller says what the run
+// is about to pay where its other devices can read it (marker.ts). If it
+// throws, no transfer is asked for: the first payment fails with the reason,
+// the tag kept for it in this run is dropped, so its record is free again
+// (one it held from an earlier try stays), and the run stops there.
+//
 // Failures are per payee. The queue takes whatever is still pending or
 // failed in the run, so calling it again resumes, after a pause or a reload
 // alike: a pending paycheck that already carries the wallet's id for its
@@ -169,6 +178,14 @@ export type PaymentQuery = {
  */
 export type PaymentLookup = { found: string } | "none" | "unknown";
 
+/**
+ * A payment a run is about to ask for, as `beforeTransfers` is given it: the payee's account, the
+ * amount in USDCx minor units, and the tag of the record set aside for it, when it has one. In a run
+ * paid from one record that is the first payment only: each one after it is paid from what the one
+ * before leaves, a record that doesn't exist yet.
+ */
+export type QueuedLine = { workerId: string; to: string; minor: bigint; attempt?: string };
+
 /** What the queue reads of each payment: who it's to, how much, and where it stands. A paycheck, or a customer paying a bill. */
 export type QueuedPayment = Pick<Paycheck, "workerId" | "net" | "settlement">;
 
@@ -191,6 +208,13 @@ export type PayQueueContext = {
    * run stops there.
    */
   beforeSend?: (workerId: string, attempt: string, since?: number) => Promise<void>;
+  /**
+   * Called once in a run, and awaited, between keeping the first payment's tag and asking Shield for
+   * that payment, with every payment the run is about to ask for, in order. If it throws, no payment
+   * is asked of Shield: the first one fails with "Nothing was paid: " and the reason, without the tag
+   * kept for it in this run, and the run stops there. Not called when no payment is to be asked for.
+   */
+  beforeTransfers?: (lines: readonly QueuedLine[]) => Promise<void>;
   /**
    * A look in the account's own sent transfers, asked before a payment is called unconfirmed. Without
    * one (or when it throws) every such look answers "unknown".
@@ -238,6 +262,8 @@ const NOT_PAID_RECORD_USED = `${NOT_PAID}: the record set aside for this payment
 const RECORD_GONE = `The record this payment was spending is gone, so it may have gone through. ${CHECK}`;
 /** Shield gave up on the request, or threw on it, in words that don't say whether the transfer reached the chain. */
 const problem = (said: string) => `Shield reported a problem (${said.replace(/\s+/g, " ").trim().slice(0, 200)}); the payment may still go through. ${CHECK}`;
+/** How a line starts when the step before the first payment (`beforeTransfers`) stopped the run: no payment was asked of Shield. */
+export const NOTHING_PAID = "Nothing was paid";
 // Why a run stopped, to follow "Stalled at 2 of 3: ".
 /** The wallet lists no record that covers the next payment, two minutes after the last one. */
 export const NOT_LISTED = "Shield hasn't listed a record that covers the next payment yet (what the last payment left can take a minute to show), so nothing more was asked for";
@@ -628,6 +654,9 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     }
   };
 
+  // Whether the step before the first payment has been run: once in a run, however many times Shield is then asked.
+  let stepped = false;
+
   /**
    * Pays one payee, from `first`. Resolves the record the payment spent and what was free to it
    * beforehand, or null when it didn't settle (its line has said why).
@@ -649,6 +678,21 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
         // Nothing was asked with this record. The line keeps only what the caller already held for it.
         fail(p.workerId, message(e), held);
         return null;
+      }
+      if (!stepped) {
+        stepped = true;
+        try {
+          await ctx.beforeTransfers?.(
+            chain.slice(index).map((q, i): QueuedLine => {
+              const attempt = i === 0 ? record.tag : q.settlement.attempt;
+              return { ...lineOf(q), ...(attempt ? { attempt } : {}) };
+            }),
+          );
+        } catch (e) {
+          // No payment was asked of Shield. The tag just kept goes with it: the line is left what it held before this run.
+          fail(p.workerId, `${NOTHING_PAID}: ${message(e)}`, held);
+          return null;
+        }
       }
       held = kept;
       const outcome = await sendOne(line, record, kept, step, asks < MAX_ASKS);
