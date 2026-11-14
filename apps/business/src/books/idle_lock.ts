@@ -10,7 +10,11 @@
 // timer alone: a timer doesn't run while a phone sleeps or a tab is frozen, so
 // the time is checked again whenever the page wakes (visibilitychange,
 // pageshow, focus), and a page that comes back after 15 idle minutes locks at
-// once. Waking is not activity. "Stay logged in" is separate (BooksProvider).
+// once. Waking is not activity, and activity that arrives after the 15 minutes
+// have passed locks rather than starting them again, whatever order the
+// browser delivers it and the wake in. A clock set back counts as activity
+// then, so the lock is never more than 15 minutes late. "Stay logged in" is
+// separate (BooksProvider).
 // ---------------------------------------------------------------------------
 
 export const IDLE_LOCK_MS = 15 * 60 * 1000;
@@ -27,7 +31,7 @@ export function noteProgress(target: EventTarget | undefined = typeof window ===
 }
 
 export type IdleTracker = {
-  /** Notes activity now. */
+  /** Notes activity now, unless the lock was already due: then it locks instead. */
   touch(): void;
   /** Locks, once, if the last activity was `ms` or more ago; says whether it has locked. */
   check(): boolean;
@@ -39,19 +43,26 @@ export type IdleTracker = {
 export function idleTracker({ now, lock, ms = IDLE_LOCK_MS }: { now: () => number; lock: () => void; ms?: number }): IdleTracker {
   let last = now();
   let locked = false;
+  /** The time now; a clock set back behind the last activity moves that activity to now. */
+  const at = () => {
+    const t = now();
+    if (t < last) last = t;
+    return t;
+  };
+  const check = () => {
+    if (!locked && at() - last >= ms) {
+      locked = true;
+      lock();
+    }
+    return locked;
+  };
   return {
     touch() {
-      last = now();
+      if (!check()) last = now();
     },
-    check() {
-      if (!locked && now() - last >= ms) {
-        locked = true;
-        lock();
-      }
-      return locked;
-    },
+    check,
     remaining() {
-      return Math.max(0, last + ms - now());
+      return Math.max(0, last + ms - at());
     },
   };
 }
@@ -79,7 +90,8 @@ export function watchIdle({
     clearTimeout(timer);
     if (!idle.check()) timer = setTimeout(check, idle.remaining());
   };
-  const touch = () => idle.touch(); // the timer, when it fires, sees the later time and waits again
+  // A touch after the lock was due locks; otherwise the timer, when it fires, sees the later time and waits again.
+  const touch = () => idle.touch();
   const wake = () => {
     if (doc.visibilityState === "visible") check();
   };

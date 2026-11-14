@@ -43,6 +43,31 @@ describe("the idle tracker", () => {
     expect(idle.check()).toBe(true);
     expect(lock).toHaveBeenCalledTimes(1);
   });
+
+  it("locks on activity that comes after the 15 minutes have passed, rather than starting them again", () => {
+    let t = 0;
+    const lock = vi.fn();
+    const idle = idleTracker({ now: () => t, lock });
+    t = 20 * MINUTE;
+    idle.touch();
+    expect(lock).toHaveBeenCalledTimes(1);
+    t = 21 * MINUTE;
+    idle.touch();
+    expect(idle.check()).toBe(true);
+    expect(lock).toHaveBeenCalledTimes(1);
+  });
+
+  it("never waits more than 15 minutes after the clock is set back", () => {
+    let t = 0;
+    const lock = vi.fn();
+    const idle = idleTracker({ now: () => t, lock });
+    t = -30 * 24 * 60 * MINUTE; // 30 days back
+    expect(idle.check()).toBe(false);
+    expect(idle.remaining()).toBe(IDLE_LOCK_MS);
+    t += 15 * MINUTE;
+    expect(idle.check()).toBe(true);
+    expect(lock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("the idle lock on a page", () => {
@@ -108,16 +133,46 @@ describe("the idle lock on a page", () => {
     }
   });
 
+  it("a page frozen for 20 minutes locks on a tap or a completed step that arrives before the wake", () => {
+    for (const late of ["pointerdown", PROGRESS_EVENT] as const) {
+      vi.setSystemTime(0);
+      const { win, doc } = page();
+      const lock = vi.fn();
+      const stop = watchIdle({ lock, win, doc });
+      vi.setSystemTime(20 * MINUTE); // the clock moved; the frozen page ran no timer
+      win.dispatchEvent(new Event(late));
+      expect(lock, late).toHaveBeenCalledTimes(1);
+      doc.dispatchEvent(new Event("visibilitychange"));
+      win.dispatchEvent(new Event("focus"));
+      vi.advanceTimersByTime(IDLE_LOCK_MS * 2);
+      expect(lock, late).toHaveBeenCalledTimes(1);
+      stop();
+    }
+  });
+
+  it("locks no more than 15 minutes late when the clock is set back an hour while the books are open", () => {
+    const { win, doc } = page();
+    const lock = vi.fn();
+    const stop = watchIdle({ lock, win, doc });
+    vi.advanceTimersByTime(5 * MINUTE);
+    vi.setSystemTime(5 * MINUTE - 60 * MINUTE); // the device clock goes back an hour; timers keep their pace
+    vi.advanceTimersByTime(24 * MINUTE);
+    expect(lock).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(MINUTE); // 30 minutes after opening, with nothing happening
+    expect(lock).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
   it("a step 5 minutes before waking keeps the books open", () => {
     const { win, doc } = page();
     const lock = vi.fn();
     const stop = watchIdle({ lock, win, doc });
-    vi.setSystemTime(15 * MINUTE);
+    vi.setSystemTime(14 * MINUTE);
     noteProgress(win); // a step completed while the person was approving in another app
-    vi.setSystemTime(20 * MINUTE);
+    vi.setSystemTime(19 * MINUTE);
     win.dispatchEvent(new Event("pageshow"));
     expect(lock).not.toHaveBeenCalled();
-    vi.setSystemTime(30 * MINUTE);
+    vi.setSystemTime(29 * MINUTE);
     win.dispatchEvent(new Event("focus"));
     expect(lock).toHaveBeenCalledTimes(1);
     stop();
