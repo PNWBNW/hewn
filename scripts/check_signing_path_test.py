@@ -126,6 +126,56 @@ class SigningPathTest(unittest.TestCase):
         self.write(rel, PANEL.replace("wallet.executeTransaction(", "wallet.wallets[0].adapter.executeTransaction("))
         self.assertFails(rel, "asks the wallet adapter itself to sign")
 
+    def test_the_raw_adapter_under_another_name_fails(self):
+        rel = "apps/business/src/chain/ZzRaw.tsx"
+        self.write(rel, PANEL.replace(
+            "return wallet.executeTransaction({ ...opts, privateFee: false });",
+            "const a = wallet.wallet?.adapter;\n  return a?.executeTransaction({ ...opts, privateFee: false });",
+        ))
+        self.assertFails(rel, "reads the wallet's raw adapter")
+
+    def test_the_raw_adapter_destructured_fails(self):
+        rel = "packages/rail/src/raw.ts"
+        self.write(rel, "export function raw(w: any) {\n  const { wallets } = w;\n  return wallets;\n}\n")
+        self.assertFails(rel, "reads the wallet's raw adapter")
+
+    def test_a_wallet_without_the_checked_send_fails(self):
+        wired = "const wallet = { ...adaptor, executeTransaction: checkedSend(adaptor) };"
+        self.assertIn(wired, self.shield)
+        self.write(SHIELD, self.shield.replace(wired, "const wallet = { ...adaptor };", 1))
+        self.assertFails(SHIELD, "useShield() must build its wallet")
+
+    def test_the_raw_send_cast_into_the_wallet_fails(self):
+        wired = "executeTransaction: checkedSend(adaptor) }"
+        self.write(SHIELD, self.shield.replace(
+            wired, "executeTransaction: adaptor.executeTransaction as ReturnType<typeof checkedSend> }", 1))
+        self.assertFails(SHIELD, "asks the adapter to sign without `await checkEditions()` first")
+
+    def test_the_raw_adapter_returned_from_use_shield_fails(self):
+        ret = "return { state, route, away, connect, restart, wakeUrl, error, wallet };"
+        self.assertIn(ret, self.shield)
+        self.write(SHIELD, self.shield.replace(ret, ret.replace("wallet }", "wallet: adaptor }"), 1))
+        self.assertFails(SHIELD, "useShield() must build its wallet")
+
+    def test_a_second_send_after_checked_send_fails(self):
+        self.write(SHIELD, self.shield.replace(
+            "export function useShield()",
+            "export const raw = (a: Sender, o: never) => a.executeTransaction(o);\n\nexport function useShield()", 1))
+        self.assertFails(SHIELD, "asks the adapter to sign without `await checkEditions()` first")
+
+    def test_other_proving_request_names_fail(self):
+        for i, line in enumerate(("export const p = (pm: any, o: unknown) => pm.provingRequest(o);",
+                                  "export const e = (sdk: any, r: unknown) => sdk.encryptProvingRequest(r);",
+                                  "export const b = (pm: any, o: unknown) => pm.buildExecutionRequest(o);")):
+            rel = f"apps/business/src/chain/prove{i}.ts"
+            self.write(rel, line + "\n")
+            self.assertFails(rel, "uses the SDK's external signing or proving request")
+
+    def test_an_unrelated_authorization_name_passes(self):
+        self.write("apps/business/src/books/letter.ts", "export function buildAuthorizationLetter() {\n  return 1;\n}\n")
+        done = self.check()
+        self.assertEqual(done.returncode, 0, done.stderr)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -12,12 +12,16 @@ its wallet from there. This check keeps that door the only one. Outside tests, i
   4. a file that imports @provablehq/sdk (or @provablehq/wasm, beneath it) uses its execute path
      (ProgramManager..., buildExecution..., .execute(, broadcast);
   4a. any file names the SDK's external-signing or proving-request calls (computeExternalSigningInputs,
-     ...ExternallySigned..., ExecutionRequest, build...Authorization..., ProvingRequest,
-     submitProvingRequest...), however it reaches them: they sign or prove outside Shield;
-  4b. chain/shield.ts asks the adapter to sign (`.executeTransaction(`, `.executeDeployment(`)
-     anywhere but after `await checkEditions()` in the same function, with checkEditions taken from
-     ./editions.ts; outside shield.ts and packages/wallet, a file calls the adapter's own
-     executeTransaction or executeDeployment, or names executeDeployment at all (the app deploys
+     ...ExternallySigned..., ...ExecutionRequest..., ...ProvingRequest... in either case,
+     buildAuthorization, buildFeeAuthorization and the other Authorization builders), however it
+     reaches them: they sign or prove outside Shield;
+  4b. chain/shield.ts names the adapter's signing calls (`.executeTransaction`, `.executeDeployment`)
+     anywhere but once, in checkedSend, after `await checkEditions()` (taken from ./editions.ts);
+     or useShield() builds its wallet any other way than `{ ...adaptor, executeTransaction:
+     checkedSend(adaptor) }` from its one useWallet(), or uses that adapter for anything but the
+     spread, checkedSend and disconnect. Outside shield.ts and packages/wallet, a file calls the
+     adapter's own executeTransaction or executeDeployment, reads `.adapter` or `.wallets` (the
+     raw adapter, which only shield.ts needs), or names executeDeployment at all (the app deploys
      nothing; the wallet useShield() returns passes the adapter's deployment through unchecked);
   5. any file imports child_process (no snarkos, no shelling out);
   6. any file imports a CLI adapter (the pasted-key path, deleted; it must not come back);
@@ -49,27 +53,83 @@ SDK = ("@provablehq/sdk", "@provablehq/wasm")
 SDK_EXECUTE = re.compile(r"\bProgramManager\w*|\bbuildExecution\w*|\bbuildDevnodeExecution\w*|\.execute\s*\(|\bbroadcast\w*\s*\(")
 
 EXTERNAL_SIGNING = re.compile(
-    r"\bcomputeExternalSigningInputs\b|\b\w*ExternallySigned\w*|\bExecutionRequest\b|\bbuild\w*Authorization\w*"
-    r"|\bProvingRequest\w*|\bsubmitProvingRequest\w*"
+    r"\bcomputeExternalSigningInputs\b|\b\w*ExternallySigned\w*|\b\w*[Ee]xecutionRequest\w*|\b\w*[Pp]rovingRequest\w*"
+    r"|\bbuild(?:Fee)?Authorization(?:Unchecked|FromExecutionRequest)?\b|\bbuildTransactionFromAuthorization\b"
 )
-SIGN_CALL = re.compile(r"\.\s*(?:executeTransaction|executeDeployment)\s*\(")
+SIGN_CALL = re.compile(r"(?:\?\.|\.)\s*(?:executeTransaction|executeDeployment)\b")
 ADAPTER_SIGN = re.compile(r"\badapt[eo]r\s*\??\.\s*(?:executeTransaction|executeDeployment)\b")
-EDITION_CHECK = re.compile(r"\bawait\s+checkEditions\s*\(")
+ADAPTER_READ = re.compile(
+    r"\.\s*(?:adapter|wallets)\b|\[\s*[\"'](?:adapter|wallets)[\"']\s*\]|\{[^{}]*\b(?:adapter|wallets)\b[^{}]*\}\s*=(?![=>])"
+)
+EDITION_CHECK = re.compile(r"\bawait\s+checkEditions\s*\(\s*\)")
 EDITIONS_IMPORT = re.compile(r"""import\s*\{[^}]*\bcheckEditions\b[^}]*\}\s*from\s*["']\./editions["']""")
 EDITIONS_SHADOW = re.compile(r"\b(?:const|let|var|function|class)\s+checkEditions\b")
+CHECKED_SEND = re.compile(r"\bexport\s+function\s+checkedSend\s*\(\s*adaptor\s*:\s*Sender\s*\)\s*\{")
+USE_SHIELD = re.compile(r"\bexport\s+function\s+useShield\s*\(\s*\)\s*\{")
+THE_WALLET = re.compile(r"\bconst\s+wallet\s*=\s*\{\s*\.\.\.adaptor\s*,\s*executeTransaction\s*:\s*checkedSend\s*\(\s*adaptor\s*\)\s*,?\s*\}\s*;")
+ADAPTOR_USES = re.compile(
+    r"\bconst\s+adaptor\s*=\s*useWallet\s*\(\s*\)|\.\.\.adaptor\b|\bcheckedSend\s*\(\s*adaptor\s*\)|\badaptor\s*\.\s*disconnect\s*\("
+)
 
 
-def unchecked_sends(code: str) -> int:
-    """How many of shield.ts's requests for a signature aren't preceded, in their own async
-    function, by `await checkEditions()` (taken from ./editions.ts and not redefined here)."""
-    if not EDITIONS_IMPORT.search(code) or EDITIONS_SHADOW.search(code):
-        return max(1, len(SIGN_CALL.findall(code)))
-    missing = 0
-    for call in SIGN_CALL.finditer(code):
-        start = code.rfind("async", 0, call.start())
-        if start < 0 or not EDITION_CHECK.search(code, start, call.start()):
-            missing += 1
-    return missing
+def body(code: str, header: re.Pattern):
+    """The text between a function header's `{` and its matching `}`, or None. Skips braces in
+    string and template literals (comments are already gone)."""
+    m = header.search(code)
+    if not m:
+        return None
+    depth, i, quote = 1, m.end(), None
+    while i < len(code):
+        c = code[i]
+        if quote:
+            if c == "\\":
+                i += 1
+            elif c == quote:
+                quote = None
+        elif c in "'\"`":
+            quote = c
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return code[m.end():i]
+        i += 1
+    return None
+
+
+def shield_problems(code: str) -> list:
+    """What is wrong with shield.ts's one door: the adapter is asked to sign once, in checkedSend,
+    after `await checkEditions()` from ./editions.ts; and useShield()'s wallet sends only through it."""
+    problems = []
+    send = body(code, CHECKED_SEND)
+    calls = list(SIGN_CALL.finditer(code))
+    guarded = (
+        EDITIONS_IMPORT.search(code)
+        and not EDITIONS_SHADOW.search(code)
+        and send is not None
+        and len(calls) == 1
+        and len(SIGN_CALL.findall(send)) == 1
+        and (check := EDITION_CHECK.search(send)) is not None
+        and check.start() < SIGN_CALL.search(send).start()
+    )
+    if not guarded:
+        problems.append("asks the adapter to sign without `await checkEditions()` first (./editions.ts), or anywhere but once in checkedSend")
+    hook = body(code, USE_SHIELD)
+    wired = (
+        hook is not None
+        and len(re.findall(r"\buseWallet\s*\(", code)) == 1
+        and THE_WALLET.search(hook) is not None
+        and len(re.findall(r"\.\.\.adaptor\b", hook)) == 1
+        and len(re.findall(r"\bcheckedSend\s*\(", hook)) == 1
+        and len(re.findall(r"\badaptor\b", hook)) == len(ADAPTOR_USES.findall(hook))
+    )
+    if not wired:
+        problems.append(
+            "useShield() must build its wallet as `{ ...adaptor, executeTransaction: checkedSend(adaptor) }` "
+            "from its one useWallet(), and use that adapter for nothing else but disconnect"
+        )
+    return problems
 
 
 def sources():
@@ -109,11 +169,12 @@ def main() -> int:
         if EXTERNAL_SIGNING.search(code):
             problems.append(f"{rel}: uses the SDK's external signing or proving request; every write is signed and proved in Shield")
         if rel == SHIELD:
-            if unchecked_sends(code):
-                problems.append(f"{rel}: asks the adapter to sign without `await checkEditions()` first (./editions.ts)")
+            problems.extend(f"{rel}: {p}" for p in shield_problems(code))
         elif not rel.startswith("packages/wallet/"):
             if ADAPTER_SIGN.search(code):
                 problems.append(f"{rel}: asks the wallet adapter itself to sign; send through useShield() in {SHIELD}")
+            if ADAPTER_READ.search(code):
+                problems.append(f"{rel}: reads the wallet's raw adapter (`.adapter`, `.wallets`); only {SHIELD} may")
             if re.search(r"\bexecuteDeployment\b", code):
                 problems.append(f"{rel}: asks for a deployment; the app deploys nothing, and a deployment would skip the edition check")
         if any(i in ("child_process", "node:child_process") for i in imports):
