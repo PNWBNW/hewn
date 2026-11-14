@@ -177,6 +177,20 @@ export const IN_PROGRESS = "In progress on another device";
 export const NOT_FROM_HERE = "Not paid from here";
 /** What stops a release whose marker came second. */
 export const MARKED_FIRST = "Another device marked this run first; open it again to see where it stands";
+/** Why a later payment of a run isn't sent from a device that holds no record for it (after `NOT_FROM_HERE`): Shield doesn't offer the one record it may spend. */
+const NOT_ITS_RECORD =
+  "this run stopped part-way, and it goes on only from what the payment before this one left. Shield doesn't list that record for this payment right now: it can take a minute to show, money may have arrived, or another device may be paying this person. Try again in a few minutes, or pay them in Shield; the run then finds the payment and goes on from what it leaves.";
+/** Why a later payment of a run isn't sent while the one before it is open (after `NOT_FROM_HERE`). */
+const NOT_BEFORE_IT = "it is paid from what the payment before it in this run leaves, and that payment hasn't been found yet.";
+
+/**
+ * Where a payment comes in the marker that covers it, when that marker names no record for it:
+ * what it may be paid from on a device that held no record for it. `after`: the payment before it
+ * in the marker, by the person it pays in these books. `start`: nothing before it is paid as it is
+ * marked (each is to an account another marker pays a different amount), so it is the run's first
+ * and spends the record the marker starts from. Neither: these books can't tell.
+ */
+type Follows = { after?: string; start?: string };
 
 /** A time of day, for "from 3:45 PM". */
 const clockTime = (ms: number): string => new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -287,14 +301,20 @@ async function unspentRecords(wallet: RailWallet): Promise<{ tag: string; amount
  *     accepted before it, nothing is paid from here;
  *   - a marker names the record that pays it: that record's tag is kept, and the payment goes out
  *     only by spending that record, so the network lets one transfer through whichever device asks;
- *   - it is a later payment of a run this device marked (or took over): it goes on, once it has
- *     been looked for in the account's own transfers and not found;
+ *   - it is a later payment of a run these books hold as this device's own (it marked it, or took
+ *     it over), and a record is held for it: it goes out by spending that record, as it always has;
+ *   - it is such a payment and no record is held for it: it is looked for in the account's own
+ *     transfers. Not found, it goes out only from what the payment before it in its marker left,
+ *     once the books hold that payment as made; while Shield doesn't offer that record for it, the
+ *     line says so and nothing is asked. Any copy of these books holds the run the same way, on
+ *     whichever device it is opened, so every copy is held to that one record and the network
+ *     lets one transfer through. The one case that keeps the record the plan gives it: this device
+ *     made the payment before it a moment ago, in this same release (a run going on as planned);
  *   - it is a later payment of a run another device marked: it is looked for, and settled if it is
  *     there. Otherwise nothing is sent for it (`onHeld`), until the chain shows that run has paid
- *     someone and then nobody for `TAKE_OVER_AFTER_MS`. Then this device goes on with it, from the
- *     record that run would have paid from next and no other: what its last payment left, and only
- *     while that is the one record Shield lists for the account, so the device that started the
- *     run, opened again, has no other record to pay the same person from;
+ *     someone and then nobody for `TAKE_OVER_AFTER_MS`. Then this device goes on with it, from that
+ *     same one record and no other, and only while it is the one record Shield lists for the
+ *     account;
  *   - a marker pays the same account another amount for a period that overlaps, or names a record
  *     other than the one this device holds for it: nothing is sent for it from here.
  *
@@ -313,16 +333,23 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
   const settled: Promise<string | null>[] = [];
   /** The paychecks this device has asked Shield to pay, on an earlier release or in this one: their paystubs are its to send. */
   const asked = new Set<string>();
+  /** The paychecks Shield was asked to pay in this release, and those of them it then confirmed itself (not ones the look found). */
+  const askedHere = new Set<string>();
+  const paidHere = new Set<string>();
+  /** The payments a marker covers without naming a record: where each comes in its marker. */
+  const follows = new Map<string, Follows>();
   const onProgress = (e: PayQueueEvent) => {
     ctx.onEvent?.(e);
     switch (e.kind) {
       case "approving":
         asked.add(e.workerId);
+        askedHere.add(e.workerId);
         break;
       case "sent":
         note(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}), ...(e.since !== undefined ? { since: e.since } : {}) });
         break;
       case "settled":
+        if (!e.found && askedHere.has(e.workerId)) paidHere.add(e.workerId);
         // The paystub goes out once everyone is paid (a letter is its own Shield approval, so
         // it never races the payments); a failed send never touches the settlement.
         settled.push(
@@ -354,6 +381,41 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
           ...(e.endedAt ? { endedAt: e.endedAt } : {}),
         });
         break;
+    }
+  };
+
+  const settlementOf = async (workerId: string): Promise<Settlement | undefined> =>
+    (await ctx.updateCompany((c) => c)).payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.settlement;
+  /**
+   * What the payment the books hold for `workerId` left: the unspent record Shield lists as made by
+   * that payment's transaction (`left`), among everything it lists now (`records`). Null while the
+   * books don't hold that paycheck as settled by a transaction.
+   */
+  const leftBy = async (workerId: string) => {
+    await Promise.all(settled); // every payment found or confirmed so far is in the books first
+    const before = await settlementOf(workerId);
+    const id = before?.status === "settled" ? transactionIdOf(before.reference ?? "") : null;
+    if (id === null) return null;
+    const records = await unspentRecords(wallet).catch(() => []);
+    return { id, records, left: records.find((r) => r.madeBy === id) };
+  };
+  /**
+   * Stops a payment its marker names no record for from going out of a record this device hasn't
+   * held for it, unless `tag` is the one record such a payment may spend: what the payment before
+   * it in its marker left (or the record the marker starts from, when nothing before it is paid as
+   * marked). A device that just made the payment before it, in this release, is going on with its
+   * own run as planned, and keeps the record the plan gave it. Throws the words for the line.
+   */
+  const mayFollow = async (workerId: string, tag: string): Promise<void> => {
+    const link = follows.get(workerId);
+    if (!link) return;
+    if (link.after !== undefined) {
+      if (paidHere.has(link.after)) return;
+      const before = await leftBy(link.after);
+      if (before === null) throw new Error(`${NOT_FROM_HERE}: ${NOT_BEFORE_IT}`);
+      if (before.left?.tag !== tag) throw new Error(`${NOT_FROM_HERE}: ${NOT_ITS_RECORD}`);
+    } else if (link.start !== tag) {
+      throw new Error(`${NOT_FROM_HERE}: ${NOT_ITS_RECORD}`);
     }
   };
 
@@ -440,8 +502,30 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
         return true;
       };
 
-      /** By marker: the payments of a run another device marked that weren't found, in the run's order. */
-      const elsewhere = new Map<string, { payment: MarkedPayment; since: number }[]>();
+      // ---- Where each payment a marker names no record for comes in that marker ------------
+      const byAccount = new Map(posted.paychecks.filter((p) => p.net > 0n).map((p) => [links.get(p.workerId), p] as const));
+      /** The payments nobody pays as they are marked: each is to an account another marker pays a different amount. */
+      const passedOver = new Set(decisions.flatMap((d) => (d.kind === "refused" && d.why === "other-amount" ? [d.workerId] : [])));
+      const followsIn = (markerId: string, to: string): Follows => {
+        const lines = listed.find((l) => l.marker.id === markerId)?.marker.lines ?? [];
+        const at = lines.findIndex((line) => line.to === to);
+        for (let i = at - 1; i >= 0; i--) {
+          const line = lines[i]!;
+          const before = byAccount.get(line.to);
+          if (before && passedOver.has(before.workerId)) continue;
+          return before && centsToMinor(before.net) === line.minor ? { after: before.workerId } : {};
+        }
+        const start = at > 0 ? lines.slice(0, at).find((line) => line.tag !== undefined)?.tag : undefined;
+        return start !== undefined ? { start } : {};
+      };
+
+      /** By marker: the payments it names no record for that this device holds none for and didn't find, in the run's order. */
+      const waiting = new Map<string, { own: boolean; lines: { payment: MarkedPayment; since: number }[] }>();
+      const wait = (marker: string, own: boolean, line: { payment: MarkedPayment; since: number }) => {
+        const group = waiting.get(marker) ?? { own, lines: [] };
+        group.lines.push(line);
+        waiting.set(marker, group);
+      };
       for (const [i, decision] of decisions.entries()) {
         const payment = payments[i]!;
         const settlement = open[i]!.settlement;
@@ -463,25 +547,49 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
               // payment is looked for, no further back than its marker, and if it isn't there the tag is kept.
               const since = settlement.since ?? decision.since;
               if (settlement.attempt !== decision.tag && !(await lookFor(payment, since, decision.tag))) await write(payment.workerId, { status: "pending", attempt: decision.tag, since });
-            } else if (!payment.attempt) {
-              // A later payment of this device's own run that it holds no record for: looked for before it is asked for.
-              await lookFor(payment, settlement.since ?? decision.since);
+            } else {
+              follows.set(payment.workerId, followsIn(decision.marker, payment.to));
+              // A later payment of a run these books hold as this device's own, with no record held for it: looked for
+              // before it is asked for. A copy of these books on another device holds it the same way, so it goes on
+              // only as the rule for such a payment allows (below, and `mayFollow`).
+              const since = settlement.since ?? decision.since;
+              if (!payment.attempt && !(await lookFor(payment, since))) wait(decision.marker, true, { payment, since });
             }
             break;
           case "elsewhere":
-            if (!(await lookFor(payment, decision.since))) {
-              elsewhere.set(decision.marker, [...(elsewhere.get(decision.marker) ?? []), { payment, since: decision.since }]);
-            }
+            follows.set(payment.workerId, followsIn(decision.marker, payment.to));
+            if (!(await lookFor(payment, decision.since))) wait(decision.marker, false, { payment, since: decision.since });
             break;
         }
       }
 
-      // ---- A run another device marked: wait, or go on with it -----------------------------
-      if (elsewhere.size > 0) {
-        const now = await chainNow(network);
+      // ---- Payments no record is held for: wait, or go on ------------------------------------
+      if (waiting.size > 0) {
+        const now = [...waiting.values()].some((group) => !group.own) ? await chainNow(network) : null;
         const after = await ctx.updateCompany((c) => c);
         const paychecks = after.payroll.runs.find((r) => r.id === runId)?.paychecks ?? [];
-        for (const [markerId, lines] of elsewhere) {
+        for (const [markerId, { own, lines }] of waiting) {
+          if (own) {
+            // A run these books hold as this device's own. Each payment is left to the pay queue, which asks for it
+            // only from the record `mayFollow` allows; one that can't go out now is said so here, before Shield is
+            // asked for anything, and so are the ones that wait on it.
+            for (const { payment } of lines) {
+              const link = follows.get(payment.workerId) ?? {};
+              const before = link.after !== undefined ? paychecks.find((p) => p.workerId === link.after) : undefined;
+              if (before && before.settlement.status !== "settled") {
+                // The one before it is still to be paid: this one is reached, in this release, only once that one has been.
+                if (held.has(before.workerId)) hold(payment.workerId, `${NOT_FROM_HERE}: ${NOT_BEFORE_IT}`);
+                continue;
+              }
+              // The one record it may spend, if Shield lists it now: what the payment before it left, or the record its marker starts from.
+              let record: { amount: bigint } | undefined;
+              if (before) record = (await leftBy(before.workerId))?.left;
+              else if (link.start !== undefined) record = (await unspentRecords(wallet).catch(() => [])).find((r) => r.tag === link.start);
+              if (!record || record.amount < payment.minor) hold(payment.workerId, `${NOT_FROM_HERE}: ${NOT_ITS_RECORD}`);
+            }
+            continue;
+          }
+          // A run another device marked: wait, or go on with it.
           const waitFor = (why: string) => lines.forEach((l) => hold(l.payment.workerId, why));
           const theirs = listed.find((l) => l.marker.id === markerId)!;
           // That run's steps so far: its marker, then each payment of it the books now hold as settled.
@@ -508,12 +616,14 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
             continue;
           }
           // It has paid nobody for long enough. This device goes on from the record that run would have paid from next,
-          // and no other: if a payment of that run is still on its way, the two spend the same record and one lands.
-          // That record has to be the only one the account holds, so the device that started the run, opened again,
-          // has no other record to pay the same person from.
+          // and no other: what the payment before the first one still owed left. If a payment of that run is still on
+          // its way, the two spend the same record and one lands. That record also has to be the only one the account
+          // holds, since the device that started the run, while it is in the middle of a release, takes whichever
+          // record its plan gives it.
           const first = lines[0]!;
-          const records = await unspentRecords(wallet).catch(() => []);
-          const record = records.length === 1 && records[0]!.madeBy === last.id ? records[0]! : undefined;
+          const link = follows.get(first.payment.workerId) ?? {};
+          const before = link.after !== undefined ? await leftBy(link.after) : null;
+          const record = before && before.records.length === 1 ? before.left : undefined;
           if (!record || record.amount < first.payment.minor) {
             waitFor(
               `${IN_PROGRESS}, and this device can't go on with it: it would pay only from what that run's last payment left, and only while that is the one record Shield lists for this account. Go on with the run on the device that started it, or pay anyone it didn't pay in Shield; the run then finds the payment.`,
@@ -538,8 +648,6 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
       if (beaten(listed, marker.id)) throw new Error(MARKED_FIRST);
     };
     const workerOf = (to: string): string => posted.paychecks.find((p) => p.net > 0n && links.get(p.workerId) === to)!.workerId;
-    const settlementOf = async (workerId: string): Promise<Settlement | undefined> =>
-      (await ctx.updateCompany((c) => c)).payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.settlement;
 
     const beforeTransfers = async (lines: readonly QueuedLine[]) => {
       const unmarked = lines.filter((l) => fresh.has(l.workerId));
@@ -558,6 +666,8 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
     // look reads back no further than that height.
     const beforeSend = async (workerId: string, attempt: string, since?: number) => {
       const before = await settlementOf(workerId);
+      // A record this device hasn't held for this payment: if a marker covers it without naming one, only one will do.
+      if (before?.attempt !== attempt) await mayFollow(workerId, attempt);
       const gaveUp = before?.attempt && before.attempt !== attempt ? before.attempt : undefined;
       await write(workerId, { status: "pending", attempt, ...(since !== undefined ? { since } : {}), ...(gaveUp ? { replaces: gaveUp } : {}) });
       // The payment is being asked again from another record (the one it held went into something else). If a listed

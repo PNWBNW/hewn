@@ -67,6 +67,14 @@ const onPayment = (pick: (nth: number) => Behaviour) => {
 
 const float = centsToMinor(50_000_00n);
 
+/** A repeatable stream of numbers from 0 up to 1 (mulberry32), so a sweep draws the same orderings every time. */
+const seeded = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
 /** A run posted on the phone, and the books as they were saved before anything was released. */
 async function posted(people: number, deposits: bigint[] = [float]) {
   const vt = new VirtualTime();
@@ -590,6 +598,119 @@ describe("two devices and one run", () => {
     for (const device of [phone, laptop]) expect(device.settlements.every((s) => s.status === "settled")).toBe(true);
   });
 
+  for (const hidesBusy of [false, true]) {
+    it(`a copy of the books saved after the first payment is opened while the first device's second payment is on its way, in an account that holds a second record: nothing is paid from the other record, and each is paid once (Shield ${hidesBusy ? "no longer lists" : "still lists"} the record it is spending)`, async () => {
+      const { vt, chain, start, phone } = await posted(3, [centsToMinor(20_000_00n), centsToMinor(33_000_00n)]);
+      chain.hidesBusy = hidesBusy;
+      let midway: Company | undefined;
+      const first = chain.shield();
+      // The second is taken by Shield, called failed, and lands four minutes later; the phone is closed after that.
+      first.behaviour = onPayment((nth) => (nth === 0 ? "ok" : nth === 1 ? { saysFailed: true, landsAfterMs: 4 * MIN } : "lost"));
+      const run = release(chain, phone, first, start, { onEvent: (e) => void (e.kind === "settled" && !midway && (midway = structuredClone(phone.company))) });
+      await vt.run(Promise.race([run.done, vt.sleep(MIN)]));
+      // The copy knows the run's marker, and holds a record for the first payment only.
+      expect(midway!.payroll.runs[0]!.paychecks.map((p) => [!!p.settlement.attempt, !!p.settlement.marker])).toEqual([[true, true], [false, true], [false, true]]);
+      const laptop = await phone.restored(midway!);
+      const shield = chain.shield();
+      const early = release(chain, laptop, shield, start);
+      await vt.run(early.done);
+      const left = chain.tokens.find((t) => t.from === chain.paid(start.links.get(start.workers[0]!)!)[0]!.id)!.plaintext;
+      // Whatever the laptop asked for the second, it named what the first payment left: the record the phone is spending.
+      expect(shield.payments.filter((c) => c.inputs[0] === start.links.get(start.workers[1]!)).every((c) => c.inputs[2] === left)).toBe(true);
+      if (hidesBusy) {
+        // That record isn't listed while the phone's payment is on its way, so the laptop asks for nothing.
+        expect(shield.payments).toEqual([]);
+        expect(laptop.settlements.map((s) => s.status)).toEqual(["settled", "failed", "pending"]);
+        expect(laptop.settlements[1]!.failure!.startsWith(`${NOT_FROM_HERE}: `)).toBe(true);
+        expect(laptop.settlements[1]!.attempt).toBeUndefined();
+      }
+      await vt.run(vt.sleep(10 * MIN));
+      expect(paidEach(chain, start).every((n) => n <= 1)).toBe(true);
+      await vt.run(release(chain, laptop, shield, start).done);
+      await vt.run(release(chain, phone, chain.shield(), start).done);
+      expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+      for (const device of [phone, laptop]) expect(device.settlements.every((s) => s.status === "settled")).toBe(true);
+    });
+
+    it(`the phone stops holding no record for its third payment, the laptop goes on with the run, money arrives while the laptop's payment is on its way, and the phone is opened again: it asks for nothing from the new record, and each is paid once (Shield ${hidesBusy ? "no longer lists" : "still lists"} the record it is spending)`, async () => {
+      const { vt, chain, start, phone, saved } = await posted(3);
+      chain.hidesBusy = hidesBusy;
+      const laptop = await phone.restored(saved);
+      const first = chain.shield();
+      // From its second payment on, the phone's Shield is slow to list anything: what that payment left isn't
+      // listed in time, and the run stops before a record is kept for the third.
+      first.behaviour = onPayment((nth) => (nth === 1 && (first.lagMs = 10 * MIN), "ok"));
+      expect((await vt.run(release(chain, phone, first, start).done)).stalled).toBe(true);
+      expect(paidEach(chain, start)).toEqual([1, 1, 0]);
+      expect(phone.settlements[2]).toEqual({ status: "pending", marker: phone.settlements[2]!.marker });
+      const second = chain.paid(start.links.get(start.workers[1]!)!)[0]!;
+
+      // Past thirty minutes the laptop goes on with it. Shield takes its payment, calls it failed, and it lands three minutes later.
+      await vt.run(vt.sleep(second.at + 31 * MIN - vt.now));
+      const shield = chain.shield();
+      shield.behaviour = onPayment(() => ({ saysFailed: true, landsAfterMs: 3 * MIN }));
+      await vt.run(release(chain, laptop, shield, start).done);
+      expect(shield.payments).toHaveLength(1);
+      expect(shield.payments[0]!.inputs[2]).toBe(chain.tokens.find((t) => t.from === second.id)!.plaintext);
+
+      // Money arrives, and the phone is opened again while that payment is still on its way.
+      chain.deposit(centsToMinor(1_000_00n));
+      await vt.run(vt.sleep(10_000));
+      first.lagMs = 1_000;
+      first.behaviour = () => "ok";
+      const asked = first.calls.length;
+      const back = release(chain, phone, first, start);
+      await vt.run(back.done);
+      expect(first.calls).toHaveLength(asked);
+      expect(paidEach(chain, start)).toEqual([1, 1, 0]);
+      const why = back.held.get(start.workers[2]!) ?? phone.settlements[2]!.failure;
+      expect(why!.startsWith(`${NOT_FROM_HERE}: `)).toBe(true);
+
+      await vt.run(vt.sleep(5 * MIN));
+      expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+      await vt.run(release(chain, phone, first, start).done);
+      await vt.run(release(chain, laptop, shield, start).done);
+      expect(first.calls).toHaveLength(asked);
+      expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+      for (const device of [phone, laptop]) expect(device.settlements.every((s) => s.status === "settled")).toBe(true);
+    });
+  }
+
+  it("a run that stopped with no record held for its next payment goes on, on the device that started it, from what its last payment left; while Shield doesn't say which payment made a record, nothing is asked", async () => {
+    const { vt, chain, start, phone } = await posted(4, [centsToMinor(20_000_00n), centsToMinor(33_000_00n)]);
+    const shield = chain.shield();
+    // From its second payment on, Shield is slow to list anything: the run stops before a record is kept for the third.
+    shield.behaviour = onPayment((nth) => (nth === 1 && (shield.lagMs = 10 * MIN), "ok"));
+    expect((await vt.run(release(chain, phone, shield, start).done)).stalled).toBe(true);
+    expect(paidEach(chain, start)).toEqual([1, 1, 0, 0]);
+    const second = chain.paid(start.links.get(start.workers[1]!)!)[0]!;
+    shield.lagMs = 1_000;
+    shield.behaviour = () => "ok";
+    await vt.run(vt.sleep(MIN));
+
+    // Shield's list doesn't say which transaction made each record: the one the run goes on from can't be told from the other.
+    chain.showOrigins = false;
+    const asked = shield.calls.length;
+    const blind = release(chain, phone, shield, start);
+    await vt.run(blind.done);
+    expect(shield.calls).toHaveLength(asked);
+    expect([...blind.held.keys()]).toEqual(start.workers.slice(2));
+    expect(blind.held.get(start.workers[2]!)).toMatch(new RegExp(`^${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left\\.`));
+    expect(blind.held.get(start.workers[3]!)).toBe(`${NOT_FROM_HERE}: it is paid from what the payment before it in this run leaves, and that payment hasn't been found yet.`);
+    expect(paidEach(chain, start)).toEqual([1, 1, 0, 0]);
+
+    // Once it says: the third is asked for from what the second left, never from the account's other record, and the fourth follows.
+    chain.showOrigins = true;
+    const run = release(chain, phone, shield, start);
+    await vt.run(run.done);
+    expect(run.held.size).toBe(0);
+    expect(shield.lettersSent).toHaveLength(1);
+    expect(shield.payments).toHaveLength(4);
+    expect(shield.payments[2]!.inputs[2]).toBe(chain.tokens.find((t) => t.from === second.id)!.plaintext);
+    expect(paidEach(chain, start)).toEqual([1, 1, 1, 1]);
+    expect(phone.settlements.every((s) => s.status === "settled")).toBe(true);
+  });
+
   it("the laptop's books number the run and its people differently: payments are matched by account, period and amount, and nobody is paid twice", async () => {
     const { vt, chain, start, phone, saved } = await posted(4);
     const lost = chain.shield();
@@ -690,37 +811,48 @@ describe("two devices and one run", () => {
   });
 
   for (const deposits of [[float], [centsToMinor(20_000_00n), centsToMinor(33_000_00n)]]) {
-    it(`two devices start the same run moments apart, each is then reopened, then a third device opens it: nobody is paid twice (${deposits.length} record${deposits.length > 1 ? "s" : ""})`, async () => {
-      for (const [offset, lagA, lagB] of [
-        [0, 1_000, 1_000],
-        [2_000, 1_000, 1_000],
-        [5_000, 1_000, 1_000],
-        [9_000, 1_000, 1_000],
-        [15_000, 1_000, 1_000],
-        [24_000, 1_000, 1_000],
-        [40_000, 1_000, 1_000],
-        [3_000, 1_000, 45_000],
-        [3_000, 45_000, 1_000],
-        [20_000, 90_000, 30_000],
-      ] as const) {
-        const { vt, chain, start, phone, saved } = await posted(3, deposits);
-        const laptop = await phone.restored(saved);
-        const third = await phone.restored(saved);
-        const [a, b] = [chain.shield({ lagMs: lagA }), chain.shield({ lagMs: lagB })];
-        const [first, second] = [release(chain, phone, a, start), vt.sleep(offset).then(() => release(chain, laptop, b, start).done)];
-        await vt.run(Promise.allSettled([first.done, second]));
-        const label = `offset ${offset} lags ${lagA}/${lagB}`;
-        expect(paidEach(chain, start).every((n) => n <= 1), label).toBe(true);
-        await vt.run(vt.sleep(3 * MIN));
-        await vt.run(release(chain, laptop, b, start).done);
-        await vt.run(release(chain, phone, a, start).done);
-        const late = chain.shield();
-        await vt.run(release(chain, third, late, start).done);
-        expect(late.approvals, label).toBe(0);
-        expect(paidEach(chain, start), label).toEqual([1, 1, 1]);
-        for (const device of [phone, laptop, third]) expect(device.settlements.map((s) => s.status), label).toEqual(["settled", "settled", "settled"]);
-      }
-    });
+    for (const hidesBusy of [false, true]) {
+      it(`two devices start the same run moments apart, each is then reopened, then a third device opens it, in 40 orderings: nobody is paid twice (${deposits.length} record${deposits.length > 1 ? "s" : ""}, Shield ${hidesBusy ? "no longer lists" : "still lists"} the record it is spending)`, async () => {
+        // Ten chosen by hand, then thirty drawn from a fixed seed: how long after the first device the second starts
+        // (up to a minute), how far behind the chain each device's Shield lists (half a second to a minute and a
+        // half), and how long the second device's person takes over a prompt (2 to 32 seconds).
+        const next = seeded(20261114 + deposits.length * 2 + (hidesBusy ? 1 : 0));
+        const between = (from: number, to: number) => from + Math.round(next() * (to - from));
+        const orderings: (readonly [offset: number, lagA: number, lagB: number, approveB: number])[] = [
+          [0, 1_000, 1_000, 8_000],
+          [2_000, 1_000, 1_000, 8_000],
+          [5_000, 1_000, 1_000, 8_000],
+          [9_000, 1_000, 1_000, 8_000],
+          [15_000, 1_000, 1_000, 8_000],
+          [24_000, 1_000, 1_000, 8_000],
+          [40_000, 1_000, 1_000, 8_000],
+          [3_000, 1_000, 45_000, 8_000],
+          [3_000, 45_000, 1_000, 8_000],
+          [20_000, 90_000, 30_000, 8_000],
+          ...Array.from({ length: 30 }, () => [between(0, 60_000), between(500, 90_500), between(500, 90_500), between(2_000, 32_000)] as const),
+        ];
+        expect(orderings).toHaveLength(40);
+        for (const [offset, lagA, lagB, approveB] of orderings) {
+          const { vt, chain, start, phone, saved } = await posted(3, deposits);
+          chain.hidesBusy = hidesBusy;
+          const laptop = await phone.restored(saved);
+          const third = await phone.restored(saved);
+          const [a, b] = [chain.shield({ lagMs: lagA }), chain.shield({ lagMs: lagB, approveMs: approveB })];
+          const [first, second] = [release(chain, phone, a, start), vt.sleep(offset).then(() => release(chain, laptop, b, start).done)];
+          await vt.run(Promise.allSettled([first.done, second]));
+          const label = `offset ${offset} lags ${lagA}/${lagB} approval ${approveB}`;
+          expect(paidEach(chain, start).every((n) => n <= 1), label).toBe(true);
+          await vt.run(vt.sleep(3 * MIN));
+          await vt.run(release(chain, laptop, b, start).done);
+          await vt.run(release(chain, phone, a, start).done);
+          const late = chain.shield();
+          await vt.run(release(chain, third, late, start).done);
+          expect(late.approvals, label).toBe(0);
+          expect(paidEach(chain, start), label).toEqual([1, 1, 1]);
+          for (const device of [phone, laptop, third]) expect(device.settlements.map((s) => s.status), label).toEqual(["settled", "settled", "settled"]);
+        }
+      });
+    }
   }
 
   it("the device whose marker came second stands down: its first line says another device marked the run first, and it keeps no record", async () => {
@@ -790,7 +922,11 @@ describe("a payment Shield didn't confirm", () => {
     await vt.run(vt.sleep(5_000));
     await vt.run(release(chain, phone, shield, start).done);
     expect(phone.settlements[0]!.failure!.startsWith(NOT_PAID)).toBe(true);
-    expect(paidEach(chain, start)).toEqual([0, 1, 1]); // the others, never yet asked for, were paid in turn
+    // The others are paid from what the first payment leaves, so they wait for it: nothing was asked for them.
+    expect(paidEach(chain, start)).toEqual([0, 0, 0]);
+    expect(shield.payments).toHaveLength(1);
+    expect(phone.settlements[1]).toMatchObject({ status: "failed", failure: `${NOT_FROM_HERE}: it is paid from what the payment before it in this run leaves, and that payment hasn't been found yet.` });
+    expect(phone.settlements[1]!.attempt).toBeUndefined();
 
     expect(await vt.run(payAgain(context(chain, phone, shield, start), start.workers[0]!))).toBe("another-record");
     expect(phone.settlements[0]).toMatchObject({ status: "failed", failure: PAY_AGAIN_NOTE, replaces: old });
