@@ -3,14 +3,15 @@
 // ---------------------------------------------------------------------------
 // The pay panel: settles one rail run through Shield, one private USDCx
 // transfer per person, one at a time, each made from what the last one left
-// (@pnw/rail). Opened from the pay runs list right after a rail run posts,
-// and again from Continue / Retry.
+// (@pnw/rail, through the release seam in release.ts). Opened from the pay
+// runs list right after a rail run posts, and again from Continue / Retry.
 //
-// Shield has one prompt open at a time. While a payment's prompt is open, its
-// line shows the payee's full account and the amount in millionths of a
-// dollar, the two things Shield's own screen gives for it. A payment that
-// doesn't settle stops the run there: the people after it wait, untouched,
-// and Continue takes them up.
+// Shield has one prompt open at a time. Before the first, the panel says how
+// many times Shield will ask (release.ts `promptSummary`); while a payment's
+// prompt is open, its line shows the payee's full account and the amount in
+// millionths of a dollar, the two things Shield's own screen gives for it. A
+// payment that doesn't settle stops the run there: the people after it wait,
+// untouched, and Continue takes them up.
 //
 // Every outcome is written to the vault as it happens, so closing the tab
 // loses nothing: a transfer Shield has taken keeps its id on the pending
@@ -44,7 +45,6 @@ import {
   formatMinorAsDollars,
   outstanding,
   recordStillListed,
-  runPayQueue,
   totalBalance,
 } from "@pnw/rail";
 import { Button } from "@pnw/ui/button";
@@ -57,6 +57,7 @@ import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
 import { FOUND_NOTE, claimedTransfers, payAgainTarget, rivalPayments, unconfirmedLabel } from "./pay_outcome";
+import { pickReleaser, promptSummary } from "./release";
 import { type SentRead, findSentPayment } from "./sent_payment";
 import { useShield } from "./shield";
 import { usePaystubDelivery } from "./usePaystubDelivery";
@@ -254,6 +255,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
     const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
     const settled: Promise<string | null>[] = [];
+    let stalled = false;
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
@@ -356,7 +358,10 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           },
         });
       };
-      await runPayQueue({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
+      // How the run is paid: the one-at-a-time queue, the only way there is today. First, how many times Shield will ask.
+      const releaser = await pickReleaser();
+      setNote(promptSummary(releaser.prompts(latest, links)));
+      stalled = !!(await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment })).stalled;
       loadedFor.current = null; // re-read the balance
       setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
     } catch (e) {
@@ -364,6 +369,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     }
     // Then each paystub settled this time, one letter (one approval) at a time; `deliver` never throws.
     for (const workerId of await Promise.all(settled)) if (workerId) await deliver(workerId);
+    if (!stalled) setNote(null); // everything it said Shield would ask has been asked; where a run stopped stays up
     setRunning(false);
   }
 
