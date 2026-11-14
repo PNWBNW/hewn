@@ -18,11 +18,32 @@ import { emptySales } from "@pnw/sales";
 import { type VaultSession, createVault, keySlotsOf, openKeySlots } from "@pnw/vault";
 import type { Company } from "../books/company";
 import type { Rail } from "../books/rail";
-import { FIELD_BYTES, LETTERS_PROGRAM, LETTER_FIELDS, PAGE_FIELDS, SEND_FUNCTION, SEND_PAGE_FUNCTION } from "./letters";
+import { LETTERS_PROGRAM, LETTER_FIELDS, PAGE_FIELDS, SEND_FUNCTION, SEND_PAGE_FUNCTION } from "./letters";
 
 const USDCX = PROGRAMS.external.usdcx;
 
 // ---- Time ---------------------------------------------------------------------------------
+
+// Real work that finishes on another thread (hashing, sealing, packing) is counted while it is
+// under way, so the clock never jumps ahead of something that is about to ask for a shorter wait.
+let underWay = 0;
+let counting = false;
+function countRealWork() {
+  if (counting) return;
+  counting = true;
+  const counted = <A extends unknown[], R>(f: (...args: A) => Promise<R>) =>
+    function (this: unknown, ...args: A): Promise<R> {
+      underWay++;
+      return f.apply(this, args).finally(() => void underWay--);
+    };
+  const subtle = globalThis.crypto.subtle as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
+  for (const name of ["digest", "encrypt", "decrypt", "importKey", "exportKey", "deriveKey", "deriveBits", "generateKey", "wrapKey", "unwrapKey", "sign", "verify"]) {
+    const real = subtle[name];
+    if (typeof real === "function") subtle[name] = counted(real.bind(subtle));
+  }
+  const response = Response.prototype as unknown as { arrayBuffer: () => Promise<ArrayBuffer> };
+  response.arrayBuffer = counted(response.arrayBuffer);
+}
 
 /**
  * Time that passes only when something sleeps. `run` drives a promise to its end: whenever nothing
@@ -35,6 +56,10 @@ export class VirtualTime {
   readonly clock = { now: () => this.now };
   readonly sleep = (ms: number) => new Promise<void>((resolve) => this.timers.push({ at: this.now + Math.max(0, ms), seq: this.seq++, resolve }));
 
+  constructor() {
+    countRealWork();
+  }
+
   async run<T>(work: Promise<T>): Promise<T> {
     let done = false;
     let value: T | undefined;
@@ -46,12 +71,14 @@ export class VirtualTime {
     );
     let idle = 0;
     while (!done) {
-      // Let what is already under way finish (hashing, sealing and unpacking are real work on another thread).
-      for (let i = 0; i < 4 && !done; i++) await new Promise((r) => setImmediate(r));
-      if (!done) await new Promise((r) => setTimeout(r, 1));
-      for (let i = 0; i < 4 && !done; i++) await new Promise((r) => setImmediate(r));
+      // Let everything that can go on without waiting go on.
+      for (let quiet = 0; quiet < 3 && !done; ) {
+        await new Promise((r) => setImmediate(r));
+        quiet = underWay > 0 ? 0 : quiet + 1;
+      }
       if (done) break;
       if (this.timers.length === 0) {
+        await new Promise((r) => setTimeout(r, 1));
         if (++idle > 3000) throw new Error("virtual time: nothing left to wait for");
         continue;
       }
@@ -425,6 +452,3 @@ export class Device {
 export async function firstDevice(company: Company): Promise<Device> {
   return new Device(company, await createVault(SECRET, "{}", { id: "acct-release", iterations: 1000 }));
 }
-
-/** How many field elements a parcel of `bytes` takes, for a test that counts them. */
-export const fieldsFor = (bytes: number): number => Math.ceil((bytes + 2) / FIELD_BYTES);
