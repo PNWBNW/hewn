@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { describe, expect, it } from "vitest";
-import { DB_NAME, IndexedDbStore, MemoryStore } from "./store";
+import { describe, expect, it, vi } from "vitest";
+import { type VaultStore, DB_NAME, IndexedDbStore, MemoryStore } from "./store";
 import {
   type SealedAttachment,
   type VaultRecord,
@@ -292,6 +292,39 @@ describe("stores", () => {
   });
 });
 
+/** A store on which a Log out lands right after the next read of the remembered session, as another tab's would. */
+function logOutAfterRead<S extends VaultStore>(store: S): S {
+  const read = store.loadRemembered.bind(store);
+  let waiting = true;
+  store.loadRemembered = async () => {
+    const found = await read();
+    if (waiting) {
+      waiting = false;
+      await store.clearRemembered();
+    }
+    return found;
+  };
+  return store;
+}
+
+/** The rows of the session store, read straight from the database (the store must have opened it once). */
+async function sessionRows(factory: IDBFactory, put?: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+  return new Promise((resolve, reject) => {
+    const req = factory.open(DB_NAME);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const tx = req.result.transaction("session", "readwrite");
+      if (put) tx.objectStore("session").put(put);
+      const all = tx.objectStore("session").getAll();
+      tx.oncomplete = () => {
+        req.result.close();
+        resolve(all.result as Record<string, unknown>[]);
+      };
+      tx.onerror = () => reject(tx.error);
+    };
+  });
+}
+
 describe("stay logged in", () => {
   const HOUR = 60 * 60 * 1000;
   const t0 = new Date("2026-10-15T12:00:00Z");
@@ -337,15 +370,62 @@ describe("stay logged in", () => {
       expect(await resumeSession(store, later(21 * HOUR))).toBeNull();
     });
 
-    it(`${name}: a session kept before the last-used time existed still reopens, and gains one`, async () => {
+    it(`${name}: a session with no last-used time is cleared, not reopened`, async () => {
       const store = make();
       const s = await createVault(PASS, "books", { ...FAST, id: "acct-old" });
       await store.save(s.record);
       await s.remember(store, later(REMEMBER_MS), t0);
       const { seenAt: _dropped, ...old } = (await store.loadRemembered())!;
       await store.saveRemembered(old);
-      expect(await resumeSession(store, later(HOUR))).not.toBeNull();
-      expect((await store.loadRemembered())!.seenAt).toBe(later(HOUR).toISOString());
+      expect((await store.loadRemembered())!.seenAt).toBeUndefined();
+      expect(await resumeSession(store, later(HOUR))).toBeNull();
+      expect(await store.loadRemembered()).toBeNull();
+    });
+
+    it(`${name}: the key is written once, however often the last-used time moves`, async () => {
+      const store = make();
+      const s = await createVault(PASS, "books", { ...FAST, id: "acct-once" });
+      await store.save(s.record);
+      // Every write that carries a key: through the store, and (in IndexedDB) into the database itself.
+      const saves = vi.spyOn(store, "saveRemembered");
+      const puts = vi.spyOn(IDBObjectStore.prototype, "put");
+      const keyPuts = () => puts.mock.calls.filter(([row]) => typeof (row as { key?: unknown } | null)?.key === "object").length;
+      try {
+        await s.remember(store, later(REMEMBER_MS), t0);
+        for (let i = 1; i <= 10; i++) await noteSeen(store, later(i * HOUR));
+        expect(await resumeSession(store, later(11 * HOUR))).not.toBeNull();
+        expect((await store.loadRemembered())!.seenAt).toBe(later(11 * HOUR).toISOString());
+        expect(saves).toHaveBeenCalledTimes(1);
+        expect(keyPuts()).toBe(name === "indexeddb" ? 1 : 0);
+      } finally {
+        puts.mockRestore();
+      }
+    });
+
+    it(`${name}: a Log out that lands between a read of the session and a write stays a Log out`, async () => {
+      const kept = async (id: string) => {
+        const store = make();
+        const s = await createVault(PASS, "books", { ...FAST, id });
+        await store.save(s.record);
+        await s.remember(store, later(REMEMBER_MS), t0);
+        return store;
+      };
+      // While the app notes the time as it goes to the background: the note starts first, the Log out lands before it ends.
+      const noting = await kept("acct-race-1");
+      await Promise.all([noteSeen(noting, later(HOUR)), forgetSession(noting)]);
+      expect(await noting.loadRemembered()).toBeNull();
+      expect(await resumeSession(noting, later(2 * HOUR))).toBeNull();
+      // While another tab is reopening the books: that tab stays closed too.
+      const reopening = logOutAfterRead(await kept("acct-race-2"));
+      expect(await resumeSession(reopening, later(HOUR))).toBeNull();
+      expect(await reopening.loadRemembered()).toBeNull();
+      expect(await resumeSession(reopening, later(2 * HOUR))).toBeNull();
+      // And a time noted after the Log out leaves nothing behind to reopen.
+      const after = await kept("acct-race-3");
+      expect(await forgetSession(after)).toBe(true);
+      await noteSeen(after, later(HOUR));
+      expect(await after.loadRemembered()).toBeNull();
+      expect(await resumeSession(after, later(2 * HOUR))).toBeNull();
     });
 
     it(`${name}: Log out forgets it`, async () => {
@@ -357,6 +437,81 @@ describe("stay logged in", () => {
       expect(await resumeSession(store, t0)).toBeNull();
     });
   }
+
+  it("indexeddb: the last-used time has a row of its own, with no key in it, and Log out leaves no row", async () => {
+    const factory = new IDBFactory();
+    const store = new IndexedDbStore(factory);
+    const s = await createVault(PASS, "books", { ...FAST, id: "acct-rows" });
+    await store.save(s.record);
+    await s.remember(store, later(REMEMBER_MS), t0);
+    await noteSeen(store, later(HOUR));
+    const rows = await sessionRows(factory);
+    expect(rows.map((r) => Object.keys(r).sort())).toEqual([
+      ["expiresAt", "key", "slot", "vaultId"],
+      ["seenAt", "slot"],
+    ]);
+    expect(rows[1]!.seenAt).toBe(later(HOUR).toISOString());
+    expect(await forgetSession(store)).toBe(true);
+    await noteSeen(store, later(2 * HOUR));
+    expect(await sessionRows(factory)).toEqual([]);
+  });
+
+  it("indexeddb: a session kept by an earlier release, the time in the key's row, reopens; one with no time is cleared", async () => {
+    const factory = new IDBFactory();
+    const store = new IndexedDbStore(factory);
+    const s = await createVault(PASS, "books", { ...FAST, id: "acct-earlier" });
+    await store.save(s.record);
+    await s.remember(store, later(REMEMBER_MS), t0);
+    const { key } = (await store.loadRemembered())!;
+    const earlier = { slot: "current", vaultId: "acct-earlier", key, expiresAt: later(REMEMBER_MS).toISOString() };
+
+    // 2026-11-11 to this change: one row, the time beside the key.
+    await store.clearRemembered();
+    await sessionRows(factory, { ...earlier, seenAt: later(10 * HOUR).toISOString() });
+    expect((await store.loadRemembered())!.seenAt).toBe(later(10 * HOUR).toISOString());
+    await noteSeen(store, later(5 * HOUR)); // never back past the time in the key's row
+    expect((await store.loadRemembered())!.seenAt).toBe(later(10 * HOUR).toISOString());
+    expect(await resumeSession(store, later(11 * HOUR))).not.toBeNull();
+    const rows = await sessionRows(factory);
+    expect(rows.find((r) => r.slot === "current")!.seenAt).toBe(later(10 * HOUR).toISOString()); // the key's row is left as it was
+    expect(rows.find((r) => r.slot !== "current")).toEqual({ slot: "seen", seenAt: later(11 * HOUR).toISOString() });
+    expect(await resumeSession(store, later(2 * HOUR))).toBeNull(); // the clock set back
+
+    // Before 2026-11-11: no time at all.
+    await sessionRows(factory, earlier);
+    expect(await resumeSession(store, later(HOUR))).toBeNull();
+    expect(await sessionRows(factory)).toEqual([]);
+  });
+
+  it("Log out looks that the session went, tries once more if it didn't, and says when it stays", async () => {
+    const kept = async () => {
+      const store = new MemoryStore();
+      const s = await createVault(PASS, "books", { ...FAST, id: "acct-out" });
+      await store.save(s.record);
+      await s.remember(store, later(HOUR), t0);
+      return store;
+    };
+    // Gone at the first try: one delete.
+    const fine = await kept();
+    const once = vi.spyOn(fine, "clearRemembered");
+    expect(await forgetSession(fine)).toBe(true);
+    expect(once).toHaveBeenCalledTimes(1);
+    // The store refuses the first delete: the second goes through.
+    const flaky = await kept();
+    const twice = vi.spyOn(flaky, "clearRemembered").mockRejectedValueOnce(new Error("storage is busy"));
+    expect(await forgetSession(flaky)).toBe(true);
+    expect(twice).toHaveBeenCalledTimes(2);
+    expect(await flaky.loadRemembered()).toBeNull();
+    // A delete that reports success and removes nothing: tried twice, then said.
+    const stuck = await kept();
+    const tries = vi.spyOn(stuck, "clearRemembered").mockResolvedValue(undefined);
+    expect(await forgetSession(stuck)).toBe(false);
+    expect(tries).toHaveBeenCalledTimes(2);
+    // A store that can't be read at all can't say the session went.
+    const blocked = await kept();
+    vi.spyOn(blocked, "clearRemembered").mockRejectedValue(new Error("storage is blocked"));
+    expect(await forgetSession(blocked)).toBe(false);
+  });
 
   it("keeps a non-extractable key, and refuses to resume a tampered one", async () => {
     const store = new MemoryStore();
