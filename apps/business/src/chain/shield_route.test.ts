@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
-import { isPairingCancelled, mayReconnect, shieldRoute } from "./shield_route";
+import { isPairingCancelled, mayReconnect, notAllowedProgramHint, shieldRoute } from "./shield_route";
 
 describe("shieldRoute", () => {
   it("uses injected Shield wherever it is found: the extension, or Shield's own browser", () => {
@@ -28,6 +28,23 @@ describe("isPairingCancelled", () => {
     expect(isPairingCancelled("Shield pairing was cancelled")).toBe(true);
     expect(isPairingCancelled("timed out waiting for the Shield app to pair")).toBe(false);
     expect(isPairingCancelled("could not reach the Shield relay")).toBe(false);
+  });
+});
+
+describe("notAllowedProgramHint", () => {
+  it("tells the person to connect again when Shield was never asked for the program", () => {
+    // Shield's own words, seen 2026-11-14 on the card step of setup.
+    const hint = notAllowedProgramHint("hewn_cards_v1.aleo is not in the allowed programs, request it when connect");
+    expect(hint).toMatch(/disconnect this site, then connect again/);
+    expect(hint).toMatch(/Nothing was sent/);
+    // Chain vocabulary stays out of what the person reads.
+    expect(hint).not.toMatch(/\.aleo/);
+  });
+
+  it("leaves every other error alone", () => {
+    expect(notAllowedProgramHint("User rejected the request")).toBeNull();
+    expect(notAllowedProgramHint("Shield pairing was cancelled")).toBeNull();
+    expect(notAllowedProgramHint("")).toBeNull();
   });
 });
 

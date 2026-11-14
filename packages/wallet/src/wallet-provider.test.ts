@@ -1,7 +1,48 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
-import { SHIELD_APP_URL, SHIELD_OPEN_URL, SHIELD_RELAY_DEFAULT, SHIELD_RELAY_ORIGIN, shieldAdapterConfig, shieldWakeUrl } from "./wallet-provider";
+import { PROGRAMS } from "@pnw/config/programs";
+import {
+  SHIELD_APP_URL,
+  SHIELD_OPEN_URL,
+  SHIELD_RELAY_DEFAULT,
+  SHIELD_RELAY_ORIGIN,
+  WALLET_PROGRAMS,
+  shieldAdapterConfig,
+  shieldWakeUrl,
+} from "./wallet-provider";
+
+describe("WALLET_PROGRAMS, the programs Shield is asked to allow at connect", () => {
+  it("asks for every program in the config but the legacy registry", () => {
+    // Shield refuses a call to a program it was not asked for at connect ("... is not in the
+    // allowed programs"), so a program added to the config and not to this list breaks the page
+    // that calls it. The legacy registry is only read through the explorer, never through Shield.
+    const { network: _network, legacy: _legacy, ...groups } = PROGRAMS;
+    const wanted = new Set<string>(["credits.aleo"]);
+    for (const group of Object.values(groups)) for (const id of Object.values(group)) wanted.add(id);
+    expect([...WALLET_PROGRAMS].sort()).toEqual([...wanted].sort());
+  });
+
+  it("lists each program once", () => {
+    expect(new Set(WALLET_PROGRAMS).size).toBe(WALLET_PROGRAMS.length);
+  });
+
+  it("lists a program after the programs it imports", () => {
+    const at = (id: string) => WALLET_PROGRAMS.indexOf(id);
+    const { layer1, external, cards, credentials } = PROGRAMS;
+    expect(at(external.merkle_tree)).toBeLessThan(at(external.usdcx_freezelist));
+    expect(at(external.usdcx_multisig_core)).toBeLessThan(at(external.usdcx_freezelist));
+    expect(at(external.usdcx_freezelist)).toBeLessThan(at(external.usdcx));
+    expect(at(layer1.pnw_name_registry)).toBeLessThan(at(cards.hewn_cards));
+    expect(at(layer1.employer_agreement_v5)).toBeLessThan(at(credentials.hewn_credentials));
+  });
+
+  it("is the same array on every import, so the provider never sees the list change", async () => {
+    // The React provider disconnects whenever its `programs` array changes identity.
+    const again = await import("./wallet-provider");
+    expect(again.WALLET_PROGRAMS).toBe(WALLET_PROGRAMS);
+  });
+});
 
 describe("Shield adapter configuration", () => {
   it("pins the relay the adapter dials to the origin the app's security policy allows", () => {

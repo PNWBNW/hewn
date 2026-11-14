@@ -23,11 +23,22 @@ const { layer1, layer2, external } = PROGRAMS;
  * Every live program the wallet is asked to authorize, from the manifest
  * mirror in @pnw/config (never a literal here, so a redeploy changes one file).
  *
- * Dependency order matters: imports must come before programs that import them.
- * Shield wallet loads programs in order; out-of-order imports cause silent failures.
+ * Shield refuses a call to a program it was not asked for at connect ("... is not in
+ * the allowed programs"), so every program in the config is here, bar the legacy
+ * registry, which is only read through the explorer. A test keeps the two in step
+ * (wallet-provider.test.ts): a program added to the config and not here fails it.
+ *
+ * A program comes after the programs it imports. That order is kept as a precaution.
+ *
+ * It is one module constant on purpose: the React provider disconnects whenever its
+ * `programs` array changes identity. Changing the list changes the grant Shield
+ * remembers, so after a release that does, people connect Hewn in Shield once more.
  */
 export const WALLET_PROGRAMS: string[] = [
   "credits.aleo",
+  // What the stablecoin and its freeze list import
+  external.merkle_tree,
+  external.usdcx_multisig_core,
   // Leaf programs (no imports from our set)
   external.usdcx_freezelist,
   layer1.employer_license_registry,
@@ -47,6 +58,12 @@ export const WALLET_PROGRAMS: string[] = [
   layer1.pnw_name_registrar,
   // Depends on license_registry + name_registry
   layer1.employer_agreement,
+  // Two-party agreements (no imports): offers, acceptance, and the pair check credentials use
+  layer1.employer_agreement_v5,
+  // Depends on name_registry: the card every account gets at setup
+  PROGRAMS.cards.hewn_cards,
+  // Depends on employer_agreement_v5: a worker's credentials
+  PROGRAMS.credentials.hewn_credentials,
   // Depends on stablecoin + agreement + paystub_receipts + payroll_audit_log
   layer1.payroll_core,
   // Router and L2 anchors (payroll_nfts_v2 and credential_nft_v3 import employer_agreement_v4)

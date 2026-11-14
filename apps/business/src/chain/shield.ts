@@ -20,7 +20,7 @@ import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
 import { checkEditions } from "./editions";
-import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, shieldRoute } from "./shield_route";
+import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, notAllowedProgramHint, shieldRoute } from "./shield_route";
 
 export type { ShieldRoute };
 
@@ -35,7 +35,14 @@ export function useShield() {
       // Before Shield is asked to sign anything: the upgradable programs are still the editions
       // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
       await checkEditions();
-      return adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()));
+      try {
+        return await adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()));
+      } catch (e) {
+        // A connection made before a program joined the list Shield is asked for: say what to do.
+        const hint = notAllowedProgramHint(errorMessage(e));
+        if (hint) throw new Error(hint);
+        throw e;
+      }
     },
   };
   const shield = wallet.wallets[0]; // Shield is the only adapter registered
