@@ -69,7 +69,9 @@ export function fileIdsIn(company: Company): Set<string> {
 /**
  * The books as the vault keeps them after a restore: recorded as backed up now, carrying on the
  * backup where it left off. A new passphrase (a recovery-key restore) wraps the key afresh, so the
- * next backup starts a new full copy rather than add to one the old passphrase opens.
+ * next backup starts a new full copy rather than add to one the old passphrase opens. The place
+ * kept here would lead to the same: it names the key slots its full copy carried
+ * (`ChainState.slots`), and a backup whose vault has other slots starts a new full copy.
  */
 export function restoredCompany(found: Pick<FoundBooks, "company" | "state">, { newPassphrase, now = new Date().toISOString() }: { newPassphrase: boolean; now?: string }): Company {
   const { chainBackup: _, ...rest } = found.company;

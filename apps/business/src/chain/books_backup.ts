@@ -9,7 +9,11 @@
 //           wrapped under the passphrase, and under the recovery key once there
 //           is one), so either opens the backup and a restore rebuilds the vault
 //           with the same keys. The slots are as safe as in a backup file: they
-//           yield nothing without the passphrase or the recovery key.
+//           yield nothing without the passphrase or the recovery key. Changes
+//           carry no slots, so a chain opens with the ones its snapshot had:
+//           when the vault's slots change (a new passphrase, a recovery key
+//           made, replaced or taken away) the next backup is a snapshot on a
+//           new chain, carrying the slots as they are now (`slotsHash`).
 //   pages   a piece is cut into pages that each fit one letter or one page of
 //           `hewn_letters_v2` (chain/letters.ts), each with a short header:
 //           "HB", version, chain, seq, page, pages.
@@ -82,6 +86,23 @@ export type Sealer = { seal(id: string, bytes: Uint8Array<ArrayBuffer>): Promise
 
 /** A sealer over an open session (tests, and the provider). */
 export const sealerOf = (session: VaultSession): Sealer => ({ seal: (id, bytes) => session.sealAttachment(id, bytes), slots: keySlotsOf(session.record) });
+
+/** JSON with every object's keys sorted, so the same slots give the same text however they were read. */
+const sorted = (value: unknown): string =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? `{${Object.keys(value)
+        .sort()
+        .map((k) => `${JSON.stringify(k)}:${sorted((value as Record<string, unknown>)[k])}`)
+        .join(",")}}`
+    : JSON.stringify(value);
+
+/**
+ * A hash of the vault's key slots: the same while the passphrase and the recovery key stay the
+ * same, different once either changes. A chain's state keeps the hash of the slots its snapshot
+ * carried (`ChainState.slots`), which is how the next backup knows they changed.
+ */
+export const slotsHash = ({ id, kdf, wrappedKey, recovery }: KeySlots): Promise<string> =>
+  sha256Hex(enc.encode(sorted({ id, kdf, wrappedKey, ...(recovery ? { recovery } : {}) })));
 
 // ---- a piece on the wire ----------------------------------------------------------
 
@@ -203,6 +224,11 @@ const cost = (pages: Page[]) => {
  * (`wantsSnapshot`); null when nothing changed since the last. Nothing is sent: the caller shows the
  * cost, sends each page as a letter to the account's own account, and keeps `next` once all are in.
  *
+ * Only a snapshot carries the vault's key slots, so a chain opens with the passphrase and recovery
+ * key its snapshot was made under. When the slots are no longer the ones the chain's snapshot
+ * carried, or the state doesn't say which it carried (one saved before `ChainState.slots`), the
+ * next backup is a snapshot on the next chain, whether or not the books changed.
+ *
  * `taken` says whether this account already sent a letter under a lookup. A backup cut off partway
  * leaves some pages of its piece on chain and the vault's state unchanged; sending that piece again
  * would mix two sealings in one place, so when any page's slot is taken the backup starts a new
@@ -224,7 +250,8 @@ export async function planBackup(input: {
     return false;
   };
 
-  if (state) {
+  const slots = await slotsHash(sealer.slots);
+  if (state && state.slots === slots) {
     const change = await changeOf(company, state.mark).catch(() => undefined); // a mark from other books: start over
     if (change === null) return null;
     if (change) {
@@ -245,7 +272,7 @@ export async function planBackup(input: {
     const bytes = await sealPiece(sealer, chain, 0, snap.piece);
     const pages = await pagesOf(finder, chain, 0, bytes);
     if (await anyTaken(pages)) continue;
-    const next: ChainState = { chain, seq: 0, mark: snap.mark, snapshotBytes: bytes.length, changeBytes: 0, changes: 0 };
+    const next: ChainState = { chain, seq: 0, mark: snap.mark, snapshotBytes: bytes.length, changeBytes: 0, changes: 0, slots };
     return { kind: "snapshot", chain, seq: 0, pages, ...cost(pages), next };
   }
   throw new ChainBackupError("There's no room left for a new backup");
@@ -283,10 +310,12 @@ export async function restoreBackup(input: {
     const snapshot = await readPiece(input.read, finder, chain, 0);
     if (!snapshot) continue; // a snapshot cut short: the chain before it
     let session: VaultSession;
+    let slots: string;
     try {
-      const { slots } = pieceHeader(snapshot);
-      if (!slots) continue;
-      session = await input.openSlots(slots);
+      const header = pieceHeader(snapshot);
+      if (!header.slots) continue;
+      session = await input.openSlots(header.slots);
+      slots = await slotsHash(header.slots);
     } catch (e) {
       lastError = e;
       if (e instanceof ChainBackupError) continue;
@@ -310,7 +339,7 @@ export async function restoreBackup(input: {
       ...rebuilt,
       session,
       found: pieces.length,
-      state: { chain, seq, mark: rebuilt.mark, snapshotBytes: snapshot.length, changeBytes: 0, changes: seq },
+      state: { chain, seq, mark: rebuilt.mark, snapshotBytes: snapshot.length, changeBytes: 0, changes: seq, slots },
     };
   }
   if (lastError && !(lastError instanceof ChainBackupError)) throw lastError;

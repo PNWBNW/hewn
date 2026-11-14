@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { addAccount, createBooks, postEntry } from "@pnw/ledger";
-import { type VaultSession, addRecovery, createVault, openKeySlots, openKeySlotsWithRecovery } from "@pnw/vault";
-import { MAX_CHANGES, stateHash } from "../books/books_backup";
+import { MemoryStore, type VaultSession, addRecovery, createVault, keySlotsOf, openKeySlots, openKeySlotsWithRecovery, removeRecovery, unlockVault } from "@pnw/vault";
+import { accountSecret, recoverAccounts, vaultIdFor } from "../books/account";
+import { MAX_CHANGES, stateHash, validateChainState } from "../books/books_backup";
 import { type Company, companyToJson, emptyCompany } from "../books/company";
-import { type ChainState, type Page, finderKey, pageLookup, planBackup, restoreBackup, sealerOf } from "./books_backup";
+import { type ChainState, type Page, finderKey, pageLookup, planBackup, restoreBackup, sealerOf, slotsHash } from "./books_backup";
 import { LETTER_BYTES, PAGE_BYTES } from "./letters";
 
 const USER = "alder";
@@ -188,5 +189,127 @@ describe("backing the books up as letters to the account itself", () => {
     const out = (await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(SECRET) }))!;
     expect(out.state.chain).toBe(1);
     expect(await stateHash(out.company)).toBe(await stateHash(books));
+  });
+});
+
+describe("a change to the books' key slots", () => {
+  const withRecovery = (code: string) => (slots: Parameters<typeof openKeySlots>[0]) => openKeySlotsWithRecovery(slots, code);
+
+  it("after a new recovery key, the next backup is a full copy on a new chain, and the new key opens it", async () => {
+    const { session: first, company, bank, sales } = await setup();
+    const a = await addRecovery(first.record, SECRET);
+    let session = await unlockVault(a.record, SECRET);
+    const l = letters();
+    let books = sell(company, bank, sales, 100);
+    const state = (await backUp(session, books, null, l.send))!.next;
+
+    // A new recovery key replaces the first (there is one slot), then an entry is posted.
+    const b = await addRecovery(session.record, SECRET);
+    session = await unlockVault(b.record, SECRET);
+    books = sell(books, bank, sales, 1, 100);
+    const plan = (await backUp(session, books, state, l.send))!;
+    expect(plan).toMatchObject({ kind: "snapshot", chain: 1, seq: 0 });
+
+    const out = (await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withRecovery(b.code) }))!;
+    expect(out.state.chain).toBe(1);
+    expect(out.company.books.entries).toHaveLength(101);
+    expect(await stateHash(out.company)).toBe(await stateHash(books));
+    // The key it replaced doesn't open the newest backup.
+    await expect(restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withRecovery(a.code) })).rejects.toMatchObject({ code: "WRONG_RECOVERY_KEY" });
+    // The passphrase didn't change, and still does.
+    expect((await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(SECRET) }))!.state.chain).toBe(1);
+  });
+
+  it("after a passphrase reset with the recovery key, the next backup is a full copy the new passphrase opens", async () => {
+    const { company, bank, sales } = await setup();
+    const store = new MemoryStore();
+    const secret = accountSecret(USER, "correct horse battery staple");
+    const created = await createVault(secret, companyToJson(company), { id: await vaultIdFor(USER, "business"), iterations: 1000 });
+    const { record, code } = await addRecovery(created.record, secret);
+    await store.save(record);
+    const l = letters();
+    let books = sell(company, bank, sales, 100);
+    const state = (await backUp(await unlockVault(record, secret), books, null, l.send))!.next;
+
+    const next = "a new phrase, written down";
+    const [found] = await recoverAccounts(store, USER, code, next, { iterations: 1000 });
+    books = sell(books, bank, sales, 1, 100);
+    const plan = (await backUp(found!.session, books, state, l.send))!;
+    expect(plan).toMatchObject({ kind: "snapshot", chain: 1, seq: 0 });
+
+    const out = (await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(accountSecret(USER, next)) }))!;
+    expect(out.state.chain).toBe(1);
+    expect(await stateHash(out.company)).toBe(await stateHash(books));
+    await expect(restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(secret) })).rejects.toMatchObject({ code: "WRONG_PASSPHRASE" });
+  });
+
+  it("plans a full copy after a key change even when the books didn't change, and when a recovery key was taken away", async () => {
+    const { session: first, company, bank, sales } = await setup();
+    const a = await addRecovery(first.record, SECRET);
+    const session = await unlockVault(a.record, SECRET);
+    const l = letters();
+    const books = sell(company, bank, sales, 20);
+    const state = (await backUp(session, books, null, l.send))!.next;
+    expect(await backUp(session, books, state, l.send)).toBeNull();
+
+    const without = await unlockVault(await removeRecovery(session.record, SECRET), SECRET);
+    const plan = (await backUp(without, books, state, l.send))!;
+    expect(plan).toMatchObject({ kind: "snapshot", chain: 1, seq: 0 });
+    // Once that copy is sent there is nothing more to send.
+    expect(await backUp(without, books, plan.next, l.send)).toBeNull();
+    await expect(restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withRecovery(a.code) })).rejects.toMatchObject({ code: "WRONG_RECOVERY_KEY" });
+  });
+
+  it("plans a full copy from a chain state saved before the slots were recorded", async () => {
+    const { session, company, bank, sales } = await setup();
+    const l = letters();
+    let books = sell(company, bank, sales, 100);
+    const { slots: _, ...older } = (await backUp(session, books, null, l.send))!.next;
+    expect(validateChainState(older).slots).toBeUndefined();
+    books = sell(books, bank, sales, 1, 100);
+    const plan = (await backUp(session, books, older, l.send))!;
+    expect(plan).toMatchObject({ kind: "snapshot", chain: 1, seq: 0 });
+    expect(plan.next.slots).toBe(await slotsHash(sealerOf(session).slots));
+  });
+
+  it("keeps adding changes to the same chain while the slots stay the same, on this device and after a restore", async () => {
+    const { session, company, bank, sales } = await setup();
+    const l = letters();
+    let books = sell(company, bank, sales, 100);
+    const snap = (await backUp(session, books, null, l.send))!;
+    expect(snap.next.slots).toBe(await slotsHash(keySlotsOf(session.record)));
+    books = sell(books, bank, sales, 1, 100);
+    const change = (await backUp(session, books, snap.next, l.send))!;
+    expect(change).toMatchObject({ kind: "change", chain: 0, seq: 1 });
+    expect(change.next.slots).toBe(snap.next.slots);
+
+    // Restored with the passphrase, the vault has the same slots, so the chain carries on.
+    const out = (await restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withPassphrase(SECRET) }))!;
+    expect(out.state.slots).toBe(snap.next.slots);
+    books = sell(books, bank, sales, 1, 101);
+    expect(await backUp(out.session, books, out.state, l.send)).toMatchObject({ kind: "change", chain: 0, seq: 2 });
+  });
+
+  it("hashes the slots the same whatever order their fields come in, and differently once one changes", async () => {
+    const { session } = await setup();
+    const slots = keySlotsOf(session.record);
+    const hash = await slotsHash(slots);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    const reordered = { wrappedKey: { data: slots.wrappedKey.data, iv: slots.wrappedKey.iv }, kdf: { salt: slots.kdf.salt, iterations: slots.kdf.iterations, name: slots.kdf.name }, id: slots.id };
+    expect(await slotsHash(reordered)).toBe(hash);
+    expect(await slotsHash(JSON.parse(JSON.stringify(slots)))).toBe(hash);
+    const { record } = await addRecovery(session.record, SECRET);
+    expect(await slotsHash(keySlotsOf(record))).not.toBe(hash);
+  });
+
+  it("reads a chain state back with or without its slots hash, and refuses one that isn't 64 lower-case hex", async () => {
+    const { session, company } = await setup();
+    const state = (await backUp(session, company, null, () => {}))!.next;
+    expect(validateChainState(JSON.parse(JSON.stringify(state)))).toEqual(state);
+    const { slots: _, ...older } = state;
+    expect(validateChainState(older)).toEqual(older);
+    for (const slots of ["A".repeat(64), "a".repeat(63), "a".repeat(65), "g".repeat(64), "", 7, null, { hash: "a".repeat(64) }]) {
+      expect(() => validateChainState({ ...state, slots }), String(slots)).toThrow("The backup's place isn't readable");
+    }
   });
 });
