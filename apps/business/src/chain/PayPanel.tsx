@@ -3,8 +3,9 @@
 // ---------------------------------------------------------------------------
 // The pay panel: settles one rail run through Shield, one private USDCx
 // transfer per person, one at a time, each made from what the last one left
-// (@pnw/rail, through the release seam in release.ts). Opened from the pay
-// runs list right after a rail run posts, and again from Continue / Retry.
+// (@pnw/rail, through release.ts, which holds the release itself: this file
+// is what it looks like). Opened from the pay runs list right after a rail
+// run posts, and again from Continue / Retry.
 //
 // Shield has one prompt open at a time. Before the first, the panel says how
 // many times Shield will ask (release.ts `promptSummary`); while a payment's
@@ -33,10 +34,9 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type Paycheck, type Payroll, type Settlement, markPaycheckSettlement } from "@pnw/payroll";
+import type { Paycheck } from "@pnw/payroll";
 import {
   type PayQueueEvent,
-  type PaymentQuery,
   type RailWallet,
   type TokenRecord,
   centsToMinor,
@@ -56,9 +56,9 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, claimedTransfers, payAgainTarget, rivalPayments, unconfirmedLabel } from "./pay_outcome";
-import { pickReleaser, promptSummary } from "./release";
-import { type SentRead, findSentPayment } from "./sent_payment";
+import { FOUND_NOTE, payAgainTarget, unconfirmedLabel } from "./pay_outcome";
+import { promptSummary, releaseRun, settleTo } from "./release";
+import type { SentRead } from "./sent_payment";
 import { useShield } from "./shield";
 import { usePaystubDelivery } from "./usePaystubDelivery";
 
@@ -88,18 +88,6 @@ function toRailWallet(wallet: ReturnType<typeof useShield>["wallet"], address: s
     },
     transactionStatus: (id) => wallet.transactionStatus(id),
   };
-}
-
-// ---- Vault writes -----------------------------------------------------------------
-
-/** Moves one paycheck to `target` through whatever intermediate step the rules need. */
-function settleTo(payroll: Payroll, runId: string, workerId: string, target: Settlement): Payroll {
-  const current = payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.settlement;
-  if (!current || current.status === "settled") return payroll; // never touch a settled paycheck
-  let next = payroll;
-  if (current.status === "failed") next = markPaycheckSettlement(next, runId, workerId, { status: "pending" }); // a retry
-  if (target.status === "pending" && !target.reference && !target.attempt && !target.failure) return next; // nothing to note
-  return markPaycheckSettlement(next, runId, workerId, target);
 }
 
 // ---- Per-person progress ------------------------------------------------------------
@@ -253,10 +241,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     setNote(null);
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
-    const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
-    const settled: Promise<string | null>[] = [];
     let stalled = false;
-    const onProgress = (e: PayQueueEvent) => {
+    const onEvent = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
           for (const p of due) setStage(p.workerId, { kind: "waiting" });
@@ -269,9 +255,6 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "sent":
           setStage(e.workerId, { kind: "sent" });
-          void write(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}), ...(e.since !== undefined ? { since: e.since } : {}) }).catch(
-            (err: unknown) => setError(errorMessage(err)),
-          );
           break;
         case "broadcast":
           break;
@@ -282,93 +265,46 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
             ...(e.feeMicrocredits !== undefined ? { feeMicrocredits: e.feeMicrocredits } : {}),
             ...(e.found ? { found: true as const } : {}),
           });
-          // The paystub goes out once everyone is paid (a letter is its own Shield approval, so
-          // it never races the payments); a failed send never touches the settlement.
-          settled.push(
-            write(e.workerId, {
-              status: "settled",
-              reference: e.transactionId,
-              settledAt: new Date().toISOString(),
-              ...(e.height !== undefined ? { height: e.height } : {}),
-              ...(e.feeMicrocredits !== undefined ? { feeMicrocredits: e.feeMicrocredits } : {}),
-            }).then(
-              () => e.workerId,
-              (err: unknown) => {
-                setError(errorMessage(err));
-                return null;
-              },
-            ),
-          );
           break;
         case "failed":
           setStage(e.workerId, { kind: "failed", failure: e.failure });
-          void write(e.workerId, { status: "failed", failure: e.failure, ...(e.attempt ? { attempt: e.attempt } : {}), ...(e.since !== undefined ? { since: e.since } : {}) }).catch(
-            (err: unknown) => setError(errorMessage(err)),
-          );
           break;
         case "unconfirmed":
           setStage(e.workerId, { kind: "unconfirmed", failure: e.failure });
-          void write(e.workerId, {
-            status: "pending",
-            failure: e.failure,
-            ...(e.reference ? { reference: e.reference } : {}),
-            ...(e.attempt ? { attempt: e.attempt } : {}),
-            ...(e.since !== undefined ? { since: e.since } : {}),
-            ...(e.endedAt ? { endedAt: e.endedAt } : {}),
-          }).catch((err: unknown) => setError(errorMessage(err)));
           break;
       }
     };
-    // The record each transfer will spend is kept just before Shield is asked for it, with the chain's height when
-    // the run began: a later run, after a pause or a reload, checks the record instead of paying twice, and a later
-    // look reads back no further than that height.
-    const beforeSend = async (workerId: string, attempt: string, since?: number) => {
-      await write(workerId, { status: "pending", attempt, ...(since !== undefined ? { since } : {}) });
-    };
     try {
-      // The run as it is now, so a reopened panel resumes exactly what's outstanding.
-      const books = await updateCompany((c) => c);
-      const latest = books.payroll.runs.find((r) => r.id === runId)!;
-      const network = explorerNetwork();
-      // Before a payment is called unconfirmed, it is looked for in this account's own transfers. Transfers the
-      // books already hold as someone's settled paycheck are never found a second time, and while another open
-      // paycheck is to the same person for the same amount, one known only by payee and amount is found for neither.
-      const claimed = claimedTransfers(books.payroll.runs);
-      // Each person's account on the rail, payable right now or not: for telling whose a transfer could be, more is safer.
-      const accounts = new Map((books.rail?.links ?? []).map((l) => [l.workerId, l.address]));
-      const findPayment = (q: PaymentQuery) => {
-        const rival = rivalPayments(books.payroll.runs, accounts, { runId, workerId: q.workerId }, q);
-        return findSentPayment({
-          to: q.to,
-          minor: q.minor,
-          ids: q.ids,
-          claimed,
-          contested: rival.contested,
-          ...(q.attempt && !rival.sameRecord ? { attempt: q.attempt } : {}),
-          ...(q.since !== undefined ? { since: q.since } : {}),
-          deps: {
-            wallet: {
-              requestRecords: (program, all) => wallet.requestRecords(program, all),
-              requestTransactionHistory: (program) => wallet.requestTransactionHistory(program),
-              transitionViewKeys: (id) => wallet.transitionViewKeys(id),
-            },
-            network,
-            decrypt: decryptTransition,
-            cache: reads.current,
+      // The release itself (release.ts): the run as the books hold it now, every outcome written as it happens, then
+      // each paystub settled this time. This panel only shows it.
+      ({ stalled } = await releaseRun({
+        wallet: railWallet,
+        network: explorerNetwork(),
+        runId,
+        links,
+        updateCompany,
+        lookup: {
+          wallet: {
+            requestRecords: (program, all) => wallet.requestRecords(program, all),
+            requestTransactionHistory: (program) => wallet.requestTransactionHistory(program),
+            transitionViewKeys: (id) => wallet.transitionViewKeys(id),
           },
-        });
-      };
-      // How the run is paid: the one-at-a-time queue, the only way there is today. First, how many times Shield will ask.
-      const releaser = await pickReleaser();
-      setNote(promptSummary(releaser.prompts(latest, links)));
-      stalled = !!(await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment })).stalled;
-      loadedFor.current = null; // re-read the balance
-      setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
+          decrypt: decryptTransition,
+          cache: reads.current,
+        },
+        deliver,
+        // First, how many times Shield will ask.
+        onPrompts: (prompts) => setNote(promptSummary(prompts)),
+        onEvent,
+        onError: (e) => setError(errorMessage(e)),
+        onPaid: async () => {
+          loadedFor.current = null; // re-read the balance
+          setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
+        },
+      }));
     } catch (e) {
       setError(errorMessage(e));
     }
-    // Then each paystub settled this time, one letter (one approval) at a time; `deliver` never throws.
-    for (const workerId of await Promise.all(settled)) if (workerId) await deliver(workerId);
     if (!stalled) setNote(null); // everything it said Shield would ask has been asked; where a run stopped stays up
     setRunning(false);
   }
