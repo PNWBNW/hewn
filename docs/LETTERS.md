@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-14
+updated: 2026-11-15
 summary: How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs.
 ---
 
@@ -187,13 +187,15 @@ restored to reads them and nothing else does:
   Every release reads the markers first, which asks nothing of the person (`chain/release.ts`). A
   payment a marker already covers is paid only by spending the record that marker names, or is
   looked for in the account's own transfers and left to the device that marked it; a payment no
-  marker covers is marked before Shield is asked for it. Markers count in the order of the block
-  each was accepted in, then by transaction id, and the earliest decides. A marker names a record
-  for a run's first payment only, so a later one that a device holds no record for goes out only
-  from what the payment before it left, on every device, whichever marked the run. A marker names
-  at most 64 payments: in a larger run the rest are marked, and paid, on the next press. A marker
-  of another pay run whose period shares days with this run's holds that payment on every device:
-  nothing is sent for it from this run.
+  marker covers is marked before Shield is asked for it, once it comes before every payment of the
+  run still to be paid from that device, so a marker's first payment always names its record.
+  Markers count in the order of the block each was accepted in, then by transaction id, and the
+  earliest decides. A marker names a record for a run's first payment only, so a later one that a
+  device holds no record for goes out only from what the payment before it left, on every device,
+  whichever marked the run. A marker names at most 64 payments: in a larger run the rest are
+  marked, and paid, on a later press, once the payments before them are paid. A marker of another
+  pay run whose period shares days with this run's holds that payment on every device: nothing is
+  sent for it from this run.
 
 ## Reports
 
