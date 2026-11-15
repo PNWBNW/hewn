@@ -8,12 +8,20 @@
 // in fewer approvals would be another releaser, offered ahead of this one
 // whenever it says it is available (`pickReleaser`).
 //
-// A releaser also says, before Shield is asked for anything, what it will be
-// asked to approve (`prompts`): one line per approval, in the order they will
-// come up, so the person can be told how many times Shield will ask and for
-// what. For the queue that is one payment per person still to pay, then one
-// paystub letter per person, which the pay panel sends once the payments are
-// done (deliver.ts). Nothing is prepared first, so there is nothing else.
+// A releaser also says, before Shield is asked for anything, what it expects
+// to ask it to approve (`prompts`): one line per approval, in the order they
+// will come up, so the person can be told how many times Shield will ask and
+// for what. For the queue that is one payment per person still to pay, then
+// one paystub letter per person, which the pay panel sends once the payments
+// are done (deliver.ts). Nothing is prepared first, so there is nothing else.
+//
+// It is what the run expects, not a promise. Shield can ask fewer times: a
+// line whose kept record has gone is looked for, not asked; a run that stops
+// part-way asks for nobody after the stop; a paystub that can't be sent yet
+// isn't asked for. It can ask more: a payment whose record went into
+// something else before Shield spent it (money arrived and Shield combined
+// the two) and that nothing paid is asked again from a record listed now, up
+// to two more times in a run (rail/queue.ts `MAX_ASKS`).
 //
 // Every payment's record is handed to Shield as its plaintext: the very
 // record whose tag the books kept before asking (rail/queue.ts). A releaser
@@ -32,6 +40,7 @@ import { LETTERS_PROGRAM, SEND_FUNCTION } from "./letters";
 export type Prompt = {
   kind: "payment" | "paystub";
   program: string;
+  /** The function. A paystub's is `send`; one too long for a single letter goes out as `send_page`, still one approval. */
   fn: string;
   /** Whose payment or paystub it is. */
   workerId: string;
@@ -49,7 +58,7 @@ export interface Releaser {
   mode: "sequential" | "batch" | "wrapper";
   /** Whether this way of paying can be used right now. */
   available(): Promise<boolean>;
-  /** What Shield will be asked to approve for this run as it stands, in order. Asks nothing of Shield. */
+  /** What Shield is expected to be asked to approve for this run as it stands, in order (see the header for when it differs). Asks nothing of Shield. */
   prompts(run: ReleaseRun, links: ReadonlyMap<string, string>): Prompt[];
   /** Pays what the run still owes; every outcome is reported through the context's `onProgress`. */
   release(ctx: PayQueueContext): Promise<PayQueueResult>;

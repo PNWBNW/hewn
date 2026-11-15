@@ -44,7 +44,6 @@ import {
   fetchTokenRecords,
   formatMinorAsDollars,
   outstanding,
-  recordStillListed,
   totalBalance,
 } from "@pnw/rail";
 import { Button } from "@pnw/ui/button";
@@ -56,7 +55,7 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, claimedTransfers, payAgainTarget, rivalPayments, unconfirmedLabel } from "./pay_outcome";
+import { FOUND_NOTE, LOOKING, lookQuery, payAgainTarget, recordListedForPayAgain, shortOnRail, stagesAfterPress, unconfirmedLabel } from "./pay_outcome";
 import { pickReleaser, promptSummary } from "./release";
 import { type SentRead, findSentPayment } from "./sent_payment";
 import { useShield } from "./shield";
@@ -109,6 +108,8 @@ type Stage =
   /** Shield's prompt for this payment is open: `to` and `minor` are the account and the amount it was given. */
   | { kind: "approving"; to: string; minor: bigint }
   | { kind: "sent" }
+  /** Shield didn't confirm it, and the account's own transfers are being looked through for it. */
+  | { kind: "looking" }
   /** `found`: Shield never confirmed it; the queue found it in the account's own transfers. */
   | { kind: "settled"; transactionId: string; feeMicrocredits?: bigint; found?: true }
   | { kind: "failed"; failure: string }
@@ -132,6 +133,8 @@ function stageLabel(stage: Stage): string {
       return "Approve in Shield";
     case "sent":
       return "Sent";
+    case "looking":
+      return LOOKING;
     case "settled":
       return `${stage.transactionId ? `Settled · ${shortAddress(stage.transactionId)}` : "Settled"}${stage.found ? ` · ${FOUND_NOTE}` : ""}`;
     case "failed":
@@ -158,6 +161,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const [stages, setStages] = useState<Record<string, Stage>>({});
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({});
   const [note, setNote] = useState<string | null>(null);
+  // Why the last press of Pay now or Continue stopped part-way, in the queue's words; null when it didn't.
+  const [stopped, setStopped] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [againFor, setAgainFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -213,7 +218,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const everyone = run.paychecks.filter((p) => p.net > 0n); // settled ones stay on the board
   const totalDue = due.reduce((s, p) => s + p.net, 0n);
   const balance = records ? totalBalance(records) : null;
-  const short = balance !== null && balance < centsToMinor(totalDue);
+  const short = shortOnRail(balance, centsToMinor(totalDue), stopped);
   const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
@@ -231,7 +236,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     setError(null);
     try {
       const tried = run?.paychecks.find((p) => p.workerId === workerId)?.settlement.attempt;
-      const listed = !!tried && !!address && (await recordStillListed(toRailWallet(wallet, address), tried).catch(() => true));
+      const listed = !!tried && !!address && (await recordListedForPayAgain(toRailWallet(wallet, address), tried));
       await updateCompany((c) => {
         const now = c.payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.settlement;
         // A tag that changed since Shield was asked is one nothing was checked for: it is kept.
@@ -250,12 +255,15 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     if (!run) return;
     setRunning(true);
     setError(null);
+    // Where an earlier press stopped: still true if this one is refused before anything is asked.
+    const noteBefore = note;
     setNote(null);
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
     const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
     const settled: Promise<string | null>[] = [];
-    let stalled = false;
+    let stalledWhy: string | null = null;
+    let refused = false;
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
@@ -265,13 +273,18 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           setStage(e.workerId, { kind: "approving", to: e.to, minor: e.minor });
           break;
         case "stalled":
+          stalledWhy = e.why;
           setNote(`Stalled at ${e.at} of ${e.of}: ${e.why}.`);
           break;
         case "sent":
           setStage(e.workerId, { kind: "sent" });
-          void write(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}), ...(e.since !== undefined ? { since: e.since } : {}) }).catch(
-            (err: unknown) => setError(errorMessage(err)),
-          );
+          void write(e.workerId, {
+            status: "pending",
+            reference: e.reference,
+            ...(e.attempt ? { attempt: e.attempt } : {}),
+            ...(e.since !== undefined ? { since: e.since } : {}),
+            ...(e.endedAt ? { endedAt: e.endedAt } : {}),
+          }).catch((err: unknown) => setError(errorMessage(err)));
           break;
         case "broadcast":
           break;
@@ -330,22 +343,16 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       const books = await updateCompany((c) => c);
       const latest = books.payroll.runs.find((r) => r.id === runId)!;
       const network = explorerNetwork();
-      // Before a payment is called unconfirmed, it is looked for in this account's own transfers. Transfers the
-      // books already hold as someone's settled paycheck are never found a second time, and while another open
-      // paycheck is to the same person for the same amount, one known only by payee and amount is found for neither.
-      const claimed = claimedTransfers(books.payroll.runs);
+      // Before a payment is called unconfirmed, it is looked for in this account's own transfers, with what the
+      // books say about every other payment (lookQuery): transfers they already hold as someone's settled paycheck
+      // are never found a second time, and while another open paycheck is to the same person for the same amount,
+      // one known only by payee and amount is found for neither.
       // Each person's account on the rail, payable right now or not: for telling whose a transfer could be, more is safer.
       const accounts = new Map((books.rail?.links ?? []).map((l) => [l.workerId, l.address]));
       const findPayment = (q: PaymentQuery) => {
-        const rival = rivalPayments(books.payroll.runs, accounts, { runId, workerId: q.workerId }, q);
+        setStage(q.workerId, { kind: "looking" }); // no longer "Approve in Shield" while it is looked for
         return findSentPayment({
-          to: q.to,
-          minor: q.minor,
-          ids: q.ids,
-          claimed,
-          contested: rival.contested,
-          ...(q.attempt && !rival.sameRecord ? { attempt: q.attempt } : {}),
-          ...(q.since !== undefined ? { since: q.since } : {}),
+          ...lookQuery(books.payroll.runs, accounts, runId, q),
           deps: {
             wallet: {
               requestRecords: (program, all) => wallet.requestRecords(program, all),
@@ -361,15 +368,21 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       // How the run is paid: the one-at-a-time queue, the only way there is today. First, how many times Shield will ask.
       const releaser = await pickReleaser();
       setNote(promptSummary(releaser.prompts(latest, links)));
-      stalled = !!(await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment })).stalled;
+      await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
+      setStopped(stalledWhy);
       loadedFor.current = null; // re-read the balance
       setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
     } catch (e) {
+      refused = true;
       setError(errorMessage(e));
     }
+    // A line the run never reached reads from the books again: what an earlier run left it, with its button.
+    setStages((all) => stagesAfterPress(all));
     // Then each paystub settled this time, one letter (one approval) at a time; `deliver` never throws.
     for (const workerId of await Promise.all(settled)) if (workerId) await deliver(workerId);
-    if (!stalled) setNote(null); // everything it said Shield would ask has been asked; where a run stopped stays up
+    // Everything it said Shield would ask has been asked; where a run stopped stays up.
+    if (refused) setNote(noteBefore);
+    else if (!stalledWhy) setNote(null);
     setRunning(false);
   }
 
