@@ -4,7 +4,7 @@ import { MemoryStore, type VaultSession, addRecovery, createVault, keySlotsOf, o
 import { accountSecret, recoverAccounts, vaultIdFor } from "../books/account";
 import { MAX_CHANGES, stateHash, validateChainState } from "../books/books_backup";
 import { type Company, companyToJson, emptyCompany } from "../books/company";
-import { type ChainState, type Page, finderKey, pageLookup, planBackup, restoreBackup, sealerOf, slotsHash } from "./books_backup";
+import { type ChainState, type Page, finderKey, pageLookup, planBackup, plannedUnder, restoreBackup, sealerOf, slotsHash } from "./books_backup";
 import { LETTER_BYTES, PAGE_BYTES } from "./letters";
 
 const USER = "alder";
@@ -258,6 +258,42 @@ describe("a change to the books' key slots", () => {
     // Once that copy is sent there is nothing more to send.
     expect(await backUp(without, books, plan.next, l.send)).toBeNull();
     await expect(restoreBackup({ read: l.read, username: USER, address: ADDR, openSlots: withRecovery(a.code) })).rejects.toMatchObject({ code: "WRONG_RECOVERY_KEY" });
+  });
+
+  it("a backup worked out before a new recovery key is no longer the one to send: worked out again, it is a full copy the new key opens", async () => {
+    const { session: first, company, bank, sales } = await setup();
+    const a = await addRecovery(first.record, SECRET);
+    const session = await unlockVault(a.record, SECRET);
+    let books = sell(company, bank, sales, 100);
+    const shown = await planBackup({ sealer: sealerOf(session), company: books, username: USER, address: ADDR, state: null });
+    expect(shown).toMatchObject({ kind: "snapshot", chain: 0 });
+    expect(await plannedUnder(shown!, keySlotsOf(session.record))).toBe(true);
+    const sent = letters();
+    sent.send(shown!.pages);
+    const state = shown!.next;
+    books = sell(books, bank, sales, 1, 100);
+    const stale = (await planBackup({ sealer: sealerOf(session), company: books, username: USER, address: ADDR, state }))!;
+    expect(stale).toMatchObject({ kind: "change", chain: 0, seq: 1 });
+
+    // A new recovery key is made while that plan is on screen.
+    const b = await addRecovery(session.record, SECRET);
+    const now = await unlockVault(b.record, SECRET);
+    expect(await plannedUnder(stale, keySlotsOf(now.record))).toBe(false);
+    expect(await plannedUnder(shown!, keySlotsOf(now.record))).toBe(false);
+    // Sent as it was worked out, the newest backup wouldn't open with the new key.
+    const asShown = letters();
+    asShown.send(shown!.pages);
+    asShown.send(stale.pages);
+    await expect(restoreBackup({ read: asShown.read, username: USER, address: ADDR, openSlots: withRecovery(b.code) })).rejects.toMatchObject({ code: "WRONG_RECOVERY_KEY" });
+
+    // Worked out again under the new slots: a full copy, which the new key opens.
+    const fresh = (await planBackup({ sealer: sealerOf(now), company: books, username: USER, address: ADDR, state }))!;
+    expect(fresh).toMatchObject({ kind: "snapshot", chain: 1 });
+    expect(await plannedUnder(fresh, keySlotsOf(now.record))).toBe(true);
+    sent.send(fresh.pages);
+    const out = (await restoreBackup({ read: sent.read, username: USER, address: ADDR, openSlots: withRecovery(b.code) }))!;
+    expect(out.state.chain).toBe(1);
+    expect(await stateHash(out.company)).toBe(await stateHash(books));
   });
 
   it("plans a full copy from a chain state saved before the slots were recorded", async () => {

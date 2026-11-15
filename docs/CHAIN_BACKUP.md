@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-14
+updated: 2026-11-15
 summary: The books backed up as letters to your own account: compressed, then encrypted; a snapshot, then only changes; restored on any device with the wallet and the passphrase or recovery key.
 ---
 
@@ -157,7 +157,9 @@ People choose, the app asks. It can't send a backup on its own: every page needs
   away. The new chain opens with the passphrase and recovery key as they are now. It is a full
   copy even when nothing in the books changed, at a full copy's cost (shown before any approval).
   A chain state saved before this was built doesn't say which slots its snapshot carried, so the
-  first backup after updating the app is a full copy as well.
+  first backup after updating the app is a full copy as well. A backup worked out before a recovery
+  key was made or taken away, and not yet sent, isn't sent: Back up asks for it to be worked out
+  again (`plannedUnder`).
 - **It doesn't re-seal anything.** The data key stays the same when the passphrase or the recovery
   key changes, and every piece, old or new, is sealed with it. So an old passphrase or recovery
   key should be treated as still able to open the backups.

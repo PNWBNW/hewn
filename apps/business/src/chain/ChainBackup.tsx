@@ -24,7 +24,7 @@ import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { markBackedUp } from "@/books/backup_reminder";
 import { shortAddress } from "@/books/rail";
-import { type BackupPlan, planBackup } from "./books_backup";
+import { type BackupPlan, planBackup, plannedUnder } from "./books_backup";
 import { useLetters } from "./letter_reader";
 import { LetterBox } from "./letters";
 
@@ -91,6 +91,12 @@ function Backup() {
     const feeMode = readFeeMode();
     let sent = 0;
     try {
+      setStep({ kind: "sending", plan: p, sent });
+      // A recovery key made or taken away in Settings since this was worked out: these pages would
+      // leave a backup the keys as they are now don't open, so nothing is sent (`plannedUnder`).
+      const sealer = backupSealer();
+      if (!sealer) throw new Error("Open your books and connect Shield first");
+      if (!(await plannedUnder(p, sealer.slots))) throw new Error("Your recovery key changed after this backup was worked out, so nothing was sent. Back up again to include the change.");
       for (const page of p.pages) {
         setStep({ kind: "sending", plan: p, sent });
         await box.put(page.lookup, page.envelope, { feeMode });

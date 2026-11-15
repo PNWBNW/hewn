@@ -104,6 +104,14 @@ const sorted = (value: unknown): string =>
 export const slotsHash = ({ id, kdf, wrappedKey, recovery }: KeySlots): Promise<string> =>
   sha256Hex(enc.encode(sorted({ id, kdf, wrappedKey, ...(recovery ? { recovery } : {}) })));
 
+/**
+ * Whether `plan` was worked out under these key slots. A plan shown before a recovery key was made
+ * or taken away would leave a chain the keys as they are now don't open: it is worked out again
+ * rather than sent. `next.slots` is the hash of the slots the plan was made under, for a change as
+ * for a snapshot.
+ */
+export const plannedUnder = async (plan: Pick<BackupPlan, "next">, slots: KeySlots): Promise<boolean> => plan.next.slots === (await slotsHash(slots));
+
 // ---- a piece on the wire ----------------------------------------------------------
 
 /** [version][header length (2)][header JSON][iv (12)][ciphertext]: the header holds the key slots on a snapshot. */
