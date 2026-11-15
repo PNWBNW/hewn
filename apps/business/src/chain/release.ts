@@ -192,22 +192,32 @@ export const NOT_FROM_HERE = "Not paid from here";
 export const NOT_YET = "Not paid yet";
 /** Why a payment waits for the next release (after `NOT_YET`). */
 const NEXT_NOTE = `one note to your own account names at most ${MAX_MARKER_LINES} payments, so this one is marked and paid when you press Pay now or Continue again, once the ${MAX_MARKER_LINES} before it are paid.`;
+/** Why a payment no note names yet waits for the next release while payments a note already names go out first (after `NOT_YET`). */
+const AFTER_NOTED =
+  "the payments a note already names for this run go out first, and this one is marked in a note of its own once they are paid: press Pay now or Continue again then.";
 /** What stops a release whose marker came second. */
 export const MARKED_FIRST = "Another device marked this run first; open it again to see where it stands";
 /**
  * Why a later payment of a run isn't sent from a device that holds no record for it (after
  * `NOT_FROM_HERE`). It goes out only from one record: what the payment before it left (`from`
- * "before"), or the record the run started from ("start"). That record isn't listed now ("gone"),
- * is less than this payment ("small"), or wasn't the one Shield's list offered it this time
- * ("other"); or these books can't tell which payment came before it ("unknown").
+ * "before"), or the record the run started from ("start"). Shield lists that record as spent
+ * ("spent"), doesn't list it yet ("unlisted"), lists it but it is less than this payment
+ * ("small"), or it wasn't the one Shield's list offered it this time ("other"); or these books
+ * can't tell which payment came before it ("unknown").
+ *
+ * Paying them in Shield is offered only where the run can never pay them from that record, so a
+ * payment made by hand is never followed by the run's own: a record not listed yet may still
+ * show, and the run would then pay them from it if it missed the payment made by hand.
  */
-function cannotFollow(why: "gone" | "small" | "other" | "unknown", from: "before" | "start" = "before"): string {
+function cannotFollow(why: RecordState | "other" | "unknown", from: "before" | "start" = "before"): string {
   const one = from === "start" ? "the record it started from" : "what the payment before this one left";
   const lead = `this run stopped part-way, and it goes on only from ${one}`;
   const inShield = "pay them in Shield; the run then finds that payment and goes on from what it leaves.";
   switch (why) {
-    case "gone":
-      return `${lead}. Shield doesn't list that record now: it may not have shown yet, or something else spent it (money arriving can make Shield combine it with another record). If it hasn't shown in a few minutes, ${inShield}`;
+    case "spent":
+      return `${lead}, and something else has spent that record (money arriving can make Shield combine it with another record, and a payment made in Shield can spend it). If Shield's activity shows no payment to them, ${inShield}`;
+    case "unlisted":
+      return `${lead}. Shield doesn't list that record yet; it can take a few minutes to show. Try again then.`;
     case "small":
       return `${lead}, and that is less than this payment. To pay them, ${inShield}`;
     case "other":
@@ -216,9 +226,12 @@ function cannotFollow(why: "gone" | "small" | "other" | "unknown", from: "before
       return `${lead}, and these books can't tell which record that is. To pay them, ${inShield}`;
   }
 }
-/** Why a payment isn't sent when a note for this same pay period pays its account another amount (after `NOT_FROM_HERE`). */
+/**
+ * Why a payment isn't sent when a note for this same pay period pays its account another amount (after
+ * `NOT_FROM_HERE`): another pay run for these dates, or another copy of these books, which notes can't tell apart.
+ */
 export const OTHER_AMOUNT =
-  "a note on this account already pays this account a different amount for this pay period, so two copies of these books disagree about what they are owed. Nothing is sent for them from this run; if they are still owed, pay them in Shield.";
+  "a note on this account already pays this account a different amount for this same pay period (another pay run for these dates, or another copy of these books). Nothing is sent for them from this run; if they are still owed, pay them in Shield.";
 /** Why a payment isn't sent when another pay run's note covers its account for days this run's period shares (after `NOT_FROM_HERE`). */
 const OTHER_RUN = (marker: Pick<RunMarker, "from" | "until">) =>
   `a pay run on the rail for ${marker.from} to ${marker.until} already pays this account, and this run's period shares days with it. Nothing is sent for them from this run; if they are still owed, pay them in Shield.`;
@@ -315,16 +328,31 @@ async function chainNow(network: RailNetwork): Promise<number | null> {
   }
 }
 
-/** The account's unspent stablecoin records as Shield lists them now, each with its tag and the transaction that made it, when Shield says. */
-async function unspentRecords(wallet: RailWallet): Promise<{ tag: string; amount: bigint; madeBy: string | null }[]> {
-  const out: { tag: string; amount: bigint; madeBy: string | null }[] = [];
+type ListedRecord = { tag: string; amount: bigint; madeBy: string | null; spent: boolean };
+
+/**
+ * The account's stablecoin records as Shield lists them now, spent ones too (as the look for an
+ * unconfirmed payment reads them), each with its tag and the transaction that made it, when Shield
+ * says.
+ */
+async function listedRecords(wallet: RailWallet): Promise<ListedRecord[]> {
+  const out: ListedRecord[] = [];
   for (const raw of await wallet.requestRecords(USDCX_PROGRAM, true)) {
-    if (!isObj(raw) || raw.spent === true || (raw.recordName !== undefined && raw.recordName !== "Token") || typeof raw.recordPlaintext !== "string") continue;
+    if (!isObj(raw) || (raw.recordName !== undefined && raw.recordName !== "Token") || typeof raw.recordPlaintext !== "string") continue;
     const token = parseTokenPlaintext(raw.recordPlaintext);
-    if (token) out.push({ tag: await recordTag(token.plaintext), amount: token.amount, madeBy: transactionIdOf(raw, ["transactionId", "transaction_id", "txId"]) });
+    if (token) out.push({ tag: await recordTag(token.plaintext), amount: token.amount, madeBy: transactionIdOf(raw, ["transactionId", "transaction_id", "txId"]), spent: raw.spent === true });
   }
   return out;
 }
+
+/**
+ * Where the one record a payment may spend stands, by what Shield lists: "spent" (listed as spent,
+ * so it never pays them), "unlisted" (not listed at all: it may not have shown yet), "small" (less
+ * than the payment), or "ok".
+ */
+type RecordState = "spent" | "unlisted" | "small";
+const stateOf = (record: { spent: boolean; amount: bigint } | undefined, minor: bigint): RecordState | "ok" =>
+  !record ? "unlisted" : record.spent ? "spent" : record.amount < minor ? "small" : "ok";
 
 /**
  * Releases what a rail run still owes, as the books hold it now.
@@ -335,8 +363,11 @@ async function unspentRecords(wallet: RailWallet): Promise<{ tag: string; amount
  *   - no marker covers it: it is paid, and marked first. Before Shield is asked for the first
  *     payment, one marker goes out naming every such payment (one approval), and the release waits
  *     until the account lists it. If another device's marker for the same payee and period was
- *     accepted before it, nothing is paid from here. A marker names at most `MAX_MARKER_LINES`
- *     payments: any past that wait for the next release, which marks them in a marker of their own;
+ *     accepted before it, nothing is paid from here. Only such payments that come, in the run's
+ *     order, before every other payment still to be asked for from here are marked, so the
+ *     marker's first payment is the first the queue asks for and names its record; the rest wait
+ *     for a later release, which marks them in a marker of their own. A marker names at most
+ *     `MAX_MARKER_LINES` payments: any past that wait in the same way;
  *   - a marker names the record that pays it: that record's tag is kept, and the payment goes out
  *     only by spending that record, so the network lets one transfer through whichever device asks;
  *   - it is a later payment of a run these books hold as this device's own (it marked it, or took
@@ -344,13 +375,15 @@ async function unspentRecords(wallet: RailWallet): Promise<{ tag: string; amount
  *   - it is such a payment and no record is held for it: it is looked for in the account's own
  *     transfers. Not found, it goes out only from what the payment before it in its marker left,
  *     once the books hold that payment as made: that record's tag is kept before the queue plans,
- *     so the queue spends exactly that one. While Shield doesn't list that record, or it is less
- *     than the payment, the line says which and nothing is asked; paid in Shield instead, the
- *     payment is found and the run goes on from what it left. Any copy of these books holds the
- *     run the same way, on whichever device it is opened, so every copy is held to that one record
- *     and the network lets one transfer through. The one case that keeps the record the plan gives
- *     it: this device made the payment before it a moment ago, in this same release (a run going
- *     on as planned);
+ *     so the queue spends exactly that one. While Shield doesn't list that record yet, the line
+ *     says so and nothing is asked. When Shield lists it as spent, or it is less than the payment,
+ *     the run can't pay them from it on any device: the line says which and nothing is asked; paid
+ *     in Shield instead, the payment is found and the run goes on from what it left. Paying in
+ *     Shield is offered only then, never for a record that may still show. Any copy of these
+ *     books holds the run the same way, on whichever device it is opened, so every copy is held to
+ *     that one record and the network lets one transfer through. The one case that keeps the
+ *     record the plan gives it: this device made the payment before it a moment ago, in this same
+ *     release (a run going on as planned);
  *   - it is a later payment of a run another device marked: it is looked for, and settled if it is
  *     there. Otherwise nothing is sent for it (`onHeld`), until the chain shows that run has paid
  *     someone and then nobody for `TAKE_OVER_AFTER_MS`. Then this device goes on with it, from that
@@ -445,17 +478,25 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
   const settlementOf = async (workerId: string): Promise<Settlement | undefined> =>
     (await ctx.updateCompany((c) => c)).payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.settlement;
   /**
-   * What the payment the books hold for `workerId` left: the unspent record Shield lists as made by
-   * that payment's transaction (`left`), among everything it lists now (`records`). Null while the
-   * books don't hold that paycheck as settled by a transaction.
+   * What the payment the books hold for `workerId` left: the record Shield lists as made by that
+   * payment's transaction (`left`: unspent; `made`: as listed, spent or not), among the unspent
+   * records it lists now (`records`). Null while the books don't hold that paycheck as settled by a
+   * transaction.
    */
   const leftBy = async (workerId: string) => {
     await Promise.all(settled); // every payment found or confirmed so far is in the books first
     const before = await settlementOf(workerId);
     const id = before?.status === "settled" ? transactionIdOf(before.reference ?? "") : null;
     if (id === null) return null;
-    const records = await unspentRecords(wallet).catch(() => []);
-    return { id, records, left: records.find((r) => r.madeBy === id) };
+    const all = await listedRecords(wallet).catch(() => []);
+    const records = all.filter((r) => !r.spent);
+    const made = records.find((r) => r.madeBy === id) ?? all.find((r) => r.madeBy === id);
+    return { id, records, left: made && !made.spent ? made : undefined, made };
+  };
+  /** The record a run started from (`tag`), as Shield lists it now, spent or not. */
+  const listedAs = async (tag: string) => {
+    const all = await listedRecords(wallet).catch(() => []);
+    return all.find((r) => r.tag === tag && !r.spent) ?? all.find((r) => r.tag === tag);
   };
   /**
    * Stops a payment its marker names no record for from going out of a record this device hasn't
@@ -470,16 +511,19 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
     const net = (await ctx.updateCompany((c) => c)).payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.net;
     const minor = centsToMinor(net ?? 0n);
     /** Why `record` isn't one to pay this from, or null when it is. */
-    const why = (record: { tag: string; amount: bigint } | undefined, from: "before" | "start") =>
-      record?.tag === tag ? null : `${NOT_FROM_HERE}: ${cannotFollow(!record ? "gone" : record.amount < minor ? "small" : "other", from)}`;
+    const why = (record: ListedRecord | undefined, from: "before" | "start") => {
+      if (record?.tag === tag && !record.spent) return null;
+      const state = stateOf(record, minor);
+      return `${NOT_FROM_HERE}: ${cannotFollow(state === "ok" ? "other" : state, from)}`;
+    };
     let refused: string | null;
     if (link.after !== undefined) {
       if (paidHere.has(link.after)) return;
       const before = await leftBy(link.after);
       if (before === null) throw new Error(`${NOT_FROM_HERE}: ${NOT_BEFORE_IT}`);
-      refused = why(before.left, "before");
+      refused = why(before.made, "before");
     } else if (link.start !== undefined) {
-      refused = why((await unspentRecords(wallet).catch(() => [])).find((r) => r.tag === link.start), "start");
+      refused = why(await listedAs(link.start), "start");
     } else {
       refused = `${NOT_FROM_HERE}: ${cannotFollow("unknown")}`;
     }
@@ -677,23 +721,24 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
                 if (held.has(before.workerId)) hold(payment.workerId, `${NOT_FROM_HERE}: ${NOT_BEFORE_IT}`);
                 continue;
               }
-              // The one record it may spend, if Shield lists it now: what the payment before it left, or the record its marker starts from.
+              // The one record it may spend, as Shield lists it now: what the payment before it left, or the record its marker
+              // starts from.
               const from = before ? "before" : "start";
-              let record: { tag: string; amount: bigint } | undefined;
+              let record: ListedRecord | undefined;
               let known = true;
               if (before) {
                 const left = await leftBy(before.workerId);
                 known = left !== null;
-                record = left?.left;
+                record = left?.made;
               } else if (link.start !== undefined) {
-                record = (await unspentRecords(wallet).catch(() => [])).find((r) => r.tag === link.start);
+                record = await listedAs(link.start);
               } else {
                 known = false;
               }
+              const state = stateOf(record, payment.minor);
               if (!known) hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow("unknown", from)}`);
-              else if (!record) hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow("gone", from)}`);
-              else if (record.amount < payment.minor) hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow("small", from)}`);
-              else await write(payment.workerId, { status: "pending", attempt: record.tag, since });
+              else if (state !== "ok") hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow(state, from)}`);
+              else await write(payment.workerId, { status: "pending", attempt: record!.tag, since });
             }
             continue;
           }
@@ -740,8 +785,12 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
           const before = link.after !== undefined ? await leftBy(link.after) : null;
           const record = before && before.records.length === 1 ? before.left : undefined;
           if (!record || record.amount < first.payment.minor) {
+            // Paying them in Shield is offered only when that record can never pay them (listed as spent, or less than
+            // the payment): otherwise the device that started the run may still pay them from it, and would do so again
+            // if it missed a payment made by hand.
+            const never = before !== null && ["spent", "small"].includes(stateOf(before.made, first.payment.minor));
             waitFor(
-              `${IN_PROGRESS}, and this device can't go on with it: it would pay only from what that run's last payment left, and only while that is the one record Shield lists for this account. Go on with the run on the device that started it, or pay anyone it didn't pay in Shield; the run then finds the payment.`,
+              `${IN_PROGRESS}, and this device can't go on with it: it would pay only from what that run's last payment left, and only while that is the one record Shield lists for this account. Go on with the run on the device that started it${never ? ", or pay anyone it didn't pay in Shield; the run then finds the payment" : ""}.`,
             );
             continue;
           }
@@ -751,11 +800,25 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
         }
       }
 
-      // One note names at most `MAX_MARKER_LINES` payments. The fresh ones past that wait for the next release, which
-      // finds the ones before them paid and marks these in a note of their own.
-      for (const workerId of [...fresh].slice(MAX_MARKER_LINES)) {
-        fresh.delete(workerId);
-        hold(workerId, `${NOT_YET}: ${NEXT_NOTE}`);
+      // A note names the record its first payment spends only when the queue asks for that payment first in its
+      // release: the queue hands `beforeTransfers` the record of the first payment it asks for, and no other. A note
+      // whose first payment names no record can't be followed after a stop, and one whose payments don't follow each
+      // other in the run can't be followed from the right record. So only the fresh payments that come, in the run's
+      // order, before every other payment still to be asked for from here (one an earlier note names, or one this
+      // device goes on with for another device) are marked now; the rest wait, and the release that finds those paid
+      // marks them in a note of their own. One note names at most `MAX_MARKER_LINES` payments: the fresh ones past
+      // that wait in the same way.
+      if (fresh.size > 0) {
+        const after = (await ctx.updateCompany((c) => c)).payroll.runs.find((r) => r.id === runId);
+        // In the order the queue asks: a payment Shield already holds a request for is only asked about, never asked for.
+        const toAsk = (after ? outstanding(after) : []).filter((p) => !held.has(p.workerId) && !(p.settlement.status === "pending" && p.settlement.reference));
+        const lead = toAsk.findIndex((p) => !fresh.has(p.workerId));
+        const first = new Set((lead < 0 ? toAsk : toAsk.slice(0, lead)).map((p) => p.workerId));
+        const ahead = [...fresh].filter((workerId) => !first.has(workerId));
+        for (const workerId of [...ahead, ...[...fresh].filter((w) => first.has(w)).slice(MAX_MARKER_LINES)]) {
+          fresh.delete(workerId);
+          hold(workerId, `${NOT_YET}: ${ahead.includes(workerId) ? AFTER_NOTED : NEXT_NOTE}`);
+        }
       }
     }
 

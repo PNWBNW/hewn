@@ -98,6 +98,15 @@ function renumbered(start: Start): Start {
   return { company, runId: other(start.runId), workers: start.workers.map(other), links: new Map([...start.links].map(([w, to]) => [other(w), to])) };
 }
 
+/** A posted run of `n` people with an hour each, paid to `n` accounts of their own (the helper's repeat after 32). */
+function manyAccounts(n: number): Start {
+  const base = postedRun(n, undefined, () => 1);
+  const letters = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+  const company = structuredClone(base.company);
+  company.rail = { ...company.rail!, links: company.rail!.links.map((l, i) => ({ ...l, address: `aleo1${letters[(i + 1) % 32]!}${letters[Math.floor((i + 1) / 32)]!}${"q".repeat(56)}` })) };
+  return { ...base, company, links: new Map(company.rail.links.map((l) => [l.workerId, l.address])) };
+}
+
 describe("releaseRun: what the books are told", () => {
   it("a three-person run settles each paycheck through releaseRun: its record's tag, then Shield's id, then settled", async () => {
     const vt = new VirtualTime();
@@ -528,7 +537,14 @@ describe("two devices and one run", () => {
       const run = release(chain, laptop, shield, start);
       await vt.run(run.done);
       expect(shield.calls).toEqual([]);
-      expect([...run.held.entries()]).toEqual([[start.workers[2], expect.stringMatching(new RegExp(`^${IN_PROGRESS}, and this device can't go on with it`))]]);
+      // What that run's last payment left still covers the payment, so the device that started it may pay from it:
+      // paying them in Shield isn't offered, since that device would pay them again if it missed that payment.
+      expect([...run.held.entries()]).toEqual([
+        [
+          start.workers[2],
+          `${IN_PROGRESS}, and this device can't go on with it: it would pay only from what that run's last payment left, and only while that is the one record Shield lists for this account. Go on with the run on the device that started it.`,
+        ],
+      ]);
     }
     first.behaviour = () => "ok";
     await vt.run(release(chain, phone, first, start).done);
@@ -537,6 +553,35 @@ describe("two devices and one run", () => {
     expect(shield.calls).toEqual([]);
     expect(paidEach(chain, start)).toEqual([1, 1, 1]);
     for (const device of [phone, laptop]) expect(device.settlements.every((s) => s.status === "settled")).toBe(true);
+  });
+
+  it("another device can't go on with a run whose last payment's change Shield combined with money that arrived: its line offers paying them in Shield, which nobody's device then pays again", async () => {
+    const { vt, chain, start, phone, saved } = await posted(3);
+    const laptop = await phone.restored(saved);
+    const first = chain.shield();
+    first.behaviour = onPayment((nth) => (nth < 2 ? "ok" : "expired"));
+    await vt.run(release(chain, phone, first, start).done);
+    expect(paidEach(chain, start)).toEqual([1, 1, 0]);
+    chain.deposit(centsToMinor(1_000_00n));
+    await vt.run(vt.sleep(MIN));
+    chain.combine();
+    await vt.run(vt.sleep(45 * MIN));
+    const shield = chain.shield();
+    const run = release(chain, laptop, shield, start);
+    await vt.run(run.done);
+    expect(shield.calls).toEqual([]);
+    expect(run.held.get(start.workers[2]!)).toBe(
+      `${IN_PROGRESS}, and this device can't go on with it: it would pay only from what that run's last payment left, and only while that is the one record Shield lists for this account. Go on with the run on the device that started it, or pay anyone it didn't pay in Shield; the run then finds the payment.`,
+    );
+    // Paid in Shield; neither device pays them again, even while Shield's history doesn't list that payment.
+    chain.payByHand(start.links.get(start.workers[2]!)!, centsToMinor(phone.company.payroll.runs[0]!.paychecks[2]!.net));
+    first.behaviour = () => "ok";
+    first.listsHistory = false;
+    shield.listsHistory = false;
+    await vt.run(vt.sleep(MIN));
+    await vt.run(release(chain, phone, first, start).done);
+    await vt.run(release(chain, laptop, shield, start).done);
+    expect(paidEach(chain, start)).toEqual([1, 1, 1]);
   });
 
   it("a device whose Shield doesn't list the other's transfers, or doesn't say which transaction made a record, pays nobody", async () => {
@@ -817,8 +862,52 @@ describe("two devices and one run", () => {
     const run = release(chain, await phone.restored(correction.company), shield, correction);
     await vt.run(run.done);
     expect(shield.calls).toHaveLength(asked);
-    expect([...run.held.entries()]).toEqual([[correction.workers[0], expect.stringMatching(new RegExp(`^${NOT_FROM_HERE}: `))]]);
+    expect([...run.held.entries()]).toEqual([
+      [
+        correction.workers[0],
+        `${NOT_FROM_HERE}: a note on this account already pays this account a different amount for this same pay period (another pay run for these dates, or another copy of these books). Nothing is sent for them from this run; if they are still owed, pay them in Shield.`,
+      ],
+    ]);
     expect(paidEach(chain, start)).toEqual([2, 2]);
+  });
+
+  it("a second run in the same books for the same pay period at other amounts is held on every line, in words that don't say another copy is to blame", async () => {
+    const { vt, chain, start, phone } = await posted(3);
+    const shield = chain.shield();
+    await vt.run(release(chain, phone, shield, start).done);
+    expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+    await vt.run(vt.sleep(60 * MIN));
+    const rail = ensureRailAccount(phone.company.books);
+    const run0 = phone.company.payroll.runs[0]!;
+    const second = postPayRun(
+      rail.books,
+      phone.company.payroll,
+      { payDate: run0.payDate, periodStart: run0.periodStart, periodEnd: run0.periodEnd, bankAccountId: rail.accountId, mode: "rail", lines: start.workers.map((workerId, i) => ({ workerId, hours: 2 + i })) },
+      { now: () => "2026-11-13T15:00:00.000Z" },
+    );
+    await phone.updateCompany((c) => ({ ...c, books: second.books, payroll: second.payroll }));
+    const asked = shield.calls.length;
+    const run = release(chain, phone, shield, { ...start, runId: second.run.id });
+    await vt.run(run.done);
+    expect(shield.calls).toHaveLength(asked);
+    expect([...run.held.entries()]).toEqual(start.workers.map((w) => [w, `${NOT_FROM_HERE}: ${OTHER_AMOUNT}`]));
+    expect(OTHER_AMOUNT).toContain("another pay run for these dates, or another copy of these books");
+    expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+  });
+
+  it("a payment holding another record than the one an earlier run's note names for its account, for days both periods share, is held in words that name that run", async () => {
+    const { vt, chain, start, phone } = await posted(3);
+    await vt.run(release(chain, phone, chain.shield(), start).done);
+    // Books of another run, for a period that shares days with the first, at the same amounts; its first payment holds a record of its own.
+    const next = postedRun(3, { payDate: "2026-11-20", periodStart: "2026-11-10", periodEnd: "2026-11-20" });
+    next.company.payroll = markPaycheckSettlement(next.company.payroll, next.runId, next.workers[0]!, { status: "pending", attempt: "ab".repeat(16) });
+    const shield = chain.shield();
+    const run = release(chain, await phone.restored(next.company), shield, next);
+    await vt.run(run.done);
+    expect(shield.calls).toEqual([]);
+    expect([...run.held.entries()]).toEqual(
+      next.workers.map((w) => [w, `${NOT_FROM_HERE}: a pay run on the rail for 2026-11-07 to 2026-11-13 already pays this account, and this run's period shares days with it. Nothing is sent for them from this run; if they are still owed, pay them in Shield.`]),
+    );
   });
 
   for (const deposits of [[float], [centsToMinor(20_000_00n), centsToMinor(33_000_00n)]]) {
@@ -918,7 +1007,9 @@ describe("a run that stopped part-way, on the device that started it", () => {
     const stuck = release(chain, phone, shield, start);
     await vt.run(stuck.done);
     expect(shield.calls).toHaveLength(asked);
-    expect(stuck.held.get(start.workers[1]!)).toMatch(new RegExp(`^${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left\\. Shield doesn't list that record now: .* pay them in Shield; the run then finds that payment and goes on from what it leaves\\.$`));
+    expect(stuck.held.get(start.workers[1]!)).toBe(
+      `${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left, and something else has spent that record (money arriving can make Shield combine it with another record, and a payment made in Shield can spend it). If Shield's activity shows no payment to them, pay them in Shield; the run then finds that payment and goes on from what it leaves.`,
+    );
     expect(stuck.held.get(start.workers[2]!)).toBe(`${NOT_FROM_HERE}: it is paid from what the payment before it in this run leaves, and that payment hasn't been found yet.`);
 
     // The person pays the second in Shield; the run finds it, and the third is asked for from what that payment left.
@@ -931,6 +1022,96 @@ describe("a run that stopped part-way, on the device that started it", () => {
     expect(paidEach(chain, start)).toEqual([1, 1, 1]);
     expect(shield.payments.at(-1)!.inputs[2]).toBe(chain.tokens.find((t) => t.from === chain.paid(second)[0]!.id)!.plaintext);
     expect(phone.settlements.every((s) => s.status === "settled")).toBe(true);
+  });
+
+  it("what the first payment left hasn't shown in Shield yet: the next person waits, and the line says to try again, not to pay them in Shield; once it shows, the run goes on from it and pays each person once", async () => {
+    const { vt, chain, start, phone, shield, first } = await stoppedAfterOne([float, float]);
+    // Shield is slow to list what the first payment left; its history doesn't list the account's transfers either.
+    const change = chain.tokens.find((t) => t.from === first.id)!.plaintext;
+    let hide = true;
+    const records = shield.requestRecords.bind(shield);
+    shield.requestRecords = async (program: string, all?: boolean) => (await records(program, all)).filter((r) => !(hide && (r as { recordPlaintext?: string }).recordPlaintext === change));
+    shield.listsHistory = false;
+    const asked = shield.calls.length;
+    const waiting = release(chain, phone, shield, start);
+    await vt.run(waiting.done);
+    expect(shield.calls).toHaveLength(asked);
+    expect(waiting.held.get(start.workers[1]!)).toBe(
+      `${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left. Shield doesn't list that record yet; it can take a few minutes to show. Try again then.`,
+    );
+    expect(waiting.held.get(start.workers[1]!)).not.toMatch(/in Shield/);
+
+    hide = false;
+    await vt.run(vt.sleep(MIN));
+    const on = release(chain, phone, shield, start);
+    await vt.run(on.done);
+    expect(on.held.size).toBe(0);
+    expect(shield.payments[1]!.inputs[2]).toBe(change);
+    expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+  });
+
+  it("what the first payment left went into a record Shield combined with money that arrived: paid in Shield as the line says, a Continue that can't read Shield's history asks nothing, and one that can goes on from what that payment left", async () => {
+    const { vt, chain, start, phone, shield, first } = await stoppedAfterOne([float]);
+    chain.deposit(centsToMinor(100_00n));
+    await vt.run(vt.sleep(MIN));
+    chain.combine();
+    await vt.run(vt.sleep(MIN));
+    const asked = shield.calls.length;
+    const stuck = release(chain, phone, shield, start);
+    await vt.run(stuck.done);
+    expect(shield.calls).toHaveLength(asked);
+    expect(stuck.held.get(start.workers[1]!)).toMatch(new RegExp(`^${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left, and something else has spent that record .* If Shield's activity shows no payment to them, pay them in Shield; `));
+    expect(chain.tokens.find((t) => t.from === first.id)!.spent).toBe(true);
+
+    // Paid in Shield, as the line says. This time Shield's history doesn't list it: nothing is asked, and nobody is paid twice.
+    const second = start.links.get(start.workers[1]!)!;
+    chain.payByHand(second, centsToMinor(phone.company.payroll.runs[0]!.paychecks[1]!.net));
+    shield.listsHistory = false;
+    await vt.run(vt.sleep(MIN));
+    const blind = release(chain, phone, shield, start);
+    await vt.run(blind.done);
+    expect(shield.calls).toHaveLength(asked);
+    expect(paidEach(chain, start)).toEqual([1, 1, 0]);
+
+    // Once the history lists it, the run finds it and goes on from what it left.
+    shield.listsHistory = true;
+    await vt.run(vt.sleep(MIN));
+    const on = release(chain, phone, shield, start);
+    await vt.run(on.done);
+    expect(on.held.size).toBe(0);
+    expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+    expect(shield.payments.at(-1)!.inputs[2]).toBe(chain.tokens.find((t) => t.from === chain.paid(second)[0]!.id)!.plaintext);
+  });
+
+  it("a payment found during a release, on an account holding two records: the next one is refused any record but what the found one left, and the next press pays it from that", async () => {
+    const vt = new VirtualTime();
+    const hours = (i: number) => 30 - i;
+    const nets = postedRun(3, undefined, hours).company.payroll.runs[0]!.paychecks.map((p) => centsToMinor(p.net));
+    // The second record covers the third payment, and the plan would take it.
+    const chain = new Chain(vt, [float, nets[2]! + 1n]);
+    const start = postedRun(3, undefined, hours);
+    const phone = await firstDevice(start.company);
+    const shield = chain.shield();
+    shield.behaviour = onPayment((nth) => (nth === 0 && (shield.lagMs = 10 * MIN), "ok"));
+    await vt.run(release(chain, phone, shield, start).done);
+    expect(paidEach(chain, start)).toEqual([1, 0, 0]);
+    shield.lagMs = 1_000;
+    await vt.run(vt.sleep(15 * MIN));
+    // Continue: the second goes out from what the first left, and Shield throws though it landed. It is found.
+    shield.behaviour = onPayment((nth) => (nth === 0 ? "landed, then threw" : "ok"));
+    const two = release(chain, phone, shield, start);
+    await vt.run(two.done);
+    expect(paidEach(chain, start)).toEqual([1, 1, 0]);
+    const left = chain.tokens.find((t) => t.from === chain.paid(start.links.get(start.workers[1]!)!)[0]!.id)!.plaintext;
+    expect(phone.settlements[2]).toMatchObject({
+      status: "failed",
+      failure: `${NOT_FROM_HERE}: it goes out only from what the payment before this one left, and another record came up for it this time. Retry asks for it from that record.`,
+    });
+    expect(shield.payments.slice(2).every((c) => c.inputs[2] === left)).toBe(true);
+    await vt.run(vt.sleep(MIN));
+    await vt.run(release(chain, phone, shield, start).done);
+    expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+    expect(shield.payments.slice(2).map((c) => c.inputs[2])).toEqual([left]);
   });
 
   it("what the first payment left is less than the next payment: the line says so, and nothing is asked", async () => {
@@ -1007,6 +1188,22 @@ describe("a release, and what it sends besides the payments", () => {
     expect(paidEach(chain, start)).toEqual([1, 1, 1, 1]);
   });
 
+  it("a payment Shield took but hadn't answered for when the release ended: the next press hears from this device's Shield that it was accepted, and sends its paystub", async () => {
+    const { vt, chain, start, phone } = await posted(1);
+    const shield = chain.shield();
+    const first = release(chain, phone, shield, start, { queue: { clock: chain.vt.clock, sleep: chain.vt.sleep, tree, limits: { walletCapMs: 5_000 } } });
+    await vt.run(first.done);
+    expect(phone.settlements[0]).toMatchObject({ status: "pending", reference: expect.stringMatching(/^shield_/) });
+    expect(first.delivered).toEqual([]);
+    await vt.run(vt.sleep(MIN));
+    const second = release(chain, phone, shield, start);
+    await vt.run(second.done);
+    expect(second.events.find((e) => e.kind === "settled")).not.toHaveProperty("found");
+    expect(phone.settlements[0]!.status).toBe("settled");
+    expect(second.delivered).toEqual([start.workers[0]]);
+    expect(paidEach(chain, start)).toEqual([1]);
+  });
+
   it("a device that only kept the record another device's note names, then found that device's payment, sends no paystub for it", async () => {
     const { vt, chain, start, phone, saved } = await posted(3);
     chain.hidesBusy = true;
@@ -1030,12 +1227,7 @@ describe("a release, and what it sends besides the payments", () => {
   it("a run of 65 people: the first 64 are marked in one note and paid; the 65th waits, and the next press marks it in a note of its own and pays it", async () => {
     const vt = new VirtualTime();
     const chain = new Chain(vt, [centsToMinor(500_000_00n)]);
-    const base = postedRun(65, undefined, () => 1);
-    // 65 accounts of their own (the helper's repeat after 32).
-    const letters = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
-    const company = structuredClone(base.company);
-    company.rail = { ...company.rail!, links: company.rail!.links.map((l, i) => ({ ...l, address: `aleo1${letters[(i + 1) % 32]!}${letters[Math.floor((i + 1) / 32)]!}${"q".repeat(56)}` })) };
-    const start = { ...base, company, links: new Map(company.rail.links.map((l) => [l.workerId, l.address])) };
+    const start = manyAccounts(65);
     const phone = await firstDevice(start.company);
     const shield = chain.shield();
     const run = release(chain, phone, shield, start);
@@ -1047,6 +1239,64 @@ describe("a release, and what it sends besides the payments", () => {
     await vt.run(again.done);
     expect(again.held.size).toBe(0);
     expect(shield.lettersSent).toHaveLength(2);
+    expect(paidEach(chain, start)).toEqual(start.workers.map(() => 1));
+    expect(phone.settlements.every((s) => s.status === "settled")).toBe(true);
+  }, 60_000);
+
+  it("a run of 65 that stops part-way in the first press and again in the second: the 65th waits until the 64 before it are paid, then is marked first in a note of its own, and everyone is paid once", async () => {
+    const vt = new VirtualTime();
+    const chain = new Chain(vt, [centsToMinor(500_000_00n)]);
+    const start = manyAccounts(65);
+    const phone = await firstDevice(start.company);
+    const shield = chain.shield();
+    // Press 1: the 10th payment is turned down, and the run stops there.
+    shield.behaviour = onPayment((nth) => (nth === 9 ? "declined" : "ok"));
+    await vt.run(release(chain, phone, shield, start).done);
+    expect(paidEach(chain, start).filter((n) => n === 1)).toHaveLength(9);
+    // Press 2: the 6th payment asked this time is turned down. The 65th isn't marked while those before it are still owed.
+    await vt.run(vt.sleep(MIN));
+    shield.behaviour = onPayment((nth) => (nth === 5 ? "declined" : "ok"));
+    const two = release(chain, phone, shield, start);
+    await vt.run(two.done);
+    expect(paidEach(chain, start).filter((n) => n === 1)).toHaveLength(14);
+    expect([...two.held.entries()]).toEqual([
+      [start.workers[64], `${NOT_YET}: the payments a note already names for this run go out first, and this one is marked in a note of its own once they are paid: press Pay now or Continue again then.`],
+    ]);
+    expect(shield.lettersSent).toHaveLength(1);
+    // Press 3 pays the rest of the 64; press 4 marks the 65th, first in its note and so naming its record, and pays it.
+    shield.behaviour = () => "ok";
+    for (const press of [3, 4]) {
+      await vt.run(vt.sleep(MIN));
+      await vt.run(release(chain, phone, shield, start).done);
+      expect(phone.settlements[64]!.status, `press ${press}`).toBe(press === 3 ? "pending" : "settled");
+    }
+    expect(paidEach(chain, start)).toEqual(start.workers.map(() => 1));
+    const notes = await desk(chain, phone, shield).read();
+    expect(notes.map((l) => l.marker.lines.length)).toEqual([64, 1]);
+    expect(notes[1]!.marker.lines[0]!.tag).toMatch(/^[0-9a-f]{32}$/);
+  }, 60_000);
+
+  it("a run of 66 that stalls after its first payment in two presses running: each later press pays on, and everyone is paid once", async () => {
+    const vt = new VirtualTime();
+    const chain = new Chain(vt, [centsToMinor(500_000_00n)]);
+    const start = manyAccounts(66);
+    const phone = await firstDevice(start.company);
+    const shield = chain.shield();
+    // Presses 1 and 2: Shield is slow to list what the first payment of the press left, so each stops after one payment.
+    for (const press of [1, 2]) {
+      shield.behaviour = onPayment((nth) => (nth === 0 && (shield.lagMs = 10 * MIN), "ok"));
+      const run = release(chain, phone, shield, start);
+      await vt.run(run.done);
+      expect(paidEach(chain, start).filter((n) => n === 1), `press ${press}`).toHaveLength(press);
+      expect([...run.held.keys()], `press ${press}`).toEqual([start.workers[64], start.workers[65]]);
+      shield.lagMs = 1_000;
+      await vt.run(vt.sleep(15 * MIN));
+    }
+    shield.behaviour = () => "ok";
+    for (let press = 3; press <= 4; press++) {
+      await vt.run(release(chain, phone, shield, start).done);
+      await vt.run(vt.sleep(MIN));
+    }
     expect(paidEach(chain, start)).toEqual(start.workers.map(() => 1));
     expect(phone.settlements.every((s) => s.status === "settled")).toBe(true);
   }, 60_000);
@@ -1201,5 +1451,15 @@ describe("a release keeps to Shield and the explorer", () => {
       expect(imports.filter((i) => /records|view_key|sdk|decrypt/.test(i)), file).toEqual([]);
       expect(code, file).not.toMatch(/view_key|(?<!transition)viewkey|openOwnRecord|openRecord|@provablehq\/sdk|@pnw\/records|scanner|register|fetch\(/i);
     }
+  });
+
+  it("is wired as the pay panel expects: a payment Shield took keeps when its try ended, Pay again's record check is bounded, and the panel is told when a payment is looked for", () => {
+    const release = readFileSync(new URL("./release.ts", import.meta.url), "utf8");
+    const panel = readFileSync(new URL("./PayPanel.tsx", import.meta.url), "utf8");
+    expect(release).toMatch(/case "sent":\s*note\(e\.workerId, \{[\s\S]*?\.\.\.\(e\.endedAt \? \{ endedAt: e\.endedAt \} : \{\}\),?\s*\}\);\s*break;\s*case "settled"/);
+    expect(release).toMatch(/await recordListedForPayAgain\(ctx\.wallet, tried\)/);
+    expect(release).not.toMatch(/recordStillListed/);
+    expect(release).toMatch(/ctx\.onLooking\?\.\(q\.workerId\);\s*return findPayment\(q\);/);
+    expect(panel).toMatch(/onLooking: \(workerId\) => setStage\(workerId, \{ kind: "looking" \}\)/);
   });
 });
