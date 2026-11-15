@@ -704,6 +704,8 @@ describe("runPayQueue: what became of a payment", () => {
     // A label only: the line keeps its id, its record's tag, its floor and when it ended, and nothing is sent.
     expect(unconfirmedIn(late.events)).toMatchObject({ reference: "shield_old", attempt: tag, since: HEIGHT - 10, endedAt: line(6 * MINUTE).endedAt });
     expect(wallet.calls).toEqual([]);
+    // While it is asked about again, what is written keeps when its last try ended: a reload then doesn't start the clock over.
+    expect(late.events.find((e) => e.kind === "sent")).toEqual({ kind: "sent", workerId: "w1", reference: "shield_old", attempt: tag, since: HEIGHT - 10, endedAt: line(6 * MINUTE).endedAt });
 
     // Six minutes after with the record gone: that isn't "not seen", it may have gone through.
     wallet.combine();
