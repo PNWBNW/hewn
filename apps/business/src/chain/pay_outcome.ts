@@ -4,13 +4,14 @@
 // (sent_payment.ts) about every other payment: which transfers are already
 // some payment's settlement, and whether another open payment could own a
 // transfer it finds. Also what the panel shows once a press of Pay now or
-// Continue ends part-way: whether it calls the rail short, and which lines go
-// back to what the books say. Pure but for one read of Shield's record list,
-// so all of it is tested without a screen.
+// Continue ends part-way: whether it calls the rail short for what the next
+// press pays from it, and which lines go back to what the books say. Pure but
+// for one read of Shield's record list, so all of it is tested without a
+// screen.
 // ---------------------------------------------------------------------------
 
 import type { PayRun, Settlement } from "@pnw/payroll";
-import { NOT_LISTED, NOT_PAID, NOT_SEEN, type PaymentQuery, type RailWallet, centsToMinor, recordStillListed } from "@pnw/rail";
+import { NOT_LISTED, NOT_PAID, NOT_SEEN, type PaymentQuery, type QueuedPayment, type RailWallet, type TokenRecord, centsToMinor, recordStillListed, recordTag } from "@pnw/rail";
 import { transactionIdOf } from "./history_probe";
 import { SHIELD_WAIT_MS, answered } from "./review_feed";
 import type { SentPaymentQuery } from "./sent_payment";
@@ -58,12 +59,38 @@ export function recordListedForPayAgain(wallet: RailWallet, attempt: string, wai
   return answered(recordStillListed(wallet, attempt), waitMs, "the records request").catch(() => true);
 }
 
+/** A record on the rail as the pay panel holds it, with its tag (`recordTag`), so the record a payment set aside can be told among them. */
+export type RailRecord = TokenRecord & { tag: string };
+
+/** The records the wallet listed, each with its tag. */
+export function tagRecords(records: readonly TokenRecord[]): Promise<RailRecord[]> {
+  return Promise.all(records.map(async (r) => ({ ...r, tag: await recordTag(r.plaintext) })));
+}
+
 /**
- * Whether the pay panel says the rail is short for what is still due (`dueMinor`), and holds
- * Continue back. Not while the last run stopped because Shield hadn't yet listed what its last
- * payment left (`stalledWhy` is the queue's `NOT_LISTED`): the balance read just then is missing
- * that change, so it would ask for funds that are there. Continue reads the records again, and the
- * queue refuses before asking anything if they still don't cover the run.
+ * What the next press of Pay now or Continue pays from the records on the rail (`listed`), in USDCx
+ * minor units: every line still due but the ones the pay queue asks about instead of paying. A
+ * payment Shield has already taken (the books hold its request id) is asked about, never sent
+ * again; one whose kept record is no longer listed, or no longer covers it, is looked for in the
+ * account's own transfers. Neither is paid from what is listed now, so neither makes the rail short
+ * (rail/queue.ts tells them apart the same way).
+ */
+export function dueFromRail(due: readonly QueuedPayment[], listed: readonly RailRecord[]): bigint {
+  const paidFromRail = (p: QueuedPayment): boolean => {
+    const s = p.settlement;
+    if (s.status === "pending" && s.reference) return false;
+    return !s.attempt || listed.some((r) => r.tag === s.attempt && r.amount >= centsToMinor(p.net));
+  };
+  return due.filter(paidFromRail).reduce((sum, p) => sum + centsToMinor(p.net), 0n);
+}
+
+/**
+ * Whether the pay panel says the rail is short for what the next press pays from it (`dueMinor`,
+ * `dueFromRail`), and holds the main button back (Pay now, or Continue once a line has been tried).
+ * Not while the last run stopped because Shield hadn't yet listed what its last payment left
+ * (`stalledWhy` is the queue's `NOT_LISTED`): the balance read just then is missing that change, so
+ * it would ask for funds that are there. The next press reads the records again, and the queue
+ * refuses before asking anything if they still don't cover the run.
  */
 export function shortOnRail(balance: bigint | null, dueMinor: bigint, stalledWhy: string | null): boolean {
   return balance !== null && balance < dueMinor && stalledWhy !== NOT_LISTED;
@@ -123,9 +150,10 @@ export function rivalPayments(
  * the books already hold as a settled payment are never found again (`claimed`). While another
  * open payment is to the same person for the same amount, a transfer known only by payee and amount
  * is found for neither (`contested`), and when that payment set aside the very record this one did,
- * the look is given no record for this one.
+ * the look is given no record for this one. The caller adds the paying account and the look's
+ * dependencies.
  */
-export function lookQuery(runs: Runs, accounts: ReadonlyMap<string, string>, runId: string, q: PaymentQuery): Omit<SentPaymentQuery, "deps"> {
+export function lookQuery(runs: Runs, accounts: ReadonlyMap<string, string>, runId: string, q: PaymentQuery): Omit<SentPaymentQuery, "deps" | "account"> {
   const rival = rivalPayments(runs, accounts, { runId, workerId: q.workerId }, q);
   return {
     to: q.to,

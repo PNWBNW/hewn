@@ -38,8 +38,6 @@ import {
   type PayQueueEvent,
   type PaymentQuery,
   type RailWallet,
-  type TokenRecord,
-  centsToMinor,
   explorerNetwork,
   fetchTokenRecords,
   formatMinorAsDollars,
@@ -55,7 +53,19 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, LOOKING, lookQuery, payAgainTarget, recordListedForPayAgain, shortOnRail, stagesAfterPress, unconfirmedLabel } from "./pay_outcome";
+import {
+  FOUND_NOTE,
+  LOOKING,
+  type RailRecord,
+  dueFromRail,
+  lookQuery,
+  payAgainTarget,
+  recordListedForPayAgain,
+  shortOnRail,
+  stagesAfterPress,
+  tagRecords,
+  unconfirmedLabel,
+} from "./pay_outcome";
 import { pickReleaser, promptSummary } from "./release";
 import { type SentRead, findSentPayment } from "./sent_payment";
 import { useShield } from "./shield";
@@ -157,7 +167,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const sendPaystub = usePaystubDelivery(wallet);
   const run = payroll.runs.find((r) => r.id === runId);
   const names = useMemo(() => new Map(payroll.workers.map((w) => [w.id, w.name])), [payroll.workers]);
-  const [records, setRecords] = useState<TokenRecord[] | null>(null);
+  const [records, setRecords] = useState<RailRecord[] | null>(null);
   const [stages, setStages] = useState<Record<string, Stage>>({});
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({});
   const [note, setNote] = useState<string | null>(null);
@@ -207,7 +217,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   useEffect(() => {
     if (!address || mismatch || loadedFor.current === address) return;
     loadedFor.current = address;
-    fetchTokenRecords(toRailWallet(wallet, address)).then(setRecords, (e: unknown) => setError(errorMessage(e)));
+    fetchTokenRecords(toRailWallet(wallet, address))
+      .then(tagRecords)
+      .then(setRecords, (e: unknown) => setError(errorMessage(e)));
   }, [address, mismatch, wallet]);
 
   if (!rail) return <FormError message="Link Shield in Settings first" />;
@@ -218,7 +230,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const everyone = run.paychecks.filter((p) => p.net > 0n); // settled ones stay on the board
   const totalDue = due.reduce((s, p) => s + p.net, 0n);
   const balance = records ? totalBalance(records) : null;
-  const short = shortOnRail(balance, centsToMinor(totalDue), stopped);
+  // Short only for what the next press pays from the rail: a payment Shield already took is asked about, and one
+  // whose kept record is gone is looked for, so neither needs funds now (pay_outcome.ts `dueFromRail`).
+  const short = shortOnRail(balance, dueFromRail(due, records ?? []), stopped);
   const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
@@ -346,13 +360,15 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       // Before a payment is called unconfirmed, it is looked for in this account's own transfers, with what the
       // books say about every other payment (lookQuery): transfers they already hold as someone's settled paycheck
       // are never found a second time, and while another open paycheck is to the same person for the same amount,
-      // one known only by payee and amount is found for neither.
+      // one known only by payee and amount is found for neither. It is told this account, so a public transfer that
+      // names another sender isn't taken for this account's payment.
       // Each person's account on the rail, payable right now or not: for telling whose a transfer could be, more is safer.
       const accounts = new Map((books.rail?.links ?? []).map((l) => [l.workerId, l.address]));
       const findPayment = (q: PaymentQuery) => {
         setStage(q.workerId, { kind: "looking" }); // no longer "Approve in Shield" while it is looked for
         return findSentPayment({
           ...lookQuery(books.payroll.runs, accounts, runId, q),
+          account: current,
           deps: {
             wallet: {
               requestRecords: (program, all) => wallet.requestRecords(program, all),
@@ -371,7 +387,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
       setStopped(stalledWhy);
       loadedFor.current = null; // re-read the balance
-      setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
+      setRecords(await fetchTokenRecords(railWallet).then(tagRecords).catch(() => records ?? []));
     } catch (e) {
       refused = true;
       setError(errorMessage(e));
