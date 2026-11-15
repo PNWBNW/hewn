@@ -3,15 +3,21 @@
 // what "pay again" leaves on it, and what the books tell the look for it
 // (sent_payment.ts) about every other payment: which transfers are already
 // some payment's settlement, and whether another open payment could own a
-// transfer it finds. Pure, so all of it is tested without a screen.
+// transfer it finds. Pure but for one read of Shield's record list, so all of
+// it is tested without a screen.
 // ---------------------------------------------------------------------------
 
 import type { PayRun, Settlement } from "@pnw/payroll";
-import { NOT_PAID, NOT_SEEN, centsToMinor } from "@pnw/rail";
+import { NOT_PAID, NOT_SEEN, type PaymentQuery, type RailWallet, centsToMinor, recordStillListed } from "@pnw/rail";
 import { transactionIdOf } from "./history_probe";
+import { SHIELD_WAIT_MS, answered } from "./review_feed";
+import type { SentPaymentQuery } from "./sent_payment";
 
 /** Added to a settled line the pay queue found in the account's own transfers instead of hearing it from Shield. */
 export const FOUND_NOTE = "found in Shield's history";
+
+/** What a line reads while the account's own transfers are looked through for it. */
+export const LOOKING = "Looking for it in Shield's history";
 
 /**
  * A line whose outcome isn't known. The pay queue's sentence leads with where it stands when it
@@ -38,6 +44,16 @@ export function payAgainTarget(was: Pick<Settlement, "attempt" | "since"> | unde
     ...(listed && was?.attempt ? { attempt: was.attempt } : {}),
     ...(was?.since !== undefined ? { since: was.since } : {}),
   };
+}
+
+/**
+ * Whether the record a payment's last try set aside is still listed, asked when the person chooses
+ * "pay again". Shield not answering in time (over the relay it answers only once its app is open),
+ * or answering with an error, counts as listed: the record is kept, which is the safe way round, and
+ * the next run finds out.
+ */
+export function recordListedForPayAgain(wallet: RailWallet, attempt: string, waitMs = SHIELD_WAIT_MS): Promise<boolean> {
+  return answered(recordStillListed(wallet, attempt), waitMs, "the records request").catch(() => true);
 }
 
 type Runs = readonly Pick<PayRun, "id" | "mode" | "paychecks">[];
@@ -76,4 +92,25 @@ export function rivalPayments(
     .flatMap((r) => r.paychecks.filter((p) => !(r.id === self.runId && p.workerId === self.workerId) && (r.id === self.runId || asked(p.settlement))))
     .filter((p) => p.settlement.status !== "settled" && p.net > 0n && links.get(p.workerId) === query.to && centsToMinor(p.net) === query.minor);
   return { contested: rivals.length > 0, sameRecord: query.attempt !== undefined && rivals.some((p) => p.settlement.attempt === query.attempt) };
+}
+
+/**
+ * What the look for one payment (sent_payment.ts) is told, from the books as they stood when the
+ * run began (`runs`; `accounts`: each person's account on the rail, payable now or not). Transfers
+ * the books already hold as a settled payment are never found again (`claimed`). While another
+ * open payment is to the same person for the same amount, a transfer known only by payee and amount
+ * is found for neither (`contested`), and when that payment set aside the very record this one did,
+ * the look is given no record for this one.
+ */
+export function lookQuery(runs: Runs, accounts: ReadonlyMap<string, string>, runId: string, q: PaymentQuery): Omit<SentPaymentQuery, "deps"> {
+  const rival = rivalPayments(runs, accounts, { runId, workerId: q.workerId }, q);
+  return {
+    to: q.to,
+    minor: q.minor,
+    ids: q.ids,
+    claimed: claimedTransfers(runs),
+    contested: rival.contested,
+    ...(q.attempt && !rival.sameRecord ? { attempt: q.attempt } : {}),
+    ...(q.since !== undefined ? { since: q.since } : {}),
+  };
 }

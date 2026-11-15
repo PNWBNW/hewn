@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { Paycheck, Settlement } from "@pnw/payroll";
 import { type RailNetwork, RailNetworkError, centsToMinor, recordTag } from "@pnw/rail";
 import { USDCX_PROGRAM } from "./balances";
-import { claimedTransfers, rivalPayments } from "./pay_outcome";
+import { lookQuery, rivalPayments } from "./pay_outcome";
 import { type SentPaymentDeps, type SentRead, findSentPayment } from "./sent_payment";
 
 const ME = "aleo1" + "m".repeat(58);
@@ -280,10 +280,8 @@ describe("findSentPayment, without the record's tag", () => {
         { recordName: "Token", spent: true, recordPlaintext: recordB, tag: chainTag(8) },
       ],
     });
-    const lookFor = (runId: string, attempt: string, since: number) => {
-      const rival = rivalPayments(runs, links, { runId, workerId: "ana" }, { to: ANA, minor, attempt });
-      return findSentPayment({ to: ANA, minor, since, claimed: claimedTransfers(runs), contested: rival.contested, ...(rival.sameRecord ? {} : { attempt }), deps: w.deps });
-    };
+    // What the pay panel tells each look (lookQuery), from these books.
+    const lookFor = (runId: string, attempt: string, since: number) => findSentPayment({ ...lookQuery(runs, links, runId, { workerId: "ana", to: ANA, minor, attempt, ids: [], since }), deps: w.deps });
     // Run A reopened first: the transfer is at or after its floor, to the same person for the same amount, and is not taken for it.
     expect(await lookFor("run-a", tagA, FLOOR)).toBe("unknown");
     // Run B: it spent the record run B set aside.
@@ -399,7 +397,7 @@ describe("findSentPayment keeps to Shield's history and the explorer", () => {
     expect(code).not.toMatch(/view_key|(?<!transition)viewkey|openOwnRecord|openRecord|@provablehq\/sdk|@pnw\/records|scanner|register|fetch\(/i);
     // And the pay panel hands it Shield and the explorer, never the books' view key.
     const panel = readFileSync(new URL("./PayPanel.tsx", import.meta.url), "utf8");
-    expect(panel).toMatch(/findSentPayment\(/);
+    expect(panel).toMatch(/findSentPayment\(\{\s*\.\.\.lookQuery\(/);
     expect(panel).not.toMatch(/view_key|(?<!transition)viewkey|openOwnRecord|scanner/i);
   });
 });
