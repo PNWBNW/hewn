@@ -10,15 +10,17 @@
 //
 // A releaser also says, before Shield is asked for anything, what it expects
 // to ask it to approve (`prompts`): one line per approval, in the order they
-// will come up, so the person can be told how many times Shield will ask and
-// for what. For the queue that is one payment per person still to pay, then
-// one paystub letter per person, which the pay panel sends once the payments
-// are done (deliver.ts). Nothing is prepared first, so there is nothing else.
+// will come up, so the person can be told about how many times Shield will
+// ask and for what. For the queue that is one payment per person still to
+// pay, then one paystub letter per person, which the pay panel sends once the
+// payments are done (deliver.ts). Nothing is prepared first, so there is
+// nothing else.
 //
-// It is what the run expects, not a promise. Shield can ask fewer times: a
-// line whose kept record has gone is looked for, not asked; a run that stops
-// part-way asks for nobody after the stop; a paystub that can't be sent yet
-// isn't asked for. It can ask more: a payment whose record went into
+// It is what the run expects, not a promise, and the note says so
+// (`promptSummary`: "about", "a few more or fewer"). Shield can ask fewer
+// times: a line whose kept record has gone is looked for, not asked; a run
+// that stops part-way asks for nobody after the stop; a paystub that can't be
+// sent yet isn't asked for. It can ask more: a payment whose record went into
 // something else before Shield spent it (money arrived and Shield combined
 // the two) and that nothing paid is asked again from a record listed now, up
 // to two more times in a run (rail/queue.ts `MAX_ASKS`).
@@ -90,12 +92,18 @@ export async function pickReleaser(others: readonly Releaser[] = []): Promise<Re
   return sequentialReleaser;
 }
 
-/** "Shield will ask you 24 times, one at a time: 12 payments, then 12 paystubs." Null when it will ask nothing. */
+/**
+ * "Shield will ask you about 24 times, one at a time (for 12 payments, then 12 paystubs), and may ask a few more or fewer."
+ * It promises no exact number: the count is what the run expects (see the header). Null when it will ask nothing.
+ */
 export function promptSummary(prompts: readonly Prompt[]): string | null {
   if (prompts.length === 0) return null;
   const parts = (["payment", "paystub"] as const)
     .map((kind) => [prompts.filter((p) => p.kind === kind).length, kind] as const)
     .filter(([count]) => count > 0)
     .map(([count, kind]) => `${count} ${kind}${count === 1 ? "" : "s"}`);
-  return `Shield will ask you ${prompts.length === 1 ? "once" : `${prompts.length} times, one at a time`}: ${parts.join(", then ")}.`;
+  const what = `for ${parts.join(", then ")}`;
+  return prompts.length === 1
+    ? `Shield will likely ask you once (${what}), and may ask more or not at all.`
+    : `Shield will ask you about ${prompts.length} times, one at a time (${what}), and may ask a few more or fewer.`;
 }
