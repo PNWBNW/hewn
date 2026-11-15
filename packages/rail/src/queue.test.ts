@@ -4,6 +4,7 @@ import { FREEZELIST_PROGRAM } from "./exclusion";
 import fixture from "./fixtures/transaction.json";
 import {
   MAX_ASKS,
+  NOTHING_ASKED,
   NOT_PAID,
   NOT_SEEN,
   type PayQueueEvent,
@@ -1472,6 +1473,36 @@ describe("runPayQueue: one step before the first payment", () => {
     expect(await recordTag(shield.calls[0]!.inputs[2]!)).toBe(w1Tag);
     expect(await recordTag(shield.calls[2]!.inputs[2]!)).toBe(w3Tag);
     expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
+  });
+
+  it("a first payment whose earlier try may still go through stays Not confirmed, with when that try ended, and says nothing was asked this time", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n)]);
+    const t1 = await recordTag(plaintextOf(centsToMinor(10_00n), "t1"));
+    const endedAt = new Date(NOON - MINUTE).toISOString();
+    const was = { status: "pending", failure: "Shield reported a problem (interrupted); the payment may still go through. Check Shield's activity before paying again.", attempt: t1, since: HEIGHT - 3, endedAt } as const;
+    const books = keeper([paycheck("w1", 1_00n, { ...was }), paycheck("w2", 1_00n)]);
+    const { result, events } = await payWith(shield, books, { beforeTransfers: async () => Promise.reject(new Error(`${WHY}.`)) });
+    expect(shield.calls).toHaveLength(0);
+    expect(result.failed).toEqual([]);
+    const said = `${NOTHING_ASKED} (${WHY}); the payment asked for before may still go through. Check Shield's activity before paying again.`;
+    expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: said }]);
+    expect(unconfirmedIn(events)).toEqual({ kind: "unconfirmed", workerId: "w1", failure: said, attempt: t1, since: HEIGHT - 3, endedAt });
+    expect(books.paychecks.map((p) => p.settlement)).toEqual([{ ...was, failure: said }, { status: "pending" }]);
+    expect(result.stalled).toMatchObject({ at: 1, of: 2 });
+
+    // A line kept just before a reload (Shield may hold the request) reads the same, from now.
+    const reloaded = new TimedShield([centsToMinor(10_00n)]);
+    const kept = keeper([paycheck("w1", 1_00n, { status: "pending", attempt: t1, since: HEIGHT - 3 })]);
+    const b = await payWith(reloaded, kept, { beforeTransfers: async () => Promise.reject(new Error(WHY)) });
+    expect(reloaded.calls).toHaveLength(0);
+    expect(b.result.unconfirmed).toEqual([{ workerId: "w1", failure: said }]);
+    expect(kept.paychecks[0]!.settlement).toEqual({ status: "pending", failure: said, attempt: t1, since: HEIGHT - 3, endedAt: new Date(NOON).toISOString() });
+
+    // Paying on, once the step lets it, spends that same record: one transfer, whichever try lands.
+    const c = await payWith(shield, books, { beforeTransfers: async () => {} });
+    expect(c.result.settled.map((s) => s.workerId)).toEqual(["w1", "w2"]);
+    expect(await recordTag(shield.calls[0]!.inputs[2]!)).toBe(t1);
+    expect(paidTimes(shield, crew(2))).toEqual([1, 1]);
   });
 
   it("it isn't run when no payment is asked for: one only asked about, a run refused before Shield, a first record that couldn't be kept", async () => {
