@@ -114,6 +114,9 @@ describe("lookupAddress", () => {
     const count = async () => (asked++, null);
     const r = reads({ employerName: count, workerName: count, nameOwner: count });
     await expect(lookupAddress("aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc", r)).rejects.toThrow(DirectoryError);
+    // It is a whole account, so it is refused for what it is, not as one typed short.
+    await expect(lookupAddress("aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc", r)).rejects.toThrow("That account isn't a person's or a business's");
+    await expect(lookup(" aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc ", "hewn", r)).rejects.toThrow("That account isn't a person's or a business's");
     expect(asked).toBe(0);
   });
 
