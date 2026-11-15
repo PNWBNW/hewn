@@ -22,26 +22,36 @@
 // overlaps its own. That is decided once, from the markers before it, so a
 // marker listed later never changes it. A marker that came second decides
 // nothing: the device that sent it pays nothing from it, its lines are not
-// live, and the records it replaces are not given up. That includes a record
-// one of its lines names from a try made before it was sent: no other device
-// is told of it, so only a copy of the books that holds it as the payment's
-// attempt keeps to it. A line is live when its marker stands and no line of a
-// standing marker replaces it. For a payment, the lines against it
-// are the ones to the same payee over a period that overlaps its own
-// (`decideLines`):
+// live (their amounts count for nothing), and the records it replaces are not
+// given up. That includes a record one of its lines names from a try made
+// before it was sent: no other device is told of it, so only a copy of the
+// books that holds it as the payment's attempt keeps to it. A line is live
+// when its marker stands and no line of a standing marker replaces it. For a
+// payment, the lines against it are the live ones to the same payee over a
+// period that overlaps its own (`decideLines`):
 //
 //   - none: the payment is fresh, and is marked before it is asked for;
-//   - any at another amount, even one whose marker came second: refused.
-//     The same person is already being paid something else for that period,
-//     or the books on two devices disagree about what;
-//   - else the earliest live one decides. If it names a record, only that
-//     record pays this payment, on any device, so the network lets one
-//     transfer through; a payment already holding a different record is
-//     refused. If it names none, it is a later line of a chained run: the
-//     device that sent the marker goes on with it, and any other device
-//     leaves it alone (it is in progress elsewhere), to be settled only by
-//     looking for the payment itself. When no line against it is live (each
-//     one's marker came second), the payment is fresh.
+//   - any at another amount: refused. The same person is already being paid
+//     something else for that period;
+//   - else the earliest decides. If it names a record, only that record pays
+//     this payment, on any device, so the network lets one transfer through;
+//     a payment already holding a different record is refused. If it names
+//     none, it is a later line of a chained run: the device that sent the
+//     marker goes on with it, and any other device leaves it alone (it is in
+//     progress elsewhere), to be settled only by looking for the payment
+//     itself.
+//
+// So when the books on two devices put one person's pay for one period at
+// two amounts, the first note's amount wins (2026-11-15): the line of the
+// marker that stands is the payment, at its amount, and the device that sent
+// it goes on with it as if the other note weren't there. Every line of the
+// marker that came second, for that person and period, stands down and never
+// pays: a device whose books hold the other amount is refused
+// ("other-amount": another device is paying this person for this period at
+// another amount), and the record that line names pays nothing. Another
+// device takes the payment over only as the rules above allow, so only at the
+// first note's amount and only from its record. The person is paid at most
+// once.
 //
 // A payment is matched by payee, period and amount, so two payments to one
 // account over one period are not told apart: both read the same lines. A
@@ -133,8 +143,9 @@ export type LineDecision =
   | { workerId: string; kind: "elsewhere"; marker: string; since: number; start?: string }
   /**
    * Not paid from here. "other-amount": a live line pays the same payee another amount for a period
-   * that overlaps this one. "other-record": the earliest line names a record, and this payment
-   * already holds a different one.
+   * that overlaps this one: another run for those days, or another device whose marker came first
+   * at its amount. "other-record": the earliest line names a record, and this payment already holds
+   * a different one.
    */
   | { workerId: string; kind: "refused"; why: "other-amount" | "other-record" };
 
@@ -243,10 +254,10 @@ const replacedIn = (marker: RunMarker): string[] => marker.lines.flatMap((line) 
  * its own) for one of its payees over a period that overlaps its own. Nothing listed after a marker
  * changes its verdict.
  *
- * `lines`: every line of every marker read, earliest marker first and in each marker's own order,
- * less those a line of a standing marker replaces; the lines of a marker that came second are among
- * them, for their amounts. `second`: the ids of the markers that came second. `replacedBy`: for each
- * record a standing marker gave up, the record its replacing line names, if it names one.
+ * `lines`: the live lines, the lines of every marker that stands, earliest marker first and in each
+ * marker's own order, less those a line of a standing marker replaces. A marker that came second has
+ * none among them. `second`: the ids of the markers that came second. `replacedBy`: for each record a
+ * standing marker gave up, the record its replacing line names, if it names one.
  */
 function readMarkers(listed: readonly ListedMarker[]): { lines: LiveLine[]; second: Set<string>; replacedBy: Map<string, string | undefined>; markers: ListedMarker[] } {
   const markers: ListedMarker[] = [];
@@ -268,7 +279,7 @@ function readMarkers(listed: readonly ListedMarker[]): { lines: LiveLine[]; seco
     for (const line of l.marker.lines) if (line.replaces !== undefined && !replacedBy.has(line.replaces)) replacedBy.set(line.replaces, line.tag);
     standing.push(...linesOf(l));
   }
-  return { lines: markers.flatMap(linesOf).filter((line) => live(line)), second, replacedBy, markers };
+  return { lines: markers.flatMap(linesOf).filter((line) => !second.has(line.marker) && live(line)), second, replacedBy, markers };
 }
 
 /**
@@ -276,8 +287,7 @@ function readMarkers(listed: readonly ListedMarker[]): { lines: LiveLine[]; seco
  * replaces: earliest marker first, in each marker's own order.
  */
 export function liveLines(listed: readonly ListedMarker[]): LiveLine[] {
-  const { lines, second } = readMarkers(listed);
-  return lines.filter((line) => !second.has(line.marker));
+  return readMarkers(listed).lines;
 }
 
 // ---- What a device does with each payment -----------------------------------------------
@@ -287,7 +297,7 @@ export function liveLines(listed: readonly ListedMarker[]): LiveLine[] {
  * file). `own`: the ids of the markers this device sent itself.
  */
 export function decideLines(listed: readonly ListedMarker[], payments: readonly MarkedPayment[], own: Iterable<string> = []): LineDecision[] {
-  const { lines, second, replacedBy, markers } = readMarkers(listed);
+  const { lines, replacedBy, markers } = readMarkers(listed);
   const mine = new Set(own);
   /** The record a marker's chained run spends first: the one it started from, followed through any line that took its place. */
   const startOf = (id: string): string | undefined => {
@@ -301,11 +311,11 @@ export function decideLines(listed: readonly ListedMarker[], payments: readonly 
   };
   return payments.map((p): LineDecision => {
     const { workerId } = p;
-    // The lines to this payee over a period that overlaps this one, less the record the person chose to pay again from.
+    // The live lines to this payee over a period that overlaps this one, less the record the person chose to pay again from.
+    // A line whose marker came second is not among them, so its amount never counts against the first.
     const against = lines.filter((l) => l.to === p.to && overlaps(l, p) && !(l.tag !== undefined && l.tag === p.replaces));
     if (against.some((l) => l.minor !== p.minor)) return { workerId, kind: "refused", why: "other-amount" };
-    // A line whose marker came second decides nothing: the device that sent it paid nothing from it.
-    const first = against.find((l) => !second.has(l.marker));
+    const first = against[0];
     if (!first) return { workerId, kind: "fresh" };
     const at = { marker: first.marker, since: first.height };
     if (first.tag !== undefined) {

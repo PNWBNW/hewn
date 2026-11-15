@@ -7,8 +7,8 @@
 // is what it looks like). Opened from the pay runs list right after a rail
 // run posts, and again from Continue / Retry.
 //
-// Shield has one prompt open at a time. Before the first, the panel says how
-// many times Shield will ask (release.ts `promptSummary`); while a payment's
+// Shield has one prompt open at a time. Before the first, the panel says about
+// how many times Shield will ask (release.ts `promptSummary`); while a payment's
 // prompt is open, its line shows the payee's full account and the amount in
 // millionths of a dollar, the two things Shield's own screen gives for it. A
 // payment that doesn't settle stops the run there: the people after it wait,
@@ -335,7 +335,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
         ...within,
         markers: markerDesk({ wallet, address: current, username: username ?? "", seal }),
         deliver,
-        // First, how many times Shield will ask.
+        // First, about how many times Shield will ask.
         onPrompts: (prompts) => setNote(promptSummary(prompts)),
         onEvent,
         // No longer "Approve in Shield" while the account's own transfers are looked through for it.

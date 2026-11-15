@@ -205,8 +205,8 @@ describe("decideLines", () => {
 
   it("another amount for a marked period is refused", () => {
     expect(decideLines([phone], [payment("w1", ADDR(1), 501n)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-amount" }]);
-    // Even when a line at this amount is listed too, earlier or later.
-    const same = listed(marker(2, [{ to: ADDR(1), minor: 501n, tag: TAG(2) }]), 50);
+    // A note at this amount accepted after the phone's changes nothing: it came second (more below).
+    const same = listed(marker(2, [{ to: ADDR(1), minor: 501n, tag: TAG(2) }]), 150);
     expect(decideLines([phone, same], [payment("w1", ADDR(1), 501n)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-amount" }]);
   });
 
@@ -383,15 +383,6 @@ describe("beaten", () => {
     ]);
   });
 
-  it("at another amount, a marker that came second still refuses that payment on every device", () => {
-    // The amount is still in doubt between the two devices' books: neither pays it from here.
-    const won = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }]), 100);
-    const stoodDown = listed(marker(2, [{ to: ADDR(1), minor: 600n, tag: TAG(2) }]), 101);
-    expect(beaten([won, stoodDown], ID(2))).toBe(true);
-    expect(decideLines([won, stoodDown], [payment("w1", ADDR(1), 500n, { attempt: TAG(1) })], [ID(1)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-amount" }]);
-    expect(decideLines([won, stoodDown], [payment("w1", ADDR(1), 600n)], [ID(2)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-amount" }]);
-  });
-
   it("a run of more payments than one marker holds is marked in several, and none comes second to another", () => {
     // Accounts beyond the fixtures' ten, each in the address alphabet.
     const account = (n: number) => `aleo1run${String(n)
@@ -411,5 +402,122 @@ describe("beaten", () => {
     const there = decideLines(parts, payments);
     expect(there[0]).toEqual({ workerId: "w0", kind: "resume", marker: ID(1), since: 100, tag: TAG(1) });
     expect(there.slice(1).map((d) => d.kind)).toEqual(lines.slice(1).map(() => "elsewhere"));
+  });
+});
+
+// ---- Two notes for one person and period at two amounts ----------------------------------
+
+describe("two devices' notes at two amounts for one person and period: the first note's amount wins", () => {
+  // The phone's books put the person's pay at 500, the laptop's at 600; the phone's note was accepted first.
+  const first = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(2), minor: 700n }]), 100, 1);
+  const later = listed(marker(2, [{ to: ADDR(1), minor: 600n, tag: TAG(2) }, { to: ADDR(2), minor: 750n }, { to: ADDR(3), minor: 900n }]), 101, 2);
+  const third = listed(marker(3, [{ to: ADDR(1), minor: 700n, tag: TAG(3) }]), 102, 3);
+  const both = [first, later];
+  const resumeFirst = { workerId: "w1", kind: "resume", marker: ID(1), since: 100, tag: TAG(1) };
+  const otherAmount = { workerId: "w1", kind: "refused", why: "other-amount" };
+
+  it("the device whose note came first pays at its amount, on its record, and isn't refused because of the later note", () => {
+    expect(beaten(both, ID(1))).toBe(false);
+    expect(decideLines(both, [payment("w1", ADDR(1), 500n, { attempt: TAG(1) }), payment("w2", ADDR(2), 700n)], [ID(1)])).toEqual([
+      resumeFirst,
+      { workerId: "w2", kind: "resume", marker: ID(1), since: 100 }, // a later line of its chained run, too
+    ]);
+    // The later note's amounts and record are no lines at all.
+    expect(liveLines(both).map((l) => [l.to, l.minor, l.tag])).toEqual([
+      [ADDR(1), 500n, TAG(1)],
+      [ADDR(2), 700n, undefined],
+    ]);
+  });
+
+  it("the device whose note came second never pays that person for that period: not at its amount, any other, or from its record", () => {
+    expect(beaten(both, ID(2))).toBe(true);
+    for (const minor of [600n, 1n, 499n, 501n, 700n, 10_000n]) {
+      for (const more of [{}, { attempt: TAG(2) }, { replaces: TAG(2) }, { attempt: TAG(9), replaces: TAG(2) }]) {
+        expect(decideLines(both, [payment("w1", ADDR(1), minor, more)], [ID(2)])).toEqual([otherAmount]);
+      }
+    }
+    // A later line of the first note's chained run: the same.
+    expect(decideLines(both, [payment("w2", ADDR(2), 750n)], [ID(2)])).toEqual([{ workerId: "w2", kind: "refused", why: "other-amount" }]);
+    // Its books brought round to the first note's amount, the record it set aside still never pays.
+    expect(decideLines(both, [payment("w1", ADDR(1), 500n, { attempt: TAG(2) })], [ID(2)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-record" }]);
+    // Holding no record for it, it can only go on with the first note's payment: that note's record, at that note's amount.
+    expect(decideLines(both, [payment("w1", ADDR(1), 500n)], [ID(2)])).toEqual([resumeFirst]);
+    // Its note decides nothing for anyone else in it either: the next run marks them afresh.
+    expect(decideLines(both, [payment("w3", ADDR(3), 900n)], [ID(2)])).toEqual([{ workerId: "w3", kind: "fresh" }]);
+  });
+
+  it("any other device takes over only the first note's payment, at its amount, on its record", () => {
+    expect(decideLines(both, [payment("w1", ADDR(1), 500n)])).toEqual([resumeFirst]);
+    expect(decideLines(both, [payment("w2", ADDR(2), 700n)])).toEqual([{ workerId: "w2", kind: "elsewhere", marker: ID(1), since: 100, start: TAG(1) }]);
+    expect(decideLines(both, [payment("w1", ADDR(1), 600n)])).toEqual([otherAmount]);
+    expect(decideLines(both, [payment("w1", ADDR(1), 600n, { attempt: TAG(2) })])).toEqual([otherAmount]);
+    expect(decideLines(both, [payment("w1", ADDR(1), 500n, { attempt: TAG(2) })])).toEqual([{ workerId: "w1", kind: "refused", why: "other-record" }]);
+  });
+
+  it("at one amount, nothing changes: the first note's record pays it, and the later note's record never does", () => {
+    const same = listed(marker(2, [{ to: ADDR(1), minor: 500n, tag: TAG(2) }]), 101, 2);
+    expect(beaten([first, same], ID(2))).toBe(true);
+    expect(decideLines([first, same], [payment("w1", ADDR(1), 500n, { attempt: TAG(1) })], [ID(1)])).toEqual([resumeFirst]);
+    expect(decideLines([first, same], [payment("w1", ADDR(1), 500n, { attempt: TAG(2) })], [ID(2)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-record" }]);
+    expect(decideLines([first, same], [payment("w1", ADDR(1), 500n)], [ID(2)])).toEqual([resumeFirst]);
+  });
+
+  it("three notes: the first one's amount wins, and both later ones stand down", () => {
+    const all = [first, later, third];
+    expect(all.map((l) => beaten(all, l.marker.id))).toEqual([false, true, true]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n, { attempt: TAG(1) })], [ID(1)])).toEqual([resumeFirst]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 600n, { attempt: TAG(2) })], [ID(2)])).toEqual([otherAmount]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 700n, { attempt: TAG(3) })], [ID(3)])).toEqual([otherAmount]);
+    // A third note at the first note's amount reads as one at the same amount.
+    const echo = listed(marker(3, [{ to: ADDR(1), minor: 500n, tag: TAG(3) }]), 102, 3);
+    expect(decideLines([first, later, echo], [payment("w1", ADDR(1), 500n, { attempt: TAG(3) })], [ID(3)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-record" }]);
+    expect(decideLines([first, later, echo], [payment("w1", ADDR(1), 500n)], [ID(3)])).toEqual([resumeFirst]);
+  });
+
+  it("once the first note's payment is asked again from another record, the later note's amount still counts for nothing", () => {
+    const again = listed(marker(4, [{ to: ADDR(1), minor: 500n, tag: TAG(4), replaces: TAG(1) }]), 150, 4);
+    const all = [first, later, again];
+    expect(all.map((l) => beaten(all, l.marker.id))).toEqual([false, true, false]);
+    const resumeAgain = { workerId: "w1", kind: "resume", marker: ID(4), since: 150, tag: TAG(4) };
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n, { attempt: TAG(4) })], [ID(1), ID(4)])).toEqual([resumeAgain]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n)])).toEqual([resumeAgain]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 600n, { attempt: TAG(2) })], [ID(2)])).toEqual([otherAmount]);
+  });
+
+  it("the order the notes are listed in changes nothing: the order they were accepted in decides", () => {
+    const asked: [MarkedPayment, string[]][] = [
+      [payment("w1", ADDR(1), 500n, { attempt: TAG(1) }), [ID(1)]],
+      [payment("w1", ADDR(1), 600n, { attempt: TAG(2) }), [ID(2)]],
+      [payment("w1", ADDR(1), 700n, { attempt: TAG(3) }), [ID(3)]],
+      [payment("w1", ADDR(1), 500n), []],
+      [payment("w2", ADDR(2), 750n), [ID(2)]],
+    ];
+    const orders = [
+      [first, later, third],
+      [first, third, later],
+      [later, first, third],
+      [later, third, first],
+      [third, first, later],
+      [third, later, first],
+    ];
+    for (const order of orders) {
+      expect(order.map((l) => beaten(order, l.marker.id))).toEqual(order.map((l) => l !== first));
+      expect(asked.map(([p, own]) => decideLines(order, [p], own)[0])).toEqual([
+        resumeFirst,
+        otherAmount,
+        otherAmount,
+        resumeFirst,
+        { workerId: "w2", kind: "refused", why: "other-amount" },
+      ]);
+    }
+    // In one block, the lower transaction id is the earlier: there the laptop's note comes first, and its amount wins.
+    const sameBlock = { ...later, height: 100, txId: TX(0) };
+    for (const order of [
+      [first, sameBlock],
+      [sameBlock, first],
+    ]) {
+      expect(decideLines(order, [payment("w1", ADDR(1), 600n, { attempt: TAG(2) })], [ID(2)])).toEqual([{ workerId: "w1", kind: "resume", marker: ID(2), since: 100, tag: TAG(2) }]);
+      expect(decideLines(order, [payment("w1", ADDR(1), 500n, { attempt: TAG(1) })], [ID(1)])).toEqual([otherAmount]);
+    }
   });
 });

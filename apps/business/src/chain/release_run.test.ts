@@ -274,7 +274,9 @@ describe("the run's marker", () => {
     expect(shield.calls[0]).toMatchObject({ program: LETTERS_PROGRAM, function: SEND_FUNCTION });
     expect(shield.calls[0]!.inputs[0]).toBe(chain.address);
     expect(shield.approvals).toBe(25);
-    expect(promptSummary(said as Parameters<typeof promptSummary>[0])).toBe("Shield will ask you 25 times, one at a time: 1 note to your own account, then 12 payments, then 12 paystubs.");
+    expect(promptSummary(said as Parameters<typeof promptSummary>[0])).toBe(
+      "Shield will ask you about 25 times, one at a time (for 1 note to your own account, then 12 payments, then 12 paystubs), and may ask a few more or fewer.",
+    );
     expect(paidEach(chain, start)).toEqual(Array<number>(12).fill(1));
   });
 
