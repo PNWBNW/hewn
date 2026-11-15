@@ -28,15 +28,17 @@
 //   found    a transfer to that payee for exactly that amount, accepted, that
 //            the books don't already hold: the one that spent the record the
 //            payment set aside, or the request's own transaction, or else the
-//            earliest at or after the height the payment was first asked at.
-//            That last one is known by payee and amount alone, so it is never
-//            found while another open payment in the books is to the same
-//            payee for the same amount (`contested`): it could be either's;
+//            earliest from this account at or after the height the payment was
+//            first asked at. That last one is known by payee and amount alone,
+//            so it is never found while another open payment in the books is
+//            to the same payee for the same amount (`contested`), and only when
+//            it shows it was sent by this account: opened with Shield's view
+//            key, or naming this account as its sender;
 //   none     the record the payment set aside was spent by something that is
-//            not a payment to them (records combined, a split, another
-//            transfer), no transfer since has paid them that amount, and
-//            nothing since was left unread. Said only with the record's tag in
-//            hand;
+//            not a payment to them (records combined, a split, a transfer to
+//            someone else), nothing since has paid them anything that could be
+//            this account's, and nothing since was left unread. Said only with
+//            the record's tag in hand;
 //   unknown  anything short of either.
 //
 // A wrong "found" would leave someone unpaid and a wrong "none" would invite a
@@ -49,6 +51,15 @@ import { USDCX_PROGRAM } from "./balances";
 import { newestFirst, transactionIdOf } from "./history_probe";
 import { type FeedWallet, SHIELD_WAIT_MS, answered, readTransfer } from "./review_feed";
 
+/**
+ * One payment in a transaction. `from`, the account it was paid from: left out when Shield's view
+ * key opened it (only the account that sent it can open it, so it is this account's own); the
+ * sender its own public data names (a public transfer's finalize arguments); or null when its
+ * public data names none (a private record paid out publicly). Never the fee's payer: Shield may
+ * pay the fee from its own account.
+ */
+export type Pay = { to: string; minor: bigint; from?: string | null };
+
 /** What one transaction turned out to be, once read from the explorer. */
 export type SentRead =
   /**
@@ -57,7 +68,7 @@ export type SentRead =
    * couldn't be read as one payment to one account (someone else's private transfer, as a rule);
    * `retry`: because Shield didn't answer for its view keys, so the next look asks again.
    */
-  | { kind: "transfer"; id: string; height?: number; pays: { to: string; minor: bigint }[]; sealed: boolean; retry?: true; spent: string[] }
+  | { kind: "transfer"; id: string; height?: number; pays: Pay[]; sealed: boolean; retry?: true; spent: string[] }
   /** Accepted, and moving USDCx to no one: records combined or split, or no USDCx at all. */
   | { kind: "other"; id: string; spent: string[] }
   /** The network rejected it: nothing moved. */
@@ -84,6 +95,8 @@ export type SentPaymentDeps = {
 };
 
 export type SentPaymentQuery = {
+  /** The linked account, the one paying: a transfer whose public data names another sender isn't its payment. */
+  account: string;
   /** The payee's account. */
   to: string;
   /** USDCx minor units. */
@@ -122,16 +135,18 @@ const isTransfer = (t: Obj): boolean => typeof t.function === "string" && t.func
 
 /**
  * Who one USDCx transition paid and how much, when its readable inputs say so plainly: a transfer
- * (private, public, or between the two) naming exactly one account and an amount. Anything else,
- * two accounts among its inputs or a function that isn't a transfer, is null: it can't be read as
- * one payment to one account.
+ * (private, public, or between the two) naming exactly one account and an amount, with the sender
+ * its finalize arguments name, if any. Anything else is null: it can't be read as one payment to
+ * one account. That includes two accounts among its inputs, a function that isn't a transfer, and a
+ * transfer made from another account's public balance under an allowance (`transfer_from_…`), whose
+ * first account is the one paying, not the one paid.
  */
-function payOf(t: Obj): { to: string; minor: bigint } | null {
-  if (!isTransfer(t)) return null;
+function payOf(t: Obj): Pay | null {
+  if (!isTransfer(t) || (t.function as string).startsWith("transfer_from")) return null;
   const read = readTransfer(t, null);
   if (read.to === null || read.minor === null) return null;
   const values = (Array.isArray(t.inputs) ? t.inputs.filter(isObj) : []).flatMap((i) => (typeof i.value === "string" ? [i.value.trim().replace(/\.(private|public)$/, "")] : []));
-  return new Set(values.filter((v) => ACCOUNT.test(v))).size === 1 ? { to: read.to, minor: read.minor } : null;
+  return new Set(values.filter((v) => ACCOUNT.test(v))).size === 1 ? { to: read.to, minor: read.minor, from: read.from } : null;
 }
 
 /** The tag the chain gave the record the payment set aside, when Shield's record list carries one for it. */
@@ -173,7 +188,7 @@ async function readOne(id: string, deps: SentPaymentDeps, wait: number): Promise
   const transfers = transitions.filter((t) => t.program === USDCX_PROGRAM && !(typeof t.function === "string" && NO_PAYEE.has(t.function)));
   if (transfers.length === 0) return { kind: "other", id, spent };
 
-  const pays: { to: string; minor: bigint }[] = [];
+  const pays: Pay[] = [];
   let sealed = false;
   let keys: string[] | null = null;
   let unanswered = false;
@@ -185,8 +200,11 @@ async function readOne(id: string, deps: SentPaymentDeps, wait: number): Promise
       for (const tvk of keys) {
         const opened = await deps.decrypt(t, tvk).catch(() => null);
         if (!isObj(opened)) continue;
-        read = payOf(opened);
-        if (read) break;
+        const pay = payOf(opened);
+        if (pay) {
+          read = { to: pay.to, minor: pay.minor }; // opened: this account's own
+          break;
+        }
       }
     }
     if (read) pays.push(read);
@@ -214,22 +232,27 @@ function shared<T>(cache: Map<string, SentRead>, key: string, start: () => Promi
 
 /**
  * Looks for one payment in the account's own sent transfers. Never throws: what can't be read makes
- * the answer "unknown", and so does a look still going after `deadlineMs`.
+ * the answer "unknown", and so does a look still going after `deadlineMs`, which then reads and asks
+ * Shield for nothing more.
  */
 export async function findSentPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const halt = { late: false };
   const late = new Promise<"unknown">((resolve) => {
-    timer = setTimeout(() => resolve("unknown"), query.deps.deadlineMs ?? LOOK_DEADLINE_MS);
+    timer = setTimeout(() => {
+      halt.late = true;
+      resolve("unknown");
+    }, query.deps.deadlineMs ?? LOOK_DEADLINE_MS);
   });
   try {
-    return await Promise.race([lookForPayment(query).catch(() => "unknown" as const), late]);
+    return await Promise.race([lookForPayment(query, halt).catch(() => "unknown" as const), late]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function lookForPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
-  const { to, minor, attempt, since, claimed, contested, deps } = query;
+async function lookForPayment(query: SentPaymentQuery, halt: { late: boolean }): Promise<PaymentLookup> {
+  const { account, to, minor, attempt, since, claimed, contested, deps } = query;
   const wait = deps.shieldWaitMs ?? SHIELD_WAIT_MS;
   const cache = deps.cache ?? new Map<string, SentRead>();
 
@@ -257,6 +280,7 @@ async function lookForPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
   const reads: SentRead[] = [];
   let budget = deps.maxReads ?? MAX_READS;
   for (const id of new Set([...own, ...listed])) {
+    if (halt.late) return "unknown"; // the look has answered already: nothing more is read
     if (claimed.has(id)) continue; // already some payment's settlement in the books
     let read = cache.get(id) ?? null;
     if (!read) {
@@ -285,25 +309,39 @@ async function lookForPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
     reads.push(read);
   }
 
-  const paid = (r: SentRead): boolean => r.kind === "transfer" && r.pays.some((p) => p.to === to && p.minor === minor);
+  // Whose money a payment moved: this account's when Shield's view key opened it or it names this
+  // account as its sender; another's when it names another; unknown when it names none.
+  const whose = (p: Pay): "mine" | "other" | "unknown" => (p.from === undefined || p.from === account ? "mine" : p.from === null ? "unknown" : "other");
+  // Its payments to them, any amount, but for those plainly from another account: those aren't this account's.
+  const toThem = (r: SentRead): Pay[] => (r.kind === "transfer" ? r.pays.filter((p) => p.to === to && whose(p) !== "other") : []);
+  // Paid them exactly this amount from this account. `known`: the transaction is already known to be
+  // this account's (it spent the record the payment set aside, or it is the request's own), so a
+  // payment in it that names no sender is this account's too.
+  const paid = (r: SentRead, known = false): boolean => toThem(r).some((p) => p.minor === minor && (known || whose(p) === "mine"));
+  // Could be a payment to them that isn't read in full: one in it couldn't be read, or it paid them
+  // another amount, or from an account it doesn't name.
+  const unsure = (r: SentRead): boolean => r.kind === "transfer" && (r.sealed || toThem(r).length > 0);
 
   // a. The transaction that spent the record the payment set aside: if it paid them, that is the payment.
   const spender = tag ? reads.find((r) => r.kind !== "rejected" && r.spent.includes(tag)) : undefined;
-  if (spender && paid(spender)) return { found: spender.id };
+  if (spender && paid(spender, true)) return { found: spender.id };
 
   // b. The request's own transaction, under either of its ids.
-  const request = reads.find((r) => own.includes(r.id) && paid(r));
+  const request = reads.find((r) => own.includes(r.id) && paid(r, true));
   if (request) return { found: request.id };
 
-  // c. Any other transfer that paid them this amount, in a block at or after the one the payment was
-  //    first asked at: the earliest. One that could be it but can't be placed or opened leaves doubt,
-  //    and so does one that could as well be another open payment's (`contested`).
+  // c. Any other transfer from this account that paid them this amount, in a block at or after the one
+  //    the payment was first asked at: the earliest. One that could be it but can't be placed, opened or
+  //    told to be from this account leaves doubt, and so does any other payment to them since then (it
+  //    may hold this one, with something else added), and one that could as well be another open
+  //    payment's (`contested`).
   let doubt = false;
   let earliest: { id: string; height: number } | null = null;
   for (const r of reads) {
-    if (r.kind !== "transfer" || !(paid(r) || r.sealed)) continue;
+    if (r.kind !== "transfer" || !unsure(r)) continue;
+    if (halt.late) return "unknown";
     if (since === undefined) {
-      doubt = true; // no floor: it can't be told from an older payment of the same amount
+      doubt = true; // no floor: it can't be told from an older payment
       continue;
     }
     if (r.height === undefined) {
@@ -312,13 +350,13 @@ async function lookForPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
     }
     if (r.height === undefined) doubt = true;
     else if (r.height < since) continue; // older than this payment
-    else if (!paid(r)) doubt = true; // since the floor, and Shield couldn't open it
+    else if (!paid(r)) doubt = true; // since the floor: unopened, another amount, or from an account it doesn't name
     else if (!earliest || r.height < earliest.height) earliest = { id: r.id, height: r.height };
   }
   if (earliest && !contested) return { found: earliest.id };
   if (earliest) doubt = true;
 
   // d. Not paid: its record went into something that isn't a payment to them, and nothing was left unread.
-  const elsewhere = spender !== undefined && !(spender.kind === "transfer" && spender.sealed);
+  const elsewhere = spender !== undefined && !unsure(spender);
   return elsewhere && whole && !doubt ? "none" : "unknown";
 }
