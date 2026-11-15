@@ -12,10 +12,11 @@ export const STAY_NOTE =
 /**
  * Said on the front page when Log out couldn't forget "stay logged in" on this device (the delete
  * was refused, or the session was still there after it): the person isn't left to think the books
- * are closed here when a reload would open them.
+ * are closed here when a reload would open them. It never suggests clearing the site's data: that
+ * deletes the books on the device too.
  */
 export const STILL_REMEMBERED_NOTE =
-  "Log out couldn't make this device forget your login, so your books may still open here without your passphrase. Log in and log out again. If you see this again, clear this site's data in your browser.";
+  "Log out couldn't make this device forget your login, so your books may still open here without your passphrase. Log in and log out again. If you see this again, close this site's other tabs and windows first.";
 
 /**
  * The "stay logged in" tick box: the same wherever books are opened (log in, setup, restoring a

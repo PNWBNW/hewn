@@ -386,7 +386,8 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const open = useCallback(
     async (s: VaultSession, stay: boolean) => {
       await show(s);
-      // A Log out still under way ends first, so its delete can't take this login's remembered session.
+      // A Log out still under way ends first, so its delete can't take this login's remembered
+      // session. One that gave up after 8 seconds may still take it: then this login just isn't remembered.
       await forgetting.current;
       setStillRemembered(false);
       if (stay) {

@@ -43,7 +43,8 @@ describe("stay logged in", () => {
     // The delete is started, its outcome awaited and kept: never fired and left.
     expect(lock).toContain("const gone = withinTime(forgetSession(store), STARTUP_WAIT_MS).catch(() => false);");
     expect(lock).toContain("const forgotten = await gone;");
-    expect(lock).toContain("setStillRemembered(!forgotten)");
+    // Only the latest Log out sets what the front page says.
+    expect(lock).toContain("if (forgetting.current === gone) setStillRemembered(!forgotten);");
     expect(provider).not.toMatch(/void forgetSession/);
     // The key and the books leave memory before the wait, not after it.
     expect(lock.indexOf("session.current?.lock();")).toBeGreaterThan(0);
@@ -52,6 +53,7 @@ describe("stay logged in", () => {
     const open = provider.slice(provider.indexOf("const open = useCallback("), provider.indexOf("// On load: reopen books kept open"));
     expect(open.indexOf("await forgetting.current;")).toBeGreaterThan(0);
     expect(open.indexOf("await forgetting.current;")).toBeLessThan(open.indexOf("s.remember(store, until)"));
+    expect(open.indexOf("setStillRemembered(false);")).toBeGreaterThan(open.indexOf("await forgetting.current;"));
 
     expect(read("books/BooksGate.tsx")).toContain("stillRemembered={stillRemembered}");
     expect(read("books/FrontPage.tsx")).toContain("{stillRemembered && (");
@@ -60,6 +62,8 @@ describe("stay logged in", () => {
     expect(html).toContain('role="alert"');
     expect(STILL_REMEMBERED_NOTE).toMatch(/couldn't make this device forget your login/);
     expect(STILL_REMEMBERED_NOTE).toMatch(/without your passphrase/);
-    expect(STILL_REMEMBERED_NOTE).toMatch(/clear this site's data/);
+    expect(STILL_REMEMBERED_NOTE).toMatch(/close this site's other tabs/);
+    // Clearing the site's data would delete the books on the device as well: never suggested.
+    expect(STILL_REMEMBERED_NOTE).not.toMatch(/clear|delete|uninstall/i);
   });
 });
