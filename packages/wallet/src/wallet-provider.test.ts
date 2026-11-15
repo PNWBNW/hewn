@@ -1,8 +1,16 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PROGRAMS } from "@pnw/config/programs";
+
+// The wrapper calls useMemo; outside a render it simply runs the factory.
+vi.mock("react", async (original) => ({
+  ...(await original<typeof import("react")>()),
+  useMemo: <T,>(make: () => T) => make(),
+}));
+
 import {
+  AleoWalletProviderWrapper,
   SHIELD_APP_URL,
   SHIELD_OPEN_URL,
   SHIELD_RELAY_DEFAULT,
@@ -37,10 +45,14 @@ describe("WALLET_PROGRAMS, the programs Shield is asked to allow at connect", ()
     expect(at(layer1.employer_agreement_v5)).toBeLessThan(at(credentials.hewn_credentials));
   });
 
-  it("is the same array on every import, so the provider never sees the list change", async () => {
-    // The React provider disconnects whenever its `programs` array changes identity.
-    const again = await import("./wallet-provider");
-    expect(again.WALLET_PROGRAMS).toBe(WALLET_PROGRAMS);
+  it("reaches the provider as the same array at every render, so it never sees the list change", () => {
+    // The React provider disconnects whenever its `programs` array changes identity. The wrapper
+    // is called as a render would call it (useMemo stood in for above); what it returns is the
+    // provider's element, with the props the provider would get.
+    const programsOf = () => (AleoWalletProviderWrapper({ children: null }) as { props: { programs: unknown } }).props.programs;
+    const first = programsOf();
+    expect(first).toBe(WALLET_PROGRAMS);
+    expect(programsOf()).toBe(first);
   });
 });
 

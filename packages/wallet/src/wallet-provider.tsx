@@ -32,7 +32,7 @@ const { layer1, layer2, external } = PROGRAMS;
  *
  * It is one module constant on purpose: the React provider disconnects whenever its
  * `programs` array changes identity. Changing the list changes the grant Shield
- * remembers, so after a release that does, people connect Hewn in Shield once more.
+ * remembers, so after a release that does, people connect this app in Shield once more.
  */
 export const WALLET_PROGRAMS: string[] = [
   "credits.aleo",
