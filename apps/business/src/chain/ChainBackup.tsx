@@ -23,7 +23,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { markBackedUp } from "@/books/backup_reminder";
-import { noteProgress } from "@/books/idle_lock";
+import { afterStep, noteProgress } from "@/books/idle_lock";
 import { shortAddress } from "@/books/rail";
 import { type BackupPlan, planBackup } from "./books_backup";
 import { useLetters } from "./letter_reader";
@@ -96,9 +96,11 @@ function Backup() {
         setStep({ kind: "sending", plan: p, sent });
         await box.put(page.lookup, page.envelope, { feeMode });
         sent++;
-        noteProgress(); // each page is a step: the idle lock waits while pages keep landing
+        // Each page is a step: the idle lock waits while pages keep landing. The last counts once the backup is
+        // recorded below, so a last page that lands after the 15 minutes keeps that record before the books lock.
+        if (sent < p.pages.length) noteProgress();
       }
-      await updateCompany((c) => ({ ...markBackedUp(c), chainBackup: p.next }));
+      await afterStep(updateCompany((c) => ({ ...markBackedUp(c), chainBackup: p.next })));
       setStep({ kind: "done", what: p.kind === "snapshot" ? "Your books are backed up with your account." : "The changes since your last backup are saved with your account." });
     } catch (e) {
       setError(

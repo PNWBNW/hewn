@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { IDLE_LOCK_MS, PROGRESS_EVENT, idleTracker, noteProgress, watchIdle } from "./idle_lock";
+import { IDLE_LOCK_MS, PROGRESS_EVENT, afterStep, idleTracker, noteProgress, watchIdle } from "./idle_lock";
 
 const SRC = join(__dirname, "..");
 const read = (file: string) => readFileSync(join(SRC, file), "utf8");
@@ -15,6 +15,27 @@ function page() {
   const win = new EventTarget();
   const doc = Object.assign(new EventTarget(), { visibilityState: "visible" as DocumentVisibilityState });
   return { win, doc };
+}
+
+/** The open books as BooksProvider keeps them: writes run one at a time, and each fails once the books are locked. */
+function books() {
+  let open = true;
+  let queue: Promise<unknown> = Promise.resolve();
+  const saved: string[] = [];
+  const lock = vi.fn(() => {
+    open = false;
+  });
+  const write = (what: string) => {
+    const run = queue.then(async () => {
+      if (!open) throw new Error("Books are locked");
+      await Promise.resolve(); // the save
+      saved.push(what);
+      return what;
+    });
+    queue = run.catch(() => {});
+    return run;
+  };
+  return { lock, write, saved };
 }
 
 describe("the idle tracker", () => {
@@ -196,9 +217,50 @@ describe("the idle lock on a page", () => {
     const stop = watchIdle({ lock, win, doc });
     stop();
     vi.setSystemTime(IDLE_LOCK_MS * 2);
-    win.dispatchEvent(new Event("pageshow"));
+    for (const e of ["pageshow", "focus", "pointerdown", "keydown", "scroll", PROGRESS_EVENT]) win.dispatchEvent(new Event(e));
+    doc.dispatchEvent(new Event("visibilitychange"));
     vi.advanceTimersByTime(IDLE_LOCK_MS * 2);
     expect(lock).not.toHaveBeenCalled();
+  });
+
+  it("a step that lands after the 15 minutes keeps its write to the books, and then they lock", async () => {
+    const { win, doc } = page();
+    const b = books();
+    const stop = watchIdle({ lock: b.lock, win, doc });
+    vi.setSystemTime(16 * MINUTE); // one approval in Shield took 16 minutes; the page ran no timer
+    await expect(afterStep(b.write("sent: the payment's id"), win)).resolves.toBe("sent: the payment's id");
+    expect(b.saved).toEqual(["sent: the payment's id"]);
+    expect(b.lock).toHaveBeenCalledTimes(1);
+    await expect(b.write("settled")).rejects.toThrow("Books are locked"); // the rest waits for the next time the run is opened
+    stop();
+  });
+
+  it("noted before its write, the same late step locks the books first and loses its result", async () => {
+    const { win, doc } = page();
+    const b = books();
+    const stop = watchIdle({ lock: b.lock, win, doc });
+    vi.setSystemTime(16 * MINUTE);
+    noteProgress(win);
+    await expect(b.write("sent: the payment's id")).rejects.toThrow("Books are locked");
+    expect(b.saved).toEqual([]);
+    stop();
+  });
+
+  it("a step whose write lands within the 15 minutes keeps the books open, and one whose write fails still counts", async () => {
+    const { win, doc } = page();
+    const b = books();
+    const stop = watchIdle({ lock: b.lock, win, doc });
+    vi.setSystemTime(10 * MINUTE);
+    await afterStep(b.write("sent"), win);
+    vi.setSystemTime(20 * MINUTE);
+    await expect(afterStep(Promise.reject(new Error("another tab wrote first")), win)).rejects.toThrow("another tab wrote first");
+    vi.setSystemTime(34 * MINUTE);
+    win.dispatchEvent(new Event("focus"));
+    expect(b.lock).not.toHaveBeenCalled();
+    vi.setSystemTime(35 * MINUTE);
+    win.dispatchEvent(new Event("focus"));
+    expect(b.lock).toHaveBeenCalledTimes(1);
+    stop();
   });
 
   it("noteProgress sends the progress event, and does nothing without a window", () => {
@@ -220,15 +282,25 @@ describe("where the idle lock is wired", () => {
     for (const e of ["PROGRESS_EVENT", '"pointerdown"', '"keydown"', '"scroll"', '"visibilitychange"', '"pageshow"', '"focus"']) expect(idle, e).toContain(e);
   });
 
-  it("the pay panel and the backup to the account note each completed step", () => {
+  it("the pay panel and the backup to the account note each completed step, after the step's own write", () => {
     const pay = read("chain/PayPanel.tsx");
-    expect(pay).toContain('import { noteProgress } from "@/books/idle_lock";');
-    // The queue events that end a step count; the waits for an approval ("splitting", "approving") don't.
-    expect(pay).toContain('new Set(["planned", "split_done", "sent", "settled", "failed", "unconfirmed"])');
-    expect(pay).toContain("if (STEP_DONE.has(e.kind)) noteProgress();");
+    expect(pay).toContain('import { afterStep, noteProgress } from "@/books/idle_lock";');
+    // "planned" and "split_done" count at once; the four that write a paycheck's outcome count once the write settles.
+    expect(pay).toMatch(/case "planned":\s*noteProgress\(\);/);
+    expect(pay).toMatch(/case "split_done":\s*noteProgress\(\);/);
+    expect(pay).toContain("const writeStep = (workerId: string, target: Settlement) => afterStep(write(workerId, target));");
+    for (const kind of ["sent", "settled", "failed", "unconfirmed"]) {
+      expect(pay, kind).toMatch(new RegExp(`case "${kind}":\\s*setStage\\([^;]*;\\s*(//[^\\n]*\\s*)*(void |settled\\.push\\(\\s*)writeStep\\(e\\.workerId`));
+    }
+    expect(pay.match(/writeStep\(e\.workerId/g)).toHaveLength(4);
+    // Nothing else notes progress: not the waits for an approval ("splitting", "approving"), not "broadcast".
+    expect(pay.match(/noteProgress\(\)/g)).toHaveLength(3);
+    // A paystub counts once it has gone out and its delivery is written.
     expect(pay).toMatch(/await sendPaystub\(runId, workerId\);\s*noteProgress\(\);/);
     const backup = read("chain/ChainBackup.tsx");
-    expect(backup).toContain('import { noteProgress } from "@/books/idle_lock";');
-    expect(backup).toMatch(/await box\.put\(page\.lookup, page\.envelope, \{ feeMode \}\);\s*sent\+\+;\s*noteProgress\(\);/);
+    expect(backup).toContain('import { afterStep, noteProgress } from "@/books/idle_lock";');
+    // Every page but the last at once; the last once the backup is recorded.
+    expect(backup).toMatch(/await box\.put\(page\.lookup, page\.envelope, \{ feeMode \}\);\s*sent\+\+;\s*(\/\/[^\n]*\s*)*if \(sent < p\.pages\.length\) noteProgress\(\);\s*\}/);
+    expect(backup).toContain("await afterStep(updateCompany((c) => ({ ...markBackedUp(c), chainBackup: p.next })));");
   });
 });

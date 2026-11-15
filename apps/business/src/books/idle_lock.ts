@@ -4,7 +4,10 @@
 // Something happening is page input (a tap, a key, a scroll) or a completed
 // step of a long send: a long send waits on approvals in another app, so the
 // page sees no input while it runs, and each step that lands says so with
-// noteProgress(). The books lock 15 minutes after the last of either.
+// noteProgress(). The books lock 15 minutes after the last of either. A step
+// that ends with a write to the books says so once the write has settled
+// (afterStep), so a step that lands after the 15 minutes keeps its result and
+// the books lock just after it.
 //
 // The time is kept as the clock time of the last activity, not as a running
 // timer alone: a timer doesn't run while a phone sleeps or a tab is frozen, so
@@ -28,6 +31,17 @@ const INPUT_EVENTS = ["pointerdown", "keydown", "scroll"] as const;
 /** Says a step of a long send just completed, so the idle lock counts it as activity. */
 export function noteProgress(target: EventTarget | undefined = typeof window === "undefined" ? undefined : window): void {
   target?.dispatchEvent(new Event(PROGRESS_EVENT));
+}
+
+/**
+ * For a step that ends with a write to the books: notes the step once the write has settled, either
+ * way, and hands the write back unchanged. Noted before it, a step that lands after the 15 minutes
+ * would lock the books first and lose its own result.
+ */
+export function afterStep<T>(written: Promise<T>, target?: EventTarget): Promise<T> {
+  const note = () => noteProgress(target);
+  void written.then(note, note);
+  return written;
 }
 
 export type IdleTracker = {

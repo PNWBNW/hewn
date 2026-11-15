@@ -37,7 +37,7 @@ import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money } from "@/books/display";
-import { noteProgress } from "@/books/idle_lock";
+import { afterStep, noteProgress } from "@/books/idle_lock";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { useShield } from "./shield";
@@ -119,13 +119,6 @@ function stageLabel(stage: Stage): string {
       return `Not confirmed · ${stage.failure}`;
   }
 }
-
-/**
- * The queue events that end a step of the run. Each counts as activity for the idle lock, so books
- * left open while the person approves in Shield don't lock mid-run; a wait for an approval
- * ("splitting", "approving") doesn't count.
- */
-const STEP_DONE: ReadonlySet<PayQueueEvent["kind"]> = new Set(["planned", "split_done", "sent", "settled", "failed", "unconfirmed"]);
 
 // ---- Paystub delivery, per person ---------------------------------------------------------
 
@@ -228,11 +221,16 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
     const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
+    // The events that end a step of the run count as activity for the idle lock, so books left open while the person
+    // approves in Shield don't lock mid-run: "planned" and "split_done" at once, the four that write a paycheck's
+    // outcome once that write has settled, so one that lands after the 15 minutes keeps its result before the books
+    // lock. A wait for an approval ("splitting", "approving") and "broadcast" don't count.
+    const writeStep = (workerId: string, target: Settlement) => afterStep(write(workerId, target));
     const settled: Promise<string | null>[] = [];
     const onProgress = (e: PayQueueEvent) => {
-      if (STEP_DONE.has(e.kind)) noteProgress();
       switch (e.kind) {
         case "planned":
+          noteProgress();
           setNote(e.splits > 0 ? `Preparing ${e.splits === 1 ? "a record" : `${e.splits} records`} first, then paying ${e.transfers}.` : null);
           for (const p of due) setStage(p.workerId, { kind: "waiting" });
           break;
@@ -240,6 +238,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           setNote(`Preparing records… ${e.step} of ${e.of}. Approve each in Shield.`);
           break;
         case "split_done":
+          noteProgress();
           if (e.step === e.of) setNote("Records ready. Approve each payment in Shield.");
           break;
         case "approving":
@@ -247,7 +246,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "sent":
           setStage(e.workerId, { kind: "sent" });
-          void write(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
+          void writeStep(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
           break;
         case "broadcast":
           break;
@@ -256,7 +255,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           // The paystub goes out once everyone is paid (a letter is its own Shield approval, so
           // it never races the payments); a failed send never touches the settlement.
           settled.push(
-            write(e.workerId, {
+            writeStep(e.workerId, {
               status: "settled",
               reference: e.transactionId,
               settledAt: new Date().toISOString(),
@@ -273,11 +272,11 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "failed":
           setStage(e.workerId, { kind: "failed", failure: e.failure });
-          void write(e.workerId, { status: "failed", failure: e.failure, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
+          void writeStep(e.workerId, { status: "failed", failure: e.failure, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
           break;
         case "unconfirmed":
           setStage(e.workerId, { kind: "unconfirmed", failure: e.failure });
-          void write(e.workerId, { status: "pending", failure: e.failure, ...(e.reference ? { reference: e.reference } : {}), ...(e.attempt ? { attempt: e.attempt } : {}) }).catch(
+          void writeStep(e.workerId, { status: "pending", failure: e.failure, ...(e.reference ? { reference: e.reference } : {}), ...(e.attempt ? { attempt: e.attempt } : {}) }).catch(
             (err: unknown) => setError(errorMessage(err)),
           );
           break;
