@@ -44,7 +44,7 @@
 // "unknown". Nothing is logged, posted or stored.
 // ---------------------------------------------------------------------------
 
-import { type PaymentLookup, type RailNetwork, TRANSFER_FUNCTION, lookupHeight, parseHeight, parseRejected, recordTag } from "@pnw/rail";
+import { type PaymentLookup, type RailNetwork, lookupHeight, parseHeight, parseRejected, recordTag } from "@pnw/rail";
 import { USDCX_PROGRAM } from "./balances";
 import { newestFirst, transactionIdOf } from "./history_probe";
 import { type FeedWallet, SHIELD_WAIT_MS, answered, readTransfer } from "./review_feed";
@@ -52,12 +52,13 @@ import { type FeedWallet, SHIELD_WAIT_MS, answered, readTransfer } from "./revie
 /** What one transaction turned out to be, once read from the explorer. */
 export type SentRead =
   /**
-   * A private USDCx transfer: who each one in it paid and how much, where Shield's view key opened
-   * it. `sealed`: one in it stayed closed (someone else's, as a rule); `retry`: because Shield didn't
-   * answer for its view keys, so the next look asks again.
+   * A USDCx movement, private or public: who each one in it paid and how much, read from its public
+   * inputs or, where those are private, once Shield's view key opened it. `sealed`: one in it
+   * couldn't be read as one payment to one account (someone else's private transfer, as a rule);
+   * `retry`: because Shield didn't answer for its view keys, so the next look asks again.
    */
   | { kind: "transfer"; id: string; height?: number; pays: { to: string; minor: bigint }[]; sealed: boolean; retry?: true; spent: string[] }
-  /** Accepted, and not a private USDCx transfer: records combined, a split, a public transfer, another program. */
+  /** Accepted, and moving USDCx to no one: records combined or split, or no USDCx at all. */
   | { kind: "other"; id: string; spent: string[] }
   /** The network rejected it: nothing moved. */
   | { kind: "rejected"; id: string };
@@ -106,6 +107,24 @@ const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.i
 
 const ID_KEYS = ["transactionId", "transaction_id", "txId"] as const;
 const CHAIN_TAG = /^\d+field$/;
+const ACCOUNT = /^aleo1[a-z0-9]{58}$/;
+/** The USDCx functions that move money to no one: records combined, or one split in two. */
+const NO_PAYEE = new Set(["join", "split"]);
+const isTransfer = (t: Obj): boolean => typeof t.function === "string" && t.function.startsWith("transfer");
+
+/**
+ * Who one USDCx transition paid and how much, when its readable inputs say so plainly: a transfer
+ * (private, public, or between the two) naming exactly one account and an amount. Anything else,
+ * two accounts among its inputs or a function that isn't a transfer, is null: it can't be read as
+ * one payment to one account.
+ */
+function payOf(t: Obj): { to: string; minor: bigint } | null {
+  if (!isTransfer(t)) return null;
+  const read = readTransfer(t, null);
+  if (read.to === null || read.minor === null) return null;
+  const values = (Array.isArray(t.inputs) ? t.inputs.filter(isObj) : []).flatMap((i) => (typeof i.value === "string" ? [i.value.trim().replace(/\.(private|public)$/, "")] : []));
+  return new Set(values.filter((v) => ACCOUNT.test(v))).size === 1 ? { to: read.to, minor: read.minor } : null;
+}
 
 /** The tag the chain gave the record the payment set aside, when Shield's record list carries one for it. */
 async function chainTagOf(attempt: string, deps: SentPaymentDeps, wait: number): Promise<string | null> {
@@ -141,7 +160,9 @@ async function readOne(id: string, deps: SentPaymentDeps, wait: number): Promise
   const transitions = isObj(tx.execution) && Array.isArray(tx.execution.transitions) ? tx.execution.transitions.filter(isObj) : [];
   // Every record the transaction spent, by the tag the chain shows for it.
   const spent = transitions.flatMap((t) => (Array.isArray(t.inputs) ? t.inputs.filter(isObj) : [])).flatMap((i) => (i.type === "record" && typeof i.tag === "string" ? [i.tag.trim()] : []));
-  const transfers = transitions.filter((t) => t.program === USDCX_PROGRAM && t.function === TRANSFER_FUNCTION);
+  // Every USDCx movement counts, however it was made: a private transfer, a public one, or one between
+  // the two. A payment to them made any of those ways is a payment, so none may be missed.
+  const transfers = transitions.filter((t) => t.program === USDCX_PROGRAM && !(typeof t.function === "string" && NO_PAYEE.has(t.function)));
   if (transfers.length === 0) return { kind: "other", id, spent };
 
   const pays: { to: string; minor: bigint }[] = [];
@@ -149,21 +170,18 @@ async function readOne(id: string, deps: SentPaymentDeps, wait: number): Promise
   let keys: string[] | null = null;
   let unanswered = false;
   for (const t of transfers) {
-    let read = readTransfer(t, null);
-    if (read.to === null || read.minor === null) {
+    let read = payOf(t);
+    if (!read && isTransfer(t)) {
       // Only the account that sent a private transfer holds its view key: one Shield opens is this account's own.
       keys ??= await answered(deps.wallet.transitionViewKeys(id), wait, "the view key request").catch(() => ((unanswered = true), [] as string[]));
       for (const tvk of keys) {
         const opened = await deps.decrypt(t, tvk).catch(() => null);
         if (!isObj(opened)) continue;
-        const again = readTransfer(opened, null);
-        if (again.to !== null && again.minor !== null) {
-          read = again;
-          break;
-        }
+        read = payOf(opened);
+        if (read) break;
       }
     }
-    if (read.to !== null && read.minor !== null) pays.push({ to: read.to, minor: read.minor });
+    if (read) pays.push(read);
     else sealed = true;
   }
   const height = parseHeight(doc);
