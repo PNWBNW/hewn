@@ -49,7 +49,7 @@ import {
   usernameConflict,
   vaultIdFor,
 } from "./account";
-import { saveOver } from "./vault_write";
+import { replaceOver, saveOver } from "./vault_write";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
 import type { PersonalEvent } from "./events";
 import type { SharedCalendar } from "./shared_events";
@@ -650,8 +650,9 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       companyFromJson(json); // the books inside are intact
       for (const a of backup.attachments) await s.openAttachment(a); // and every file
       // The same books in a new write, as `recoverAccounts` saves them: a tab still open on these
-      // books sees a change and stops, instead of saving the old passphrase's record back.
-      await store.replace(await s.write(json), backup.attachments);
+      // books sees a change and stops, instead of saving the old passphrase's record back. Under the
+      // tabs' lock, so a save that tab has already checked lands before this, not over it.
+      await replaceOver(store, s, json, backup.attachments);
       writeAccountFlag();
       await open(s, stay);
     },
