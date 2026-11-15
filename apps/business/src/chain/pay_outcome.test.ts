@@ -1,7 +1,18 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Paycheck, PayRun, Settlement } from "@pnw/payroll";
-import { NOT_PAID, NOT_SEEN, centsToMinor } from "@pnw/rail";
-import { PAY_AGAIN_NOTE, claimedTransfers, payAgainTarget, rivalPayments, unconfirmedLabel } from "./pay_outcome";
+import { NOT_ASKED, NOT_LISTED, NOT_PAID, NOT_SEEN, type RailWallet, centsToMinor, recordTag } from "@pnw/rail";
+import {
+  PAY_AGAIN_NOTE,
+  claimedTransfers,
+  lookQuery,
+  payAgainTarget,
+  recordListedForPayAgain,
+  rivalPayments,
+  shortOnRail,
+  stagesAfterPress,
+  unconfirmedLabel,
+} from "./pay_outcome";
 
 describe("how an unconfirmed payment reads", () => {
   it("says Not confirmed, unless the queue knows it is not seen on chain yet or not paid; never Not sent", () => {
@@ -29,6 +40,52 @@ describe("pay again", () => {
   it("has nothing to keep for a payment that never set a record aside", () => {
     expect(payAgainTarget({}, true)).toEqual({ status: "failed", failure: PAY_AGAIN_NOTE });
     expect(payAgainTarget(undefined, true)).toEqual({ status: "failed", failure: PAY_AGAIN_NOTE });
+  });
+
+  it("asks Shield whether the record is still listed, and takes no answer in time, or an error, as listed", async () => {
+    const plaintext = `{\n  owner: aleo1${"m".repeat(58)}.private,\n  amount: 25000000u128.private,\n  _nonce: 7group.public\n}`;
+    const attempt = await recordTag(plaintext);
+    const wallet = (requestRecords: RailWallet["requestRecords"]) => ({ requestRecords }) as unknown as RailWallet;
+    const listing = (spent: boolean) => wallet(async () => [{ recordName: "Token", spent, recordPlaintext: plaintext }]);
+    expect(await recordListedForPayAgain(listing(false), attempt, 50)).toBe(true);
+    expect(await recordListedForPayAgain(listing(true), attempt, 50)).toBe(false);
+    expect(await recordListedForPayAgain(wallet(async () => []), attempt, 50)).toBe(false);
+    // Over the relay Shield answers only once its app is open: the record is kept rather than waited on.
+    const started = Date.now();
+    expect(await recordListedForPayAgain(wallet(() => new Promise(() => {})), attempt, 30)).toBe(true);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(await recordListedForPayAgain(wallet(async () => Promise.reject(new Error("Shield is busy"))), attempt, 50)).toBe(true);
+  });
+});
+
+describe("what the pay panel shows once a press ends part-way", () => {
+  const DUE = centsToMinor(2_00n);
+
+  it("calls the rail short of funds, and holds Continue back, only when the balance read is all there is", () => {
+    expect(shortOnRail(0n, DUE, null)).toBe(true);
+    expect(shortOnRail(centsToMinor(1_99n), DUE, NOT_ASKED)).toBe(true);
+    expect(shortOnRail(DUE, DUE, null)).toBe(false);
+    expect(shortOnRail(null, DUE, null)).toBe(false); // not read yet
+    // The run stopped because what its last payment left isn't listed yet: the balance read then is missing it.
+    expect(shortOnRail(0n, DUE, NOT_LISTED)).toBe(false);
+  });
+
+  it("gives a line the run never reached back to the books, and keeps what this press said of the rest", () => {
+    const stages = {
+      w1: { kind: "settled", transactionId: "at1x" },
+      w2: { kind: "unconfirmed", failure: "Shield reported a problem (User rejected the request)" },
+      w3: { kind: "waiting" },
+      w4: { kind: "waiting" },
+    };
+    expect(stagesAfterPress(stages)).toEqual({ w1: stages.w1, w2: stages.w2 });
+    expect(stagesAfterPress({})).toEqual({});
+  });
+
+  it("is what the pay panel goes by", () => {
+    const panel = readFileSync(new URL("./PayPanel.tsx", import.meta.url), "utf8");
+    expect(panel).toMatch(/const short = shortOnRail\(balance, centsToMinor\(totalDue\), stopped\);/);
+    expect(panel).toMatch(/setStopped\(stalledWhy\)/);
+    expect(panel).toMatch(/setStages\(\(all\) => stagesAfterPress\(all\)\)/);
   });
 });
 
@@ -99,5 +156,35 @@ describe("what the books tell a look for an unconfirmed payment", () => {
     expect(rivalPayments([run("run-a", [mine]), run("run-b", [check("ben", NET, { status: "pending", attempt: tag("a") })])], links, self, asking)).toEqual({ contested: false, sameRecord: false });
     // A look that has no record to go by shares none.
     expect(rivalPayments([run("run-a", [mine]), sameTag], links, self, { to: ANA, minor: centsToMinor(NET) })).toEqual({ contested: true, sameRecord: false });
+  });
+  it("tells the look what the books say: transfers already settled, a rival paycheck, and the record only when no rival set aside the same one", () => {
+    const q = { workerId: "ana", to: ANA, minor: centsToMinor(NET), attempt: tag("a"), ids: [tx(9)], since: 4_000_000 };
+    const settled = run("run-c", [check("ben", NET, { status: "settled", reference: tx(3) })]);
+    // Alone: the record and the floor are passed on, nothing contests it, and settled transfers are claimed.
+    expect(lookQuery([run("run-a", [mine]), settled], links, "run-a", q)).toEqual({
+      to: ANA,
+      minor: centsToMinor(NET),
+      ids: [tx(9)],
+      claimed: new Set([tx(3)]),
+      contested: false,
+      attempt: tag("a"),
+      since: 4_000_000,
+    });
+    // Another run's open paycheck to the same person for the same amount, with its own record: contested, record kept.
+    const rival = run("run-b", [check("ana", NET, { status: "pending", attempt: tag("b") })]);
+    expect(lookQuery([run("run-a", [mine]), rival], links, "run-a", q)).toMatchObject({ contested: true, attempt: tag("a") });
+    // One that set aside the very same record: contested, and the look gets no record to go by.
+    const sameRecord = run("run-b", [check("ana", NET, { status: "pending", attempt: tag("a") })]);
+    const told = lookQuery([run("run-a", [mine]), sameRecord], links, "run-a", q);
+    expect(told.contested).toBe(true);
+    expect(told).not.toHaveProperty("attempt");
+    // No floor and no record: none is made up.
+    expect(lookQuery([run("run-a", [mine])], links, "run-a", { workerId: "ana", to: ANA, minor: centsToMinor(NET), ids: [] })).toEqual({
+      to: ANA,
+      minor: centsToMinor(NET),
+      ids: [],
+      claimed: new Set(),
+      contested: false,
+    });
   });
 });

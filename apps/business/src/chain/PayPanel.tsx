@@ -61,7 +61,7 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, unconfirmedLabel } from "./pay_outcome";
+import { FOUND_NOTE, LOOKING, shortOnRail, stagesAfterPress, unconfirmedLabel } from "./pay_outcome";
 import { type ReleaseContext, payAgain as payAgainFrom, promptSummary, releaseRun } from "./release";
 import { markerDesk } from "./run_marker";
 import type { SentRead } from "./sent_payment";
@@ -103,6 +103,8 @@ type Stage =
   /** Shield's prompt for this payment is open: `to` and `minor` are the account and the amount it was given. */
   | { kind: "approving"; to: string; minor: bigint }
   | { kind: "sent" }
+  /** Shield didn't confirm it, and the account's own transfers are being looked through for it. */
+  | { kind: "looking" }
   /** `found`: Shield never confirmed it; the queue found it in the account's own transfers. */
   | { kind: "settled"; transactionId: string; feeMicrocredits?: bigint; found?: true }
   | { kind: "failed"; failure: string }
@@ -128,6 +130,8 @@ function stageLabel(stage: Stage): string {
       return "Approve in Shield";
     case "sent":
       return "Sent";
+    case "looking":
+      return LOOKING;
     case "settled":
       return `${stage.transactionId ? `Settled · ${shortAddress(stage.transactionId)}` : "Settled"}${stage.found ? ` · ${FOUND_NOTE}` : ""}`;
     case "failed":
@@ -156,6 +160,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const [stages, setStages] = useState<Record<string, Stage>>({});
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({});
   const [note, setNote] = useState<string | null>(null);
+  // Why the last press of Pay now or Continue stopped part-way, in the queue's words; null when it didn't.
+  const [stopped, setStopped] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [againFor, setAgainFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -211,7 +217,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const everyone = run.paychecks.filter((p) => p.net > 0n); // settled ones stay on the board
   const totalDue = due.reduce((s, p) => s + p.net, 0n);
   const balance = records ? totalBalance(records) : null;
-  const short = balance !== null && balance < centsToMinor(totalDue);
+  const short = shortOnRail(balance, centsToMinor(totalDue), stopped);
   const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
@@ -262,6 +268,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     if (!run) return;
     setRunning(true);
     setError(null);
+    // Where an earlier press stopped: still true if this one is refused before anything is asked.
+    const noteBefore = note;
     setNote(null);
     const within = reach(current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
@@ -270,6 +278,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     // The lines this release has already spoken for before the queue plans: held, or found paid from another device.
     const spoken = new Set<string>();
     let stalled = false;
+    let stalledWhy: string | null = null;
+    let refused = false;
     const onEvent = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
@@ -279,6 +289,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           setStage(e.workerId, { kind: "approving", to: e.to, minor: e.minor });
           break;
         case "stalled":
+          stalledWhy = e.why;
           setNote(`Stalled at ${e.at} of ${e.of}: ${e.why}.`);
           break;
         case "sent":
@@ -316,6 +327,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
         // First, how many times Shield will ask.
         onPrompts: (prompts) => setNote(promptSummary(prompts)),
         onEvent,
+        // No longer "Approve in Shield" while the account's own transfers are looked through for it.
+        onLooking: (workerId) => setStage(workerId, { kind: "looking" }),
         // A payment another device is paying, or one this device won't pay as its books hold it: its line says why.
         onHeld: (workerId, why) => {
           spoken.add(workerId);
@@ -323,14 +336,23 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
         },
         onError: (e) => setError(errorMessage(e)),
         onPaid: async () => {
+          setStopped(stalledWhy);
+          // A line the run never reached reads from the books again before the paystubs go.
+          setStages((all) => stagesAfterPress(all));
           loadedFor.current = null; // re-read the balance
           setRecords(await fetchTokenRecords(within.wallet).catch(() => records ?? []));
         },
       }));
     } catch (e) {
+      refused = true;
       setError(errorMessage(e));
     }
-    if (!stalled) setNote(null); // everything it said Shield would ask has been asked; where a run stopped stays up
+    // A line the run never reached reads from the books again: what an earlier run left it, with its button.
+    setStages((all) => stagesAfterPress(all));
+    // Everything it said Shield would ask has been asked; where a run stopped stays up, and so does where an earlier
+    // press stopped when this one was refused.
+    if (refused) setNote(noteBefore);
+    else if (!stalled) setNote(null);
     setRunning(false);
   }
 

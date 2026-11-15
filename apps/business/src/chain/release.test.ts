@@ -5,12 +5,23 @@ import { describe, expect, it } from "vitest";
 import { type Books, applyTemplate, createBooks, emptyDimensions } from "@pnw/ledger";
 import { type Payroll, type W4, addWorker, emptyPayroll, ensureRailAccount, markPaycheckSettlement, postPayRun } from "@pnw/payroll";
 import { PROGRAMS } from "@pnw/config/programs";
-import { type PayQueueContext, type PayQueueResult, type RailNetwork, RailNetworkError, TRANSFER_FUNCTION, centsToMinor } from "@pnw/rail";
+import {
+  NOT_LISTED,
+  type PayQueueContext,
+  type PayQueueResult,
+  type RailNetwork,
+  RailNetworkError,
+  TRANSFER_FUNCTION,
+  centsToMinor,
+  fetchTokenRecords,
+  totalBalance,
+} from "@pnw/rail";
 import { emptySales } from "@pnw/sales";
 import type { Company } from "../books/company";
 import type { Rail } from "../books/rail";
 import { deliverPaystub } from "./deliver";
 import { LetterBox, SEND_FUNCTION } from "./letters";
+import { shortOnRail } from "./pay_outcome";
 import { type Prompt, type Releaser, pickReleaser, promptSummary, sequentialReleaser } from "./release";
 
 const W4_SINGLE: W4 = { filingStatus: "single", dependentCredit: 0n, otherIncome: 0n, extraDeductions: 0n, extraWithholding: 0n };
@@ -83,10 +94,14 @@ function fakeShield(deposits: bigint[]) {
   };
 }
 
+/** The explorer: the chain's height, and the stablecoin's freeze list with nobody on it, under each name it is read by. */
 const network: RailNetwork = {
   async fetchJson(path) {
     if (path === "block/height/latest") return 4_000_000;
     if (/freeze_list_count/.test(path)) return "0u32";
+    if (/freeze_list_last_index\/true$/.test(path)) return "0u32";
+    if (/freeze_list_index\/0u32$/.test(path)) return "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
+    if (/freeze_list_root\/1u8$/.test(path)) return "0field"; // the root `tree` below makes of an empty list
     throw new RailNetworkError("not found", 404);
   },
 };
@@ -169,6 +184,40 @@ describe("the sequential releaser's prompt plan", () => {
       expect(c.function).toBe(TRANSFER_FUNCTION);
       expect(wallet.listed).toContain(c.inputs[2]);
     }
+  });
+});
+
+describe("a run that stops before what the last payment left is listed", () => {
+  it("isn't called short of funds on the pay panel, and paying on once it is listed pays the rest, each person once", async () => {
+    const start = setup(3);
+    const shield = fakeShield([centsToMinor(20_000_00n)]);
+    // Shield's list is behind the chain: until `lagging` is cleared it shows only the records it held at the start.
+    let lagging = true;
+    type Row = { recordPlaintext: string };
+    const held = new Set(((await shield.requestRecords(USDCX)) as Row[]).map((r) => r.recordPlaintext));
+    const wallet = { ...shield, requestRecords: async (program: string) => ((await shield.requestRecords(program)) as Row[]).filter((r) => !lagging || held.has(r.recordPlaintext)) };
+    let now = 0;
+    const timing = { clock: { now: () => now }, sleep: async (ms: number) => void (now += ms), limits: { pollMinMs: 1, confirmCapMs: 0 } };
+
+    const run = start.company.payroll.runs[0]!;
+    const first = await sequentialReleaser.release({ wallet, network, run, links: start.links, tree, ...timing });
+    expect(first.settled.map((s) => s.workerId)).toEqual([start.workers[0]!.id]);
+    expect(first.stalled).toEqual({ at: 2, of: 3, why: NOT_LISTED });
+
+    // What the panel reads of the rail right after: nothing, since the change isn't listed. That isn't a shortfall.
+    const due = centsToMinor(run.paychecks.slice(1).reduce((sum, p) => sum + p.net, 0n));
+    const balance = totalBalance(await fetchTokenRecords(wallet));
+    expect(balance).toBe(0n);
+    expect(shortOnRail(balance, due, first.stalled!.why)).toBe(false);
+
+    // Continue once Shield lists it: the two people left are paid, and nobody twice.
+    lagging = false;
+    const payroll = markPaycheckSettlement(start.company.payroll, start.runId, first.settled[0]!.workerId, { status: "settled", reference: first.settled[0]!.transactionId });
+    const next = await sequentialReleaser.release({ wallet, network, run: payroll.runs[0]!, links: start.links, tree, ...timing });
+    expect(next.settled.map((s) => s.workerId)).toEqual(start.workers.slice(1).map((w) => w.id));
+    expect(next.stalled).toBeUndefined();
+    const paid = shield.calls.filter((c) => c.program === USDCX).map((c) => c.inputs[0]);
+    expect(paid).toEqual(start.workers.map((w) => start.links.get(w.id)));
   });
 });
 

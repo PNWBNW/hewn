@@ -239,6 +239,17 @@ describe("decideLines", () => {
     expect(decideLines([own, phone], [payment("w2", ADDR(2), 700n)], [ID(2)])[0]).toMatchObject({ kind: "elsewhere", marker: ID(1) });
   });
 
+  it("once the first payment of a chained run is asked again from another record, the run is said to start from that one", () => {
+    const again = listed(marker(2, [{ to: ADDR(1), minor: 500n, tag: TAG(5), replaces: TAG(1) }]), 120);
+    expect(decideLines([phone, again], [payment("w1", ADDR(1), 500n), payment("w2", ADDR(2), 700n)])).toEqual([
+      { workerId: "w1", kind: "resume", marker: ID(2), since: 120, tag: TAG(5) },
+      { workerId: "w2", kind: "elsewhere", marker: ID(1), since: 100, start: TAG(5) },
+    ]);
+    // Replaced by a line that names no record: which record it starts from isn't known, so none is named.
+    const untagged = listed(marker(3, [{ to: ADDR(1), minor: 500n, replaces: TAG(1) }]), 120);
+    expect(decideLines([phone, untagged], [payment("w2", ADDR(2), 700n)])).toEqual([{ workerId: "w2", kind: "elsewhere", marker: ID(1), since: 100 }]);
+  });
+
   it("the device that sent the marker goes on with its own chained lines, each keeping the record it holds", () => {
     const out = decideLines([phone], [payment("w2", ADDR(2), 700n), payment("w3", ADDR(3), 900n, { attempt: TAG(4) })], [ID(1)]);
     expect(out).toEqual([
@@ -303,5 +314,65 @@ describe("beaten", () => {
 
   it("can't be said of a marker that isn't listed", () => {
     expect(() => beaten([phone], ID(2))).toThrow(RailError);
+  });
+
+  it("a marker that came second stays second, and its lines decide nothing, when the first one's line is later replaced", () => {
+    const won = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }]), 100, 1);
+    const stoodDown = listed(marker(2, [{ to: ADDR(1), minor: 500n, tag: TAG(2) }]), 101, 2);
+    expect(beaten([won, stoodDown], ID(2))).toBe(true);
+    // The winner's record went into something else, and it marked the record it pays from now.
+    const again = listed(marker(3, [{ to: ADDR(1), minor: 500n, tag: TAG(3), replaces: TAG(1) }]), 150, 3);
+    const all = [won, stoodDown, again];
+    expect(beaten(all, ID(2))).toBe(true);
+    expect(beaten(all, ID(3))).toBe(false);
+    expect(liveLines(all).map((l) => l.tag)).toEqual([TAG(3)]);
+    // The winner goes on with the record it now holds, and every other device follows that one.
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n, { attempt: TAG(3) })], [ID(1), ID(3)])).toEqual([{ workerId: "w1", kind: "resume", marker: ID(3), since: 150, tag: TAG(3) }]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n)])).toEqual([{ workerId: "w1", kind: "resume", marker: ID(3), since: 150, tag: TAG(3) }]);
+  });
+
+  it("a marker that came second makes no later marker come second", () => {
+    const first = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(2), minor: 700n }]), 100);
+    const second = listed(marker(2, [{ to: ADDR(2), minor: 700n, tag: TAG(2) }, { to: ADDR(3), minor: 900n }]), 101);
+    const third = listed(marker(3, [{ to: ADDR(3), minor: 900n, tag: TAG(3) }]), 102);
+    expect(beaten([first, second, third], ID(2))).toBe(true);
+    expect(beaten([first, second, third], ID(3))).toBe(false);
+    // Nor do the records it says it replaces count as given up.
+    const late = listed(marker(4, [{ to: ADDR(1), minor: 500n, tag: TAG(4), replaces: TAG(1) }, { to: ADDR(2), minor: 700n }]), 103);
+    expect(beaten([first, late], ID(4))).toBe(true);
+    expect(liveLines([first, late]).map((l) => [l.to, l.tag])).toEqual([
+      [ADDR(1), TAG(1)],
+      [ADDR(2), undefined],
+    ]);
+  });
+
+  it("at another amount, a marker that came second still refuses that payment on every device", () => {
+    // The amount is still in doubt between the two devices' books: neither pays it from here.
+    const won = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }]), 100);
+    const stoodDown = listed(marker(2, [{ to: ADDR(1), minor: 600n, tag: TAG(2) }]), 101);
+    expect(beaten([won, stoodDown], ID(2))).toBe(true);
+    expect(decideLines([won, stoodDown], [payment("w1", ADDR(1), 500n, { attempt: TAG(1) })], [ID(1)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-amount" }]);
+    expect(decideLines([won, stoodDown], [payment("w1", ADDR(1), 600n)], [ID(2)])).toEqual([{ workerId: "w1", kind: "refused", why: "other-amount" }]);
+  });
+
+  it("a run of more payments than one marker holds is marked in several, and none comes second to another", () => {
+    // Accounts beyond the fixtures' ten, each in the address alphabet.
+    const account = (n: number) => `aleo1run${String(n)
+      .split("")
+      .map((d) => "023456789a"[Number(d)])
+      .join("")}`.padEnd(63, "q");
+    const lines = Array.from({ length: MAX_MARKER_LINES + 1 }, (_x, i): MarkerLine => ({ to: account(i), minor: 100n, ...(i === 0 ? { tag: TAG(1) } : {}) }));
+    expect(() => encodeMarker(marker(1, lines))).toThrow(RailError);
+    const parts = [listed(marker(1, lines.slice(0, MAX_MARKER_LINES)), 100, 1), listed(marker(2, lines.slice(MAX_MARKER_LINES)), 101, 2)];
+    for (const part of parts) expect(decodeMarker(encodeMarker(part.marker))).toEqual(part.marker);
+    expect(parts.map((part) => beaten(parts, part.marker.id))).toEqual([false, false]);
+    const payments = lines.map((l, i) => payment(`w${i}`, l.to, l.minor));
+    // The device that sent both goes on with every payment; another device only with the first, by its record.
+    const here = decideLines(parts, payments, [ID(1), ID(2)]);
+    expect(here.map((d) => d.kind)).toEqual(lines.map(() => "resume"));
+    expect(here[MAX_MARKER_LINES]).toEqual({ workerId: `w${MAX_MARKER_LINES}`, kind: "resume", marker: ID(2), since: 101 });
+    const there = decideLines(parts, payments);
+    expect(there[0]).toEqual({ workerId: "w0", kind: "resume", marker: ID(1), since: 100, tag: TAG(1) });
+    expect(there.slice(1).map((d) => d.kind)).toEqual(lines.slice(1).map(() => "elsewhere"));
   });
 });

@@ -8,12 +8,20 @@
 // in fewer approvals would be another releaser, offered ahead of this one
 // whenever it says it is available (`pickReleaser`).
 //
-// A releaser also says, before Shield is asked for anything, what it will be
-// asked to approve (`prompts`): one line per approval, in the order they will
-// come up, so the person can be told how many times Shield will ask and for
-// what. For the queue that is one payment per person still to pay, then one
-// paystub letter per person, which the pay panel sends once the payments are
-// done (deliver.ts). Nothing is prepared first, so there is nothing else.
+// A releaser also says, before Shield is asked for anything, what it expects
+// to ask it to approve (`prompts`): one line per approval, in the order they
+// will come up, so the person can be told how many times Shield will ask and
+// for what. For the queue that is one payment per person still to pay, then
+// one paystub letter per person, which the pay panel sends once the payments
+// are done (deliver.ts). Nothing is prepared first, so there is nothing else.
+//
+// It is what the run expects, not a promise. Shield can ask fewer times: a
+// line whose kept record has gone is looked for, not asked; a run that stops
+// part-way asks for nobody after the stop; a paystub that can't be sent yet
+// isn't asked for. It can ask more: a payment whose record went into
+// something else before Shield spent it (money arrived and Shield combined
+// the two) and that nothing paid is asked again from a record listed now, up
+// to two more times in a run (rail/queue.ts `MAX_ASKS`).
 //
 // Every payment's record is handed to Shield as its plaintext: the very
 // record whose tag the books kept before asking (rail/queue.ts). A releaser
@@ -61,7 +69,6 @@ import {
   newMarkerId,
   outstanding,
   parseTokenPlaintext,
-  recordStillListed,
   recordTag,
   runPayQueue,
   systemClock,
@@ -69,7 +76,7 @@ import {
 import type { Company } from "../books/company";
 import { transactionIdOf } from "./history_probe";
 import { LETTERS_PROGRAM, SEND_FUNCTION } from "./letters";
-import { NOT_CONFIRMED, claimedTransfers, payAgainTarget, rivalPayments } from "./pay_outcome";
+import { NOT_CONFIRMED, claimedTransfers, lookQuery, payAgainTarget, recordListedForPayAgain } from "./pay_outcome";
 import { type MarkerDesk, markerFunction } from "./run_marker";
 import { type SentPaymentDeps, findSentPayment } from "./sent_payment";
 
@@ -80,6 +87,7 @@ export type Prompt =
   | {
       kind: "payment" | "paystub";
       program: string;
+      /** The function. A paystub's is `send`; one too long for a single letter goes out as `send_page`, still one approval. */
       fn: string;
       /** Whose payment or paystub it is. */
       workerId: string;
@@ -97,7 +105,7 @@ export interface Releaser {
   mode: "sequential" | "batch" | "wrapper";
   /** Whether this way of paying can be used right now. */
   available(): Promise<boolean>;
-  /** What Shield will be asked to approve for this run as it stands, in order. Asks nothing of Shield. */
+  /** What Shield is expected to be asked to approve for this run as it stands, in order (see the header for when it differs). Asks nothing of Shield. */
   prompts(run: ReleaseRun, links: ReadonlyMap<string, string>): Prompt[];
   /** Pays what the run still owes; every outcome is reported through the context's `onProgress`. */
   release(ctx: PayQueueContext): Promise<PayQueueResult>;
@@ -219,6 +227,8 @@ export type ReleaseContext = {
   onPrompts?(prompts: readonly Prompt[]): void;
   /** Every event of the pay queue as it happens, for the screen. */
   onEvent?(event: PayQueueEvent): void;
+  /** A payment Shield didn't confirm is being looked for in the account's own transfers; its outcome follows as an event. */
+  onLooking?(workerId: string): void;
   /** A payment nothing is sent for from this device this time, and why (it starts with `IN_PROGRESS` or `NOT_FROM_HERE`). */
   onHeld?(workerId: string, why: string): void;
   /** A write to the books that didn't go through. The release goes on. */
@@ -237,19 +247,8 @@ type Books = Company;
 function paymentFinder(ctx: Pick<ReleaseContext, "network" | "runId" | "lookup">, books: Books, claimed: Set<string>) {
   // Each person's account on the rail, payable right now or not: for telling whose a transfer could be, more is safer.
   const accounts = new Map((books.rail?.links ?? []).map((l) => [l.workerId, l.address]));
-  return (q: PaymentQuery): Promise<PaymentLookup> => {
-    const rival = rivalPayments(books.payroll.runs, accounts, { runId: ctx.runId, workerId: q.workerId }, q);
-    return findSentPayment({
-      to: q.to,
-      minor: q.minor,
-      ids: q.ids,
-      claimed,
-      contested: rival.contested,
-      ...(q.attempt && !rival.sameRecord ? { attempt: q.attempt } : {}),
-      ...(q.since !== undefined ? { since: q.since } : {}),
-      deps: { ...ctx.lookup, network: ctx.network },
-    });
-  };
+  return (q: PaymentQuery): Promise<PaymentLookup> =>
+    findSentPayment({ ...lookQuery(books.payroll.runs, accounts, ctx.runId, q), claimed, deps: { ...ctx.lookup, network: ctx.network } });
 }
 
 type Obj = Record<string, unknown>;
@@ -346,7 +345,13 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
         askedHere.add(e.workerId);
         break;
       case "sent":
-        note(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}), ...(e.since !== undefined ? { since: e.since } : {}) });
+        note(e.workerId, {
+          status: "pending",
+          reference: e.reference,
+          ...(e.attempt ? { attempt: e.attempt } : {}),
+          ...(e.since !== undefined ? { since: e.since } : {}),
+          ...(e.endedAt ? { endedAt: e.endedAt } : {}),
+        });
         break;
       case "settled":
         if (!e.found && askedHere.has(e.workerId)) paidHere.add(e.workerId);
@@ -685,7 +690,11 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
     const plan = releaser.prompts(run, links);
     const toMark = plan.filter((p) => p.kind === "payment" && fresh.has(p.workerId)).length;
     ctx.onPrompts?.([...(toMark > 0 ? [{ kind: "marker" as const, program: LETTERS_PROGRAM, fn: markerFunction(toMark), lines: toMark }] : []), ...plan]);
-    stalled = !!(await releaser.release({ wallet, network, run, links, onProgress, beforeSend, findPayment, ...(marking ? { beforeTransfers } : {}), ...ctx.queue })).stalled;
+    const lookAfterAsking = (q: PaymentQuery) => {
+      ctx.onLooking?.(q.workerId);
+      return findPayment(q);
+    };
+    stalled = !!(await releaser.release({ wallet, network, run, links, onProgress, beforeSend, findPayment: lookAfterAsking, ...(marking ? { beforeTransfers } : {}), ...ctx.queue })).stalled;
     await ctx.onPaid?.();
   } catch (error) {
     stopped = { error };
@@ -734,7 +743,7 @@ export async function payAgain(ctx: Pick<ReleaseContext, "wallet" | "network" | 
   const tried = was?.attempt;
   const to = ctx.links.get(workerId);
   let record: "listed" | "elsewhere" | "unknown" = "listed";
-  if (paycheck && tried && !(await recordStillListed(ctx.wallet, tried).catch(() => true))) {
+  if (paycheck && tried && !(await recordListedForPayAgain(ctx.wallet, tried))) {
     const ids = isOnChainId(was.reference) ? [was.reference] : [];
     const answer = to
       ? await paymentFinder(ctx, books, claimedTransfers(books.payroll.runs))({ workerId, to, minor: centsToMinor(paycheck.net), attempt: tried, ids, ...(was.since !== undefined ? { since: was.since } : {}) }).catch(() => "unknown" as const)
