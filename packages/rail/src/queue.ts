@@ -70,9 +70,12 @@
 // is about to pay where its other devices can read it (marker.ts). If it
 // throws, no transfer is asked for and the run stops there. The first
 // payment fails with the reason and the tag kept for it in this run is
-// dropped, so its record is free again, unless an earlier try of it may
-// still go through: then it stays unconfirmed, with that try's record and
-// when it ended, and says nothing was asked this time. The step runs once:
+// dropped, so its record is free again, unless the books held it as pending
+// with a record set aside (an earlier try with it may still go through):
+// then it stays unconfirmed, with that record and when its try ended, and
+// says nothing was asked this time. A payment the books held that way says
+// the same when its record can't be kept again just before Shield would be
+// asked for it (`beforeSend`). The step runs once:
 // a payment asked again from another record later in the run is handed to
 // `beforeSend` with the new tag, and saying so is the caller's.
 //
@@ -212,16 +215,20 @@ export type PayQueueContext = {
    * Called, and awaited, just before Shield is asked for each transfer, with the tag of the record
    * it will spend and the chain's height when the payment was first asked for (when the explorer
    * said): the caller keeps both (books/PayPanel). If it throws, that transfer isn't sent, and the
-   * run stops there.
+   * run stops there: the payment fails with the reason, keeping only what was held for it before; or,
+   * on its first ask in the run, when the books hold it as pending with that same record set aside, it
+   * stays unconfirmed with that record and when its try ended, starting "Nothing was asked of Shield
+   * this time".
    */
   beforeSend?: (workerId: string, attempt: string, since?: number) => Promise<void>;
   /**
    * Called once in a run, and awaited, between keeping the first payment's tag and asking Shield for
    * that payment, with every payment the run is about to ask for, in order. If it throws, no payment
    * is asked of Shield and the run stops there: the first one fails with "Nothing was paid: " and the
-   * reason, without the tag kept for it in this run; or, when the books hold an earlier try of it whose
-   * outcome isn't known (pending with a record set aside), it stays unconfirmed with that try's record
-   * and end, starting "Nothing was asked of Shield this time". Not called when no payment is to be
+   * reason, without the tag kept for it in this run; or, when the books hold it as pending with a
+   * record set aside (an earlier try with that record, if there was one, may still land), it stays
+   * unconfirmed with that record and when its try ended, starting "Nothing was asked of Shield this
+   * time". Not called when no payment is to be
    * asked for, and not again in the run: a payment asked again from another record (its own went into
    * something else) reaches `beforeSend` with the new tag, and a caller that told its other devices
    * which record the payment spends says so again there.
@@ -276,9 +283,12 @@ const RECORD_GONE = `The record this payment was spending is gone, so it may hav
 const problem = (said: string) => `Shield reported a problem (${said.replace(/\s+/g, " ").trim().slice(0, 200)}); the payment may still go through. ${CHECK}`;
 /** How a line starts when the step before the first payment (`beforeTransfers`) stopped the run: no payment was asked of Shield. */
 export const NOTHING_PAID = "Nothing was paid";
-/** The same, for a payment an earlier try of which may still go through: this run asked for nothing, and that try is still open. */
+/**
+ * The same, for a payment the books held as pending with a record set aside when the run reached it: this run asked
+ * for nothing, and an earlier try with that record, if there was one, is still open.
+ */
 export const NOTHING_ASKED = "Nothing was asked of Shield this time";
-const stillOpen = (said: string) => `${NOTHING_ASKED} (${said.replace(/\s+/g, " ").trim().replace(/\.$/, "")}); the payment asked for before may still go through. ${CHECK}`;
+const stillOpen = (said: string) => `${NOTHING_ASKED} (${said.replace(/\s+/g, " ").trim().replace(/\.$/, "")}); if it was asked for before, that payment may still go through. ${CHECK}`;
 // Why a run stopped, to follow "Stalled at 2 of 3: ".
 /** The wallet lists no record that covers the next payment, two minutes after the last one. */
 export const NOT_LISTED = "Shield hasn't listed a record that covers the next payment yet (what the last payment left can take a minute to show), so nothing more was asked for";
@@ -692,8 +702,10 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
       try {
         await ctx.beforeSend?.(p.workerId, record.tag, since);
       } catch (e) {
-        // Nothing was asked with this record. The line keeps only what the caller already held for it.
-        fail(p.workerId, message(e), held);
+        // Nothing was asked with this record. An earlier try that may still land, its record the one about to be asked
+        // again, stays unconfirmed with when it ended; any other line keeps only what the caller already held for it.
+        if (open && asks === 1) unconfirmed(p.workerId, stillOpen(message(e)), open);
+        else fail(p.workerId, message(e), held);
         return null;
       }
       if (!stepped) {
