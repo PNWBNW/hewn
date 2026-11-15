@@ -845,6 +845,11 @@ class TimedShield implements RailWallet {
     this.held[index]!.spent = { by: "combine" };
   }
 
+  /** From now on, records arriving are combined (`combine`); the ones already held are left as they are. */
+  combineFromNow(how: "hidden" | "listed") {
+    this.opts.combine = how;
+  }
+
   /** Every record minted so far shows up from now on. */
   listEverything() {
     this.listLagMs = 0;
@@ -1312,6 +1317,46 @@ describe("runPayQueue: one payment at a time, each from what the last one left",
       expect(paidTimes(shield, crew(6))).toEqual([1, 1, 1, 1, 1, 1]);
       expect(await shield.listed()).toEqual([centsToMinor(40_00n)]);
     }
+  });
+
+  it("with two records, the next payment waits until what the last one left is listed, so a record being combined isn't asked for", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n), centsToMinor(2_00n)]);
+    // From here on, what arrives is combined with what is there, and shows up 20 s after its block.
+    shield.combineFromNow("listed");
+    shield.listLagMs = 20_000;
+    const books = keeper([paycheck("w1", 1_50n), paycheck("w2", 1_00n), paycheck("w3", 1_00n)]);
+    const { result, events } = await payWith(shield, books);
+    expect(result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(result.unconfirmed).toEqual([]);
+    // w1 is paid from the 2.00; its change is combined with the 10.00. w2 is asked once, from the combined record.
+    expect(promptsFor(events)).toEqual(["w1", "w2", "w3"]);
+    expect(shield.calls[1]!.inputs[2]).toContain(`amount: ${centsToMinor(10_50n)}u128`);
+    expect(shield.mostOpen).toBe(1);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
+  });
+
+  it("a record the last payment spent, still listed as unspent for 20 s, is not handed to the next payment", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n), centsToMinor(2_00n)]);
+    // Shield's list is behind the chain: a record goes on being listed as unspent for 20 s after it is spent.
+    const firstSeenSpent = new Map<string, number>();
+    const inner = shield.requestRecords.bind(shield);
+    shield.requestRecords = async (program: string) => {
+      const rows = (await inner(program)) as { spent: boolean; recordPlaintext: string }[];
+      return rows.map((r) => {
+        if (!r.spent) return r;
+        const at = firstSeenSpent.get(r.recordPlaintext) ?? shield.now;
+        firstSeenSpent.set(r.recordPlaintext, at);
+        return shield.now - at < 20_000 ? { ...r, spent: false } : r;
+      });
+    };
+    const books = keeper([paycheck("w1", 2_00n), paycheck("w2", 1_00n), paycheck("w3", 1_00n)]);
+    const { result, events } = await payWith(shield, books);
+    expect(result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(result.unconfirmed).toEqual([]);
+    // w1 spends the 2.00 whole; w2 is never asked for it while the list still shows it.
+    expect(promptsFor(events)).toEqual(["w1", "w2", "w3"]);
+    expect(shield.calls[1]!.inputs[2]).toContain(`amount: ${centsToMinor(10_00n)}u128`);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
   });
 
   it("a payment taken before a reload settles on the next run, and the one after it waits until what it left is listed", async () => {
