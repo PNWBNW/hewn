@@ -331,6 +331,43 @@ describe("beaten", () => {
     expect(decideLines(all, [payment("w1", ADDR(1), 500n)])).toEqual([{ workerId: "w1", kind: "resume", marker: ID(3), since: 150, tag: TAG(3) }]);
   });
 
+  it("a first payment asked again twice in one run: each replacement stands, and every device follows the last", () => {
+    const m1 = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(2), minor: 700n }]), 100, 1);
+    const m2 = listed(marker(2, [{ to: ADDR(1), minor: 500n, tag: TAG(3), replaces: TAG(1) }]), 110, 2);
+    const m3 = listed(marker(3, [{ to: ADDR(1), minor: 500n, tag: TAG(5), replaces: TAG(3) }]), 120, 3);
+    const all = [m1, m2, m3];
+    expect(beaten(all, ID(2))).toBe(false);
+    expect(beaten(all, ID(3))).toBe(false);
+    expect(liveLines(all).map((l) => l.tag)).toEqual([undefined, TAG(5)]);
+    // The device paying the run goes on with the record it holds now; another device follows that record too.
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n, { attempt: TAG(5) }), payment("w2", ADDR(2), 700n)], [ID(1), ID(2), ID(3)])).toEqual([
+      { workerId: "w1", kind: "resume", marker: ID(3), since: 120, tag: TAG(5) },
+      { workerId: "w2", kind: "resume", marker: ID(1), since: 100 },
+    ]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n), payment("w2", ADDR(2), 700n)])).toEqual([
+      { workerId: "w1", kind: "resume", marker: ID(3), since: 120, tag: TAG(5) },
+      { workerId: "w2", kind: "elsewhere", marker: ID(1), since: 100, start: TAG(5) },
+    ]);
+  });
+
+  it("a marker that came second stays second when the first one's payment is asked again twice", () => {
+    const won = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }]), 100, 1);
+    const stoodDown = listed(marker(2, [{ to: ADDR(1), minor: 500n, tag: TAG(2) }]), 101, 2);
+    const again = listed(marker(3, [{ to: ADDR(1), minor: 500n, tag: TAG(3), replaces: TAG(1) }]), 150, 3);
+    const twice = listed(marker(4, [{ to: ADDR(1), minor: 500n, tag: TAG(4), replaces: TAG(3) }]), 160, 4);
+    const all = [won, stoodDown, again, twice];
+    expect(all.map((l) => beaten(all, l.marker.id))).toEqual([false, true, false, false]);
+    expect(decideLines(all, [payment("w1", ADDR(1), 500n)])).toEqual([{ workerId: "w1", kind: "resume", marker: ID(4), since: 160, tag: TAG(4) }]);
+  });
+
+  it("replacements that loop back on themselves still get an answer", () => {
+    // Not something these books write (a record named once is spent), but the rules answer rather than run on.
+    const m1 = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(2), minor: 700n }]), 100, 1);
+    const m2 = listed(marker(2, [{ to: ADDR(1), minor: 500n, tag: TAG(2), replaces: TAG(1) }]), 110, 2);
+    const m3 = listed(marker(3, [{ to: ADDR(1), minor: 500n, tag: TAG(1), replaces: TAG(2) }]), 120, 3);
+    expect(decideLines([m1, m2, m3], [payment("w2", ADDR(2), 700n)])[0]).toMatchObject({ workerId: "w2", kind: "elsewhere", marker: ID(1), since: 100 });
+  });
+
   it("a marker that came second makes no later marker come second", () => {
     const first = listed(marker(1, [{ to: ADDR(1), minor: 500n, tag: TAG(1) }, { to: ADDR(2), minor: 700n }]), 100);
     const second = listed(marker(2, [{ to: ADDR(2), minor: 700n, tag: TAG(2) }, { to: ADDR(3), minor: 900n }]), 101);
