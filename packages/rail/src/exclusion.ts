@@ -36,7 +36,8 @@ export const FREEZELIST_PROGRAM = PROGRAMS.external.usdcx_freezelist;
 export const ZERO_ADDRESS = "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
 
 const UNREADABLE = "The stablecoin's freeze list couldn't be read, so nothing was sent. Try again in a minute";
-const NOT_WHOLE = "What was read of the stablecoin's freeze list doesn't match the network's, so nothing was sent. Try again in a minute; if it keeps happening, pay in Shield and record it";
+// A paycheck or a bill paid outside the app can't be marked paid in it, so this sends nobody there.
+const NOT_WHOLE = "What was read of the stablecoin's freeze list doesn't match the network's, so nothing was sent. Try again later";
 const SENDER_FROZEN = "This account is on the stablecoin's freeze list, so the network would refuse every payment from it; nothing was sent";
 
 const ADDRESS = /^aleo1[a-z0-9]{58}$/;

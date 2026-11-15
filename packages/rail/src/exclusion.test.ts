@@ -89,6 +89,8 @@ describe("exclusion proof", () => {
     const short = exclusionProofFor(SENDER, freezeListNetwork([ZERO_ADDRESS, A], { root: rootOf([A, B]) }));
     await expect(short).rejects.toThrow(RailError);
     await expect(short).rejects.toThrow(/freeze list doesn't match the network's, so nothing was sent/);
+    // A paycheck or a bill paid outside the app can't be marked paid in it, so the message sends nobody there.
+    await expect(short).rejects.toHaveProperty("message", "What was read of the stablecoin's freeze list doesn't match the network's, so nothing was sent. Try again later");
   });
 
   it("skips a slot that was unfrozen, and the root is the chain's with or without it", async () => {
