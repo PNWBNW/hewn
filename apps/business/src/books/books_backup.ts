@@ -62,6 +62,12 @@ export type ChainState = {
   snapshotBytes: number;
   changeBytes: number;
   changes: number;
+  /**
+   * A hash of the vault's key slots as the chain's snapshot carried them (chain/books_backup.ts
+   * `slotsHash`). A state saved before this was recorded has none, and the next backup starts a
+   * new chain.
+   */
+  slots?: string;
 };
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -75,7 +81,8 @@ export function validateChainState(raw: unknown): ChainState {
   if (
     !count(s.chain) || !count(s.seq) || !count(s.snapshotBytes) || !count(s.changeBytes) || !count(s.changes) ||
     typeof m.state !== "string" || !HEX64.test(m.state) || !count(m.entries) ||
-    !sections || !Object.values(sections).every((v) => typeof v === "string" && HEX64.test(v))
+    !sections || !Object.values(sections).every((v) => typeof v === "string" && HEX64.test(v)) ||
+    (s.slots !== undefined && (typeof s.slots !== "string" || !HEX64.test(s.slots)))
   ) {
     throw new BackupFormatError("The backup's place isn't readable");
   }
@@ -86,6 +93,7 @@ export function validateChainState(raw: unknown): ChainState {
     snapshotBytes: s.snapshotBytes as number,
     changeBytes: s.changeBytes as number,
     changes: s.changes as number,
+    ...(s.slots !== undefined ? { slots: s.slots as string } : {}),
   };
 }
 

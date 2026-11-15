@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { addAccount, createBooks, postEntry } from "@pnw/ledger";
-import { MemoryStore, addRecovery, createVault, openKeySlots, unlockVault } from "@pnw/vault";
+import { MemoryStore, addRecovery, createVault, keySlotsOf, openKeySlots, unlockVault } from "@pnw/vault";
 import { accountSecret, vaultIdFor } from "../books/account";
 import { type AccountUnlock, fileIdsIn, restoreIntoVault, restoredCompany } from "../books/account_restore";
 import { stateHash } from "../books/books_backup";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "../books/company";
-import { type Page, planBackup, restoreBackup, sealerOf } from "./books_backup";
+import { type Page, planBackup, restoreBackup, sealerOf, slotsHash } from "./books_backup";
 import { AWAY_HINT_MS, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import type { LetterRecord } from "./letters";
 
@@ -26,8 +26,14 @@ async function setup() {
   const company: Company = { ...emptyCompany(books), username: USER };
   const id = await vaultIdFor(USER, "business");
   const session = await createVault(accountSecret(USER, PASS), companyToJson(company), { id, iterations: 1000 });
-  return { session, company, id };
+  return { session, company, id, bank: k.account.id, sales: s.account.id };
 }
+
+/** One more entry in the books. */
+const sellOnce = (c: Company, bank: string, sales: string): Company => ({
+  ...c,
+  books: postEntry(c.books, { date: "2026-10-17", memo: "One more job", lines: [{ accountId: bank, debit: 2500n }, { accountId: sales, credit: 2500n }] }).books,
+});
 
 /** The account's letters to itself, after a backup sent its pages. */
 async function backedUp(session: Awaited<ReturnType<typeof setup>>["session"], company: Company) {
@@ -72,6 +78,46 @@ describe("restoring the books from the backup kept with the account", () => {
     const back = companyFromJson(await (await unlockVault(saved, accountSecret(USER, next))).read());
     expect(await stateHash(back)).toBe(await stateHash(company));
     expect(back.chainBackup).toBeUndefined();
+  });
+
+  it("after a passphrase restore, read back from the device, the next backup adds a change to the same chain", async () => {
+    const { session, company, id, bank, sales } = await setup();
+    const { read, plan } = await backedUp(session, company);
+    const store = new MemoryStore();
+    await restoreIntoVault(store, finder(read), USER, { passphrase: PASS }, NOW);
+
+    // A later login: the vault as the store kept it.
+    const later = await unlockVault((await store.load(id))!, accountSecret(USER, PASS));
+    const back = companyFromJson(await later.read());
+    expect(back.chainBackup!.slots).toBe(await slotsHash(keySlotsOf(later.record)));
+    expect(back.chainBackup!.slots).toBe(plan.next.slots);
+    const next = await planBackup({ sealer: sealerOf(later), company: sellOnce(back, bank, sales), username: USER, address: ADDR, state: back.chainBackup! });
+    expect(next).toMatchObject({ kind: "change", chain: 0, seq: 1 });
+  });
+
+  it("after a recovery-key restore, the next backup is a full copy on the next free chain, opened by the new passphrase", async () => {
+    const { session, company, id } = await setup();
+    const { record, code } = await addRecovery(session.record, accountSecret(USER, PASS));
+    const { box, read, plan: first } = await backedUp(await unlockVault(record, accountSecret(USER, PASS)), company);
+    const store = new MemoryStore();
+    const next = "a brand new passphrase, five words";
+    const out = (await restoreIntoVault(store, finder(read), USER, { code, next }, NOW))!;
+    const back = companyFromJson(await out.session.read());
+    expect(back.chainBackup).toBeUndefined();
+
+    // The place wasn't kept, so the first chain whose first page is free is found by asking.
+    const taken = async (lookup: string) => box.has(lookup);
+    const plan = (await planBackup({ sealer: sealerOf(out.session), company: back, username: USER, address: ADDR, state: null, taken }))!;
+    expect(plan).toMatchObject({ kind: "snapshot", chain: 1, seq: 0 });
+    expect(plan.next.slots).toBe(await slotsHash(keySlotsOf((await store.load(id))!)));
+    expect(plan.next.slots).not.toBe(first.next.slots);
+    // Had the place been kept, the changed slots alone would lead to the same.
+    expect(await planBackup({ sealer: sealerOf(out.session), company: back, username: USER, address: ADDR, state: first.next })).toMatchObject({ kind: "snapshot", chain: 1, seq: 0 });
+
+    plan.pages.forEach((p: Page) => box.set(p.lookup, p.envelope));
+    const again = (await restoreIntoVault(new MemoryStore(), finder(read), USER, { passphrase: next }, NOW))!;
+    expect(companyFromJson(await again.session.read()).chainBackup).toMatchObject({ chain: 1, seq: 0, slots: plan.next.slots });
+    await expect(restoreIntoVault(new MemoryStore(), finder(read), USER, { passphrase: PASS }, NOW)).rejects.toThrow("That username and passphrase don't open this backup");
   });
 
   it("refuses a weak new passphrase before reading anything", async () => {

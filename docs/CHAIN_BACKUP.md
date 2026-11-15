@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-08
+updated: 2026-11-15
 summary: The books backed up as letters to your own account: compressed, then encrypted; a snapshot, then only changes; restored on any device with the wallet and the passphrase or recovery key.
 ---
 
@@ -51,6 +51,7 @@ partial restore is never silent.
 
 **A new snapshot starts a new chain** when the changes since the last one add up to more than half
 a snapshot, or after 12 changes, so a restore never needs more than a snapshot and a dozen pieces.
+A new passphrase or recovery key starts one too (Limits, below).
 Old chains stay on chain. Letters can't be deleted; they're ciphertext and harmless, and restore
 reads only the newest complete chain.
 
@@ -92,6 +93,11 @@ A week's changes for a small business is usually one letter.
   key. Either one opens the backup (`openKeySlots`, `openKeySlotsWithRecovery`), and a restore
   writes the books into a vault with the very same keys, so the person logs in exactly as before.
   A recovery-key restore then sets a new passphrase.
+- **Only a snapshot carries the slots,** so a chain opens with the passphrase and the recovery key
+  its snapshot was made under. The chain's state in the vault keeps a hash of those slots
+  (`ChainState.slots`, from `chain/books_backup.ts` `slotsHash`). When the vault's slots are no
+  longer the same, the next backup is a snapshot on a new chain, carrying them as they are now
+  (2026-11-14).
 - **This replaces the separate content key first planned.** The app never holds the recovery
   code after showing it once, so it couldn't wrap a new key under it. The vault's own recovery slot
   already does that.
@@ -137,17 +143,26 @@ People choose, the app asks. It can't send a backup on its own: every page needs
 - It also asks after a pay run and when a month is closed, so a period's books are on chain before
   the period is sealed.
 - A backup on chain counts as a backup for the reminder (`Company.backedUpAt`). The vault also
-  keeps the chain's state (chain id, sequence, last hash) and a copy of the last state sent, so the
-  next change can be worked out. All of that stays inside the encrypted vault.
+  keeps the chain's state (chain id, sequence, last hash, a hash of the key slots its snapshot
+  carried) and a copy of the last state sent, so the next change can be worked out. All of that
+  stays inside the encrypted vault.
 
 ## Limits, honestly
 
 - **The wallet is needed.** The letters belong to its account, and a lost wallet means they can't
   be read. File backups don't have this limit.
 - **The passphrase or the recovery key is needed.** Without either, nothing opens.
-- **Changing the passphrase doesn't re-seal old letters.** They stay openable with the old
-  passphrase. So a passphrase change starts a new chain, and the old passphrase should be treated
-  as able to open the old backups.
+- **A new passphrase or recovery key makes the next backup a full copy on a new chain.** That
+  covers a passphrase reset with the recovery key, and a recovery key made, replaced or taken
+  away. The new chain opens with the passphrase and recovery key as they are now. It is a full
+  copy even when nothing in the books changed, at a full copy's cost (shown before any approval).
+  A chain state saved before this was built doesn't say which slots its snapshot carried, so the
+  first backup after updating the app is a full copy as well. A backup worked out before a recovery
+  key was made or taken away, and not yet sent, isn't sent: Back up asks for it to be worked out
+  again (`plannedUnder`).
+- **It doesn't re-seal anything.** The data key stays the same when the passphrase or the recovery
+  key changes, and every piece, old or new, is sealed with it. So an old passphrase or recovery
+  key should be treated as still able to open the backups.
 - **It is only as fresh as the last backup.**
 - **Ciphertext on a public chain is public for good.** It's protected by the wallet's record
   encryption and by this design's AES layer, but anyone can keep a copy and try later. That's the
