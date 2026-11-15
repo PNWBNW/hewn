@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { addAccount, createBooks, postEntry } from "@pnw/ledger";
 import { emptySales } from "@pnw/sales";
@@ -225,4 +227,32 @@ describe("outflows kept out of the books, at the close", () => {
     expect(() => closeRange(later, "2026-11-30", opts(november))).toThrow(/kept out of the books/);
     expect(closeRange(later, "2026-11-30", { ...opts(november), excluded: "ticked" }).company.books.marks.closedThrough).toBe("2026-11-30");
   });
+
+  it("excluded: the close panel lists them in its checklist and in the close itself", () => {
+    // The panel has no tick yet. Its checklist and its close must make the same choice, or a
+    // checklist that passes leads to a close that refuses, asking for a tick nobody can give.
+    const panel = readFileSync(join(__dirname, "ClosePanel.tsx"), "utf8");
+    expect(panel).toContain('const excluded = "listed" as const;');
+    for (const fn of ["closeChecks", "closeRange"]) {
+      const calls = callsTo(panel, fn);
+      expect(calls, fn).toHaveLength(1);
+      expect(calls[0], fn).toMatch(/[{,]\s*excluded\s*[,}]/);
+    }
+  });
 });
+
+/** The text of every call to `fn` in `source`, from its name to its closing bracket. */
+function callsTo(source: string, fn: string): string[] {
+  const calls: string[] = [];
+  for (const m of source.matchAll(new RegExp(`(?<![\\w.])${fn}\\(`, "g"))) {
+    let depth = 0;
+    let i = m.index! + fn.length;
+    do {
+      if (source[i] === "(") depth++;
+      else if (source[i] === ")") depth--;
+      i++;
+    } while (depth > 0 && i < source.length);
+    calls.push(source.slice(m.index!, i));
+  }
+  return calls;
+}
