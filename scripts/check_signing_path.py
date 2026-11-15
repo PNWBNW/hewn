@@ -145,13 +145,14 @@ def sources():
             yield rel, path.read_text(encoding="utf-8", errors="replace")
 
 
-LINK_LINE_COMMENT = re.compile(r"(?:^|(?<=\s))//.*")
+LINK_LINE_COMMENT = re.compile(r"(?<![:/])//.*")
 
 
 def code_only(text: str) -> str:
     """Drops // and /* */ comments so a doc comment naming a call doesn't count as one. On a line
-    holding a link (`://`), the comment starts at a `//` that opens the line or follows a space,
-    so the link's own `//` isn't taken for one and a comment beside a link is still dropped."""
+    holding a link (`://`), the comment starts at the first `//` that doesn't follow a `:` (or the
+    `:/` of a `file:///` link), so the link's own slashes aren't taken for one and a comment beside
+    a link is still dropped, whether it follows a space, opens the line or comes straight after code."""
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
     return "\n".join(
         line.split("//", 1)[0] if "://" not in line else LINK_LINE_COMMENT.sub("", line, count=1)

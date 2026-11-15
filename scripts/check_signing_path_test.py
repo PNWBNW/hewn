@@ -170,8 +170,12 @@ class SigningPathTest(unittest.TestCase):
                 self.assertFails(SHIELD, "asks the adapter to sign without `await checkEditions()` first")
 
     def test_the_edition_check_named_in_a_comment_beside_a_link_fails(self):
-        self.change(GUARD, "// The editions, as https://example.org says: await checkEditions()")
-        self.assertFails(SHIELD, "asks the adapter to sign without `await checkEditions()` first")
+        note = "// The editions, as https://example.org says: await checkEditions()"
+        # After the indent, at the start of the line, and straight after code with no space.
+        for old, new in ((GUARD, note), (f"    {GUARD}", note), (GUARD, f"void 0;{note}")):
+            with self.subTest(line=new):
+                self.change(old, new)
+                self.assertFails(SHIELD, "asks the adapter to sign without `await checkEditions()` first")
 
     def test_an_apostrophe_in_a_comment_beside_a_link_passes(self):
         self.change("The provider misses the disconnect", "The provider doesn't see the disconnect")
@@ -179,12 +183,14 @@ class SigningPathTest(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
 
     def test_code_after_a_link_still_counts(self):
-        rel = "apps/business/src/chain/Linked.tsx"
-        self.write(rel, PANEL.replace(
-            "return wallet.executeTransaction(",
-            'void fetch("https://api.example.org/v2"); return wallet.wallets[0].adapter.executeTransaction(',
-        ))
-        self.assertFails(rel, "asks the wallet adapter itself to sign")
+        for i, link in enumerate(("https://api.example.org/v2", "file:///tmp/books.hewn")):
+            with self.subTest(link=link):
+                rel = f"apps/business/src/chain/Linked{i}.tsx"
+                self.write(rel, PANEL.replace(
+                    "return wallet.executeTransaction(",
+                    f'void fetch("{link}"); return wallet.wallets[0].adapter.executeTransaction(',
+                ))
+                self.assertFails(rel, "asks the wallet adapter itself to sign")
 
     def test_an_unchecked_deployment_in_shield_fails(self):
         self.write(SHIELD, self.shield + "\nexport const deploy = async (a: any, o: unknown) => a.executeDeployment(o);\n")
