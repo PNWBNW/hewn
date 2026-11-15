@@ -294,16 +294,20 @@ describe("where the idle lock is wired", () => {
   it("the pay panel and the backup to the account note each completed step, after the step's own write", () => {
     const pay = read("chain/PayPanel.tsx");
     expect(pay).toContain('import { afterStep, noteProgress } from "@/books/idle_lock";');
-    // "planned" and "split_done" count at once; the four that write a paycheck's outcome count once the write settles.
+    // "planned" and "split_done" count at once; every write of the run (the record kept before each approval, and
+    // the payment's id, settlement, failure or unconfirmed state) counts once it has settled.
     expect(pay).toMatch(/case "planned":\s*noteProgress\(\);/);
     expect(pay).toMatch(/case "split_done":\s*noteProgress\(\);/);
-    expect(pay).toContain("const writeStep = (workerId: string, target: Settlement) => afterStep(write(workerId, target));");
+    expect(pay).toContain(
+      "const write = (workerId: string, target: Settlement) => afterStep(updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) })));",
+    );
     for (const kind of ["sent", "settled", "failed", "unconfirmed"]) {
-      expect(pay, kind).toMatch(new RegExp(`case "${kind}":\\s*setStage\\([^;]*;\\s*(//[^\\n]*\\s*)*(void |settled\\.push\\(\\s*)writeStep\\(e\\.workerId`));
+      expect(pay, kind).toMatch(new RegExp(`case "${kind}":\\s*setStage\\([^;]*;\\s*(//[^\\n]*\\s*)*(void |settled\\.push\\(\\s*)write\\(e\\.workerId`));
     }
-    expect(pay.match(/writeStep\(e\.workerId/g)).toHaveLength(4);
+    expect(pay).toMatch(/const beforeSend = async \(workerId: string, attempt: string\) => \{\s*await write\(workerId,/);
     // Nothing else notes progress: not the waits for an approval ("splitting", "approving"), not "broadcast".
     expect(pay.match(/noteProgress\(\)/g)).toHaveLength(3);
+    expect(pay.match(/afterStep\(/g)).toHaveLength(1);
     // A paystub counts once it has gone out and its delivery is written.
     expect(pay).toMatch(/await sendPaystub\(runId, workerId\);\s*noteProgress\(\);/);
     const backup = read("chain/ChainBackup.tsx");

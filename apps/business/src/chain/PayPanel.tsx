@@ -220,12 +220,11 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     setNote(null);
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
-    const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
-    // The events that end a step of the run count as activity for the idle lock, so books left open while the person
-    // approves in Shield don't lock mid-run: "planned" and "split_done" at once, the four that write a paycheck's
-    // outcome once that write has settled, so one that lands after the 15 minutes keeps its result before the books
-    // lock. A wait for an approval ("splitting", "approving") and "broadcast" don't count.
-    const writeStep = (workerId: string, target: Settlement) => afterStep(write(workerId, target));
+    // Each step of the run counts as activity for the idle lock, so books left open while the person approves in Shield
+    // don't lock mid-run: "planned" and "split_done" at once, and every write of the run (the record kept before each
+    // approval, then the payment's outcome) once it has settled, so a step that lands after the 15 minutes keeps its
+    // result before the books lock. A wait for an approval ("splitting", "approving") and "broadcast" don't count.
+    const write = (workerId: string, target: Settlement) => afterStep(updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) })));
     const settled: Promise<string | null>[] = [];
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
@@ -246,7 +245,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "sent":
           setStage(e.workerId, { kind: "sent" });
-          void writeStep(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
+          void write(e.workerId, { status: "pending", reference: e.reference, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
           break;
         case "broadcast":
           break;
@@ -255,7 +254,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           // The paystub goes out once everyone is paid (a letter is its own Shield approval, so
           // it never races the payments); a failed send never touches the settlement.
           settled.push(
-            writeStep(e.workerId, {
+            write(e.workerId, {
               status: "settled",
               reference: e.transactionId,
               settledAt: new Date().toISOString(),
@@ -272,11 +271,11 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
         case "failed":
           setStage(e.workerId, { kind: "failed", failure: e.failure });
-          void writeStep(e.workerId, { status: "failed", failure: e.failure, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
+          void write(e.workerId, { status: "failed", failure: e.failure, ...(e.attempt ? { attempt: e.attempt } : {}) }).catch((err: unknown) => setError(errorMessage(err)));
           break;
         case "unconfirmed":
           setStage(e.workerId, { kind: "unconfirmed", failure: e.failure });
-          void writeStep(e.workerId, { status: "pending", failure: e.failure, ...(e.reference ? { reference: e.reference } : {}), ...(e.attempt ? { attempt: e.attempt } : {}) }).catch(
+          void write(e.workerId, { status: "pending", failure: e.failure, ...(e.reference ? { reference: e.reference } : {}), ...(e.attempt ? { attempt: e.attempt } : {}) }).catch(
             (err: unknown) => setError(errorMessage(err)),
           );
           break;
