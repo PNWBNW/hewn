@@ -277,12 +277,16 @@ export type ReleaseContext = {
 
 type Books = Company;
 
-/** The look for one payment in the account's own transfers, as the books stand (`books`). `claimed` grows as transfers are taken. */
-function paymentFinder(ctx: Pick<ReleaseContext, "network" | "runId" | "lookup">, books: Books, claimed: Set<string>) {
+/**
+ * The look for one payment in the account's own transfers, as the books stand (`books`). `claimed` grows as transfers
+ * are taken. It is told the account Shield is signed in to, so a public transfer that names another sender isn't taken
+ * for this account's payment.
+ */
+function paymentFinder(ctx: Pick<ReleaseContext, "wallet" | "network" | "runId" | "lookup">, books: Books, claimed: Set<string>) {
   // Each person's account on the rail, payable right now or not: for telling whose a transfer could be, more is safer.
   const accounts = new Map((books.rail?.links ?? []).map((l) => [l.workerId, l.address]));
   return (q: PaymentQuery): Promise<PaymentLookup> =>
-    findSentPayment({ ...lookQuery(books.payroll.runs, accounts, ctx.runId, q), claimed, deps: { ...ctx.lookup, network: ctx.network } });
+    findSentPayment({ ...lookQuery(books.payroll.runs, accounts, ctx.runId, q), account: ctx.wallet.address, claimed, deps: { ...ctx.lookup, network: ctx.network } });
 }
 
 type Obj = Record<string, unknown>;

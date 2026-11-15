@@ -13,6 +13,8 @@ import { type SentPaymentDeps, type SentRead, findSentPayment } from "./sent_pay
 const ME = "aleo1" + "m".repeat(58);
 const ANA = "aleo1" + "a".repeat(58);
 const BEN = "aleo1" + "b".repeat(58);
+/** Shield's own account, when it pays the network fee itself. */
+const SHIELD = "aleo1" + "s".repeat(58);
 const tx = (n: number) => `at1${String(n).padStart(58, "x")}`;
 const chainTag = (n: number) => `${n}`.repeat(20) + "field";
 const PLAIN = `{\n  owner: ${ME}.private,\n  amount: 25000000u128.private,\n  _nonce: 7group.public\n}`;
@@ -41,6 +43,12 @@ type Sent = {
   /** Who it paid and how much are public inputs, as in a public transfer (`also` names a second account among them). */
   open?: true;
   also?: string;
+  /** The sender its finalize arguments name, as a public transfer's do (its caller). */
+  by?: string;
+  /** Its inputs exactly, for a transfer laid out otherwise. */
+  inputs?: { type: string; value: string }[];
+  /** The account a public fee was paid from. */
+  feeFrom?: string;
 };
 
 function world(sent: Sent[], opts: { history?: unknown[] | "down" | "odd"; records?: unknown[]; keysDown?: boolean } = {}) {
@@ -49,7 +57,9 @@ function world(sent: Sent[], opts: { history?: unknown[] | "down" | "odd"; recor
   const transition = (s: Sent) => ({
     program: USDCX_PROGRAM,
     function: s.fn ?? "transfer_private",
-    inputs: s.open
+    inputs: s.inputs
+      ? s.inputs
+      : s.open
       ? [
           ...(s.also ? [{ type: "public", value: s.also }] : []),
           { type: "public", value: s.to },
@@ -62,8 +72,12 @@ function world(sent: Sent[], opts: { history?: unknown[] | "down" | "odd"; recor
           { type: "record", id: "1field", ...(s.spends ? { tag: s.spends } : {}) },
           { type: "private", value: "ciphertext1c" },
         ],
-    outputs: [],
+    outputs: s.by ? [{ type: "future", id: "2field", value: `{\n  program_id: ${USDCX_PROGRAM},\n  function_name: ${s.fn},\n  arguments: [\n    ${s.to},\n    ${s.minor}u128,\n    ${s.by}\n  ]\n}` }] : [],
   });
+  const fee = (s: Sent) =>
+    s.feeFrom
+      ? { fee: { transition: { program: "credits.aleo", function: "fee_public", inputs: [], outputs: [{ type: "future", id: "3field", value: `{ program_id: credits.aleo, function_name: fee_public, arguments: [ ${s.feeFrom}, 3000u64 ] }` }] } } }
+      : {};
   const network: RailNetwork = {
     async fetchJson(path) {
       asked.network.push(path);
@@ -77,7 +91,7 @@ function world(sent: Sent[], opts: { history?: unknown[] | "down" | "odd"; recor
           type: "execute",
           index: 0,
           ...(s.vague === "no status" ? {} : { status: s.vague === "pending" ? "pending" : "accepted" }),
-          transaction: { type: "execute", id: s.vague === "another id" ? tx(999) : t[1], execution: { transitions: [transition(s)] } },
+          transaction: { type: "execute", id: s.vague === "another id" ? tx(999) : t[1], execution: { transitions: [transition(s)] }, ...fee(s) },
           finalize: [],
           ...(s.inline ? { block_height: s.height } : {}),
         };
@@ -126,7 +140,7 @@ function world(sent: Sent[], opts: { history?: unknown[] | "down" | "odd"; recor
 }
 
 const none = new Set<string>();
-const look = (deps: SentPaymentDeps, over: Partial<Parameters<typeof findSentPayment>[0]> = {}) => findSentPayment({ to: ANA, minor: PAY, since: FLOOR, claimed: none, contested: false, deps, ...over });
+const look = (deps: SentPaymentDeps, over: Partial<Parameters<typeof findSentPayment>[0]> = {}) => findSentPayment({ account: ME, to: ANA, minor: PAY, since: FLOOR, claimed: none, contested: false, deps, ...over });
 /** Shield's record list holding the record the payment set aside, spent, with the chain's tag for it. */
 const records = (tag: string | undefined) => [{ recordName: "Token", spent: true, recordPlaintext: PLAIN, ...(tag ? { tag } : {}) }];
 
@@ -145,7 +159,6 @@ describe("findSentPayment, with the record's tag", () => {
       { n: 1, fn: "join", spends: chainTag(7) },
       { n: 1, fn: "split", spends: chainTag(7) },
       { n: 1, to: BEN, minor: PAY, height: FLOOR + 5, spends: chainTag(7) },
-      { n: 1, to: ANA, minor: PAY - 1n, height: FLOOR + 5, spends: chainTag(7) },
     ] satisfies Sent[]) {
       const w = world([spender, { n: 2, to: BEN, minor: 5n, height: FLOOR + 9 }], { records: records(chainTag(7)) });
       expect(await look(w.deps, { attempt })).toBe("none");
@@ -158,6 +171,9 @@ describe("findSentPayment, with the record's tag", () => {
     expect(await look(absent.deps, { attempt })).toBe("unknown");
     const closed = world([{ n: 1, to: ANA, minor: PAY, height: FLOOR + 5, spends: chainTag(7), sealed: true }], { records: records(chainTag(7)) });
     expect(await look(closed.deps, { attempt })).toBe("unknown");
+    // Or a payment to them of another amount: it may hold this one with something else added.
+    const more = world([{ n: 1, to: ANA, minor: PAY - 1n, height: FLOOR + 5, spends: chainTag(7) }], { records: records(chainTag(7)) });
+    expect(await look(more.deps, { attempt })).toBe("unknown");
     // And when Shield's record list gives the record no tag, or doesn't list it: there is nothing to say "none" with.
     for (const list of [records(undefined), [], [{ recordName: "Token", spent: true, recordPlaintext: PLAIN, tag: "not-a-tag" }]]) {
       const untagged = world([{ n: 1, fn: "join", spends: chainTag(7) }], { records: list });
@@ -183,10 +199,12 @@ describe("findSentPayment, with the record's tag", () => {
     // The record set aside paid them publicly.
     const fromRecord = world([{ n: 1, fn: "transfer_private_to_public", to: ANA, minor: PAY, height: FLOOR + 2, spends: chainTag(7), open: true }], rec);
     expect(await look(fromRecord.deps, { attempt })).toEqual({ found: tx(1) });
-    // The record went into a join, and a public transfer paid them since the floor.
+    // The record went into a join, and a public transfer from this account paid them since the floor.
     const join: Sent = { n: 1, fn: "join", spends: chainTag(7) };
-    const publicly = world([join, { n: 2, fn: "transfer_public", to: ANA, minor: PAY, height: FLOOR + 3, open: true }], rec);
+    const publicly = world([join, { n: 2, fn: "transfer_public", to: ANA, minor: PAY, height: FLOOR + 3, open: true, by: ME }], rec);
     expect(await look(publicly.deps, { attempt })).toEqual({ found: tx(2) });
+    const asSigner = world([join, { n: 2, fn: "transfer_public_as_signer", to: ANA, minor: PAY, height: FLOOR + 3, open: true, by: ME }], rec);
+    expect(await look(asSigner.deps, { attempt })).toEqual({ found: tx(2) });
     // While it could as well be another open payment's, it is not taken, and still never none.
     expect(await look(publicly.deps, { attempt, contested: true })).toBe("unknown");
     // A private transfer of another kind, opened with Shield's view key, counts the same way.
@@ -204,6 +222,63 @@ describe("findSentPayment, with the record's tag", () => {
     expect(await look(world([join, { n: 2, fn: "burn_private", to: ANA, minor: PAY, height: FLOOR + 3 }], rec).deps, { attempt })).toBe("unknown");
     // The record went into a public transfer to someone else: that is not a payment to them, and nothing else stands.
     expect(await look(world([{ n: 1, fn: "transfer_private_to_public", to: BEN, minor: PAY, height: FLOOR + 2, spends: chainTag(7), open: true }], rec).deps, { attempt })).toBe("none");
+  });
+
+  it("a transfer under an allowance is never read as a payment to its first account: someone paying them from this account's public balance, or this account taking theirs", async () => {
+    const attempt = await recordTag(PLAIN);
+    const rec = { records: records(chainTag(7)) };
+    const join: Sent = { n: 1, fn: "join", spends: chainTag(7) };
+    // The first account is the one whose public balance pays; who is paid is private.
+    const allowed = (from: string, sealed: boolean): Sent => ({
+      n: 2,
+      fn: "transfer_from_public_to_private",
+      inputs: [
+        { type: "public", value: from },
+        { type: "private", value: "ciphertext1recipient" },
+        { type: "public", value: `${PAY}u128` },
+      ],
+      open: true,
+      height: FLOOR + 3,
+      sealed,
+    });
+    // Someone allowed to spend this account's public balance paid them privately: not none.
+    expect(await look(world([join, allowed(ME, true)], rec).deps, { attempt })).toBe("unknown");
+    // This account took their public balance into a private record: not a payment to them, and not found.
+    expect(await look(world([allowed(ANA, false)]).deps)).toBe("unknown");
+    expect(await look(world([join, allowed(ANA, false)], rec).deps, { attempt })).toBe("unknown");
+  });
+
+  it("any other payment to them from this account since the floor leaves doubt: it may hold this one with something else added", async () => {
+    const attempt = await recordTag(PLAIN);
+    const rec = { records: records(chainTag(7)) };
+    const join: Sent = { n: 1, fn: "join", spends: chainTag(7) };
+    // Paid publicly or privately, for the paycheck and $20 more.
+    expect(await look(world([join, { n: 2, fn: "transfer_public", to: ANA, minor: PAY + 20_000_000n, height: FLOOR + 3, open: true, by: ME }], rec).deps, { attempt })).toBe("unknown");
+    expect(await look(world([join, { n: 2, to: ANA, minor: PAY + 20_000_000n, height: FLOOR + 3 }], rec).deps, { attempt })).toBe("unknown");
+    // Before the floor, it is an older payment and leaves none.
+    expect(await look(world([join, { n: 2, to: ANA, minor: PAY + 20_000_000n, height: FLOOR - 3 }], rec).deps, { attempt })).toBe("none");
+  });
+
+  it("a public transfer counts as this account's only when it names this account as its sender, never by who paid the fee", async () => {
+    const attempt = await recordTag(PLAIN);
+    const rec = { records: records(chainTag(7)) };
+    const join: Sent = { n: 1, fn: "join", spends: chainTag(7) };
+    const toAna = (more: Partial<Sent>): Sent => ({ n: 2, fn: "transfer_public", to: ANA, minor: PAY, height: FLOOR + 5, open: true, ...more });
+    // Another account paid them, and paid its fee: not this account's payment, found for no paycheck here.
+    expect(await look(world([toAna({ by: BEN, feeFrom: BEN })]).deps)).toBe("unknown");
+    expect(await look(world([join, toAna({ by: BEN, feeFrom: BEN })], rec).deps, { attempt })).toBe("none");
+    // Another account paid them, and this account's account paid the fee: still not found.
+    expect(await look(world([toAna({ by: BEN, feeFrom: ME })]).deps)).toBe("unknown");
+    // A public payment from a private record names no sender; Shield may pay the fee from its own account. Neither
+    // the fee's payer nor anything else says whose it was, so it is found only by the record it spent, else unknown.
+    const fromRecord = (feeFrom?: string): Sent => ({ n: 2, fn: "transfer_private_to_public", to: ANA, minor: PAY, height: FLOOR + 5, open: true, ...(feeFrom ? { feeFrom } : {}) });
+    for (const feeFrom of [undefined, ME, SHIELD]) {
+      expect(await look(world([fromRecord(feeFrom)]).deps)).toBe("unknown");
+      expect(await look(world([join, fromRecord(feeFrom)], rec).deps, { attempt })).toBe("unknown");
+    }
+    expect(await look(world([{ ...fromRecord(SHIELD), spends: chainTag(7) }], rec).deps, { attempt })).toEqual({ found: tx(2) });
+    // The request's own transaction is this account's whatever it names.
+    expect(await look(world([fromRecord(SHIELD)], { history: [] }).deps, { ids: [tx(2)] })).toEqual({ found: tx(2) });
   });
 
   it("never says none while anything since the floor is unread", async () => {
@@ -281,7 +356,7 @@ describe("findSentPayment, without the record's tag", () => {
       ],
     });
     // What the pay panel tells each look (lookQuery), from these books.
-    const lookFor = (runId: string, attempt: string, since: number) => findSentPayment({ ...lookQuery(runs, links, runId, { workerId: "ana", to: ANA, minor, attempt, ids: [], since }), deps: w.deps });
+    const lookFor = (runId: string, attempt: string, since: number) => findSentPayment({ ...lookQuery(runs, links, runId, { workerId: "ana", to: ANA, minor, attempt, ids: [], since }), account: ME, deps: w.deps });
     // Run A reopened first: the transfer is at or after its floor, to the same person for the same amount, and is not taken for it.
     expect(await lookFor("run-a", tagA, FLOOR)).toBe("unknown");
     // Run B: it spent the record run B set aside.
@@ -366,6 +441,24 @@ describe("findSentPayment, many at once and slow", () => {
     expect(await look(stuck, { attempt: await recordTag(PLAIN) })).toBe("unknown");
     expect(Date.now() - started).toBeLessThan(5_000);
   });
+
+  it("a look that has answered at its deadline reads nothing more and asks Shield for nothing more", async () => {
+    const w = world(Array.from({ length: 6 }, (_, i) => ({ n: i + 1, to: BEN, minor: 5n, height: FLOOR + i })));
+    let reads = 0;
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const network: RailNetwork = {
+      async fetchJson(path) {
+        if (path.startsWith("transaction/confirmed/") && reads++ === 0) await slow; // the first read outlasts the deadline
+        return w.deps.network.fetchJson(path);
+      },
+    };
+    expect(await look({ ...w.deps, deadlineMs: 20, network })).toBe("unknown");
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(reads).toBe(1);
+    expect(w.asked.wallet.filter((x) => x === "view keys").length).toBeLessThanOrEqual(1);
+  });
 });
 
 describe("findSentPayment keeps to Shield's history and the explorer", () => {
@@ -401,6 +494,8 @@ describe("findSentPayment keeps to Shield's history and the explorer", () => {
     expect(release).toMatch(/findSentPayment\(/);
     const panel = readFileSync(new URL("./PayPanel.tsx", import.meta.url), "utf8");
     expect(release).toMatch(/findSentPayment\(\{\s*\.\.\.lookQuery\(/);
+    // It is told the account Shield is signed in to, the one paying.
+    expect(release).toMatch(/findSentPayment\(\{[^}]*account: ctx\.wallet\.address/);
     expect(panel).toMatch(/releaseRun\(/);
     for (const file of [release, panel]) expect(file).not.toMatch(/view_key|(?<!transition)viewkey|openOwnRecord|scanner/i);
   });

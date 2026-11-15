@@ -44,8 +44,6 @@ import type { Paycheck } from "@pnw/payroll";
 import {
   type PayQueueEvent,
   type RailWallet,
-  type TokenRecord,
-  centsToMinor,
   explorerNetwork,
   fetchTokenRecords,
   formatMinorAsDollars,
@@ -61,7 +59,16 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, LOOKING, shortOnRail, stagesAfterPress, unconfirmedLabel } from "./pay_outcome";
+import {
+  FOUND_NOTE,
+  LOOKING,
+  type RailRecord,
+  dueFromRail,
+  shortOnRail,
+  stagesAfterPress,
+  tagRecords,
+  unconfirmedLabel,
+} from "./pay_outcome";
 import { type ReleaseContext, payAgain as payAgainFrom, promptSummary, releaseRun } from "./release";
 import { markerDesk } from "./run_marker";
 import type { SentRead } from "./sent_payment";
@@ -156,7 +163,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const sendPaystub = usePaystubDelivery(wallet);
   const run = payroll.runs.find((r) => r.id === runId);
   const names = useMemo(() => new Map(payroll.workers.map((w) => [w.id, w.name])), [payroll.workers]);
-  const [records, setRecords] = useState<TokenRecord[] | null>(null);
+  const [records, setRecords] = useState<RailRecord[] | null>(null);
   const [stages, setStages] = useState<Record<string, Stage>>({});
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({});
   const [note, setNote] = useState<string | null>(null);
@@ -206,7 +213,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   useEffect(() => {
     if (!address || mismatch || loadedFor.current === address) return;
     loadedFor.current = address;
-    fetchTokenRecords(toRailWallet(wallet, address)).then(setRecords, (e: unknown) => setError(errorMessage(e)));
+    fetchTokenRecords(toRailWallet(wallet, address))
+      .then(tagRecords)
+      .then(setRecords, (e: unknown) => setError(errorMessage(e)));
   }, [address, mismatch, wallet]);
 
   if (!rail) return <FormError message="Link Shield in Settings first" />;
@@ -217,7 +226,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const everyone = run.paychecks.filter((p) => p.net > 0n); // settled ones stay on the board
   const totalDue = due.reduce((s, p) => s + p.net, 0n);
   const balance = records ? totalBalance(records) : null;
-  const short = shortOnRail(balance, centsToMinor(totalDue), stopped);
+  // Short only for what the next press pays from the rail: a payment Shield already took is asked about, and one
+  // whose kept record is gone is looked for, so neither needs funds now (pay_outcome.ts `dueFromRail`).
+  const short = shortOnRail(balance, dueFromRail(due, records ?? []), stopped);
   const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
@@ -340,7 +351,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           // A line the run never reached reads from the books again before the paystubs go.
           setStages((all) => stagesAfterPress(all));
           loadedFor.current = null; // re-read the balance
-          setRecords(await fetchTokenRecords(within.wallet).catch(() => records ?? []));
+          setRecords(await fetchTokenRecords(within.wallet).then(tagRecords).catch(() => records ?? []));
         },
       }));
     } catch (e) {

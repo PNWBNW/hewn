@@ -20,10 +20,13 @@
 // later one stands down (`beaten`): a marker comes second when one before it
 // that stands holds a live line for one of its payees over a period that
 // overlaps its own. That is decided once, from the markers before it, so a
-// marker listed later never changes it. A marker that came second pays
-// nothing, so it decides nothing: its lines are not live and the records it
-// replaces are not given up. A line is live when its marker stands and no
-// line of a standing marker replaces it. For a payment, the lines against it
+// marker listed later never changes it. A marker that came second decides
+// nothing: the device that sent it pays nothing from it, its lines are not
+// live, and the records it replaces are not given up. That includes a record
+// one of its lines names from a try made before it was sent: no other device
+// is told of it, so only a copy of the books that holds it as the payment's
+// attempt keeps to it. A line is live when its marker stands and no line of a
+// standing marker replaces it. For a payment, the lines against it
 // are the ones to the same payee over a period that overlaps its own
 // (`decideLines`):
 //
@@ -45,9 +48,11 @@
 // caller doesn't mark a run that holds two.
 //
 // A marker holds at most `MAX_MARKER_LINES` lines. A run that pays more
-// people is marked in several, one after another before its first payment;
-// their payees don't repeat, so none comes second to another, and the device
-// that sent them goes on with all of them.
+// people is marked in several, sent together or one after another as its
+// payments go out (the caller chooses when). Their payees don't repeat, so
+// none comes second to another, and each reads as a chained run of its own:
+// the device that sent it goes on with its lines, and another device only
+// with a line that names a record.
 //
 // A marker's text names each payee's account and pay, so it leaves the
 // device only sealed with the books' own key. The rules trust every marker
@@ -316,7 +321,8 @@ export function decideLines(listed: readonly ListedMarker[], payments: readonly 
 /**
  * Whether the marker with this id came second: a marker accepted before it, that stands, held a live
  * line for one of its payees over a period that overlaps its own when it was accepted. The device
- * that sent it then pays nothing for this run and drops the records it set aside. Every line of the
+ * that sent it then pays nothing for this run and drops the records it set aside for it (one held
+ * from an earlier try that may still land stays held, as the queue keeps it). Every line of the
  * marker is read, so a marker holds only the payments `decideLines` called fresh: one that repeats a
  * payment already marked reads as beaten by it. A marker that came second stays so, whatever is
  * listed after it. Throws when no marker with this id is listed.

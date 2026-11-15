@@ -6,6 +6,7 @@ import { type Books, applyTemplate, createBooks, emptyDimensions } from "@pnw/le
 import { type Payroll, type W4, addWorker, emptyPayroll, ensureRailAccount, markPaycheckSettlement, postPayRun } from "@pnw/payroll";
 import { PROGRAMS } from "@pnw/config/programs";
 import {
+  NOT_ASKED,
   NOT_LISTED,
   type PayQueueContext,
   type PayQueueResult,
@@ -14,6 +15,7 @@ import {
   TRANSFER_FUNCTION,
   centsToMinor,
   fetchTokenRecords,
+  outstanding,
   totalBalance,
 } from "@pnw/rail";
 import { emptySales } from "@pnw/sales";
@@ -21,7 +23,7 @@ import type { Company } from "../books/company";
 import type { Rail } from "../books/rail";
 import { deliverPaystub } from "./deliver";
 import { LetterBox, SEND_FUNCTION } from "./letters";
-import { shortOnRail } from "./pay_outcome";
+import { dueFromRail, shortOnRail, tagRecords } from "./pay_outcome";
 import { type Prompt, type Releaser, pickReleaser, promptSummary, sequentialReleaser } from "./release";
 
 const W4_SINGLE: W4 = { filingStatus: "single", dependentCredit: 0n, otherIncome: 0n, extraDeductions: 0n, extraWithholding: 0n };
@@ -210,7 +212,8 @@ describe("a run that stops before what the last payment left is listed", () => {
     expect(balance).toBe(0n);
     expect(shortOnRail(balance, due, first.stalled!.why)).toBe(false);
 
-    // Continue once Shield lists it: the two people left are paid, and nobody twice.
+    // Pressed again once Shield lists it (the button still reads Pay now: neither person left was tried): the two
+    // people left are paid, and nobody twice.
     lagging = false;
     const payroll = markPaycheckSettlement(start.company.payroll, start.runId, first.settled[0]!.workerId, { status: "settled", reference: first.settled[0]!.transactionId });
     const next = await sequentialReleaser.release({ wallet, network, run: payroll.runs[0]!, links: start.links, tree, ...timing });
@@ -219,6 +222,67 @@ describe("a run that stops before what the last payment left is listed", () => {
     const paid = shield.calls.filter((c) => c.program === USDCX).map((c) => c.inputs[0]);
     expect(paid).toEqual(start.workers.map((w) => start.links.get(w.id)));
   });
+});
+
+describe("a run that stops at a payment Shield took but never confirmed", () => {
+  /**
+   * An exactly funded run of three, paid until the second payment: it goes out and lands, but Shield either never
+   * says it was accepted ("no answer": the books keep its request id) or throws once it has gone ("threw": they keep
+   * only its record, now spent). The books are then written as the pay panel writes them.
+   */
+  async function stopAtTheSecond(how: "no answer" | "threw") {
+    const start = setup(3);
+    const run = start.company.payroll.runs[0]!;
+    const shield = fakeShield([centsToMinor(run.paychecks.reduce((sum, p) => sum + p.net, 0n))]);
+    const second = start.links.get(start.workers[1]!.id)!;
+    const wallet = {
+      ...shield,
+      async executeTransaction(opts: Call & { privateFee: false }) {
+        const sent = await shield.executeTransaction(opts);
+        if (how === "threw" && opts.inputs[0] === second) throw new Error("Shield restarted");
+        return sent;
+      },
+      transactionStatus: async (id: string) => (how === "no answer" && id === "shield_2" ? { status: "pending" } : shield.transactionStatus(id)),
+    };
+    let now = 0;
+    const timing = { clock: { now: () => now }, sleep: async (ms: number) => void (now += ms), limits: { pollMinMs: 1, confirmCapMs: 0, walletCapMs: 60_000 } };
+    const kept = new Map<string, string>();
+    const beforeSend = async (workerId: string, attempt: string) => void kept.set(workerId, attempt);
+    const first = await sequentialReleaser.release({ wallet, network, run, links: start.links, tree, beforeSend, ...timing });
+    expect(first.settled.map((s) => s.workerId)).toEqual([start.workers[0]!.id]);
+    expect(first.unconfirmed.map((s) => s.workerId)).toEqual([start.workers[1]!.id]);
+    expect(first.stalled).toEqual({ at: 2, of: 3, why: NOT_ASKED });
+    const [a, b] = start.workers.map((w) => w.id) as [string, string];
+    let payroll = markPaycheckSettlement(start.company.payroll, start.runId, a, { status: "settled", reference: first.settled[0]!.transactionId });
+    payroll = markPaycheckSettlement(payroll, start.runId, b, {
+      status: "pending",
+      failure: first.unconfirmed[0]!.failure,
+      attempt: kept.get(b)!,
+      ...(how === "no answer" ? { reference: "shield_2" } : {}),
+    });
+    return { start, shield, timing, run: payroll.runs[0]!, why: first.stalled!.why };
+  }
+
+  for (const how of ["no answer", "threw"] as const) {
+    it(`isn't called short of funds on the pay panel (${how}), and the next press pays the third person and pays nobody twice`, async () => {
+      const { start, shield, timing, run, why } = await stopAtTheSecond(how);
+      // What the panel reads of the rail right after: the third person's pay, what the second payment left.
+      const records = await tagRecords(await fetchTokenRecords(shield));
+      const balance = totalBalance(records);
+      const due = outstanding(run);
+      expect(balance).toBe(centsToMinor(due[1]!.net));
+      expect(balance).toBeLessThan(centsToMinor(due[0]!.net + due[1]!.net)); // less than the run still owes
+      // The second payment is asked about or looked for, not paid again: only the third is paid from the rail.
+      expect(dueFromRail(due, records)).toBe(centsToMinor(due[1]!.net));
+      expect(shortOnRail(balance, dueFromRail(due, records), why)).toBe(false);
+
+      // Continue: the third person is paid; the second is asked about (and settles) or looked for, never asked again.
+      const next = await sequentialReleaser.release({ wallet: shield, network, run, links: start.links, tree, ...timing });
+      expect(next.settled.map((s) => s.workerId)).toEqual(how === "no answer" ? [start.workers[1]!.id, start.workers[2]!.id] : [start.workers[2]!.id]);
+      expect(next.unconfirmed.map((s) => s.workerId)).toEqual(how === "no answer" ? [] : [start.workers[1]!.id]);
+      expect(shield.calls.filter((c) => c.program === USDCX).map((c) => c.inputs[0])).toEqual(start.workers.map((w) => start.links.get(w.id)));
+    });
+  }
 });
 
 describe("pickReleaser", () => {

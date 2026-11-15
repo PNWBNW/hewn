@@ -7,10 +7,12 @@ import {
   claimedTransfers,
   lookQuery,
   payAgainTarget,
+  dueFromRail,
   recordListedForPayAgain,
   rivalPayments,
   shortOnRail,
   stagesAfterPress,
+  tagRecords,
   unconfirmedLabel,
 } from "./pay_outcome";
 
@@ -70,6 +72,31 @@ describe("what the pay panel shows once a press ends part-way", () => {
     expect(shortOnRail(0n, DUE, NOT_LISTED)).toBe(false);
   });
 
+  it("counts against the rail only what the next press pays from it, not a payment Shield already took or one whose record is gone", async () => {
+    const record = (cents: bigint, n: number) => ({ plaintext: `{ amount: ${centsToMinor(cents)}u128.private, _nonce: ${n}group.public }`, amount: centsToMinor(cents) });
+    const [kept, small, other] = await tagRecords([record(5_00n, 1), record(1_00n, 2), record(9_00n, 3)]);
+    expect(kept!.tag).toBe(await recordTag(kept!.plaintext));
+    const listed = [kept!, small!, other!];
+    const line = (workerId: string, net: bigint, settlement: Settlement = { status: "pending" }) => ({ workerId, net, settlement });
+    const lines = [
+      line("never asked", 2_00n),
+      line("failed, its record listed", 3_00n, { status: "failed", failure: "Approval expired", attempt: kept!.tag }),
+      line("unconfirmed, its record listed", 4_00n, { status: "pending", failure: "Shield reported a problem (failed)", attempt: kept!.tag }),
+      line("failed, no record kept", 6_00n, { status: "failed", failure: "Turned down" }),
+    ];
+    expect(dueFromRail(lines, listed)).toBe(centsToMinor(15_00n));
+    // Asked about, not paid: Shield took it (its request id is kept), whether its record is still listed or not.
+    const taken = line("taken", 7_00n, { status: "pending", reference: "shield_2", attempt: kept!.tag });
+    const takenGone = line("taken, record gone", 7_00n, { status: "pending", reference: "shield_3", attempt: "ff".repeat(16) });
+    // Looked for, not paid: its kept record is no longer listed, or no longer covers it.
+    const gone = line("record gone", 8_00n, { status: "pending", failure: "Shield reported a problem (failed)", attempt: "ee".repeat(16) });
+    const shrunk = line("record too small", 2_00n, { status: "failed", failure: "Approval expired", attempt: small!.tag });
+    expect(dueFromRail([...lines, taken, takenGone, gone, shrunk], listed)).toBe(centsToMinor(15_00n));
+    expect(dueFromRail([], listed)).toBe(0n);
+    // With nothing listed, every line that keeps a record is looked for; the rest are still paid from the rail.
+    expect(dueFromRail(lines, [])).toBe(centsToMinor(8_00n));
+  });
+
   it("gives a line the run never reached back to the books, and keeps what this press said of the rest", () => {
     const stages = {
       w1: { kind: "settled", transactionId: "at1x" },
@@ -83,8 +110,13 @@ describe("what the pay panel shows once a press ends part-way", () => {
 
   it("is what the pay panel goes by", () => {
     const panel = readFileSync(new URL("./PayPanel.tsx", import.meta.url), "utf8");
-    expect(panel).toMatch(/const short = shortOnRail\(balance, centsToMinor\(totalDue\), stopped\);/);
-    expect(panel).toMatch(/setStopped\(stalledWhy\)/);
+    expect(panel).toMatch(/const short = shortOnRail\(balance, dueFromRail\(due, records \?\? \[\]\), stopped\);/);
+    // The records it reads are tagged, both when it opens and after each press.
+    expect(panel.match(/fetchTokenRecords\([^)]*\)\)?\s*\.then\(tagRecords\)/g)).toHaveLength(2);
+    // Every press that ran says why it stopped, or that it didn't; one refused before anything was asked puts the
+    // earlier note back.
+    expect(panel).toMatch(/\n\s*setStopped\(stalledWhy\);/);
+    expect(panel).toMatch(/if \(refused\) setNote\(noteBefore\);/);
     expect(panel).toMatch(/setStages\(\(all\) => stagesAfterPress\(all\)\)/);
   });
 });
