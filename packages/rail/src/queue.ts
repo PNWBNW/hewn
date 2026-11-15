@@ -15,8 +15,8 @@
 //      confirmed transaction back from the explorer for the fee the employer
 //      actually paid and the block height → report settled → wait until the
 //      wallet lists what the payment left (its change), and go on to the
-//      next payee. A definite failure → report failed; anything else →
-//      report unconfirmed.
+//      next payee. A definite failure → report failed; anything else → look
+//      for it (below).
 //
 // Nothing is split beforehand. A transfer spends one record whole and the
 // rest comes back as one new record, so with a single record on the rail each
@@ -25,16 +25,21 @@
 // on to be there when a prompt is approved; a run that never holds two fresh
 // records at once gives it nothing to combine.
 //
-// Where the run stops (2026-11-14). The first payment that doesn't settle
-// ends the run: the payees after it are not asked for, nothing is kept or
-// said for them, and the next run takes them up (`stalled`, with where it
-// stopped). So a prompt left to expire, or turned down, costs a pause, never
-// a line. The run also stops when, two minutes after a payment, the wallet
-// still lists no record that covers the next one. One case is carried on
-// from: the record a payment set aside went into something else before
-// Shield spent it (money arrived and Shield combined the two) and the look
-// in the account's transfers says nothing paid them. That payment is asked
-// again, from a record listed now, its new tag kept first.
+// Where the run stops (2026-11-14). The first payment asked of Shield that
+// doesn't settle ends the run: the payees after it are not asked for,
+// nothing is kept or said for them, and the next run takes them up
+// (`stalled`, with where it stopped). So a prompt left to expire, or turned
+// down, costs a pause, never a line. The run also stops when, two minutes
+// after a payment, the wallet still lists no record that covers the next
+// one. A payment whose kept record has gone isn't asked of Shield: it is
+// looked for (below), and the run goes on.
+//
+// Asked again on its own: only a payment this run has just asked for, when
+// the record it set aside went into something else before Shield spent it
+// (money arrived and Shield combined the two) and the look in the account's
+// transfers says nothing paid them. It is asked again from a record listed
+// now, its new tag kept first, up to `MAX_ASKS` asks in all; after the last,
+// or when no record is listed for it, it is "Not paid" and the run stops.
 //
 // What is definite (2026-11-14). Shield has two answers that mean nothing
 // moved: a rejection that says why, and an approval left until it expired
@@ -46,19 +51,20 @@
 // answer) doesn't say either way: a transfer reported failed has reached the
 // chain afterwards. Before such a payment is called anything, it is looked
 // for in the account's own transfers (`findPayment`, when the caller has
-// one) and settled if it is there. Otherwise it is unconfirmed, its record's
-// tag and the wallet's id kept. From five minutes after the try ended, while
-// the record it set aside is still unspent, the line says "Not seen on chain
-// yet": it may still land. That is a label; nothing is sent because of it.
+// one) and settled if it is there. Otherwise, unless it is asked again
+// (above), it is unconfirmed, its record's tag and the wallet's id kept.
+// From five minutes after the try ended, while the record it set aside is
+// still unspent, the line says "Not seen on chain yet": it may still land.
+// That is a label; nothing is sent because of it.
 //
-// Never paying twice (2026-10-22, the security review): before Shield is
-// asked for a transfer, the caller keeps a tag for the record it will spend
-// (`beforeSend`, awaited: if it can't be kept, nothing is sent). On a later
-// run, a paycheck with that tag is sent again only by spending the same
-// record, so if the first transfer is still on its way the network lets
-// only one through; if the record is gone, the payment may have gone out,
-// and it is looked for and reported, never asked again on its own (the
-// person checks Shield's activity, and pays again only by choice). No other
+// Never paying twice (2026-10-22): before Shield is asked for a transfer,
+// the caller keeps a tag for the record it will spend (`beforeSend`,
+// awaited: if it can't be kept, nothing is sent). On a later run, a paycheck
+// with that tag is sent again only by spending the same record, so if the
+// first transfer is still on its way the network lets only one through; if
+// the record is gone, it is looked for and reported, never asked again on
+// its own, even when the look says nothing paid them ("Not paid"): the
+// person checks Shield's activity, and pays again only by choice. No other
 // payee is given a record a paycheck has set aside. A transfer Shield never
 // answered for, or accepted without an id, is unconfirmed too, never failed,
 // and an explorer that can't be reached only delays confirming.

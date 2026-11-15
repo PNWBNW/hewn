@@ -312,11 +312,13 @@ describe("pickReleaser", () => {
 
 describe("promptSummary", () => {
   const prompt = (kind: Prompt["kind"]): Prompt => ({ kind, program: "p.aleo", fn: "f", workerId: "w" });
-  it("says how many times Shield will ask, and for what, in the order it will ask", () => {
+  it("says about how many times Shield will ask, and for what, in the order it will ask, and that it may be more or fewer", () => {
     const start = setup(12);
-    expect(promptSummary(sequentialReleaser.prompts(start.company.payroll.runs[0]!, start.links))).toBe("Shield will ask you 24 times, one at a time: 12 payments, then 12 paystubs.");
-    expect(promptSummary([prompt("payment"), prompt("paystub")])).toBe("Shield will ask you 2 times, one at a time: 1 payment, then 1 paystub.");
-    expect(promptSummary([prompt("paystub")])).toBe("Shield will ask you once: 1 paystub.");
+    expect(promptSummary(sequentialReleaser.prompts(start.company.payroll.runs[0]!, start.links))).toBe(
+      "Shield will ask you about 24 times, one at a time (for 12 payments, then 12 paystubs), and may ask a few more or fewer.",
+    );
+    expect(promptSummary([prompt("payment"), prompt("paystub")])).toBe("Shield will ask you about 2 times, one at a time (for 1 payment, then 1 paystub), and may ask a few more or fewer.");
+    expect(promptSummary([prompt("paystub")])).toBe("Shield will likely ask you once (for 1 paystub), and may ask more or not at all.");
     expect(promptSummary([])).toBeNull();
   });
 });

@@ -6,8 +6,8 @@
 // (@pnw/rail, through the release seam in release.ts). Opened from the pay
 // runs list right after a rail run posts, and again from Continue / Retry.
 //
-// Shield has one prompt open at a time. Before the first, the panel says how
-// many times Shield will ask (release.ts `promptSummary`); while a payment's
+// Shield has one prompt open at a time. Before the first, the panel says about
+// how many times Shield will ask (release.ts `promptSummary`); while a payment's
 // prompt is open, its line shows the payee's full account and the amount in
 // millionths of a dollar, the two things Shield's own screen gives for it. A
 // payment that doesn't settle stops the run there: the people after it wait,
@@ -381,7 +381,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           },
         });
       };
-      // How the run is paid: the one-at-a-time queue, the only way there is today. First, how many times Shield will ask.
+      // How the run is paid: the one-at-a-time queue, the only way there is today. First, about how many times Shield will ask.
       const releaser = await pickReleaser();
       setNote(promptSummary(releaser.prompts(latest, links)));
       await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
