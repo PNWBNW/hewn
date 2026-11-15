@@ -123,9 +123,10 @@ export function rivalPayments(
  * the books already hold as a settled payment are never found again (`claimed`). While another
  * open payment is to the same person for the same amount, a transfer known only by payee and amount
  * is found for neither (`contested`), and when that payment set aside the very record this one did,
- * the look is given no record for this one.
+ * the look is given no record for this one. The caller adds the paying account and the look's
+ * dependencies.
  */
-export function lookQuery(runs: Runs, accounts: ReadonlyMap<string, string>, runId: string, q: PaymentQuery): Omit<SentPaymentQuery, "deps"> {
+export function lookQuery(runs: Runs, accounts: ReadonlyMap<string, string>, runId: string, q: PaymentQuery): Omit<SentPaymentQuery, "deps" | "account"> {
   const rival = rivalPayments(runs, accounts, { runId, workerId: q.workerId }, q);
   return {
     to: q.to,

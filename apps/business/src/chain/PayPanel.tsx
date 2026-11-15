@@ -346,13 +346,15 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       // Before a payment is called unconfirmed, it is looked for in this account's own transfers, with what the
       // books say about every other payment (lookQuery): transfers they already hold as someone's settled paycheck
       // are never found a second time, and while another open paycheck is to the same person for the same amount,
-      // one known only by payee and amount is found for neither.
+      // one known only by payee and amount is found for neither. It is told this account, so a public transfer that
+      // names another sender isn't taken for this account's payment.
       // Each person's account on the rail, payable right now or not: for telling whose a transfer could be, more is safer.
       const accounts = new Map((books.rail?.links ?? []).map((l) => [l.workerId, l.address]));
       const findPayment = (q: PaymentQuery) => {
         setStage(q.workerId, { kind: "looking" }); // no longer "Approve in Shield" while it is looked for
         return findSentPayment({
           ...lookQuery(books.payroll.runs, accounts, runId, q),
+          account: current,
           deps: {
             wallet: {
               requestRecords: (program, all) => wallet.requestRecords(program, all),
