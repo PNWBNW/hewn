@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
-import { isPairingCancelled, mayReconnect, notAllowedProgramHint, shieldRoute } from "./shield_route";
+import { isPairingCancelled, mayReconnect, notAllowedProgramHint, rethrowSendError, shieldRoute } from "./shield_route";
 
 describe("shieldRoute", () => {
   it("uses injected Shield wherever it is found: the extension, or Shield's own browser", () => {
@@ -45,6 +45,33 @@ describe("notAllowedProgramHint", () => {
     expect(notAllowedProgramHint("User rejected the request")).toBeNull();
     expect(notAllowedProgramHint("Shield pairing was cancelled")).toBeNull();
     expect(notAllowedProgramHint("")).toBeNull();
+  });
+});
+
+describe("rethrowSendError", () => {
+  const NOTHING = Symbol("nothing thrown");
+  const thrownBy = (e: unknown): unknown => {
+    try {
+      rethrowSendError(e);
+    } catch (thrown) {
+      return thrown;
+    }
+    return NOTHING;
+  };
+
+  it("rethrows Shield's refusal as the hint, keeping Shield's error as its cause", () => {
+    const refused = new Error("hewn_cards_v1.aleo is not in the allowed programs, request it when connect");
+    const thrown = thrownBy(refused);
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe(notAllowedProgramHint(refused.message));
+    expect((thrown as Error).cause).toBe(refused);
+  });
+
+  it("rethrows any other error as the same object", () => {
+    // Only an Error's message is read: anything else thrown passes through untouched.
+    for (const other of [new Error("User rejected the request"), "not in the allowed programs", undefined]) {
+      expect(thrownBy(other)).toBe(other);
+    }
   });
 });
 
