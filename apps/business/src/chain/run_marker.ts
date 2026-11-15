@@ -33,6 +33,7 @@
 // Nothing here logs a key, a lookup, an account or a marker.
 // ---------------------------------------------------------------------------
 
+import { MailboxError } from "@pnw/mailbox";
 import { type ListedMarker, type RunMarker, decodeMarker, encodeMarker, orderMarkers } from "@pnw/rail";
 import { type SealedAttachment, type VaultSession, sha256Hex } from "@pnw/vault";
 import { finderKey } from "./books_backup";
@@ -158,24 +159,41 @@ export async function readMarkers(box: MarkerBox, seal: MarkerSeal, finder: stri
   return (await walk(box, seal, finder)).listed;
 }
 
+/** How many slots one send tries when another device of the account takes each one first. */
+const SLOT_TRIES = 3;
+
 /**
  * Sends one marker as a letter to the account itself, in the first empty slot: one Shield
  * approval, and it resolves once the network has accepted the letter. If Shield throws, the slots
  * are read again, and it resolves normally only when this marker is there (a letter can land and
- * Shield still report an error); otherwise it throws what Shield threw.
+ * Shield still report an error); otherwise it throws what Shield threw. A slot another device of
+ * the account wrote to after it was read is refused before Shield is asked anything: the slots are
+ * read again and the marker goes in a later one.
  */
 export async function sendMarker(box: MarkerBox, seal: MarkerSeal, finder: string, marker: RunMarker): Promise<void> {
   encodeMarker(marker); // refuses a marker that couldn't be read back, before anything is asked
-  const { free } = await walk(box, seal, finder);
-  const envelope = await sealMarker(seal, free, marker);
-  try {
-    await box.put(await markerLookup(finder, free), envelope);
-  } catch (e) {
-    const landed = await walk(box, seal, finder).then(
-      (now) => now.listed.some((l) => l.marker.id === marker.id),
-      () => false,
-    );
-    if (!landed) throw e;
+  let taken = -1;
+  for (let tries = 1; ; tries++) {
+    const free = Math.max((await walk(box, seal, finder)).free, taken + 1);
+    const envelope = await sealMarker(seal, free, marker);
+    try {
+      await box.put(await markerLookup(finder, free), envelope);
+      return;
+    } catch (e) {
+      if (e instanceof MailboxError && e.code === "CONFLICT") {
+        if (tries < SLOT_TRIES) {
+          taken = free;
+          continue;
+        }
+        throw new RunMarkerError("Another device sent a note to this account at the same moment. Try again in a minute.");
+      }
+      const landed = await walk(box, seal, finder).then(
+        (now) => now.listed.some((l) => l.marker.id === marker.id),
+        () => false,
+      );
+      if (!landed) throw e;
+      return;
+    }
   }
 }
 

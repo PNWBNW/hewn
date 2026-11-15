@@ -1,12 +1,13 @@
 // Run markers as letters to the business's own account: sent, waited for and read back through a
 // pretend Shield on a pretend chain (release_test_helpers.ts), sealed with a real vault key.
 import { describe, expect, it } from "vitest";
+import { MailboxError } from "@pnw/mailbox";
 import { type RunMarker, encodeMarker, newMarkerId } from "@pnw/rail";
 import { createVault, sha256Hex } from "@pnw/vault";
 import { finderKey, pageLookup } from "./books_backup";
 import { LETTER_BYTES, LetterBox, SEND_FUNCTION, SEND_PAGE_FUNCTION } from "./letters";
 import { Chain, type Device, type Shield, USERNAME, VirtualTime, account, firstDevice, postedRun } from "./release_test_helpers";
-import { MARKER_LETTER_LINES, type MarkerSeal, RunMarkerError, awaitOwnMarker, markerFunction, markerLookup, readMarkers, sealOf, sendMarker } from "./run_marker";
+import { MARKER_LETTER_LINES, type MarkerBox, type MarkerSeal, RunMarkerError, awaitOwnMarker, markerFunction, markerLookup, readMarkers, sealOf, sendMarker } from "./run_marker";
 
 const TAG = (n: number) => n.toString(16).padStart(2, "0").repeat(16);
 
@@ -88,6 +89,39 @@ describe("run markers as letters to the account itself", () => {
     expect(listed.map((l) => l.marker.id)).toEqual([first.id, second.id, third.id]);
     expect(listed.map((l) => l.txId)).toEqual(chain.txs.map((t) => t.id));
     expect(listed[0]!.height).toBeLessThanOrEqual(listed[1]!.height);
+  });
+
+  it("a slot another device of the account wrote to after it was read is refused before Shield is asked, and the marker goes in the next one", async () => {
+    const { vt, phone, finder, desk } = await world();
+    const laptop = await phone.restored();
+    const [a, b] = [desk(phone), desk(laptop)];
+    const [theirs, mine] = [marker(1), marker(2)];
+    let refused = 0;
+    // The phone has read the slots (slot 0 is empty); the laptop's note then goes in slot 0 before the phone writes there.
+    const racing: MarkerBox = {
+      refresh: () => a.box.refresh(),
+      getAll: (lookup) => a.box.getAll(lookup),
+      put: async (lookup, envelope) => {
+        if (lookup === (await markerLookup(finder, 0))) {
+          refused++;
+          await sendMarker(b.box, b.seal, finder, theirs);
+          await vt.sleep(5_000);
+          throw new MailboxError("CONFLICT", "That slot is taken");
+        }
+        return a.box.put(lookup, envelope);
+      },
+    };
+    await vt.run(sendMarker(racing, a.seal, finder, mine));
+    await vt.run(vt.sleep(5_000));
+    expect(refused).toBe(1);
+    expect(a.shield.approvals).toBe(1); // nothing was asked for the slot that was taken
+    expect((await readMarkers(a.box, a.seal, finder)).map((l) => l.marker.id)).toEqual([theirs.id, mine.id]);
+
+    // Taken every time: after a few slots it stops, in words a person can act on, having asked for nothing.
+    const always: MarkerBox = { ...racing, put: async () => Promise.reject(new MailboxError("CONFLICT", "That slot is taken")) };
+    const before = a.shield.approvals;
+    await expect(vt.run(sendMarker(always, a.seal, finder, marker(1)))).rejects.toThrow("Another device sent a note to this account at the same moment. Try again in a minute.");
+    expect(a.shield.approvals).toBe(before);
   });
 
   it("a letter that doesn't open, or opens to something that isn't a marker, is ignored, and the walk goes on past it", async () => {
