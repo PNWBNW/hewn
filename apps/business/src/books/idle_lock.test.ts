@@ -282,6 +282,15 @@ describe("where the idle lock is wired", () => {
     for (const e of ["PROGRESS_EVENT", '"pointerdown"', '"keydown"', '"scroll"', '"visibilitychange"', '"pageshow"', '"focus"']) expect(idle, e).toContain(e);
   });
 
+  it("a write still saving when the books lock doesn't bring them back into memory", () => {
+    const provider = read("books/BooksProvider.tsx");
+    // After the save, the books are taken up again only if the session that saved them is still the open one.
+    expect(provider).toMatch(
+      /const iv = await saveOver\(store, s, companyToJson\(next\), savedIv\.current\);\s*(\/\/[^\n]*\s*)*if \(session\.current !== s\) throw new Error\("Books are locked"\);\s*savedIv\.current = iv;\s*companyRef\.current = next;\s*setCompany\(next\);/,
+    );
+    expect(provider).not.toContain("savedIv.current = await saveOver(store, s, companyToJson(next)");
+  });
+
   it("the pay panel and the backup to the account note each completed step, after the step's own write", () => {
     const pay = read("chain/PayPanel.tsx");
     expect(pay).toContain('import { afterStep, noteProgress } from "@/books/idle_lock";');
