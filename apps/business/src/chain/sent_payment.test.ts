@@ -348,6 +348,28 @@ describe("findSentPayment, without the record's tag", () => {
   });
 });
 
+describe("findSentPayment, many at once and slow", () => {
+  it("looks running at the same time share what they read: each transaction is read, opened and placed once", async () => {
+    const sent: Sent[] = Array.from({ length: 100 }, (_, i) => ({ n: i + 10, to: BEN, minor: 5n, height: FLOOR + i }));
+    sent.push({ n: 200, to: ANA, minor: PAY, height: FLOOR + 150, sealed: true });
+    const w = world(sent);
+    const cache = new Map<string, SentRead>();
+    const answers = await Promise.all(Array.from({ length: 5 }, () => look({ ...w.deps, cache })));
+    expect(answers).toEqual(Array(5).fill("unknown"));
+    expect(w.asked.network.filter((p) => p.startsWith("transaction/confirmed/")).length).toBe(101);
+    expect(w.asked.wallet.filter((x) => x === "view keys").length).toBe(101);
+    expect(w.asked.network.filter((p) => p.startsWith("block/")).length).toBe(1);
+  });
+
+  it("a look still going after its deadline answers unknown", async () => {
+    const w = world([{ n: 1, fn: "join", spends: chainTag(7) }], { records: records(chainTag(7)) });
+    const stuck: SentPaymentDeps = { ...w.deps, deadlineMs: 30, network: { fetchJson: () => new Promise(() => {}) } };
+    const started = Date.now();
+    expect(await look(stuck, { attempt: await recordTag(PLAIN) })).toBe("unknown");
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
 describe("findSentPayment keeps to Shield's history and the explorer", () => {
   it("asks Shield for records, history and transition view keys only, and the explorer for transactions and their blocks only", async () => {
     const attempt = await recordTag(PLAIN);

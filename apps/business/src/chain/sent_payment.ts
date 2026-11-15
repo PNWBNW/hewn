@@ -71,10 +71,16 @@ export type SentPaymentDeps = {
   decrypt(transition: unknown, tvk: string): Promise<unknown>;
   /** How long to wait for Shield to answer one request (tests make it short). */
   shieldWaitMs?: number;
-  /** What earlier looks read, by transaction id: an accepted transaction doesn't change, so each is read once a session. */
+  /**
+   * What earlier looks read, by transaction id: an accepted transaction doesn't change, so each is
+   * read once a session. Looks running at the same time over one cache also share the reads under
+   * way.
+   */
   cache?: Map<string, SentRead>;
   /** The most transactions one look reads from the explorer; past it, the look can't say "none". */
   maxReads?: number;
+  /** How long one look may take in all; past it, it answers "unknown". Default 2 minutes. */
+  deadlineMs?: number;
 };
 
 export type SentPaymentQuery = {
@@ -101,6 +107,8 @@ export type SentPaymentQuery = {
 
 /** The most transactions one look reads from the explorer. */
 export const MAX_READS = 200;
+/** How long one look may take in all before it answers "unknown". */
+export const LOOK_DEADLINE_MS = 2 * 60_000;
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
@@ -188,8 +196,39 @@ async function readOne(id: string, deps: SentPaymentDeps, wait: number): Promise
   return { kind: "transfer", id, ...(height !== undefined ? { height } : {}), pays, sealed, ...(sealed && unanswered ? { retry: true as const } : {}), spent };
 }
 
-/** Looks for one payment in the account's own sent transfers. Never throws: what can't be read makes the answer "unknown". */
+/** Reads and block heights under way, by the session cache they will fill: looks running at once wait on one read, not one each. */
+const underway = new WeakMap<Map<string, SentRead>, Map<string, Promise<unknown>>>();
+
+function shared<T>(cache: Map<string, SentRead>, key: string, start: () => Promise<T>, failed: T): Promise<T> {
+  let all = underway.get(cache);
+  if (!all) underway.set(cache, (all = new Map()));
+  const running = all.get(key) as Promise<T> | undefined;
+  if (running) return running;
+  const done = all;
+  const p = start()
+    .catch(() => failed)
+    .finally(() => done.delete(key));
+  done.set(key, p);
+  return p;
+}
+
+/**
+ * Looks for one payment in the account's own sent transfers. Never throws: what can't be read makes
+ * the answer "unknown", and so does a look still going after `deadlineMs`.
+ */
 export async function findSentPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"unknown">((resolve) => {
+    timer = setTimeout(() => resolve("unknown"), query.deps.deadlineMs ?? LOOK_DEADLINE_MS);
+  });
+  try {
+    return await Promise.race([lookForPayment(query).catch(() => "unknown" as const), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function lookForPayment(query: SentPaymentQuery): Promise<PaymentLookup> {
   const { to, minor, attempt, since, claimed, contested, deps } = query;
   const wait = deps.shieldWaitMs ?? SHIELD_WAIT_MS;
   const cache = deps.cache ?? new Map<string, SentRead>();
@@ -226,14 +265,22 @@ export async function findSentPayment(query: SentPaymentQuery): Promise<PaymentL
         break;
       }
       budget--;
-      read = await readOne(id, deps, wait);
+      read = await shared(
+        cache,
+        `read ${id}`,
+        async () => {
+          const r = await readOne(id, deps, wait);
+          // What the explorer holds for an accepted transaction doesn't change; only a transfer Shield
+          // didn't answer for is read again next time.
+          if (r && (r.kind !== "transfer" || !r.retry)) cache.set(id, r);
+          return r;
+        },
+        null,
+      );
       if (!read) {
         whole = false;
         continue;
       }
-      // What the explorer holds for an accepted transaction doesn't change; only a transfer Shield
-      // didn't answer for is read again next time.
-      if (read.kind !== "transfer" || !read.retry) cache.set(id, read);
     }
     reads.push(read);
   }
@@ -260,7 +307,7 @@ export async function findSentPayment(query: SentPaymentQuery): Promise<PaymentL
       continue;
     }
     if (r.height === undefined) {
-      const height = await lookupHeight(deps.network, r.id);
+      const height = await shared(cache, `height ${r.id}`, () => lookupHeight(deps.network, r.id), undefined);
       if (height !== undefined) r.height = height;
     }
     if (r.height === undefined) doubt = true;
