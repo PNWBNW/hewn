@@ -10,7 +10,7 @@ import type { Company } from "../books/company";
 import { deliverPaystub } from "./deliver";
 import { LETTERS_PROGRAM, LetterBox, SEND_FUNCTION } from "./letters";
 import { PAY_AGAIN_NOTE } from "./pay_outcome";
-import { IN_PROGRESS, MARKED_FIRST, NOT_FROM_HERE, NOT_YET, OTHER_AMOUNT, type ReleaseContext, payAgain, promptSummary, releaseRun, settleTo } from "./release";
+import { IN_PROGRESS, MARKED_FIRST, NOT_FROM_HERE, NOT_YET, OTHER_AMOUNT, OTHER_DEVICE, type ReleaseContext, payAgain, promptSummary, releaseRun, settleTo } from "./release";
 import { type Behaviour, Chain, type Device, type Shield, USERNAME, VirtualTime, firstDevice, postedRun, tree } from "./release_test_helpers";
 import { markerDesk, sealOf } from "./run_marker";
 
@@ -807,7 +807,7 @@ describe("two devices and one run", () => {
     expect(paidEach(chain, start)).toEqual([1, 1, 1, 1]);
   });
 
-  it("another amount for a marked period is refused on every device", async () => {
+  it("another amount for a marked period is refused on every other device, in words that say another device is paying them", async () => {
     const { vt, chain, start, phone } = await posted(3);
     await vt.run(release(chain, phone, chain.shield(), start).done);
     // Other copies of the books, where the first person's hours for the same period were changed before the run was posted.
@@ -817,37 +817,73 @@ describe("two devices and one run", () => {
       const run = release(chain, device, shield, changed);
       await vt.run(run.done);
       expect(shield.calls).toEqual([]);
-      expect([...run.held.entries()]).toEqual([[changed.workers[0], `${NOT_FROM_HERE}: ${OTHER_AMOUNT}`]]);
+      expect([...run.held.entries()]).toEqual([[changed.workers[0], `${NOT_FROM_HERE}: ${OTHER_DEVICE}`]]);
       expect(device.settlements.map((s) => s.status)).toEqual(["pending", "settled", "settled"]);
     }
     expect(paidEach(chain, start)).toEqual([1, 1, 1]);
   });
 
-  it("two devices mark one person at different amounts moments apart: the later one stands down, and from then on neither pays that person", async () => {
-    const { vt, chain, start, phone } = await posted(3);
-    // The laptop's copy of the books has other hours for the first person, same period.
-    const changed = postedRun(3, undefined, (i) => (i === 0 ? 31 : 20 + i));
-    const laptop = await phone.restored(changed.company);
-    const [a, b] = [chain.shield(), chain.shield()];
-    // The phone's first prompt is left to expire, so its marker is there and nobody is paid yet.
-    a.behaviour = onPayment((nth) => (nth === 0 ? "expired" : "ok"));
-    await vt.run(Promise.allSettled([release(chain, phone, a, start).done, vt.sleep(4_000).then(() => release(chain, laptop, b, changed).done)]));
-    expect(b.payments).toEqual([]);
-    expect(laptop.settlements[0]).toMatchObject({ status: "failed", failure: `${NOTHING_PAID}: ${MARKED_FIRST}` });
-    expect(paidEach(chain, start)).toEqual([0, 0, 0]);
+  for (const phoneFirst of [true, false]) {
+    it(`two devices mark one person at different amounts moments apart: the first note's device pays them at its amount, and the other's line stands down, saying another device is paying them (${phoneFirst ? "the first device" : "the other device"} reopened first)`, async () => {
+      const { vt, chain, start, phone } = await posted(3);
+      // The laptop's copy of the books has other hours for the first person, same period.
+      const changed = postedRun(3, undefined, (i) => (i === 0 ? 31 : 20 + i));
+      const laptop = await phone.restored(changed.company);
+      const [a, b] = [chain.shield(), chain.shield()];
+      // The phone's first prompt is left to expire, so its marker is there and nobody is paid yet.
+      a.behaviour = onPayment((nth) => (nth === 0 ? "expired" : "ok"));
+      await vt.run(Promise.allSettled([release(chain, phone, a, start).done, vt.sleep(4_000).then(() => release(chain, laptop, b, changed).done)]));
+      expect(b.payments).toEqual([]);
+      expect(laptop.settlements[0]).toMatchObject({ status: "failed", failure: `${NOTHING_PAID}: ${MARKED_FIRST}` });
+      expect(paidEach(chain, start)).toEqual([0, 0, 0]);
+      // Both notes are on the account, and both name the first person, at two amounts. The phone's came first, so only its lines are live.
+      const listed = await desk(chain, phone, chain.shield()).read();
+      expect(listed).toHaveLength(2);
+      const net = (device: Device, i: number) => centsToMinor(device.company.payroll.runs[0]!.paychecks[i]!.net);
+      const live = liveLines(listed);
+      expect(live.map((l) => l.minor)).toEqual([net(phone, 0), net(phone, 1), net(phone, 2)]);
+      const firstTo = start.links.get(start.workers[0]!)!;
+      expect(listed.flatMap((l) => l.marker.lines).filter((l) => l.to === firstTo).map((l) => l.minor)).toEqual(expect.arrayContaining([net(phone, 0), net(laptop, 0)]));
+      expect(net(laptop, 0)).not.toBe(net(phone, 0));
+      await vt.run(vt.sleep(MIN));
 
-    // Both notes are on the account, and both name the first person, at two amounts. Neither device pays them now.
-    await vt.run(vt.sleep(MIN));
-    const again = release(chain, phone, a, start);
-    await vt.run(again.done);
-    expect([...again.held.entries()]).toEqual([[start.workers[0], `${NOT_FROM_HERE}: ${OTHER_AMOUNT}`]]);
-    expect(paidEach(chain, start)).toEqual([0, 1, 1]); // the others, at one amount on both, are paid once, by the device whose note came first
-    const other = release(chain, laptop, b, changed);
-    await vt.run(other.done);
-    expect([...other.held.keys()]).toEqual([changed.workers[0]]);
-    expect(b.payments).toEqual([]);
-    expect(laptop.settlements.map((s) => s.status)).toEqual(["failed", "settled", "settled"]);
-    expect(paidEach(chain, start)).toEqual([0, 1, 1]);
+      /** The laptop: its line for the first person stands down and says why and what to do; nothing is asked of its Shield. */
+      const laptopOpens = async (others: "waiting" | "settled") => {
+        const run = release(chain, laptop, b, changed);
+        await vt.run(run.done);
+        expect(run.held.get(changed.workers[0]!)).toBe(`${NOT_FROM_HERE}: ${OTHER_DEVICE}`);
+        if (others === "waiting") expect([...run.held.keys()]).toEqual(changed.workers);
+        else expect([...run.held.keys()]).toEqual([changed.workers[0]]);
+        expect(b.payments).toEqual([]);
+        expect(laptop.settlements[0]!.status).toBe("failed");
+      };
+      if (!phoneFirst) await laptopOpens("waiting");
+
+      // The phone pays everyone, the first person at its amount, from the record its note names for them.
+      const again = release(chain, phone, a, start);
+      await vt.run(again.done);
+      expect(again.held.size).toBe(0);
+      expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+      const first = chain.paid(firstTo)[0]!;
+      expect(first.minor).toBe(net(phone, 0));
+      expect(await recordTag(a.payments.at(-3)!.inputs[2]!)).toBe(live[0]!.tag);
+      expect(phone.settlements.map((s) => s.status)).toEqual(["settled", "settled", "settled"]);
+
+      // The laptop, opened after: the first person still stands down, the others are found paid. Nobody is paid twice.
+      await laptopOpens("settled");
+      expect(laptop.settlements.map((s) => s.status)).toEqual(["failed", "settled", "settled"]);
+      expect(paidEach(chain, start)).toEqual([1, 1, 1]);
+      expect(chain.paid(firstTo).map((t) => t.minor)).toEqual([net(phone, 0)]);
+    });
+  }
+
+  it("a line that stands down for another device's amount says what to do, and never offers paying in Shield", () => {
+    expect(OTHER_DEVICE).toContain("another device is paying this person for this pay period, at a different amount");
+    expect(OTHER_DEVICE).toContain("That device's amount is the one paid");
+    expect(OTHER_DEVICE).toContain("Open the run on that device");
+    expect(OTHER_DEVICE).toContain("restore your newest backup here");
+    expect(OTHER_DEVICE).not.toMatch(/Shield|neither/i);
+    expect(OTHER_AMOUNT).not.toMatch(/neither/i);
   });
 
   it("a later run for another period is marked on its own, and a correction for the same period at another amount is refused", async () => {
@@ -866,10 +902,11 @@ describe("two devices and one run", () => {
     const run = release(chain, await phone.restored(correction.company), shield, correction);
     await vt.run(run.done);
     expect(shield.calls).toHaveLength(asked);
+    // These books hold no run that pays them the noted amount: only another copy of the books can have, so the line says so.
     expect([...run.held.entries()]).toEqual([
       [
         correction.workers[0],
-        `${NOT_FROM_HERE}: a note on this account already pays this account a different amount for this same pay period (another pay run for these dates, or another copy of these books). Nothing is sent for them from this run; if they are still owed, pay them in Shield.`,
+        `${NOT_FROM_HERE}: another device is paying this person for this pay period, at a different amount than these books hold. That device's amount is the one paid, so nothing is sent for them from here. Open the run on that device to see where it stands, or restore your newest backup here.`,
       ],
     ]);
     expect(paidEach(chain, start)).toEqual([2, 2]);

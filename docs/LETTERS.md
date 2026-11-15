@@ -190,12 +190,15 @@ restored to reads them and nothing else does:
   marker covers is marked before Shield is asked for it, once it comes before every payment of the
   run still to be paid from that device, so a marker's first payment always names its record.
   Markers count in the order of the block each was accepted in, then by transaction id, and the
-  earliest decides. A marker names a record for a run's first payment only, so a later one that a
-  device holds no record for goes out only from what the payment before it left, on every device,
-  whichever marked the run. A marker names at most 64 payments: in a larger run the rest are
-  marked, and paid, on a later press, once the payments before them are paid. A marker of another
-  pay run whose period shares days with this run's holds that payment on every device: nothing is
-  sent for it from this run.
+  earliest decides. When the books on two devices put one person's pay for one period at two
+  amounts, the first marker's amount is paid, by the device that sent it (2026-11-15); on any
+  other device that person's line stands down and says another device is paying them, and to open
+  the run there or restore the newest backup. A marker names a record for a run's first payment
+  only, so a later one that a device holds no record for goes out only from what the payment before
+  it left, on every device, whichever marked the run. A marker names at most 64 payments: in a
+  larger run the rest are marked, and paid, on a later press, once the payments before them are
+  paid. A marker of another pay run whose period shares days with this run's holds that payment on
+  every device: nothing is sent for it from this run.
 
 ## Reports
 

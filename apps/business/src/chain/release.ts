@@ -208,18 +208,18 @@ const AFTER_NOTED =
 export const MARKED_FIRST = "Another device marked this run first; open it again to see where it stands";
 /**
  * Why a later payment of a run isn't sent from a device that holds no record for it (after
- * `NOT_FROM_HERE`). It goes out only from one record: what the payment before it left (`from`
- * "before"), or the record the run started from ("start"). Shield lists that record as spent
- * ("spent"), doesn't list it yet or doesn't say which payment made it ("unlisted"), lists it but
- * it is less than this payment ("small"), or it wasn't the one Shield's list offered it this time
- * ("other"); or these books can't tell which payment came before it ("unknown").
+ * `NOT_FROM_HERE`). It goes out only from one record: what the payment before it left. Shield
+ * lists that record as spent ("spent"), doesn't list it yet or doesn't say which payment made it
+ * ("unlisted"), lists it but it is less than this payment ("small"), or it wasn't the one Shield's
+ * list offered it this time ("other"); or these books can't tell which payment came before it, or
+ * hold that payment at another amount than the note ("unknown").
  *
  * Paying them in Shield is offered only where the run can never pay them from that record, so a
  * payment made by hand is never followed by the run's own: a record not listed yet may still
  * show, and the run would then pay them from it if it missed the payment made by hand.
  */
-function cannotFollow(why: RecordState | "other" | "unknown", from: "before" | "start" = "before"): string {
-  const one = from === "start" ? "the record it started from" : "what the payment before this one left";
+function cannotFollow(why: RecordState | "other" | "unknown"): string {
+  const one = "what the payment before this one left";
   const lead = `this run stopped part-way, and it goes on only from ${one}`;
   const inShield = "pay them in Shield; the run then finds that payment and goes on from what it leaves.";
   switch (why) {
@@ -236,11 +236,21 @@ function cannotFollow(why: RecordState | "other" | "unknown", from: "before" | "
   }
 }
 /**
- * Why a payment isn't sent when a note for this same pay period pays its account another amount (after
- * `NOT_FROM_HERE`): another pay run for these dates, or another copy of these books, which notes can't tell apart.
+ * Why a payment isn't sent when a note for this same pay period pays its account another amount, and
+ * another pay run in these books for days this run's period shares pays them that amount (after
+ * `NOT_FROM_HERE`): that run, or another copy of these books, which notes can't tell apart.
  */
 export const OTHER_AMOUNT =
   "a note on this account already pays this account a different amount for this same pay period (another pay run for these dates, or another copy of these books). Nothing is sent for them from this run; if they are still owed, pay them in Shield.";
+/**
+ * Why a payment isn't sent when a note for this same pay period pays its account another amount that no
+ * other pay run in these books pays them (after `NOT_FROM_HERE`): another device, with another copy of
+ * these books, is paying them. That note came first, so its amount is the one paid, by the device that
+ * sent it (rail/marker.ts, 2026-11-15); here the line stands down. Paying them in Shield would pay them
+ * twice, so it isn't offered: the way on is that device, or a copy of the books that holds its amount.
+ */
+export const OTHER_DEVICE =
+  "another device is paying this person for this pay period, at a different amount than these books hold. That device's amount is the one paid, so nothing is sent for them from here. Open the run on that device to see where it stands, or restore your newest backup here.";
 /** Why a payment isn't sent when another pay run's note covers its account for days this run's period shares (after `NOT_FROM_HERE`). */
 const OTHER_RUN = (marker: Pick<RunMarker, "from" | "until">) =>
   `a pay run on the rail for ${marker.from} to ${marker.until} already pays this account, and this run's period shares days with it. Nothing is sent for them from this run; if they are still owed, pay them in Shield.`;
@@ -250,11 +260,11 @@ const NOT_BEFORE_IT = "it is paid from what the payment before it in this run le
 /**
  * Where a payment comes in the marker that covers it, when that marker names no record for it:
  * what it may be paid from on a device that held no record for it. `after`: the payment before it
- * in the marker, by the person it pays in these books. `start`: nothing before it is paid as it is
- * marked (each is to an account another marker pays a different amount), so it is the run's first
- * and spends the record the marker starts from. Neither: these books can't tell.
+ * in the marker, by the person it pays in these books. Without it, these books can't tell: no line
+ * comes before it, or these books hold that person's pay at another amount than the line (the
+ * device whose note came first pays that line at its amount, rail/marker.ts).
  */
-type Follows = { after?: string; start?: string };
+type Follows = { after?: string };
 
 /** A time of day, for "from 3:45 PM". */
 const clockTime = (ms: number): string => new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -399,7 +409,13 @@ const stateOf = (record: { spent: boolean; amount: bigint } | undefined, minor: 
  *     same one record and no other, and only while it is the one record Shield lists for the
  *     account;
  *   - a marker pays the same account another amount for a period that overlaps, or names a record
- *     other than the one this device holds for it: nothing is sent for it from here;
+ *     other than the one this device holds for it: nothing is sent for it from here. When two
+ *     devices' notes put one person's pay for one period at two amounts, the first note's amount
+ *     is paid, by the device that sent it (rail/marker.ts, 2026-11-15): that device pays them as
+ *     if the other note weren't there, and on every other device the line stands down. It says
+ *     another device is paying this person for this period at another amount, and to open the run
+ *     there or restore the newest backup (`OTHER_DEVICE`); when another run in these books pays
+ *     them that amount, it says it may be that run (`OTHER_AMOUNT`);
  *   - the marker against it is another run's (its period isn't this run's, and shares days with
  *     it): nothing is sent for it from this run, whatever the marker says, and its line names that
  *     run's period.
@@ -502,41 +518,26 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
     const made = records.find((r) => r.madeBy === id) ?? all.find((r) => r.madeBy === id);
     return { id, records, left: made && !made.spent ? made : undefined, made };
   };
-  /** The record a run started from (`tag`), as Shield lists it now, spent or not. */
-  const listedAs = async (tag: string) => {
-    const all = await listedRecords(wallet).catch(() => []);
-    return all.find((r) => r.tag === tag && !r.spent) ?? all.find((r) => r.tag === tag);
-  };
   /**
    * Stops a payment its marker names no record for from going out of a record this device hasn't
    * held for it, unless `tag` is the one record such a payment may spend: what the payment before
-   * it in its marker left (or the record the marker starts from, when nothing before it is paid as
-   * marked). A device that just made the payment before it, in this release, is going on with its
-   * own run as planned, and keeps the record the plan gave it. Throws the words for the line.
+   * it in its marker left. A device that just made the payment before it, in this release, is
+   * going on with its own run as planned, and keeps the record the plan gave it. Throws the words
+   * for the line.
    */
   const mayFollow = async (workerId: string, tag: string): Promise<void> => {
     const link = follows.get(workerId);
     if (!link) return;
     const net = (await ctx.updateCompany((c) => c)).payroll.runs.find((r) => r.id === runId)?.paychecks.find((p) => p.workerId === workerId)?.net;
     const minor = centsToMinor(net ?? 0n);
-    /** Why `record` isn't one to pay this from, or null when it is. */
-    const why = (record: ListedRecord | undefined, from: "before" | "start") => {
-      if (record?.tag === tag && !record.spent) return null;
-      const state = stateOf(record, minor);
-      return `${NOT_FROM_HERE}: ${cannotFollow(state === "ok" ? "other" : state, from)}`;
-    };
-    let refused: string | null;
-    if (link.after !== undefined) {
-      if (paidHere.has(link.after)) return;
-      const before = await leftBy(link.after);
-      if (before === null) throw new Error(`${NOT_FROM_HERE}: ${NOT_BEFORE_IT}`);
-      refused = why(before.made, "before");
-    } else if (link.start !== undefined) {
-      refused = why(await listedAs(link.start), "start");
-    } else {
-      refused = `${NOT_FROM_HERE}: ${cannotFollow("unknown")}`;
-    }
-    if (refused) throw new Error(refused);
+    if (link.after === undefined) throw new Error(`${NOT_FROM_HERE}: ${cannotFollow("unknown")}`);
+    if (paidHere.has(link.after)) return;
+    const before = await leftBy(link.after);
+    if (before === null) throw new Error(`${NOT_FROM_HERE}: ${NOT_BEFORE_IT}`);
+    // Pays from that record only: anything else is why not.
+    if (before.made?.tag === tag && !before.made.spent) return;
+    const state = stateOf(before.made, minor);
+    throw new Error(`${NOT_FROM_HERE}: ${cannotFollow(state === "ok" ? "other" : state)}`);
   };
 
   let stalled = false;
@@ -623,19 +624,15 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
 
       // ---- Where each payment a marker names no record for comes in that marker ------------
       const byAccount = new Map(posted.paychecks.filter((p) => p.net > 0n).map((p) => [links.get(p.workerId), p] as const));
-      /** The payments nobody pays as they are marked: each is to an account another marker pays a different amount. */
-      const passedOver = new Set(decisions.flatMap((d) => (d.kind === "refused" && d.why === "other-amount" ? [d.workerId] : [])));
+      // Every line of a marker that stands is its payment, at its amount (the first note's amount wins, rail/marker.ts),
+      // so the payment before this one is the line before it, whatever these books hold for that person. When these
+      // books hold that person at another amount, they can't tell what it left.
       const followsIn = (markerId: string, to: string): Follows => {
         const lines = listed.find((l) => l.marker.id === markerId)?.marker.lines ?? [];
         const at = lines.findIndex((line) => line.to === to);
-        for (let i = at - 1; i >= 0; i--) {
-          const line = lines[i]!;
-          const before = byAccount.get(line.to);
-          if (before && passedOver.has(before.workerId)) continue;
-          return before && centsToMinor(before.net) === line.minor ? { after: before.workerId } : {};
-        }
-        const start = at > 0 ? lines.slice(0, at).find((line) => line.tag !== undefined)?.tag : undefined;
-        return start !== undefined ? { start } : {};
+        const line = at > 0 ? lines[at - 1]! : undefined;
+        const before = line ? byAccount.get(line.to) : undefined;
+        return line && before && centsToMinor(before.net) === line.minor ? { after: before.workerId } : {};
       };
 
       /** By marker: the payments it names no record for that this device holds none for and didn't find, in the run's order. */
@@ -646,27 +643,43 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
         waiting.set(marker, group);
       };
       /**
+       * The live lines against a payment, as rail/marker.ts `decideLines` reads them: to its payee, over a period that
+       * shares days with its own, less the record the person chose to pay again from. Earliest first. A marker that
+       * came second has none.
+       */
+      const live = liveLines(listed);
+      const liveAgainst = (payment: MarkedPayment) =>
+        live.filter((l) => l.to === payment.to && l.from <= payment.until && payment.from <= l.until && !(l.tag !== undefined && l.tag === payment.replaces));
+      /**
        * The marker of another pay run that decides this payment, if one does. A marker's period is its run's, and every
        * copy of this run holds this run's period, so a marker for any other period is another run's: one whose period
        * shares days with this one. Nothing is sent for the payment from this run, on any device.
        */
       const otherRun = (decision: (typeof decisions)[number], payment: MarkedPayment): RunMarker | undefined => {
         const isOther = (m: RunMarker) => m.from !== posted.periodStart || m.until !== posted.periodEnd;
-        const shares = (m: Pick<RunMarker, "from" | "until">) => m.from <= payment.until && payment.from <= m.until;
         if (decision.kind === "fresh") return undefined;
         if (decision.kind === "refused") {
-          // Any marker against it: one paying another amount, or the earliest live line naming another record.
-          const against =
-            decision.why === "other-amount"
-              ? listed.filter((l) => shares(l.marker) && l.marker.lines.some((line) => line.to === payment.to && line.minor !== payment.minor)).map((l) => l.marker)
-              : liveLines(listed)
-                  .filter((l) => l.to === payment.to && shares(l) && !(l.tag !== undefined && l.tag === payment.replaces))
-                  .slice(0, 1)
-                  .flatMap((l) => listed.filter((m) => m.marker.id === l.marker).map((m) => m.marker));
-          return against.find(isOther);
+          // The markers of the live lines against it: any paying another amount, or the earliest, naming another record.
+          const against = liveAgainst(payment);
+          return (decision.why === "other-amount" ? against.filter((l) => l.minor !== payment.minor) : against.slice(0, 1))
+            .flatMap((l) => listed.filter((m) => m.marker.id === l.marker).map((m) => m.marker))
+            .find(isOther);
         }
         const deciding = listed.find((l) => l.marker.id === decision.marker)?.marker;
         return deciding && isOther(deciding) ? deciding : undefined;
+      };
+      /**
+       * Whether another pay run in these books, for days this run's period shares, pays this person the amount of every
+       * live line that pays them another amount: then those lines may be that run's. Otherwise only another copy of
+       * these books, on another device, can have put them at that amount, and its note came first.
+       */
+      const paidHereAtThatAmount = (payment: MarkedPayment): boolean => {
+        const others = books.payroll.runs.filter((r) => r.id !== runId && r.mode === "rail");
+        return liveAgainst(payment)
+          .filter((l) => l.minor !== payment.minor)
+          .every((l) =>
+            others.some((r) => r.periodStart <= l.until && l.from <= r.periodEnd && r.paychecks.some((p) => p.workerId === payment.workerId && centsToMinor(p.net) === l.minor)),
+          );
       };
 
       for (const [i, decision] of decisions.entries()) {
@@ -682,10 +695,12 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
             fresh.add(payment.workerId);
             break;
           case "refused":
+            // At another amount: the note that came first is paid at its amount, by the device that sent it. Here the
+            // line stands down, and says whether that note may be another run in these books or is another device's.
             hold(
               payment.workerId,
               decision.why === "other-amount"
-                ? `${NOT_FROM_HERE}: ${OTHER_AMOUNT}`
+                ? `${NOT_FROM_HERE}: ${paidHereAtThatAmount(payment) ? OTHER_AMOUNT : OTHER_DEVICE}`
                 : `${NOT_FROM_HERE}: another device is paying this from a different record than the one kept here. Open the run there.`,
             );
             break;
@@ -730,23 +745,12 @@ export async function releaseRun(ctx: ReleaseContext): Promise<{ stalled: boolea
                 if (held.has(before.workerId)) hold(payment.workerId, `${NOT_FROM_HERE}: ${NOT_BEFORE_IT}`);
                 continue;
               }
-              // The one record it may spend, as Shield lists it now: what the payment before it left, or the record its marker
-              // starts from.
-              const from = before ? "before" : "start";
-              let record: ListedRecord | undefined;
-              let known = true;
-              if (before) {
-                const left = await leftBy(before.workerId);
-                known = left !== null;
-                record = left?.made;
-              } else if (link.start !== undefined) {
-                record = await listedAs(link.start);
-              } else {
-                known = false;
-              }
+              // The one record it may spend, as Shield lists it now: what the payment before it left.
+              const left = before ? await leftBy(before.workerId) : null;
+              const record: ListedRecord | undefined = left?.made;
               const state = stateOf(record, payment.minor);
-              if (!known) hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow("unknown", from)}`);
-              else if (state !== "ok") hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow(state, from)}`);
+              if (left === null) hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow("unknown")}`);
+              else if (state !== "ok") hold(payment.workerId, `${NOT_FROM_HERE}: ${cannotFollow(state)}`);
               else await write(payment.workerId, { status: "pending", attempt: record!.tag, since });
             }
             continue;
