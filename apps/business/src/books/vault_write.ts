@@ -17,6 +17,11 @@ type Locks = { request<T>(name: string, callback: () => Promise<T>): Promise<T> 
 
 const browserLocks = (): Locks | undefined => (typeof navigator !== "undefined" ? (navigator.locks as Locks | undefined) : undefined);
 
+/** Runs `fn` under the one lock across the browser's tabs that every write of these books takes. */
+export function underVaultLock<T>(id: string, fn: () => Promise<T>, locks: Locks | undefined = browserLocks()): Promise<T> {
+  return locks ? locks.request(`hewn-vault-${id}`, fn) : fn();
+}
+
 /**
  * Encrypts `json` and saves it over the stored record, if that record is still the one this tab
  * last saw (`lastIv`). Returns the new record's IV, to pass next time. Throws CHANGED_ELSEWHERE when
@@ -36,7 +41,7 @@ export async function saveOver(
     await store.save(record);
     return record.payload.iv;
   };
-  return locks ? locks.request(`hewn-vault-${session.id}`, write) : write();
+  return underVaultLock(session.id, write, locks);
 }
 
 /**
@@ -57,5 +62,5 @@ export async function replaceOver(
     await store.replace(record, attachments);
     return record.payload.iv;
   };
-  return locks ? locks.request(`hewn-vault-${session.id}`, put) : put();
+  return underVaultLock(session.id, put, locks);
 }
