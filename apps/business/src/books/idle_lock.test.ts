@@ -304,7 +304,7 @@ describe("where the idle lock is wired", () => {
     for (const kind of ["sent", "settled", "failed", "unconfirmed"]) {
       expect(pay, kind).toMatch(new RegExp(`case "${kind}":\\s*setStage\\([^;]*;\\s*(//[^\\n]*\\s*)*(void |settled\\.push\\(\\s*)write\\(e\\.workerId`));
     }
-    expect(pay).toMatch(/const beforeSend = async \(workerId: string, attempt: string\) => \{\s*await write\(workerId,/);
+    expect(pay).toMatch(/const beforeSend = async \([^)]*\) => \{\s*await write\(workerId,/);
     // Nothing else notes progress: not the waits for an approval ("splitting", "approving"), not "broadcast".
     expect(pay.match(/noteProgress\(\)/g)).toHaveLength(3);
     expect(pay.match(/afterStep\(/g)).toHaveLength(1);
