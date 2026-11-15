@@ -201,9 +201,9 @@ export const MARKED_FIRST = "Another device marked this run first; open it again
  * Why a later payment of a run isn't sent from a device that holds no record for it (after
  * `NOT_FROM_HERE`). It goes out only from one record: what the payment before it left (`from`
  * "before"), or the record the run started from ("start"). Shield lists that record as spent
- * ("spent"), doesn't list it yet ("unlisted"), lists it but it is less than this payment
- * ("small"), or it wasn't the one Shield's list offered it this time ("other"); or these books
- * can't tell which payment came before it ("unknown").
+ * ("spent"), doesn't list it yet or doesn't say which payment made it ("unlisted"), lists it but
+ * it is less than this payment ("small"), or it wasn't the one Shield's list offered it this time
+ * ("other"); or these books can't tell which payment came before it ("unknown").
  *
  * Paying them in Shield is offered only where the run can never pay them from that record, so a
  * payment made by hand is never followed by the run's own: a record not listed yet may still
@@ -217,7 +217,7 @@ function cannotFollow(why: RecordState | "other" | "unknown", from: "before" | "
     case "spent":
       return `${lead}, and something else has spent that record (money arriving can make Shield combine it with another record, and a payment made in Shield can spend it). If Shield's activity shows no payment to them, ${inShield}`;
     case "unlisted":
-      return `${lead}. Shield doesn't list that record yet; it can take a few minutes to show. Try again then.`;
+      return `${lead}. Shield doesn't list that record yet, or doesn't say which payment made it. It can take a few minutes to show; try again then.`;
     case "small":
       return `${lead}, and that is less than this payment. To pay them, ${inShield}`;
     case "other":
@@ -347,8 +347,8 @@ async function listedRecords(wallet: RailWallet): Promise<ListedRecord[]> {
 
 /**
  * Where the one record a payment may spend stands, by what Shield lists: "spent" (listed as spent,
- * so it never pays them), "unlisted" (not listed at all: it may not have shown yet), "small" (less
- * than the payment), or "ok".
+ * so it never pays them), "unlisted" (not listed, or not yet told apart from the others: it may
+ * still show), "small" (less than the payment), or "ok".
  */
 type RecordState = "spent" | "unlisted" | "small";
 const stateOf = (record: { spent: boolean; amount: bigint } | undefined, minor: bigint): RecordState | "ok" =>

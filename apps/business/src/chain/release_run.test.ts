@@ -752,6 +752,8 @@ describe("two devices and one run", () => {
     expect(shield.calls).toHaveLength(asked);
     expect([...blind.held.keys()]).toEqual(start.workers.slice(2));
     expect(blind.held.get(start.workers[2]!)).toMatch(new RegExp(`^${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left\\.`));
+    // That record may still be told apart, and the run would then pay them from it: paying them in Shield isn't offered.
+    expect(blind.held.get(start.workers[2]!)).not.toMatch(/pay them in Shield/);
     expect(blind.held.get(start.workers[3]!)).toBe(`${NOT_FROM_HERE}: it is paid from what the payment before it in this run leaves, and that payment hasn't been found yet.`);
     expect(paidEach(chain, start)).toEqual([1, 1, 0, 0]);
 
@@ -1037,7 +1039,7 @@ describe("a run that stopped part-way, on the device that started it", () => {
     await vt.run(waiting.done);
     expect(shield.calls).toHaveLength(asked);
     expect(waiting.held.get(start.workers[1]!)).toBe(
-      `${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left. Shield doesn't list that record yet; it can take a few minutes to show. Try again then.`,
+      `${NOT_FROM_HERE}: this run stopped part-way, and it goes on only from what the payment before this one left. Shield doesn't list that record yet, or doesn't say which payment made it. It can take a few minutes to show; try again then.`,
     );
     expect(waiting.held.get(start.workers[1]!)).not.toMatch(/in Shield/);
 
