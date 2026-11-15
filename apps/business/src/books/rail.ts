@@ -164,7 +164,7 @@ export class RailError extends Error {
 }
 
 /** The account nobody holds a key for: whatever is sent to it can never be spent. */
-const ZERO_ADDRESS = "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
+export const ZERO_ADDRESS = "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc";
 
 /** Written like an account. Only for reading saved books, so a file that already holds the zero address still opens. */
 const isAddressShape = (s: unknown): s is string => typeof s === "string" && ADDRESS.test(s);
@@ -389,6 +389,8 @@ export function railFromJson(text: string): Rail {
  */
 export function addLink(rail: Rail, link: RailLink): Rail {
   const fresh = validateLink(link);
+  // Saved books may hold the zero address (validateLink lets them open); a link made now may not.
+  if (!isRailAddress(fresh.address)) throw new RailError("That account isn't a person's or a business's");
   const previous = linkFor(rail, fresh.workerId);
   if (previous?.mailboxSeq && previous.partiesKey === fresh.partiesKey && fresh.mailboxSeq === undefined) fresh.mailboxSeq = previous.mailboxSeq;
   if (previous?.offeredAt && previous.agreementId === fresh.agreementId && fresh.offeredAt === undefined) fresh.offeredAt = previous.offeredAt;

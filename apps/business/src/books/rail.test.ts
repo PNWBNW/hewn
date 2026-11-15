@@ -3,6 +3,7 @@ import {
   ADDRESS_HINT,
   type PartyLink,
   type Rail,
+  RailError,
   type RailLink,
   addLink,
   bumpSeq,
@@ -132,6 +133,13 @@ describe("the account nobody holds", () => {
     expect(() => setPartyAddress(rail, "vendor", "vend-1", ZERO)).toThrow(ADDRESS_HINT);
     expect(() => setPartyAddress(rail, "customer", "cust-1", ` ${ZERO} `)).toThrow(ADDRESS_HINT);
     expect(() => setRegistered(rail, "worker", "wkr-2", { address: ZERO, nameHash: "77", name: "nobody" })).toThrow(ADDRESS_HINT);
+  });
+
+  it("isn't taken as a new team member's link, however the link was made", () => {
+    expect(() => addLink(rail, { ...link, workerId: "wkr-2", address: ZERO, agreementId: "02".repeat(32), partiesKey: KEY_B })).toThrow(
+      "That account isn't a person's or a business's",
+    );
+    expect(() => addLink(rail, { ...link, address: ZERO, status: "offered" })).toThrow(RailError);
   });
 
   it("doesn't stop books that already hold it from opening, and that person isn't paid", () => {
