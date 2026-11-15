@@ -92,8 +92,11 @@ export type PayQueueEvent =
   | { kind: "split_done"; step: number; of: number }
   /** Waiting on the wallet to prove and sign (Shield is showing its prompt). */
   | { kind: "approving"; workerId: string }
-  /** The wallet took it; `reference` is the wallet's id for the transfer, to resume from after a reload. */
-  | { kind: "sent"; workerId: string; reference: string; attempt?: string; since?: number }
+  /**
+   * The wallet took it; `reference` is the wallet's id for the transfer, to resume from after a reload.
+   * `endedAt`, on one asked about again: when its last try ended, kept while it is checked.
+   */
+  | { kind: "sent"; workerId: string; reference: string; attempt?: string; since?: number; endedAt?: string }
   /** The wallet reported the on-chain id. */
   | { kind: "broadcast"; workerId: string; transactionId: string }
   /** `found`: Shield never confirmed it; it was found in the account's own transfers (`findPayment`). */
@@ -547,7 +550,7 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     const kept = keptOf(p);
     const ids = isOnChainId(reference) ? [reference] : [];
     try {
-      emit({ kind: "sent", workerId: p.workerId, reference, ...(kept.attempt ? { attempt: kept.attempt } : {}), ...(kept.since !== undefined ? { since: kept.since } : {}) });
+      emit({ kind: "sent", workerId: p.workerId, reference, ...kept });
       settle(
         p.workerId,
         await awaitTransaction(
