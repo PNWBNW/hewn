@@ -1,7 +1,18 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Paycheck, PayRun, Settlement } from "@pnw/payroll";
-import { NOT_PAID, NOT_SEEN, type RailWallet, centsToMinor, recordTag } from "@pnw/rail";
-import { PAY_AGAIN_NOTE, claimedTransfers, lookQuery, payAgainTarget, recordListedForPayAgain, rivalPayments, unconfirmedLabel } from "./pay_outcome";
+import { NOT_ASKED, NOT_LISTED, NOT_PAID, NOT_SEEN, type RailWallet, centsToMinor, recordTag } from "@pnw/rail";
+import {
+  PAY_AGAIN_NOTE,
+  claimedTransfers,
+  lookQuery,
+  payAgainTarget,
+  recordListedForPayAgain,
+  rivalPayments,
+  shortOnRail,
+  stagesAfterPress,
+  unconfirmedLabel,
+} from "./pay_outcome";
 
 describe("how an unconfirmed payment reads", () => {
   it("says Not confirmed, unless the queue knows it is not seen on chain yet or not paid; never Not sent", () => {
@@ -43,6 +54,37 @@ describe("pay again", () => {
     expect(await recordListedForPayAgain(wallet(() => new Promise(() => {})), attempt, 30)).toBe(true);
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(await recordListedForPayAgain(wallet(async () => Promise.reject(new Error("Shield is busy"))), attempt, 50)).toBe(true);
+  });
+});
+
+describe("what the pay panel shows once a press ends part-way", () => {
+  const DUE = centsToMinor(2_00n);
+
+  it("calls the rail short of funds, and holds Continue back, only when the balance read is all there is", () => {
+    expect(shortOnRail(0n, DUE, null)).toBe(true);
+    expect(shortOnRail(centsToMinor(1_99n), DUE, NOT_ASKED)).toBe(true);
+    expect(shortOnRail(DUE, DUE, null)).toBe(false);
+    expect(shortOnRail(null, DUE, null)).toBe(false); // not read yet
+    // The run stopped because what its last payment left isn't listed yet: the balance read then is missing it.
+    expect(shortOnRail(0n, DUE, NOT_LISTED)).toBe(false);
+  });
+
+  it("gives a line the run never reached back to the books, and keeps what this press said of the rest", () => {
+    const stages = {
+      w1: { kind: "settled", transactionId: "at1x" },
+      w2: { kind: "unconfirmed", failure: "Shield reported a problem (User rejected the request)" },
+      w3: { kind: "waiting" },
+      w4: { kind: "waiting" },
+    };
+    expect(stagesAfterPress(stages)).toEqual({ w1: stages.w1, w2: stages.w2 });
+    expect(stagesAfterPress({})).toEqual({});
+  });
+
+  it("is what the pay panel goes by", () => {
+    const panel = readFileSync(new URL("./PayPanel.tsx", import.meta.url), "utf8");
+    expect(panel).toMatch(/const short = shortOnRail\(balance, centsToMinor\(totalDue\), stopped\);/);
+    expect(panel).toMatch(/setStopped\(stalledWhy\)/);
+    expect(panel).toMatch(/setStages\(\(all\) => stagesAfterPress\(all\)\)/);
   });
 });
 

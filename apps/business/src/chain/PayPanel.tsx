@@ -55,7 +55,7 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, LOOKING, lookQuery, payAgainTarget, recordListedForPayAgain, unconfirmedLabel } from "./pay_outcome";
+import { FOUND_NOTE, LOOKING, lookQuery, payAgainTarget, recordListedForPayAgain, shortOnRail, stagesAfterPress, unconfirmedLabel } from "./pay_outcome";
 import { pickReleaser, promptSummary } from "./release";
 import { type SentRead, findSentPayment } from "./sent_payment";
 import { useShield } from "./shield";
@@ -161,6 +161,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const [stages, setStages] = useState<Record<string, Stage>>({});
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({});
   const [note, setNote] = useState<string | null>(null);
+  // Why the last press of Pay now or Continue stopped part-way, in the queue's words; null when it didn't.
+  const [stopped, setStopped] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [againFor, setAgainFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +218,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const everyone = run.paychecks.filter((p) => p.net > 0n); // settled ones stay on the board
   const totalDue = due.reduce((s, p) => s + p.net, 0n);
   const balance = records ? totalBalance(records) : null;
-  const short = balance !== null && balance < centsToMinor(totalDue);
+  const short = shortOnRail(balance, centsToMinor(totalDue), stopped);
   const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
@@ -253,12 +255,15 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     if (!run) return;
     setRunning(true);
     setError(null);
+    // Where an earlier press stopped: still true if this one is refused before anything is asked.
+    const noteBefore = note;
     setNote(null);
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
     const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
     const settled: Promise<string | null>[] = [];
-    let stalled = false;
+    let stalledWhy: string | null = null;
+    let refused = false;
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
@@ -268,6 +273,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           setStage(e.workerId, { kind: "approving", to: e.to, minor: e.minor });
           break;
         case "stalled":
+          stalledWhy = e.why;
           setNote(`Stalled at ${e.at} of ${e.of}: ${e.why}.`);
           break;
         case "sent":
@@ -362,15 +368,21 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       // How the run is paid: the one-at-a-time queue, the only way there is today. First, how many times Shield will ask.
       const releaser = await pickReleaser();
       setNote(promptSummary(releaser.prompts(latest, links)));
-      stalled = !!(await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment })).stalled;
+      await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
+      setStopped(stalledWhy);
       loadedFor.current = null; // re-read the balance
       setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
     } catch (e) {
+      refused = true;
       setError(errorMessage(e));
     }
+    // A line the run never reached reads from the books again: what an earlier run left it, with its button.
+    setStages((all) => stagesAfterPress(all));
     // Then each paystub settled this time, one letter (one approval) at a time; `deliver` never throws.
     for (const workerId of await Promise.all(settled)) if (workerId) await deliver(workerId);
-    if (!stalled) setNote(null); // everything it said Shield would ask has been asked; where a run stopped stays up
+    // Everything it said Shield would ask has been asked; where a run stopped stays up.
+    if (refused) setNote(noteBefore);
+    else if (!stalledWhy) setNote(null);
     setRunning(false);
   }
 
