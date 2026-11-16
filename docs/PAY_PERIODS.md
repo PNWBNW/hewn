@@ -67,9 +67,9 @@ and whatever its payment status.
 - February's second half is Feb 16 to 28, or Feb 16 to 29 in a leap year.
 
 **A bridge** is a twice-a-month or monthly period that follows a paycheck which didn't end on the
-calendar, starts off it (not on the 1st or 16th) and is long enough not to fold. It happens after
-runs from the old two-week default. That last paycheck paid a full half or month whatever its
-dates, so:
+calendar, starts off the calendar (not on the 1st, or the 16th twice a month) and is long enough
+not to fold. It happens after runs from the old two-week default. That last paycheck paid a full
+half or month whatever its dates, so:
 
 - a salaried person's bridge starts **unticked**: only the business knows whether those days are
   owed;
@@ -129,10 +129,11 @@ The period rules count these days as paid; pull requests 4 and 5 hold posting to
   try set aside, so it can only be paid once. Its paystub and entry keep their pay date.
 - Its days count as paid: the next period starts after them, and Run payroll points to the
   Retry ("Open that run").
-- A new paycheck that shares a day with a failed one is refused, and no confirmation lets it
-  through. Owed from can't be moved back over those days either.
-- A pending paycheck's days count as paid too. A new paycheck over them at the same amount is
-  refused; at another amount, it is asked about before posting.
+- From pull request 4, a new paycheck that shares a day with a failed one is refused, and no
+  confirmation lets it through. Owed from can't be moved back over those days either: the period
+  rules refuse that already.
+- A pending paycheck's days count as paid too. From pull requests 4 and 5, a new paycheck over
+  them at the same amount is refused; at another amount, it is asked about before posting.
 - A failed paycheck that is never retried stays owed, keeps its entry, year to date and 941
   amounts, and keeps its pay date from closing, as today.
 
