@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { stoppedBeforeWallet } from "@pnw/rail";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
 import { isPairingCancelled, mayReconnect, notAllowedProgramHint, rethrowSendError, shieldRoute } from "./shield_route";
 
@@ -65,6 +66,8 @@ describe("rethrowSendError", () => {
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toBe(notAllowedProgramHint(refused.message));
     expect((thrown as Error).cause).toBe(refused);
+    // Nothing was sent: a payment refused this way fails with its record kept, never "not confirmed".
+    expect(stoppedBeforeWallet(thrown)).toBe(true);
   });
 
   it("rethrows any other error as the same object", () => {
@@ -72,6 +75,7 @@ describe("rethrowSendError", () => {
     for (const other of [new Error("User rejected the request"), "not in the allowed programs", undefined]) {
       expect(thrownBy(other)).toBe(other);
     }
+    expect(stoppedBeforeWallet(thrownBy(new Error("User rejected the request")))).toBe(false);
   });
 });
 

@@ -47,11 +47,13 @@ export function notAllowedProgramHint(message: string): string | null {
 /**
  * What a refused send rethrows (the wallet's send in shield.ts ends with it): Shield's "not in the
  * allowed programs" as the hint above, with Shield's own error kept as its cause, and any other
- * error as it was, the same object.
+ * error as it was, the same object. Shield refuses that before it builds anything, so the hint
+ * carries `nothingSent: true`: the pay queue reads it as a payment that failed and can be tried
+ * again, not one whose outcome isn't known (@pnw/rail `stoppedBeforeWallet`).
  */
 export function rethrowSendError(e: unknown): never {
   const hint = e instanceof Error ? notAllowedProgramHint(e.message) : null;
-  throw hint === null ? e : new Error(hint, { cause: e });
+  throw hint === null ? e : Object.assign(new Error(hint, { cause: e }), { nothingSent: true as const });
 }
 
 /**
