@@ -11,7 +11,7 @@ const check = (workerId: string, net: bigint, settlement: Settlement) => ({ work
 const run = (mode: PayRun["mode"], ...paychecks: Paycheck[]) => ({ mode, paychecks }) as PayRun;
 
 describe("a pay run's status in Pay runs", () => {
-  it("reads Paid for a rail run whose only unsettled paycheck has nothing to pay, settled as it posted or left pending by an older build", () => {
+  it("reads Paid for a rail run whose only unsettled paycheck has nothing to pay, settled as it posted or left pending", () => {
     expect(paymentStatus(run("rail", check("w1", 5000n, settled), check("w2", 0n, { status: "settled", settledAt: "2026-10-16T12:00:00.000Z" })))).toBe("Paid");
     expect(paymentStatus(run("rail", check("w1", 5000n, settled), check("w2", 0n, pending)))).toBe("Paid");
     expect(nextStep(run("rail", check("w1", 5000n, settled), check("w2", 0n, pending)))).toBeNull();

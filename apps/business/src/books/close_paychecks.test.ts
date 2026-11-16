@@ -3,7 +3,7 @@
 // paycheck has in its run.
 import { describe, expect, it } from "vitest";
 import { type Books, applyTemplate, checkPeriodProof, createBooks, periodProofToJson, readPeriodProof } from "@pnw/ledger";
-import { type Payroll, type W4, addWorker, emptyPayroll, ensureRailAccount, markPaycheckSettlement, postPayRun } from "@pnw/payroll";
+import { type Payroll, type W4, addWorker, emptyPayroll, ensureRailAccount, markPaycheckSettlement, postPayRun, previewPayRun, updateWorker } from "@pnw/payroll";
 import { closeChecks, closeRange, periodProofFor, settlementsIn } from "./close";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
 import { startFromShield } from "./opening";
@@ -25,10 +25,11 @@ type Name = keyof typeof ADDRESS;
 
 /**
  * A rail run for the week of 2026-10-10 paid on the 16th: Ana 40 hours, Ben 30, and, when `zero`
- * says where, Cy with no hours (a paycheck with nothing to pay). Ana's and Ben's transfers settled
- * on the 17th; Cy's paycheck is left as posting left it.
+ * says where, Cy with nothing to pay: no hours, or (`how` "all withheld") 10 hours whose withholding
+ * takes all of his pay. Ana's and Ben's transfers settled on the 17th; Cy's paycheck is left as
+ * posting left it.
  */
-function railCompany(zero: "none" | "first" | "last" = "none"): { company: Company; ids: Record<Name, string> } {
+function railCompany(zero: "none" | "first" | "last" = "none", how: "no hours" | "all withheld" = "no hours"): { company: Company; ids: Record<Name, string> } {
   let books: Books = applyTemplate(createBooks({ businessName: "Day Construction", fiscalYearStartMonth: 1 }), "service");
   const rail = ensureRailAccount(books);
   books = rail.books;
@@ -39,8 +40,14 @@ function railCompany(zero: "none" | "first" | "last" = "none"): { company: Compa
     payroll = added.payroll;
     ids[name] = added.worker.id;
   }
+  const hours = how === "all withheld" ? 10 : 0;
+  if (how === "all withheld") {
+    // Extra withholding equal to what 10 hours would pay leaves Cy a net of zero.
+    const plain = previewPayRun(payroll, { payDate: "2026-10-16", periodStart: "2026-10-10", periodEnd: "2026-10-16", bankAccountId: rail.accountId, lines: [{ workerId: ids.Cy, hours }] })[0]!;
+    payroll = updateWorker(payroll, ids.Cy, { w4: { ...W4_SINGLE, extraWithholding: plain.net } });
+  }
   const paid = [{ workerId: ids.Ana, hours: 40 }, { workerId: ids.Ben, hours: 30 }];
-  const nothing = { workerId: ids.Cy, hours: 0 };
+  const nothing = { workerId: ids.Cy, hours };
   const lines = zero === "first" ? [nothing, ...paid] : zero === "last" ? [...paid, nothing] : paid;
   const posted = postPayRun(
     books,
@@ -68,6 +75,30 @@ const runOf = (c: Company) => c.payroll.runs[0]!;
 const paycheckOf = (c: Company, workerId: string) => runOf(c).paychecks.find((p) => p.workerId === workerId)!;
 /** The entry that commits to this person's paystub in the run: the one their settlement must be tied to. */
 const entryFor = (c: Company, workerId: string) => c.books.entries.find((e) => runOf(c).entryIds.includes(e.id) && e.source.doc === paycheckOf(c, workerId).paystubHash)!;
+/**
+ * How a build from before settlements were paired by paystub reads the same books (main at 3bd53ae,
+ * books/close.ts): its close waits while any paycheck of a run paid by the end isn't settled, and it
+ * ties the paycheck at each place in a rail run to the entry at the same place.
+ */
+const earlierBuild = {
+  waits: (c: Company, end: string) => c.payroll.runs.some((r) => r.payDate <= end && r.paychecks.some((p) => p.settlement.status !== "settled")),
+  settlements: (c: Company, start: string, end: string) => {
+    const hashOf = new Map(c.books.entries.map((e) => [e.id, e.hash]));
+    const who = new Map(c.rail!.links.map((l) => [l.workerId, l.address]));
+    const out: { entryHash: string; txId: string; recipient: string }[] = [];
+    for (const run of c.payroll.runs) {
+      if (run.mode !== "rail") continue;
+      run.paychecks.forEach((p, i) => {
+        const s = p.settlement;
+        const on = s.settledAt?.slice(0, 10);
+        const hash = hashOf.get(run.entryIds[i] ?? "");
+        if (s.status !== "settled" || !s.reference || !on || on < start || on > end || !hash) return;
+        out.push({ entryHash: hash, txId: s.reference, recipient: who.get(p.workerId) ?? p.workerId });
+      });
+    }
+    return out;
+  },
+};
 /** As an older build left it: posted pending, and nothing on the rail ever moved it. */
 const leftPending = (c: Company, workerId: string): Company => ({
   ...c,
@@ -108,15 +139,17 @@ describe("a period root over rail pay", () => {
   });
 
   it("gives the same settlements whether the paycheck with nothing to pay comes first or last", () => {
-    const first = railCompany("first");
-    const last = railCompany("last");
-    // Whose entry each settlement is tied to, with its transfer and the account it paid.
-    const tie = (c: Company) => settlementsIn(c, "2026-10-01", "2026-10-31").map((s) => [c.books.entries.find((e) => e.hash === s.entryHash)!.lines[0]!.name?.id, s.txId, s.recipient]);
-    expect(tie(first.company)).toEqual(tie(last.company));
-    expect(tie(first.company)).toEqual([
-      [first.ids.Ana, TX.Ana, ADDRESS.Ana],
-      [first.ids.Ben, TX.Ben, ADDRESS.Ben],
-    ]);
+    for (const how of ["no hours", "all withheld"] as const) {
+      const first = railCompany("first", how);
+      const last = railCompany("last", how);
+      // Whose entry each settlement is tied to, with its transfer and the account it paid.
+      const tie = (c: Company) => settlementsIn(c, "2026-10-01", "2026-10-31").map((s) => [c.books.entries.find((e) => e.hash === s.entryHash)!.lines[0]!.name?.id, s.txId, s.recipient]);
+      expect(tie(first.company)).toEqual(tie(last.company));
+      expect(tie(first.company)).toEqual([
+        [first.ids.Ana, TX.Ana, ADDRESS.Ana],
+        [first.ids.Ben, TX.Ben, ADDRESS.Ben],
+      ]);
+    }
   });
 
   it("leaves out a settlement whose paystub no entry of its run commits to, rather than tie it to another", () => {
@@ -130,17 +163,42 @@ describe("a period root over rail pay", () => {
   });
 });
 
-describe("closing with a paycheck that has nothing to pay", () => {
-  it("doesn't hold the close: the paycheck settled as it posted", () => {
+describe("a period closed by a build that ties settlements by place in the run", () => {
+  // Books open on more than one build: a tab still running the earlier one, another device, the
+  // installable app. Whatever this build posts, an earlier build either waits to close the run, as it
+  // always has for a paycheck with no gross, or ties each settlement to the same entry this build does.
+  for (const [zero, how] of [["none", "no hours"], ["first", "no hours"], ["last", "no hours"], ["first", "all withheld"], ["last", "all withheld"]] as const) {
+    it(`waits, or ties each settlement to its own entry: nothing to pay ${zero === "none" ? "nowhere" : `${zero}, ${how}`}`, () => {
+      const { company } = railCompany(zero, how);
+      if (earlierBuild.waits(company, "2026-10-31")) return;
+      expect(earlierBuild.settlements(company, "2026-10-01", "2026-10-31")).toEqual(settlementsIn(company, "2026-10-01", "2026-10-31"));
+    });
+  }
+
+  it("still waits for a paycheck with no gross, which posts no entry and so shifts the places", () => {
     const { company, ids } = railCompany("first");
-    expect(paycheckOf(company, ids.Cy).settlement).toEqual({ status: "settled", settledAt: clock.now() });
-    expect(closeChecks(company, "2026-10-16", "2026-10-31", opts.today).find((l) => l.id === "payroll")).toEqual({ id: "payroll", ok: true, label: "No paycheck still settling" });
-    expect(closeRange(company, "2026-10-31", opts).company.books.marks.closedThrough).toBe("2026-10-31");
+    expect(runOf(company).entryIds).toHaveLength(2);
+    expect(paycheckOf(company, ids.Cy).settlement.status).not.toBe("settled");
+    expect(earlierBuild.waits(company, "2026-10-31")).toBe(true);
+  });
+});
+
+describe("closing with a paycheck that has nothing to pay", () => {
+  it("doesn't hold the close: settled as it posted when withholding took all of its pay, pending and not counted when it had no gross", () => {
+    const withheld = railCompany("first", "all withheld");
+    expect(paycheckOf(withheld.company, withheld.ids.Cy).settlement).toEqual({ status: "settled", settledAt: clock.now() });
+    const none = railCompany("first", "no hours");
+    expect(paycheckOf(none.company, none.ids.Cy).settlement).toEqual({ status: "pending" });
+    for (const { company } of [withheld, none]) {
+      expect(closeChecks(company, "2026-10-16", "2026-10-31", opts.today).find((l) => l.id === "payroll")).toEqual({ id: "payroll", ok: true, label: "No paycheck still settling" });
+      expect(closeRange(company, "2026-10-31", opts).company.books.marks.closedThrough).toBe("2026-10-31");
+    }
   });
 
   it("doesn't hold the close when an older build left it pending, and the close leaves it as it was", () => {
-    const { company, ids } = railCompany("first");
+    const { company, ids } = railCompany("first", "all withheld");
     const old = leftPending(company, ids.Cy);
+    expect(old.payroll).not.toEqual(company.payroll);
     expect(closeChecks(old, "2026-10-16", "2026-10-31", opts.today).find((l) => l.id === "payroll")?.ok).toBe(true);
     const { company: closed } = closeRange(old, "2026-10-31", opts);
     expect(closed.payroll).toBe(old.payroll);

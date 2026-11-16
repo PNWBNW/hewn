@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
 // Where a pay run's payments stand, in the words Pay runs and a paystub use.
 //
-// A paycheck with no net pay has nothing to send: on the rail it is settled
-// as it posts (@pnw/payroll), and one an earlier build posted pending waits on
-// nothing all the same, so neither keeps a run from reading Paid. Pure.
+// A paycheck with no net pay has nothing to send: on the rail one whose
+// withholding takes all of its pay is settled as it posts (@pnw/payroll), and
+// one with no gross, or one an earlier build posted pending, stays pending and
+// waits on nothing all the same, so none keeps a run from reading Paid. Pure.
 // ---------------------------------------------------------------------------
 
 import { type Paycheck, type PayRun, awaitsPayment } from "@pnw/payroll";
