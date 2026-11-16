@@ -25,7 +25,7 @@ rows, and only `apps/business/src/chain` may.
 | 0 | `commitments` | BLAKE3 domain hashing, Merkle trees, the canonical TLV encoder, Aleo scalar types | chain |
 | 0 | `config` | Environment and the deployed program ids (from `pnw_mvp_v2`'s manifest) | chain |
 | 1 | `vault` | The encrypted store: a random data key wrapped by the unlock secret; "stay logged in" | |
-| 1 | `payroll` | Workers, pay runs, paychecks, the paystub's canonical form | |
+| 1 | `payroll` | Workers, pay runs, paychecks, each person's pay periods, the paystub's canonical form | |
 | 1 | `sales` | Customers, vendors, estimates, invoices, bills, payments | |
 | 1 | `pnw-adapter` | The Sealance exclusion-proof types the payroll manifest uses (program names live in `config`) | chain |
 | 1 | `wallet` | The Shield provider and executor: the only way a transaction is signed | chain |
