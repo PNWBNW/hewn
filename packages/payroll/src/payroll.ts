@@ -556,23 +556,43 @@ export function paidPeriods(payroll: Payroll, matches: readonly DoublePayMatch[]
 /**
  * The words for a run that would pay someone for days a failed paycheck covers: whose paycheck,
  * for which period, in the run of which pay date, oldest period first, and that its Retry is the
- * way to pay it.
+ * way to pay it. Where another run also has a paycheck for that person for any of the failed one's
+ * days (one posted while it was still on its way, or one from an earlier build), that run is named
+ * and the words say to check it first, because a Retry would pay those days as well. Last, this
+ * run's own period, which may be what needs changing.
  */
-function failedRefusal(payroll: Payroll, matches: readonly DoublePayMatch[]): string {
+function failedRefusal(payroll: Payroll, matches: readonly DoublePayMatch[], input: Pick<PayRunInput, "periodStart" | "periodEnd">): string {
   const seen = new Set<string>();
-  const found: { name: string; run: PayRun }[] = [];
+  const found: { name: string; run: PayRun; others: string[] }[] = [];
   for (const m of matches) {
     const run = payroll.runs.find((r) => r.id === m.runId);
     if (!run || seen.has(`${m.runId} ${m.workerId}`)) continue;
     seen.add(`${m.runId} ${m.workerId}`);
-    found.push({ name: payroll.workers.find((w) => w.id === m.workerId)?.name ?? m.workerId, run });
+    // The pay dates of the other runs holding a paycheck for this person for any day of this one's period, in any state.
+    const others = payroll.runs
+      .filter((r) => r.id !== run.id && r.periodStart <= run.periodEnd && run.periodStart <= r.periodEnd && r.paychecks.some((p) => p.workerId === m.workerId))
+      .map((r) => r.payDate);
+    found.push({ name: payroll.workers.find((w) => w.id === m.workerId)?.name ?? m.workerId, run, others: [...new Set(others)].sort() });
   }
   found.sort((a, b) => a.run.periodStart.localeCompare(b.run.periodStart) || a.run.payDate.localeCompare(b.run.payDate));
-  const what = (f: { name: string; run: PayRun }) => `${f.run.periodStart} to ${f.run.periodEnd} (run of ${f.run.payDate})`;
+  const what = (f: { run: PayRun }) => `${f.run.periodStart} to ${f.run.periodEnd}`;
+  const runsOf = (dates: readonly string[]) => `the run${dates.length === 1 ? "" : "s"} of ${dates.join(" and ")}`;
+  const ownPeriod = ` If this run's pay period (${input.periodStart} to ${input.periodEnd}) shouldn't include those days, change it.`;
   if (found.length === 1) {
-    return `${found[0]!.name}'s paycheck for ${what(found[0]!)} failed. Retry it from that run in Pay runs: a new paycheck for those days isn't posted while that one can still be paid.`;
+    const f = found[0]!;
+    if (f.others.length === 0) {
+      return `${f.name}'s paycheck for ${what(f)} (run of ${f.run.payDate}) failed. Retry it from that run in Pay runs: a new paycheck for those days isn't posted while that one can still be paid.${ownPeriod}`;
+    }
+    const one = f.others.length === 1;
+    return (
+      `${f.name}'s paycheck for ${what(f)} (run of ${f.run.payDate}) failed, and ${runsOf(f.others)} also ${one ? "has" : "have"} a paycheck for ${f.name} for some of those days. ` +
+      `Check whether ${one ? "that run" : "those runs"} paid them before you retry this one in Pay runs: a new paycheck for those days isn't posted while the failed one can still be paid.${ownPeriod}`
+    );
   }
-  return `These paychecks failed: ${found.map((f) => `${f.name}'s for ${what(f)}`).join(", ")}. Retry each from its run in Pay runs: a new paycheck for those days isn't posted while they can still be paid.`;
+  const item = (f: (typeof found)[number]) =>
+    `${f.name}'s for ${what(f)} (run of ${f.run.payDate}${f.others.length === 0 ? "" : `; ${runsOf(f.others)} also ${f.others.length === 1 ? "has" : "have"} one for ${f.name} for some of those days`})`;
+  const retry = found.some((f) => f.others.length > 0) ? "Retry each from its run in Pay runs, but first check whether a run named beside it paid those days" : "Retry each from its run in Pay runs";
+  return `These paychecks failed: ${found.map(item).join(", ")}. ${retry}: a new paycheck for those days isn't posted while they can still be paid.${ownPeriod}`;
 }
 
 /**
@@ -588,7 +608,7 @@ export function doublePayRefusal(
   input: Pick<PayRunInput, "payDate" | "periodStart" | "periodEnd" | "lines">,
   check: DoublePayCheck = checkDoublePay(payroll, input),
 ): string | null {
-  if (check.failed.length > 0) return failedRefusal(payroll, check.failed);
+  if (check.failed.length > 0) return failedRefusal(payroll, check.failed, input);
   const byPeriod = check.blocked.filter((m) => m.by === "period");
   if (byPeriod.length > 0) {
     return `Already paid the same amount for ${paidPeriods(payroll, byPeriod).join(" and ")}: ${namesOf(payroll, byPeriod).join(", ")}. Check this run's pay period (${input.periodStart} to ${input.periodEnd}), or change the amount to pay again.`;

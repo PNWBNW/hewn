@@ -267,6 +267,8 @@ describe("a failed paycheck is paid only by its own Retry", () => {
   const RETRY_ANA =
     "Ana's paycheck for 2026-10-01 to 2026-10-14 (run of 2026-10-16) failed. Retry it from that run in Pay runs: a new paycheck for those days isn't posted while that one can still be paid.";
   const tag = "ab".repeat(16);
+  /** The last sentence of each refusal: this run's own period may be the thing to change. */
+  const thisPeriod = (start: string, end: string) => ` If this run's pay period (${start} to ${end}) shouldn't include those days, change it.`;
 
   /** The fixture's run, on the rail, with the payments of `who` failed and the rest still on their way. */
   function withFailed(...who: ("ana" | "ben")[]) {
@@ -306,7 +308,7 @@ describe("a failed paycheck is paid only by its own Retry", () => {
     expect(() => postPayRun(f.books, f.payroll, { ...again, confirmedOverlaps: [f.ana.id, f.ben.id] }, clock)).toThrow(RETRY_ANA);
     // On the same pay date, too.
     expect(() => postPayRun(f.books, f.payroll, { ...again, payDate: "2026-10-16", confirmedOverlaps: [f.ana.id] }, clock)).toThrow(RETRY_ANA);
-    expect(doublePayRefusal(f.payroll, again)).toBe(RETRY_ANA);
+    expect(doublePayRefusal(f.payroll, again)).toBe(RETRY_ANA + thisPeriod("2026-10-01", "2026-10-14"));
     // Pure: nothing was added.
     expect(f.payroll.runs).toHaveLength(1);
     expect(f.books.entries).toHaveLength(2);
@@ -317,7 +319,7 @@ describe("a failed paycheck is paid only by its own Retry", () => {
     const oneDay = { ...f.input, mode: "rail" as const, payDate: "2026-10-30", periodStart: "2026-10-14", periodEnd: "2026-10-27", lines: [{ workerId: f.ben.id, hours: 10 }] };
     const retryBen =
       "Ben's paycheck for 2026-10-01 to 2026-10-14 (run of 2026-10-16) failed. Retry it from that run in Pay runs: a new paycheck for those days isn't posted while that one can still be paid.";
-    expect(() => postPayRun(f.books, f.payroll, oneDay, clock)).toThrow(retryBen);
+    expect(() => postPayRun(f.books, f.payroll, oneDay, clock)).toThrow(retryBen + thisPeriod("2026-10-14", "2026-10-27"));
     expect(() => postPayRun(f.books, f.payroll, { ...oneDay, confirmedOverlaps: [f.ben.id] }, clock)).toThrow(retryBen);
     // The first day at the other end, as an external run.
     const before = { ...f.input, payDate: "2026-10-02", periodStart: "2026-09-18", periodEnd: "2026-10-01", lines: [{ workerId: f.ben.id, hours: 80 }] };
@@ -336,14 +338,14 @@ describe("a failed paycheck is paid only by its own Retry", () => {
       overlap: [],
       failed: [{ workerId: f.ana.id, runId: "run-1", by: "period" }],
     });
-    expect(doublePayRefusal(f.payroll, both)).toBe(RETRY_ANA);
+    expect(doublePayRefusal(f.payroll, both)).toBe(RETRY_ANA + thisPeriod("2026-10-01", "2026-10-14"));
     expect(() => postPayRun(f.books, f.payroll, both, clock)).toThrow(RETRY_ANA);
     // Ben at another amount is a question; Ana's failed paycheck still comes first, confirmed or not.
     const asked = { ...both, lines: [{ workerId: f.ana.id }, { workerId: f.ben.id, hours: 10 }] };
     const check = checkDoublePay(f.payroll, asked);
     expect(check.overlap).toEqual([{ workerId: f.ben.id, runId: "run-1", by: "period" }]);
     expect(check.failed).toEqual([{ workerId: f.ana.id, runId: "run-1", by: "period" }]);
-    expect(doublePayRefusal(f.payroll, asked, check)).toBe(RETRY_ANA);
+    expect(doublePayRefusal(f.payroll, asked, check)).toBe(RETRY_ANA + thisPeriod("2026-10-01", "2026-10-14"));
     expect(() => postPayRun(f.books, f.payroll, { ...asked, confirmedOverlaps: [f.ana.id, f.ben.id] }, clock)).toThrow(RETRY_ANA);
   });
 
@@ -358,8 +360,70 @@ describe("a failed paycheck is paid only by its own Retry", () => {
     const wide = { ...s.input, payDate: "2026-11-02", periodStart: "2026-10-01", periodEnd: "2026-10-28", lines: ana };
     const words =
       "These paychecks failed: Ana's for 2026-10-01 to 2026-10-14 (run of 2026-10-16), Ana's for 2026-10-15 to 2026-10-28 (run of 2026-10-30). Retry each from its run in Pay runs: a new paycheck for those days isn't posted while they can still be paid.";
-    expect(doublePayRefusal(payroll, wide)).toBe(words);
+    expect(doublePayRefusal(payroll, wide)).toBe(words + thisPeriod("2026-10-01", "2026-10-28"));
     expect(() => postPayRun(early.books, payroll, { ...wide, confirmedOverlaps: [s.ana.id] }, clock)).toThrow(words);
+  });
+
+  // A run posted over a paycheck still on its way (another amount, confirmed) can later sit beside
+  // it when that payment fails, and books from earlier builds may hold such a run already. Retrying
+  // the failed one would then pay days the other run covers, so the words say to check that run first.
+  it("says to check first, not to retry, when another run also has a paycheck for some of its days", () => {
+    const s = setup();
+    const ben = (hours: number) => [{ workerId: s.ben.id, hours }];
+    const first = postPayRun(s.books, s.payroll, { ...s.input, mode: "rail", lines: ben(80) }, clock); // on its way
+    const byBank = postPayRun(first.books, first.payroll, { ...s.input, payDate: "2026-10-20", lines: ben(82), confirmedOverlaps: [s.ben.id] }, clock);
+    const failed = markPaycheckSettlement(byBank.payroll, "run-1", s.ben.id, { status: "failed", failure: "rejected", attempt: tag });
+    const next = { ...s.input, mode: "rail" as const, payDate: "2026-10-30", periodStart: "2026-10-14", periodEnd: "2026-10-27", lines: ben(80) };
+    const check = checkDoublePay(failed, next);
+    expect(check.failed).toEqual([{ workerId: s.ben.id, runId: "run-1", by: "period" }]);
+    expect(check.overlap).toEqual([{ workerId: s.ben.id, runId: "run-2", by: "period" }]);
+    const words =
+      "Ben's paycheck for 2026-10-01 to 2026-10-14 (run of 2026-10-16) failed, and the run of 2026-10-20 also has a paycheck for Ben for some of those days. Check whether that run paid them before you retry this one in Pay runs: a new paycheck for those days isn't posted while the failed one can still be paid." +
+      thisPeriod("2026-10-14", "2026-10-27");
+    expect(doublePayRefusal(failed, next)).toBe(words);
+    expect(doublePayRefusal(failed, next)).not.toMatch(/Retry it/);
+    expect(() => postPayRun(byBank.books, failed, { ...next, confirmedOverlaps: [s.ben.id] }, clock)).toThrow(words);
+    // It looks at the failed paycheck's own days, not this run's: a run for only its first three days counts too.
+    const early = postPayRun(first.books, first.payroll, { ...s.input, payDate: "2026-10-05", periodStart: "2026-09-28", periodEnd: "2026-10-03", lines: ben(24), confirmedOverlaps: [s.ben.id] }, clock);
+    const earlyFailed = markPaycheckSettlement(early.payroll, "run-1", s.ben.id, { status: "failed", failure: "rejected", attempt: tag });
+    expect(doublePayRefusal(earlyFailed, next)).toMatch(/^Ben's paycheck for 2026-10-01 to 2026-10-14 \(run of 2026-10-16\) failed, and the run of 2026-10-05 also has a paycheck for Ben /);
+    // Two such runs are both named.
+    const third = postPayRun(byBank.books, byBank.payroll, { ...s.input, payDate: "2026-10-23", periodStart: "2026-10-10", periodEnd: "2026-10-12", lines: ben(16), confirmedOverlaps: [s.ben.id] }, clock);
+    const twoOthers = markPaycheckSettlement(third.payroll, "run-1", s.ben.id, { status: "failed", failure: "rejected", attempt: tag });
+    expect(doublePayRefusal(twoOthers, next)).toMatch(
+      /failed, and the runs of 2026-10-20 and 2026-10-23 also have a paycheck for Ben for some of those days\. Check whether those runs paid them before you retry this one in Pay runs:/,
+    );
+  });
+
+  it("names the other run beside each failed paycheck when both payments failed, so only one is retried", () => {
+    const s = setup();
+    const ben = (hours: number) => [{ workerId: s.ben.id, hours }];
+    const first = postPayRun(s.books, s.payroll, { ...s.input, mode: "rail", lines: ben(80) }, clock);
+    const second = postPayRun(first.books, first.payroll, { ...s.input, mode: "rail", payDate: "2026-10-20", lines: ben(82), confirmedOverlaps: [s.ben.id] }, clock);
+    let payroll = markPaycheckSettlement(second.payroll, "run-1", s.ben.id, { status: "failed", failure: "rejected", attempt: tag });
+    payroll = markPaycheckSettlement(payroll, "run-2", s.ben.id, { status: "failed", failure: "rejected", attempt: "cd".repeat(16) });
+    const next = { ...s.input, mode: "rail" as const, payDate: "2026-10-30", periodStart: "2026-10-14", periodEnd: "2026-10-27", lines: ben(80) };
+    const words =
+      "These paychecks failed: Ben's for 2026-10-01 to 2026-10-14 (run of 2026-10-16; the run of 2026-10-20 also has one for Ben for some of those days), Ben's for 2026-10-01 to 2026-10-14 (run of 2026-10-20; the run of 2026-10-16 also has one for Ben for some of those days). Retry each from its run in Pay runs, but first check whether a run named beside it paid those days: a new paycheck for those days isn't posted while they can still be paid." +
+      thisPeriod("2026-10-14", "2026-10-27");
+    expect(doublePayRefusal(payroll, next)).toBe(words);
+    expect(() => postPayRun(second.books, payroll, { ...next, confirmedOverlaps: [s.ben.id] }, clock)).toThrow(words);
+  });
+
+  it("still says to retry when the other paychecks are someone else's, or for days the failed one doesn't cover", () => {
+    const s = setup();
+    const ben = (hours: number) => [{ workerId: s.ben.id, hours }];
+    const first = postPayRun(s.books, s.payroll, { ...s.input, mode: "rail", lines: ben(80) }, clock);
+    // Ana is paid for the same days in another run, and Ben for the next period.
+    const ana = postPayRun(first.books, first.payroll, { ...s.input, payDate: "2026-10-20", lines: [{ workerId: s.ana.id }] }, clock);
+    const later = postPayRun(ana.books, ana.payroll, { ...s.input, payDate: "2026-10-30", periodStart: "2026-10-15", periodEnd: "2026-10-28", lines: ben(80) }, clock);
+    const payroll = markPaycheckSettlement(later.payroll, "run-1", s.ben.id, { status: "failed", failure: "rejected", attempt: tag });
+    const reachesBack = { ...s.input, mode: "rail" as const, payDate: "2026-11-13", periodStart: "2026-10-14", periodEnd: "2026-11-10", lines: ben(80) };
+    expect(checkDoublePay(payroll, reachesBack).failed).toEqual([{ workerId: s.ben.id, runId: "run-1", by: "period" }]);
+    expect(doublePayRefusal(payroll, reachesBack)).toBe(
+      "Ben's paycheck for 2026-10-01 to 2026-10-14 (run of 2026-10-16) failed. Retry it from that run in Pay runs: a new paycheck for those days isn't posted while that one can still be paid." +
+        thisPeriod("2026-10-14", "2026-11-10"),
+    );
   });
 
   it("doesn't stand in the way of anyone else's pay for the same days", () => {
