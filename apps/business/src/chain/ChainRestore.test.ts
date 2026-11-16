@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { addAccount, createBooks, postEntry } from "@pnw/ledger";
 import { MemoryStore, addRecovery, createVault, openKeySlots, unlockVault } from "@pnw/vault";
 import { accountSecret, vaultIdFor } from "../books/account";
 import { type AccountUnlock, fileIdsIn, restoreIntoVault, restoredCompany } from "../books/account_restore";
 import { stateHash } from "../books/books_backup";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "../books/company";
+import { CHANGED_ELSEWHERE, saveOver } from "../books/vault_write";
 import { type Page, planBackup, restoreBackup, sealerOf } from "./books_backup";
 import { AWAY_HINT_MS, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import type { LetterRecord } from "./letters";
@@ -40,6 +41,25 @@ async function backedUp(session: Awaited<ReturnType<typeof setup>>["session"], c
 const finder = (read: (lookup: string) => Promise<Uint8Array | null>, address = ADDR) => (username: string, openSlots: Parameters<typeof restoreBackup>[0]["openSlots"]) =>
   restoreBackup({ read, username, address, openSlots });
 
+/** Web Locks as the browser runs them: one holder per name at a time, the others wait their turn. */
+function tabLocks() {
+  const tails = new Map<string, Promise<unknown>>();
+  const requested: string[] = [];
+  let onRequest = () => {};
+  return {
+    requested,
+    /** Resolves when the next request for a lock is made, before it is granted. */
+    nextRequest: () => new Promise<void>((resolve) => (onRequest = resolve)),
+    request<T>(name: string, cb: () => Promise<T>): Promise<T> {
+      requested.push(name);
+      onRequest();
+      const run = (tails.get(name) ?? Promise.resolve()).then(cb);
+      tails.set(name, run.catch(() => {}));
+      return run;
+    },
+  };
+}
+
 describe("restoring the books from the backup kept with the account", () => {
   it("writes the books into a new device's vault, opening with the same username and passphrase", async () => {
     const { session, company, id } = await setup();
@@ -72,6 +92,47 @@ describe("restoring the books from the backup kept with the account", () => {
     const back = companyFromJson(await (await unlockVault(saved, accountSecret(USER, next))).read());
     expect(await stateHash(back)).toBe(await stateHash(company));
     expect(back.chainBackup).toBeUndefined();
+  });
+
+  it("with the recovery key, lands after a save another tab has started, so the new passphrase keeps opening the books", async () => {
+    const { session, company, id } = await setup();
+    const { record, code } = await addRecovery(session.record, accountSecret(USER, PASS));
+    const withKey = await openKeySlots({ id: record.id, kdf: record.kdf, wrappedKey: record.wrappedKey, recovery: record.recovery }, accountSecret(USER, PASS));
+    const { read } = await backedUp(withKey, company);
+    const store = new MemoryStore();
+    await store.save(record); // the books already on this device, open in another tab
+    const tab = await unlockVault((await store.load(id))!, accountSecret(USER, PASS));
+    const next = "a brand new passphrase, five words";
+    const locks = tabLocks();
+    vi.stubGlobal("navigator", { locks });
+    try {
+      // The tab's save has read the stored record and passed its check when the restore writes.
+      const load = store.load.bind(store);
+      let restoring: Promise<unknown> | null = null;
+      store.load = async (vaultId: string) => {
+        const stored = await load(vaultId);
+        if (!restoring) {
+          const waiting = locks.nextRequest();
+          restoring = restoreIntoVault(store, finder(read), USER, { code, next }, NOW);
+          await Promise.race([restoring, waiting]); // the restore is done, or waits its turn
+        }
+        return stored;
+      };
+      const last = await saveOver(store, tab, companyToJson({ ...company, backedUpAt: "tab" }), tab.record.payload.iv);
+      await restoring;
+      store.load = load;
+
+      // The restored books are what is stored: the new passphrase opens them, the old one doesn't.
+      const saved = (await store.load(id))!;
+      const back = companyFromJson(await (await unlockVault(saved, accountSecret(USER, next))).read());
+      expect(await stateHash(back)).toBe(await stateHash(company));
+      await expect(unlockVault(saved, accountSecret(USER, PASS))).rejects.toMatchObject({ code: "WRONG_PASSPHRASE" });
+      // And the tab, holding the old passphrase's record, can't save it back.
+      await expect(saveOver(store, tab, companyToJson(company), last)).rejects.toThrow(CHANGED_ELSEWHERE);
+      expect(locks.requested.slice(0, 2)).toEqual([`hewn-vault-${id}`, `hewn-vault-${id}`]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("refuses a weak new passphrase before reading anything", async () => {
