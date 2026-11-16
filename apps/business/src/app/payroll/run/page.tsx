@@ -145,7 +145,11 @@ export default function RunPayrollPage() {
   // What those earlier paychecks were for, so the box says which period was paid, not only this run's.
   const earlier = paidPeriods(payroll, (confirmOverlap ?? []).filter((m) => m.by === "period")).join(" and ");
 
-  /** Before posting: refuse an exact repeat of a payment for this period or on this date; ask about any other pay for either. */
+  /**
+   * Before posting: refuse a new paycheck for a day a failed one covers (its own Retry pays it), and an exact repeat of a
+   * payment for this period or on this date; ask about any other pay for either. The box opens only when nothing is refused
+   * and lists only `overlap`, so it never offers to post over a failed paycheck, and postPayRun refuses one whatever is confirmed.
+   */
   function submit() {
     setError(null);
     const input = { payDate, periodStart, periodEnd, lines: lines() };

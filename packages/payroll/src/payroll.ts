@@ -105,7 +105,9 @@ export type SettlementMode = "external" | "rail";
  * Where one paycheck's payment stands. External runs are settled as they
  * post; rail paychecks start pending and are marked as each transfer
  * confirms (`reference` = the transfer's id, `height` = the block it landed
- * in) or fails, and a failed one can go back to pending for a retry.
+ * in) or fails, and a failed one can go back to pending for a retry. That
+ * retry is the only way a failed paycheck is paid: no new paycheck for any of
+ * its days is posted while it can still be paid (`checkDoublePay`'s `failed`).
  */
 export type Settlement = {
   status: "pending" | "settled" | "failed";
@@ -452,7 +454,8 @@ export type PayRunInput = {
   /**
    * The team members whose earlier paycheck for this pay date or an overlapping pay period was
    * shown and confirmed (`checkDoublePay`'s `overlap`). Without it, such a run doesn't post.
-   * It never lets an exact repeat through, and it isn't kept on the run.
+   * It never lets an exact repeat through, nor a paycheck for a day a failed one covers
+   * (`checkDoublePay`'s `failed`), and it isn't kept on the run.
    */
   confirmedOverlaps?: string[];
 };
@@ -488,8 +491,14 @@ export type DoublePayMatch = {
 export type DoublePayCheck = {
   /** Same person and gross as a paycheck that is paid or on its way, for an overlapping pay period or the same pay date: don't post. */
   blocked: DoublePayMatch[];
-  /** Same person, an overlapping pay period or the same pay date, another amount (or a failed payment): ask first. */
+  /** Same person, an overlapping pay period or the same pay date, another amount (or a failed payment on the same pay date only): ask first. */
   overlap: DoublePayMatch[];
+  /**
+   * Same person, a paycheck whose payment failed and whose pay period shares a day with this one's,
+   * whatever the amount: don't post, confirmed or not. That paycheck is paid by its own Retry, which
+   * spends the record its first try set aside, so it can only go out once.
+   */
+  failed: DoublePayMatch[];
 };
 
 /**
@@ -499,10 +508,12 @@ export type DoublePayCheck = {
  * pending paycheck is blocked; any other paycheck found is a question for the
  * user. A deliberate second payment passes by differing in amount, once it is
  * confirmed. Moving the pay date doesn't get round it: the period is the key.
- * `postPayRun` runs this itself, so nothing posts past it.
+ * A failed paycheck for any of the same days is neither: it is listed in
+ * `failed`, at any amount, and nothing posts over it, because its own Retry
+ * is how it is paid. `postPayRun` runs this itself, so nothing posts past it.
  */
 export function checkDoublePay(payroll: Payroll, input: Pick<PayRunInput, "payDate" | "periodStart" | "periodEnd" | "lines">): DoublePayCheck {
-  const result: DoublePayCheck = { blocked: [], overlap: [] };
+  const result: DoublePayCheck = { blocked: [], overlap: [], failed: [] };
   for (const line of input.lines) {
     const worker = payroll.workers.find((w) => w.id === line.workerId);
     if (!worker) continue;
@@ -518,7 +529,12 @@ export function checkDoublePay(payroll: Payroll, input: Pick<PayRunInput, "payDa
       if (!samePeriod && run.payDate !== input.payDate) continue;
       for (const p of run.paychecks) {
         if (p.workerId !== worker.id) continue;
-        const exact = gross !== null && p.gross === gross && p.settlement.status !== "failed";
+        const failed = p.settlement.status === "failed";
+        if (failed && samePeriod) {
+          result.failed.push({ workerId: worker.id, runId: run.id, by: "period" });
+          continue;
+        }
+        const exact = gross !== null && p.gross === gross && !failed;
         (exact ? result.blocked : result.overlap).push({ workerId: worker.id, runId: run.id, by: samePeriod ? "period" : "date" });
       }
     }
@@ -538,16 +554,41 @@ export function paidPeriods(payroll: Payroll, matches: readonly DoublePayMatch[]
 }
 
 /**
- * Why this run can't post as it is, in words for the person running payroll, or null: the people
- * a line would pay the same amount again, those already paid for the period first. It names the
- * period that was paid, not this run's, and the pay period is the first thing to check: a run
- * whose period reaches back into the last one (a weekly run over two weeks) lands here too.
+ * The words for a run that would pay someone for days a failed paycheck covers: whose paycheck,
+ * for which period, in the run of which pay date, oldest period first, and that its Retry is the
+ * way to pay it.
+ */
+function failedRefusal(payroll: Payroll, matches: readonly DoublePayMatch[]): string {
+  const seen = new Set<string>();
+  const found: { name: string; run: PayRun }[] = [];
+  for (const m of matches) {
+    const run = payroll.runs.find((r) => r.id === m.runId);
+    if (!run || seen.has(`${m.runId} ${m.workerId}`)) continue;
+    seen.add(`${m.runId} ${m.workerId}`);
+    found.push({ name: payroll.workers.find((w) => w.id === m.workerId)?.name ?? m.workerId, run });
+  }
+  found.sort((a, b) => a.run.periodStart.localeCompare(b.run.periodStart) || a.run.payDate.localeCompare(b.run.payDate));
+  const what = (f: { name: string; run: PayRun }) => `${f.run.periodStart} to ${f.run.periodEnd} (run of ${f.run.payDate})`;
+  if (found.length === 1) {
+    return `${found[0]!.name}'s paycheck for ${what(found[0]!)} failed. Retry it from that run in Pay runs: a new paycheck for those days isn't posted while that one can still be paid.`;
+  }
+  return `These paychecks failed: ${found.map((f) => `${f.name}'s for ${what(f)}`).join(", ")}. Retry each from its run in Pay runs: a new paycheck for those days isn't posted while they can still be paid.`;
+}
+
+/**
+ * Why this run can't post as it is, in words for the person running payroll, or null. First, a
+ * failed paycheck for any of its days: that one is paid by its own Retry, and no confirmation gets
+ * past it. Then the people a line would pay the same amount again, those already paid for the
+ * period first. It names the period that was paid, not this run's, and the pay period is the first
+ * thing to check: a run whose period reaches back into the last one (a weekly run over two weeks)
+ * lands here too.
  */
 export function doublePayRefusal(
   payroll: Payroll,
   input: Pick<PayRunInput, "payDate" | "periodStart" | "periodEnd" | "lines">,
   check: DoublePayCheck = checkDoublePay(payroll, input),
 ): string | null {
+  if (check.failed.length > 0) return failedRefusal(payroll, check.failed);
   const byPeriod = check.blocked.filter((m) => m.by === "period");
   if (byPeriod.length > 0) {
     return `Already paid the same amount for ${paidPeriods(payroll, byPeriod).join(" and ")}: ${namesOf(payroll, byPeriod).join(", ")}. Check this run's pay period (${input.periodStart} to ${input.periodEnd}), or change the amount to pay again.`;
@@ -577,7 +618,8 @@ export function postPayRun(
     throw new PayrollError("The confirmed team members must be a list");
   }
   const computed = previewPayRun(payroll, input);
-  // Nobody is paid twice for the same days: an exact repeat never posts, and another amount posts only once it was confirmed.
+  // Nobody is paid twice for the same days: nothing posts over a failed paycheck's days (its Retry pays it), an exact repeat
+  // never posts, and another amount posts only once it was confirmed.
   const repeats = checkDoublePay(payroll, input);
   const refusal = doublePayRefusal(payroll, input, repeats);
   if (refusal) throw new PayrollError(refusal);
