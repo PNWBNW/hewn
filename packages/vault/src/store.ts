@@ -5,15 +5,21 @@
 // Attachments are kept in their own object store, one sealed blob each, so
 // saving the books never rewrites them.
 //
-// "Stay logged in" keeps one remembered session per device: the vault id, the
-// open data key as the browser's own non-extractable CryptoKey (it can be used
-// to decrypt, never read out or copied), and when it expires. Only vault.ts
-// writes or reads it (remember / resumeSession / forgetSession).
+// "Stay logged in" keeps one remembered session per device, in two rows: the
+// vault id, the open data key as the browser's own non-extractable CryptoKey
+// (it can be used to decrypt, never read out or copied) and when it expires;
+// and, in a row of its own with no key in it, the last time the session was
+// used. The key's row is written once, when the session is remembered, and
+// only deleted after that: the time moves without the key being read out or
+// written back, so a write of the time can't bring back a session that a
+// Log out deleted meanwhile. Only vault.ts writes or reads either row
+// (remember / resumeSession / noteSeen / forgetSession).
 //
 // Database versions:
 //   1  vaults
 //   2  + attachments (keyed "<vault id>/<attachment id>", indexed by vault)
-//   3  + session (one slot, "current")
+//   3  + session (the remembered session's row, "current"; since 2026-11-14 its
+//        last-used time in a second row, "seen")
 // ---------------------------------------------------------------------------
 
 import type { SealedAttachment, VaultRecord } from "./vault";
@@ -21,9 +27,16 @@ import type { SealedAttachment, VaultRecord } from "./vault";
 /**
  * A session kept for "stay logged in": the open data key (non-extractable) and its expiry.
  * `seenAt` is the latest time this device used it; it only moves forward, so a clock set back
- * to before it doesn't reopen the books (resumeSession). Sessions kept before 2026-11-11 have none.
+ * to before it doesn't reopen the books (resumeSession). Sessions kept before 2026-11-11 have
+ * none, and aren't reopened.
  */
 export type RememberedSession = { vaultId: string; key: CryptoKey; expiresAt: string; seenAt?: string };
+
+/** The later of two times a session was used; one that isn't a time counts as none. */
+function laterSeen(a: unknown, b: unknown): string | undefined {
+  const times = [a, b].filter((t): t is string => typeof t === "string" && Number.isFinite(Date.parse(t)));
+  return times.sort((x, y) => Date.parse(y) - Date.parse(x))[0];
+}
 
 export interface VaultStore {
   load(id: string): Promise<VaultRecord | null>;
@@ -36,25 +49,42 @@ export interface VaultStore {
   listAttachments(vaultId: string): Promise<SealedAttachment[]>;
   /** Replaces a vault's record and all of its attachments in one step (restoring a backup). */
   replace(record: VaultRecord, attachments: SealedAttachment[]): Promise<void>;
-  /** The one remembered session on this device, if any. Use resumeSession, not this. */
+  /** The one remembered session on this device, if any, with the last time it was used. Use resumeSession, not this. */
   loadRemembered(): Promise<RememberedSession | null>;
+  /** Keeps a session: its key and expiry in one row, its last-used time in another. The only call that writes a key. */
   saveRemembered(remembered: RememberedSession): Promise<void>;
+  /**
+   * Moves the remembered session's last-used time forward to `seenAt`. The key is neither read out
+   * nor written. Does nothing when no session is kept (one deleted meanwhile stays deleted) or the
+   * time kept is already later. Resolves whether a session is kept.
+   */
+  markRememberedSeen(seenAt: string): Promise<boolean>;
+  /** Deletes the remembered session, its last-used time with it. */
   clearRemembered(): Promise<void>;
 }
 
 export class MemoryStore implements VaultStore {
   #records = new Map<string, VaultRecord>();
   #attachments = new Map<string, Map<string, SealedAttachment>>();
-  #remembered: RememberedSession | null = null;
+  #remembered: Omit<RememberedSession, "seenAt"> | null = null;
+  #seenAt: string | undefined;
 
-  async loadRemembered() {
-    return this.#remembered ? { ...this.#remembered } : null;
+  async loadRemembered(): Promise<RememberedSession | null> {
+    if (!this.#remembered) return null;
+    return { ...this.#remembered, ...(this.#seenAt === undefined ? {} : { seenAt: this.#seenAt }) };
   }
-  async saveRemembered(remembered: RememberedSession) {
-    this.#remembered = { ...remembered };
+  async saveRemembered({ seenAt, ...kept }: RememberedSession) {
+    this.#remembered = kept;
+    this.#seenAt = seenAt;
+  }
+  async markRememberedSeen(seenAt: string) {
+    if (!this.#remembered) return false;
+    this.#seenAt = laterSeen(this.#seenAt, seenAt);
+    return true;
   }
   async clearRemembered() {
     this.#remembered = null;
+    this.#seenAt = undefined;
   }
 
   #of(vaultId: string) {
@@ -98,9 +128,13 @@ const VAULTS = "vaults";
 const ATTACHMENTS = "attachments";
 const SESSION = "session";
 const SLOT = "current";
+const SEEN_SLOT = "seen";
 const BY_VAULT = "by_vault";
 
 type StoredAttachment = SealedAttachment & { key: string; vaultId: string };
+/** The key's row. Releases from 2026-11-11 to 2026-11-14 kept the last-used time in it; nothing writes it there now. */
+type StoredSession = { slot: typeof SLOT; vaultId: string; key: CryptoKey; expiresAt: string; seenAt?: unknown };
+type StoredSeen = { slot: typeof SEEN_SLOT; seenAt?: unknown };
 
 const keyOf = (vaultId: string, attachmentId: string) => `${vaultId}/${attachmentId}`;
 const toStored = (vaultId: string, a: SealedAttachment): StoredAttachment => ({ ...a, key: keyOf(vaultId, a.id), vaultId });
@@ -208,17 +242,49 @@ export class IndexedDbStore implements VaultStore {
   }
 
   async loadRemembered(): Promise<RememberedSession | null> {
-    const found = (await this.#tx([SESSION], "readonly", (tx) => tx.objectStore(SESSION).get(SLOT))) as
-      | (RememberedSession & { slot: string })
-      | undefined;
-    return found ? { vaultId: found.vaultId, key: found.key, expiresAt: found.expiresAt, ...(typeof found.seenAt === "string" ? { seenAt: found.seenAt } : {}) } : null;
+    // Both rows in one transaction, so the time read belongs to the session read.
+    const rows: { seen?: IDBRequest<StoredSeen | undefined> } = {};
+    const found = (await this.#tx([SESSION], "readonly", (tx) => {
+      rows.seen = tx.objectStore(SESSION).get(SEEN_SLOT);
+      return tx.objectStore(SESSION).get(SLOT);
+    })) as StoredSession | undefined;
+    if (!found) return null;
+    const seenAt = laterSeen(found.seenAt, rows.seen?.result?.seenAt);
+    return { vaultId: found.vaultId, key: found.key, expiresAt: found.expiresAt, ...(seenAt === undefined ? {} : { seenAt }) };
   }
 
-  async saveRemembered(remembered: RememberedSession): Promise<void> {
-    await this.#tx([SESSION], "readwrite", (tx) => tx.objectStore(SESSION).put({ slot: SLOT, ...remembered }));
+  async saveRemembered({ seenAt, ...kept }: RememberedSession): Promise<void> {
+    await this.#tx([SESSION], "readwrite", (tx) => {
+      const rows = tx.objectStore(SESSION);
+      rows.put({ slot: SLOT, ...kept } satisfies StoredSession);
+      if (seenAt === undefined) rows.delete(SEEN_SLOT);
+      else rows.put({ slot: SEEN_SLOT, seenAt } satisfies StoredSeen);
+    });
+  }
+
+  async markRememberedSeen(seenAt: string): Promise<boolean> {
+    // One transaction: whether a session is kept, and the time written only if one is. The key's
+    // row is looked for by its key (the slot's name), so the CryptoKey in it is never read out.
+    let kept = false;
+    await this.#tx([SESSION], "readwrite", (tx) => {
+      const rows = tx.objectStore(SESSION);
+      const session = rows.getKey(SLOT);
+      session.onsuccess = () => {
+        if (session.result === undefined) return;
+        kept = true;
+        const was = rows.get(SEEN_SLOT) as IDBRequest<StoredSeen | undefined>;
+        was.onsuccess = () => {
+          if (laterSeen(was.result?.seenAt, seenAt) === seenAt) rows.put({ slot: SEEN_SLOT, seenAt } satisfies StoredSeen);
+        };
+      };
+    });
+    return kept;
   }
 
   async clearRemembered(): Promise<void> {
-    await this.#tx([SESSION], "readwrite", (tx) => tx.objectStore(SESSION).delete(SLOT));
+    await this.#tx([SESSION], "readwrite", (tx) => {
+      tx.objectStore(SESSION).delete(SLOT);
+      tx.objectStore(SESSION).delete(SEEN_SLOT);
+    });
   }
 }

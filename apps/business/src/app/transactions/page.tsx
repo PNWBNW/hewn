@@ -17,7 +17,6 @@ import {
   deactivateAccount,
   netByAccount,
   normalSide,
-  reverseEntry,
   reversalOf,
 } from "@pnw/ledger";
 import { Button, buttonVariants } from "@pnw/ui/button";
@@ -36,6 +35,7 @@ import {
   typeLabel,
 } from "@/books/display";
 import { ClosePanel } from "@/books/ClosePanel";
+import { entryOwners, voidEntry } from "@/books/entry_owner";
 import { waitingCount } from "@/books/review";
 import { tagNameMap, tagSummary } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
@@ -67,20 +67,6 @@ const SOURCE_LABELS: Record<Entry["source"]["kind"], string> = {
   sales_tax_payment: "Sales tax payment",
   reversal: "Reversal",
 };
-
-/** Entries owned by a sales or purchase form are voided there, so the form and the books stay in step. */
-const FORM_SOURCES: Partial<Record<Entry["source"]["kind"], { href: string; label: string }>> = {
-  invoice: { href: "/sales", label: "Sales" },
-  payment: { href: "/sales", label: "Sales" },
-  bill: { href: "/expenses", label: "Expenses" },
-  bill_payment: { href: "/expenses", label: "Expenses" },
-};
-
-/** Where an entry is undone instead of voided here: its form, or the review list for money reviewed there. */
-function ownerOf(entry: Entry): { href: string; label: string } | undefined {
-  if (entry.source.ref?.startsWith("review:")) return { href: "/transactions?tab=review", label: "For review" };
-  return FORM_SOURCES[entry.source.kind];
-}
 
 export default function TransactionsPage() {
   const asked = useSearchParams().get("tab");
@@ -129,7 +115,7 @@ export default function TransactionsPage() {
 // ---- Journal ---------------------------------------------------------------
 
 function Journal() {
-  const { books, payroll, sales, dimensions, update } = useOpenBooks();
+  const { books, payroll, sales, review, rail, dimensions, updateCompany } = useOpenBooks();
   const tagNames = useMemo(() => tagNameMap(dimensions), [dimensions]);
   // Names live in the vault next to the books; journal lines carry only the id.
   const names = useMemo(
@@ -144,6 +130,8 @@ function Journal() {
   const [error, setError] = useState<string | null>(null);
   const accounts = useMemo(() => accountMap(books), [books]);
   const entries = useMemo(() => [...books.entries].sort((a, b) => b.date.localeCompare(a.date) || b.seq - a.seq), [books]);
+  // Entries a form, a pay run, For review or the Shield opening owns are undone there, not voided here.
+  const owners = useMemo(() => entryOwners({ sales, payroll, review: review ?? undefined, rail: rail ?? undefined }), [sales, payroll, review, rail]);
 
   if (entries.length === 0) {
     return (
@@ -159,17 +147,17 @@ function Journal() {
     );
   }
 
-  async function voidEntry(entry: Entry) {
+  async function voidOne(entry: Entry) {
     setError(null);
     if (!window.confirm(`Void entry #${entry.seq}? A reversing entry will be added; the original stays in your history.`)) return;
     try {
-      await update((b) => reverseEntry(b, entry.id).books);
+      await updateCompany((c) => voidEntry(c, entry.id));
     } catch (e) {
       // Original's date is closed: offer to post the reversal today instead.
       if (e instanceof Error && "code" in e && e.code === "PERIOD_CLOSED") {
         if (window.confirm(`Entry #${entry.seq} is dated in a closed period. Post the reversal dated today instead?`)) {
           try {
-            await update((b) => reverseEntry(b, entry.id, { date: todayIso() }).books);
+            await updateCompany((c) => voidEntry(c, entry.id, { date: todayIso() }));
           } catch (e2) {
             setError(errorMessage(e2));
           }
@@ -186,6 +174,7 @@ function Journal() {
       {entries.map((entry) => {
         const reversed = reversalOf(books, entry.id);
         const total = entry.lines.reduce((s, l) => s + l.debit, 0n);
+        const owner = owners.get(entry.id);
         return (
           <article key={entry.id} className={cn("rounded-lg border bg-card", reversed && "opacity-70")}>
             <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-3">
@@ -238,16 +227,13 @@ function Journal() {
             </div>
             {!entry.reverses && !reversed && (
               <footer className="flex items-center justify-end border-t px-4 py-2">
-                {ownerOf(entry) ? (
-                  // Voiding here would leave the invoice, bill or review list thinking it's still posted.
-                  <Link
-                    href={ownerOf(entry)!.href}
-                    className="flex min-h-11 items-center px-3 text-xs text-muted-foreground hover:text-primary sm:min-h-8"
-                  >
-                    {ownerOf(entry)!.label === "For review" ? "Undo it from For review" : `Void it from ${ownerOf(entry)!.label}`}
+                {owner ? (
+                  // Voiding here would leave the invoice, bill, pay run or review list thinking it's still posted.
+                  <Link href={owner.href} className="flex min-h-11 items-center px-3 text-xs text-muted-foreground hover:text-primary sm:min-h-8">
+                    {owner.label}
                   </Link>
                 ) : (
-                  <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => voidEntry(entry)}>
+                  <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" onClick={() => voidOne(entry)}>
                     Void
                   </Button>
                 )}
