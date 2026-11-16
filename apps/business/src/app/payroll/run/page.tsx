@@ -28,6 +28,7 @@ import { formatMinutes } from "@/books/hours";
 import { hoursChanges, openShifts, within } from "@/books/hours_change";
 import { emptyMailbox, threadFor } from "@/books/mailbox";
 import { linkFor, payableLinks } from "@/books/rail";
+import { defaultPeriod } from "@/books/run_period";
 import { emptySchedule, markOnCallPaid } from "@/books/schedule";
 import { unpaidOnCallDates } from "@/books/team_schedule";
 import { businessSources } from "@/books/team_sources";
@@ -37,11 +38,6 @@ import { dollarsText, rateText } from "@/books/work_week";
 import { PageHeader } from "@/shell/SectionView";
 import { FiguresNote } from "@/legal/LegalNotes";
 import { dayLabel } from "../../work/shared";
-
-function daysBefore(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d - days)).toISOString().slice(0, 10);
-}
 
 /**
  * One optional project per paycheck: its wages and employer taxes count as that job's labour.
@@ -64,8 +60,10 @@ export default function RunPayrollPage() {
   const offered = useMemo(() => new Set(rail?.links.filter((l) => l.status === "offered").map((l) => l.workerId) ?? []), [rail]);
   const today = todayIso();
   const [payDate, setPayDate] = useState(today);
-  const [periodEnd, setPeriodEnd] = useState(today);
-  const [periodStart, setPeriodStart] = useState(daysBefore(today, 13));
+  // The period follows on from the last run's (books/run_period.ts), so the next run doesn't reach back into days already paid.
+  const [suggested] = useState(() => defaultPeriod(payroll.runs, today));
+  const [periodEnd, setPeriodEnd] = useState(suggested.periodEnd);
+  const [periodStart, setPeriodStart] = useState(suggested.periodStart);
   // With an account on the rail, paying from it is the first choice; otherwise the first bank account.
   const [bank, setBank] = useState(rail ? RAIL : (books.accounts.find((a) => a.type === "bank" && a.active)?.id ?? ""));
   const onRail = rail !== null && bank === RAIL;

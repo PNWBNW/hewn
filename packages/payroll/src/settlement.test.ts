@@ -198,8 +198,9 @@ describe("posting a run someone was already paid in", () => {
     expect(() => postPayRun(rail.books, rail.payroll, { ...later, mode: "rail" }, clock)).toThrow(/Already paid the same amount for/);
   });
 
-  // A run's period is entered by hand and starts as the two weeks to today, so a weekly run, or a
-  // semimonthly one in February, reaches back into the days the last run paid unless it is changed.
+  // A run's period is entered by hand, so a weekly run over the two weeks to today, or a semimonthly
+  // one in February, reaches back into the days the last run paid. Run payroll now starts the period
+  // the day after the last run's ends; these are the periods typed over it.
   it("names the period already paid and says to check this run's, when the period reaches back into the last run", () => {
     const s = setup();
     const daysBefore = (date: string, n: number) => new Date(Date.parse(date) - n * 86_400_000).toISOString().slice(0, 10);
