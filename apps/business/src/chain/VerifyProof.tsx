@@ -105,13 +105,13 @@ export default function VerifyProof() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {result.proof.business || "A business"}: {day(result.proof.start)} to {day(result.proof.end)}
+              {result.proof.business ? `${result.proof.business} (as the file says; not checked)` : "A business"}: {day(result.proof.start)} to {day(result.proof.end)}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
               {result.entries} {result.entries === 1 ? "entry" : "entries"} and {result.payments} {result.payments === 1 ? "payment" : "payments"}. Made{" "}
               {day(result.proof.madeAt)}.
             </p>
-            {passed && <p className="text-sm font-medium text-money-positive">Complete and unchanged since it was closed and anchored.</p>}
+            {passed && <p className="text-sm font-medium text-money-positive">Complete and unchanged since its fingerprint was anchored. Who anchored it isn&apos;t checked.</p>}
             {failed && <p className="text-sm font-medium text-destructive">This proof doesn&apos;t check out. What failed is marked below.</p>}
           </CardHeader>
           <CardContent className="flex flex-col gap-4">

@@ -18,6 +18,7 @@ import {
 import { AccountError, ROLES, accountSecret, checkAccountPassphrase, normalizeUsername, vaultIdFor } from "./account";
 import type { ChainState } from "./books_backup";
 import { type Company, companyFromJson, companyToJson } from "./company";
+import { underVaultLock } from "./vault_write";
 
 /** What a found backup gives back: the books, how far they got, and the session they were opened with. */
 export type FoundBooks = {
@@ -122,6 +123,8 @@ export async function restoreIntoVault(
   }
   const here = new Set(kept.map((a) => a.id));
   const missingFiles = [...fileIdsIn(company)].filter((id) => !here.has(id)).length;
-  await store.replace(session.record, kept);
+  // Under the tabs' lock, as every save: a save another tab has already checked lands first, and
+  // its next save is refused, instead of landing over these books with the old passphrase's record.
+  await underVaultLock(session.id, () => store.replace(session.record, kept));
   return { report: { applied: found.applied, found: found.found, ...(found.stopped ? { stopped: found.stopped } : {}), missingFiles }, session };
 }

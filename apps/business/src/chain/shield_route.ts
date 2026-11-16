@@ -41,7 +41,17 @@ export function isPairingCancelled(message: string): boolean {
  */
 export function notAllowedProgramHint(message: string): string | null {
   if (!/not in the allowed programs/i.test(message)) return null;
-  return "Shield was connected to this site before this part of it existed, so it hasn't been asked to allow it. In Shield, disconnect this site, then connect again here and try once more. Nothing was sent.";
+  return "Shield hasn't been asked to allow this part of the site yet. In Shield, disconnect this site, then connect again here and try once more. Nothing was sent.";
+}
+
+/**
+ * What a refused send rethrows (the wallet's send in shield.ts ends with it): Shield's "not in the
+ * allowed programs" as the hint above, with Shield's own error kept as its cause, and any other
+ * error as it was, the same object.
+ */
+export function rethrowSendError(e: unknown): never {
+  const hint = e instanceof Error ? notAllowedProgramHint(e.message) : null;
+  throw hint === null ? e : new Error(hint, { cause: e });
 }
 
 /**

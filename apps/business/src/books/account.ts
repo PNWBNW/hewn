@@ -29,6 +29,7 @@
 // ---------------------------------------------------------------------------
 
 import { type VaultSession, type VaultStore, KDF_ITERATIONS, VaultError, checkNewPassphrase, resetWithRecovery, sha256Hex, unlockVault } from "@pnw/vault";
+import { saveOver } from "./vault_write";
 import type { Role } from "./work";
 
 /** The kinds of account there are. A username holds a business, or a worker and a customer (`usernameConflict`). */
@@ -202,6 +203,13 @@ export const NO_RECOVERY_MATCH_MESSAGE = "That username and recovery key don't m
  * username that the key opens gets `nextPassphrase` (a business and a worker account each have
  * their own key, so usually one). Saved before it returns, opened with the new passphrase. Throws
  * the one generic message when none opens; a weak new passphrase is refused first.
+ *
+ * The books are written again under the new passphrase's session (the same contents, a new
+ * write), as a recovery key made in Settings is: a tab still open on these books holds the record
+ * with the old passphrase's copy of the key, and without a new write its next save would put that
+ * record back. With one it sees the books changed and stops (books/vault_write.ts). The save is
+ * the same checked one, so books written between this reset's read and its save refuse it
+ * (CHANGED_ELSEWHERE) rather than be overwritten; trying again works.
  */
 export async function recoverAccounts(
   store: VaultStore,
@@ -225,7 +233,7 @@ export async function recoverAccounts(
       throw e;
     }
     const session = await unlockVault(next, secret); // proves it before it is saved
-    await store.save(next);
+    await saveOver(store, session, await session.read(), record.payload.iv);
     found.push({ role, session });
   }
   if (found.length === 0) {
