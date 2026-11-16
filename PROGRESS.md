@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-15](progress/2026-11/2026-11-15.md)
+
+- [The fix pull requests reviewed twice, and each person's own pay period designed](progress/2026-11/2026-11-15.md#2026-11-15--the-fix-pull-requests-reviewed-twice-and-each-persons-own-pay-period-designed)
+
 ### [2026-11-14](progress/2026-11/2026-11-14.md)
 
 - [The wallet asks Shield for every program the app calls](progress/2026-11/2026-11-14.md#2026-11-14--the-wallet-asks-shield-for-every-program-the-app-calls)
