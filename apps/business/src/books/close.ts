@@ -34,6 +34,7 @@ import {
   previousPeriod,
   reopenFrom,
 } from "@pnw/ledger";
+import { awaitsPayment } from "@pnw/payroll";
 import type { Company } from "./company";
 import { payableLinks } from "./rail";
 
@@ -147,7 +148,7 @@ export function closeChecks(company: Pick<Company, "books" | "review" | "payroll
   let settling = 0;
   for (const run of company.payroll.runs) {
     if (run.payDate > end) continue;
-    for (const p of run.paychecks) if (p.settlement.status !== "settled") settling++;
+    for (const p of run.paychecks) if (awaitsPayment(p)) settling++;
   }
   const drafts = company.sales.invoices.filter((i) => i.state === "draft" && i.date <= end).length;
   const dateOk = DATE.test(end) && end >= start && end < today;
@@ -179,17 +180,28 @@ export function closeChecks(company: Pick<Company, "books" | "review" | "payroll
   ];
 }
 
-/** The range's settlements: rail paychecks whose transfer confirmed in it, tied to their entries. */
+/**
+ * The range's settlements: rail paychecks whose transfer confirmed in it, each tied to its own entry,
+ * the one of its run that commits to its paystub (`source.doc`). A paycheck with no gross posts no
+ * entry, so a run can hold fewer entries than paychecks, and the place in the run doesn't say which
+ * entry is whose. Every rail paycheck has its paystub hash (rail runs and paystub documents came in
+ * together); one that no entry of its run commits to is left out rather than tied to another's.
+ */
 export function settlementsIn(company: Pick<Company, "books" | "payroll" | "rail">, start: IsoDate, end: IsoDate) {
-  const hashOf = new Map(company.books.entries.map((e) => [e.id, e.hash]));
+  const byId = new Map(company.books.entries.map((e) => [e.id, e]));
   const who = payableLinks(company.rail);
   const out: { entryHash: string; txId: string; recipient: string }[] = [];
   for (const run of company.payroll.runs) {
     if (run.mode !== "rail") continue;
-    run.paychecks.forEach((p, i) => {
+    const hashOfDoc = new Map<string, string>();
+    for (const id of run.entryIds) {
+      const e = byId.get(id);
+      if (e?.source.doc && !hashOfDoc.has(e.source.doc)) hashOfDoc.set(e.source.doc, e.hash);
+    }
+    run.paychecks.forEach((p) => {
       const s = p.settlement;
       const on = s.settledAt?.slice(0, 10);
-      const hash = hashOf.get(run.entryIds[i] ?? "");
+      const hash = p.paystubHash ? hashOfDoc.get(p.paystubHash) : undefined;
       if (s.status !== "settled" || !s.reference || !on || on < start || on > end || !hash) return;
       out.push({ entryHash: hash, txId: s.reference, recipient: who.get(p.workerId) ?? p.workerId });
     });

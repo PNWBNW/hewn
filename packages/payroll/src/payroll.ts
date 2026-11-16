@@ -22,7 +22,8 @@
 // paid outside the app (mode "external": the bank does the money, settled
 // the moment it posts, with an optional payment reference) and a run paid
 // on the rail (mode "rail": posted pending, settled per paycheck as each
-// transfer confirms) differ only in which bank-type account the net pay is
+// transfer confirms; a paycheck with no net pay has nothing to send and
+// settles as it posts) differ only in which bank-type account the net pay is
 // credited from. That's the Phase 2 parity criterion, tested in
 // parity.test.ts.
 // ---------------------------------------------------------------------------
@@ -105,7 +106,9 @@ export type SettlementMode = "external" | "rail";
  * Where one paycheck's payment stands. External runs are settled as they
  * post; rail paychecks start pending and are marked as each transfer
  * confirms (`reference` = the transfer's id, `height` = the block it landed
- * in) or fails, and a failed one can go back to pending for a retry.
+ * in) or fails, and a failed one can go back to pending for a retry. A rail
+ * paycheck with no net pay has no transfer: it is settled as it posts, with
+ * no reference.
  */
 export type Settlement = {
   status: "pending" | "settled" | "failed";
@@ -531,11 +534,13 @@ export function postPayRun(
   // External runs are paid the moment they post; rail paychecks wait for their transfer.
   const settlement: Settlement =
     mode === "external" ? { status: "settled", settledAt: stamp(clock), ...(reference ? { reference } : {}) } : { status: "pending" };
+  // A rail paycheck with no net pay has no transfer to wait for: it is settled as it posts, with no payment id.
+  const settlementOf = (p: PaycheckDraft): Settlement => (mode === "rail" && p.net === 0n ? { status: "settled", settledAt: stamp(clock) } : { ...settlement });
   const draft = { id: runId, payDate: input.payDate, periodStart: input.periodStart, periodEnd: input.periodEnd, paychecks: computed };
   const paychecks: Paycheck[] = computed.map((p) => {
     const worker = payroll.workers.find((w) => w.id === p.workerId)!;
     const doc = paystubDocument(draft, p, worker, books.settings, yearToDate(payroll, worker.id, input.payDate));
-    return { ...p, paystubHash: paystubHash(doc), settlement: { ...settlement } };
+    return { ...p, paystubHash: paystubHash(doc), settlement: settlementOf(p) };
   });
 
   const entries: Entry[] = [];
@@ -614,6 +619,13 @@ export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId
   const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, settlement: { ...settlement } } : p));
   return { ...payroll, runs: payroll.runs.map((r) => (r.id === runId ? { ...r, paychecks } : r)) };
 }
+
+/**
+ * True while a paycheck still has money to move: something to pay, and not settled (sent or not
+ * yet, or failed). A paycheck with no net pay never waits: on the rail it settles as it posts,
+ * and one an earlier build posted pending has nothing to send all the same.
+ */
+export const awaitsPayment = (p: Pick<Paycheck, "net" | "settlement">): boolean => p.net > 0n && p.settlement.status !== "settled";
 
 // ---- Delivery ------------------------------------------------------------------
 
