@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { addAccount, createBooks, postEntry, reverseEntry } from "@pnw/ledger";
 import { findRailAccount } from "@pnw/payroll";
+import { addCustomer, createInvoice, receivePayment, sendInvoice } from "@pnw/sales";
 import { type Company, emptyCompany } from "./company";
-import { FIND_DAYS, matchCandidates, matchEntry } from "./match";
+import { FIND_DAYS, matchCandidates, matchEntry, payerLabel } from "./match";
 import { startFromShield } from "./opening";
-import type { Rail } from "./rail";
+import { type Rail, setRegistered } from "./rail";
 import { reconcileShield, recordShieldDifference } from "./reconcile";
 import { type ReviewItem, addReviewItems, excludeItem, undoReview, validateReview } from "./review";
 
@@ -83,5 +84,58 @@ describe("matching a movement to an entry already in the books (Joshua, 2026-10-
     books = addReviewItems(books, [waiting(1, "in", "5750000")]);
     for (const e of books.books.entries) expect(() => matchEntry(books, tx(1), e.id)).toThrow(/doesn't match/);
     expect(() => validateReview({ version: 1, items: [{ ...waiting(1, "in", "1"), matched: true }] })).toThrow(/recorded item with its entry/);
+  });
+});
+
+describe("matching compares who sent the money with the party the entry names", () => {
+  const ANA = "aleo1" + "a".repeat(58);
+  const BEN = "aleo1" + "b".repeat(58);
+
+  /** Ana and Ben, each invoiced $500, and a $500 receipt recorded against Ana's invoice into the Shield account. */
+  function receipt(linked = true): { x: Company; entryId: string } {
+    const { c, income } = company();
+    let sales = addCustomer(addCustomer(c.sales, { name: "Ana Ruiz" }).sales, { name: "Ben Ito" }).sales;
+    let books = c.books;
+    const invoices: string[] = [];
+    for (const customerId of ["cust-1", "cust-2"]) {
+      const made = createInvoice(books, sales, { customerId, date: "2026-10-20", lines: [{ description: "Catering", accountId: income, quantity: "1", unitPrice: 50_000n }] });
+      ({ books, sales } = sendInvoice(books, made.sales, made.invoice.id));
+      invoices.push(made.invoice.id);
+    }
+    const pay = receivePayment(books, sales, { date: "2026-10-26", customerId: "cust-1", amount: 50_000n, depositAccountId: findRailAccount(books)!.id, applications: [{ invoiceId: invoices[0]!, amount: 50_000n }] });
+    let r = c.rail!;
+    if (linked) {
+      r = setRegistered(r, "customer", "cust-1", { address: ANA, nameHash: "11", name: "ana" });
+      r = setRegistered(r, "customer", "cust-2", { address: BEN, nameHash: "22", name: "ben" });
+    }
+    return { x: { ...c, books: pay.books, sales: pay.sales, rail: r }, entryId: pay.entry.id };
+  }
+  const from = (who: string | undefined): ReviewItem => ({ ...waiting(40, "in", "500000000"), ...(who ? { counterparty: who } : {}) });
+
+  it("Ben's payment matched to the receipt for Ana's invoice asks first: refused from another account unless confirmed", () => {
+    const { x, entryId } = receipt();
+    const books = addReviewItems(x, [from(BEN)]);
+    expect(matchCandidates(books, books.review!.items[0]!)).toEqual([expect.objectContaining({ payer: "different", party: "Ana Ruiz", sender: "Ben Ito" })]);
+    expect(payerLabel(matchCandidates(books, books.review!.items[0]!)[0]!, "in")).toBe("From another account than Ana Ruiz's (Ben Ito's)");
+    expect(() => matchEntry(books, tx(40), entryId)).toThrow("This came from another account than Ana Ruiz's");
+    expect(matchEntry(books, tx(40), entryId, { payerConfirmed: true }).review!.items[0]).toMatchObject({ status: "recorded", entryId, matched: true });
+  });
+
+  it("the same payer needs no confirmation", () => {
+    const { x, entryId } = receipt();
+    const books = addReviewItems(x, [from(ANA)]);
+    expect(matchCandidates(books, books.review!.items[0]!)[0]).toMatchObject({ payer: "same", party: "Ana Ruiz" });
+    expect(matchEntry(books, tx(40), entryId).review!.items[0]).toMatchObject({ status: "recorded", matched: true });
+  });
+
+  it("with no account on either side the payer is unknown, labelled and not blocked", () => {
+    const unlinked = receipt(false);
+    const a = addReviewItems(unlinked.x, [from(BEN)]);
+    expect(matchCandidates(a, a.review!.items[0]!)[0]).toMatchObject({ payer: "unknown" });
+    expect(() => matchEntry(a, tx(40), unlinked.entryId)).not.toThrow();
+    const linked = receipt();
+    const b = addReviewItems(linked.x, [from(undefined)]);
+    expect(matchCandidates(b, b.review!.items[0]!)[0]).toMatchObject({ payer: "unknown" });
+    expect(() => matchEntry(b, tx(40), linked.entryId)).not.toThrow();
   });
 });
