@@ -56,6 +56,10 @@ test("documents: links, mentions, what a script reads, what a workflow runs and 
   assert.ok(has("scripts/check_invariants.py", "docs/INVARIANTS.md", "reads"));
   assert.ok(has(".github/workflows/ci.yml", "scripts/check_secrets.py", "runs"));
   assert.ok(has(".github/workflows/ci.yml", "dep:actions/checkout@v7", "uses"));
+  // The three Pages actions move together: configure, upload and deploy run on the same Node.
+  for (const a of ["configure-pages@v6", "upload-pages-artifact@v5", "deploy-pages@v5"]) {
+    assert.ok(has(".github/workflows/map.yml", `dep:actions/${a}`, "uses"), a);
+  }
 });
 
 test("rules: every INV, OPS and T id is a point; a rule checks its file, answers its threats, and is cited", () => {
