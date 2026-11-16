@@ -403,6 +403,11 @@ describe("duePeriods: the worked examples", () => {
     expect(unknown.basis).toBe("team");
     expect(unknown.periods).toEqual([line("2026-11-15", "2026-11-21")]);
     expect(biz.due("Eve", "2026-11-20").periods).toEqual([line("2026-11-08", "2026-11-14")]);
+    // A team paid ahead (Friday Nov 20, for the week to Saturday Nov 21): a new hire with no start
+    // date gets the latest week already ended; with one, the week that holds it, offered ahead.
+    biz.post("2026-11-20", "2026-11-15", "2026-11-21", ["Ana", "Ben"]);
+    expect(biz.due("Eve", "2026-11-20")).toMatchObject({ basis: "team", periods: [line("2026-11-08", "2026-11-14")] });
+    expect(biz.due("Eve", "2026-11-20", { startDate: "2026-11-18" }).periods).toEqual([notDue("2026-11-15", "2026-11-21", { paysFrom: "2026-11-18" })]);
   });
 
   it("D. a new hire with nobody else on their frequency starts their own rhythm on their start date", () => {
@@ -449,6 +454,15 @@ describe("duePeriods: the worked examples", () => {
     }
     // Past those days is fine.
     expect(biz.due("Gus", "2026-11-21", { owedFrom: "2026-11-15" }).periods).toEqual([line("2026-11-15", "2026-11-21")]);
+    // To the day: a period that ends on the failed paycheck's first day is refused, whether it is
+    // due or offered ahead; one that ends the day before isn't.
+    for (const payDate of ["2026-11-08", "2026-11-05"]) {
+      expect(() => biz.due("Gus", payDate, { owedFrom: "2026-11-02" }), payDate).toThrow(
+        "Gus's paycheck for 2026-11-08 to 2026-11-14 (run of 2026-11-14) failed.",
+      );
+    }
+    expect(biz.due("Gus", "2026-11-07", { owedFrom: "2026-11-01" }).periods).toEqual([line("2026-11-01", "2026-11-07")]);
+    expect(biz.due("Gus", "2026-11-05", { owedFrom: "2026-11-01" }).periods).toEqual([notDue("2026-11-01", "2026-11-07")]);
     // Once the Retry is under way again (pending), those days still count as paid.
     biz.payroll = markPaycheckSettlement(biz.payroll, failed, biz.id.Gus!, { status: "pending" });
     const retried = biz.due("Gus", "2026-11-21");
@@ -456,6 +470,33 @@ describe("duePeriods: the worked examples", () => {
     expect(retried.unsettled).toEqual([{ runId: failed, payDate: "2026-11-14", periodStart: "2026-11-08", periodEnd: "2026-11-14", status: "pending" }]);
     // A pending paycheck doesn't refuse Owed from: the overlap is asked about before posting.
     expect(biz.due("Gus", "2026-11-21", { owedFrom: "2026-11-08" }).periods).toEqual([line("2026-11-08", "2026-11-14", { missed: true }), line("2026-11-15", "2026-11-21")]);
+  });
+
+  it("E. several paychecks not settled: listed oldest period first, and Owed from names the oldest that failed", () => {
+    const biz = business({ name: "Ana", frequency: "weekly" });
+    const ana = biz.id.Ana!;
+    // Posted out of order on purpose; two share a first day.
+    const runs = [
+      handRun("run-1", "2026-11-21", "2026-11-15", "2026-11-21", [ana], { status: "failed", failure: "Shield turned the transfer down" }),
+      handRun("run-2", "2026-11-14", "2026-11-01", "2026-11-14", [ana], { status: "pending" }),
+      handRun("run-3", "2026-10-31", "2026-10-25", "2026-10-31", [ana]),
+      handRun("run-4", "2026-11-07", "2026-11-01", "2026-11-07", [ana], { status: "failed", failure: "Shield turned the transfer down" }),
+    ];
+    const payroll: Payroll = { ...biz.payroll, runs };
+    const r = duePeriods(payroll, ana, "2026-11-28");
+    expect(r.paidThrough).toBe("2026-11-21");
+    expect(r.periods).toEqual([line("2026-11-22", "2026-11-28")]);
+    expect(r.unsettled).toEqual([
+      { runId: "run-4", payDate: "2026-11-07", periodStart: "2026-11-01", periodEnd: "2026-11-07", status: "failed" },
+      { runId: "run-2", payDate: "2026-11-14", periodStart: "2026-11-01", periodEnd: "2026-11-14", status: "pending" },
+      { runId: "run-1", payDate: "2026-11-21", periodStart: "2026-11-15", periodEnd: "2026-11-21", status: "failed" },
+    ]);
+    expect(() => duePeriods(payroll, ana, "2026-11-28", { owedFrom: "2026-10-25" })).toThrow(
+      "Ana's paycheck for 2026-11-01 to 2026-11-07 (run of 2026-11-07) failed.",
+    );
+    expect(() => duePeriods(payroll, ana, "2026-11-28", { owedFrom: "2026-11-08" })).toThrow(
+      "Ana's paycheck for 2026-11-15 to 2026-11-21 (run of 2026-11-21) failed.",
+    );
   });
 });
 
@@ -546,6 +587,11 @@ describe("duePeriods: how far back, what starts unticked, and the next period", 
     expect(biz.due("Ana", "2026-11-21", { floor: "2026-11-18" })).toMatchObject({ earlier: 0, periods: [line("2026-11-15", "2026-11-21", { paysFrom: "2026-11-18" })] });
     // On a period's first day: the whole period.
     expect(biz.due("Ana", "2026-11-21", { floor: "2026-11-15" }).periods).toEqual([line("2026-11-15", "2026-11-21")]);
+    // On a period's last day: that period still, for its one day, so the day isn't left behind.
+    expect(biz.due("Ana", "2026-11-21", { floor: "2026-11-14" })).toMatchObject({
+      earlier: 0,
+      periods: [line("2026-11-08", "2026-11-14", { missed: true, paysFrom: "2026-11-14" }), line("2026-11-15", "2026-11-21")],
+    });
     // After the pay date: nothing due, the period that holds it offered unticked.
     expect(biz.due("Ana", "2026-11-21", { floor: "2026-11-25" }).periods).toEqual([notDue("2026-11-22", "2026-11-28", { paysFrom: "2026-11-25" })]);
     // Before what was paid: no effect.
@@ -583,6 +629,18 @@ describe("duePeriods: refused inputs", () => {
     expect(() => biz.due("Ana", "2026-11-21", { startDate: "next week" })).toThrow(/start date/);
     expect(() => biz.due("Ana", "2026-11-21", { floor: "2026-13-01" })).toThrow(/Pay starts/);
     expect(() => biz.due("Ana", "2026-11-21", { frequencyChanged: "yes" as unknown as boolean })).toThrow(PayrollError);
+  });
+
+  it("refuses a period before the year 100, which the books can't hold, rather than move it to another century", () => {
+    const biz = business({ name: "Dee", frequency: "semimonthly" }, { name: "Mo", frequency: "monthly" }, { name: "Eve", frequency: "weekly" });
+    for (const name of ["Dee", "Mo", "Eve"]) {
+      expect(() => biz.due(name, "0100-01-03"), name).toThrow(PayrollError);
+      expect(() => biz.due(name, "0100-01-03"), name).toThrow("Those pay periods run past the dates the books can hold");
+    }
+    // The year 100 itself is on the calendar like any other.
+    expect(biz.due("Dee", "0100-01-20").periods).toEqual([line("0100-01-01", "0100-01-15")]);
+    expect(biz.due("Mo", "0100-02-03").periods).toEqual([line("0100-01-01", "0100-01-31")]);
+    expect(periodFrom("monthly", "0100-12-20")).toEqual({ periodStart: "0100-12-20", periodEnd: "0101-01-31", folded: true });
   });
 
   it("refuses someone it doesn't know, and a frequency it doesn't know, as payroll errors", () => {

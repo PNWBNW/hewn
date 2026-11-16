@@ -72,9 +72,10 @@ function dayOf(date: unknown, what: string): number {
   return t / DAY_MS;
 }
 
+/** A day as "YYYY-MM-DD"; the books hold the years 100 to 9999 (the ledger reads no others). */
 function isoOf(day: number): IsoDate {
   const iso = new Date(day * DAY_MS).toISOString();
-  if (!/^\d{4}-\d{2}-\d{2}T/.test(iso)) throw new PayrollError("Those pay periods run past the dates the books can hold");
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(iso) || iso < "0100") throw new PayrollError("Those pay periods run past the dates the books can hold");
   return iso.slice(0, 10);
 }
 
@@ -84,10 +85,17 @@ function partsOf(day: number): [number, number, number] {
   return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
 }
 
-/** The day `date` of month `month` (1-based; 13 is next January). */
-const dayIn = (year: number, month: number, date: number) => Date.UTC(year, month - 1, date) / DAY_MS;
+/**
+ * The day `date` of month `month` (1-based; 13 is next January, day 0 the last of the month
+ * before). Built with setUTCFullYear, not Date.UTC, which reads the years 0 to 99 as 1900 to 1999.
+ */
+function dayIn(year: number, month: number, date: number): number {
+  const t = new Date(0);
+  t.setUTCFullYear(year, month - 1, date);
+  return t.getTime() / DAY_MS;
+}
 /** The last day of month `month` (1-based; 13 is next January). */
-const monthEnd = (year: number, month: number) => Date.UTC(year, month, 0) / DAY_MS;
+const monthEnd = (year: number, month: number) => dayIn(year, month + 1, 0);
 
 function knownFrequency(frequency: unknown): PayFrequency {
   if (typeof frequency !== "string" || !Object.prototype.hasOwnProperty.call(LONGEST_PERIOD_DAYS, frequency)) {
