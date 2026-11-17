@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-12
+updated: 2026-11-17
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
@@ -149,7 +149,21 @@ The highest risk for a browser app.
   in a meta tag and is left out; the website still sends it. ✅
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
-- React escapes all rendered text; `dangerouslySetInnerHTML` is not used. ✅ (add a lint rule 🔜)
+- No script whose code is controlled from someone else's dashboard, ever (Joshua, 2026-11-17):
+  no tag manager, A/B testing or "paste a snippet" service (Optimizely and its custom project
+  JavaScript, Google Tag Manager, Segment and the like). Whoever controls such a dashboard, the
+  vendor or anyone who takes over its login, can run code in every page beside the unlocked books.
+  The policy names no script host, the app's third-party runtime packages are a fixed list, and no
+  page adds a script tag or loads `next/script`, so adding one is a T3 decision, never a version
+  bump. ✅ `apps/business/src/security/no_remote_scripts.test.ts`; the marketing site:
+  `apps/site/src/site_boundary.test.ts`
+- ⚠️ The one script from outside is Vercel Web Analytics (Joshua, 2026-10-19), served from the
+  site's own address, and with `'strict-dynamic'` a trusted script may load others. Vercel already
+  serves every file of the app, so this trusts it with nothing new. Accepted. The static bundle
+  leaves it out.
+- React escapes all rendered text. Raw HTML goes into a page in four places only, each HTML the app
+  built itself: the three card drawings (every word escaped by `@pnw/art`, tested with a `<script>`
+  name) and the paper's fixed text (`out-of-the-basement`). A fifth fails the test above. ✅
 - Dependencies pinned exactly, lockfile enforced in CI (`--frozen-lockfile`). ✅
 - `pnpm audit --audit-level=moderate` blocks merges. ✅ Baseline 2026-10-13: 47 → 0 advisories.
 - `minimumReleaseAge` 7 days: freshly published (possibly hijacked) versions are never pulled. ✅
