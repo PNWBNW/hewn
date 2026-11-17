@@ -8,7 +8,7 @@ const OTHER = "cd".repeat(32);
 const LOOKUP = "ef".repeat(32);
 const stretch = (date: string, from: string, to: string, minutes: number) => ({ date, in: `${date}T${from}:00.000Z`, out: `${date}T${to}:00.000Z`, minutes });
 const MON = stretch("2026-10-19", "19:48", "19:52", 4);
-const MON2 = stretch("2026-10-19", "19:53", "20:35", 41);
+const MON2 = stretch("2026-10-19", "19:53", "20:34", 41);
 const WED = stretch("2026-10-21", "15:00", "23:00", 480);
 const NEXT = stretch("2026-10-26", "15:00", "19:00", 240);
 
@@ -80,6 +80,52 @@ describe("hours from timecards into a pay run", () => {
     expect(hoursText(2250)).toBe("37.5");
     expect(hoursText(1)).toBe("0.02");
     expect(hoursText(0)).toBe("0");
+  });
+});
+
+describe("what a stretch pays", () => {
+  it("pays the time between a stretch's start and end, whatever minutes it carries", () => {
+    // Kept as it arrived: 15:00 to 23:00 carrying a whole day.
+    const m = addHours(emptyMailbox(), card(0, [{ ...WED, minutes: 1440 }]));
+    const u = unpaidHours(m, "wkr-1", "2026-10-18", "2026-10-24");
+    expect(u.minutes).toBe(480);
+    expect(u.shifts.map((s) => [s.minutes, s.regular, s.overtime])).toEqual([[480, 480, 0]]);
+    // A stretch that ends before it starts pays nothing.
+    const backwards = addHours(emptyMailbox(), card(0, [{ ...WED, in: WED.out, out: WED.in }]));
+    expect(unpaidHours(backwards, "wkr-1", "2026-10-18", "2026-10-24").minutes).toBe(0);
+    // And what the run paid is read the same way.
+    const paid = markPaid(m, u.shifts, "run-1", "2026-10-24");
+    expect(paidByRun(paid, "run-1").get("wkr-1")?.map((s) => s.minutes)).toEqual([480]);
+  });
+
+  it("never pays a paid stretch again, whichever week's card it comes back on", () => {
+    const m = addHours(emptyMailbox(), card(0, [MON, WED]));
+    const paid = markPaid(m, unpaidHours(m, "wkr-1", "2026-10-18", "2026-10-24").shifts, "run-1", "2026-10-24");
+    const again = addHours(paid, card(1, [WED, { ...WED, in: "2026-10-21T16:00:00.000Z", out: "2026-10-21T17:00:00.000Z", minutes: 60 }], { weekStart: "2026-10-11" }));
+    expect(again.hours).toHaveLength(2);
+    expect(unpaidHours(again, "wkr-1", "2026-10-01", "2026-10-31").minutes).toBe(0);
+    // The same moments written another way are the same stretch.
+    const spelled = addHours(paid, card(1, [{ ...WED, in: "2026-10-22T00:00:00+09:00", out: "2026-10-22T08:00:00+09:00" }], { weekStart: "2026-10-11" }));
+    expect(unpaidHours(spelled, "wkr-1", "2026-10-01", "2026-10-31").minutes).toBe(0);
+    // Another team member's paid stretch is theirs alone.
+    const other = addHours(paid, card(0, [WED], { agreementId: OTHER, workerId: "wkr-2" }));
+    expect(unpaidHours(other, "wkr-2", "2026-10-01", "2026-10-31").minutes).toBe(480);
+  });
+
+  it("pays a stretch once when it sits on two cards", () => {
+    const m = addHours(addHours(emptyMailbox(), card(0, [WED])), card(1, [{ ...WED, in: "2026-10-21T14:00:00.000Z", minutes: 540 }, NEXT], { weekStart: "2026-10-11" }));
+    const u = unpaidHours(m, "wkr-1", "2026-10-01", "2026-10-31");
+    expect(u.shifts.map((s) => [s.seq, s.in, s.minutes])).toEqual([
+      [0, WED.in, 480],
+      [1, NEXT.in, 240],
+    ]);
+    expect(u.minutes).toBe(720);
+    // Once paid, the other copy stays out of every later run.
+    const paid = markPaid(m, u.shifts, "run-1", "2026-10-31");
+    expect(unpaidHours(paid, "wkr-1", "2026-10-01", "2026-10-31").minutes).toBe(0);
+    // Stretches that only meet end to end are both paid.
+    const meet = addHours(addHours(emptyMailbox(), card(0, [WED])), card(1, [stretch("2026-10-21", "23:00", "23:30", 30)], { weekStart: "2026-10-11" }));
+    expect(unpaidHours(meet, "wkr-1", "2026-10-01", "2026-10-31").minutes).toBe(510);
   });
 });
 
