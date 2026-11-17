@@ -87,7 +87,10 @@ export function ClosePanel({
     }
   };
 
-  const checks = start ? closeChecks({ books, payroll, sales, review: review ?? undefined }, start, end, today) : [];
+  // The panel has no tick for the outflows kept out of the books yet, so it closes with them
+  // listed: the checklist counts them and the Shield check names each one.
+  const excluded = "listed" as const;
+  const checks = start ? closeChecks({ books, payroll, sales, review: review ?? undefined }, start, end, today, { excluded }) : [];
   const ready = checks.length > 0 && checks.every((c) => c.ok);
   const entries = start ? books.entries.filter((e) => e.date >= start && e.date <= end).length : 0;
   const paid = start ? settlementsIn({ books, payroll, rail: rail ?? undefined }, start, end).length : 0;
@@ -97,7 +100,7 @@ export function ClosePanel({
     if (!c || !start) throw new Error("Books are not open");
     let record: CloseRecord | null = null;
     await updateCompany((latest) => {
-      const r = closeRange(latest, end, { today, now: new Date().toISOString(), shieldMatches: true, newSecret: randomSecret() });
+      const r = closeRange(latest, end, { today, now: new Date().toISOString(), shieldMatches: true, newSecret: randomSecret(), excluded });
       record = r.record;
       return r.company;
     });

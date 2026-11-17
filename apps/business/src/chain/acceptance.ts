@@ -13,7 +13,7 @@ import type { Company } from "../books/company";
 import { acceptOffers } from "../books/hiring";
 import { hasWaitingOffer } from "../books/mailbox_feed";
 import type { Rail } from "../books/rail";
-import { AGREEMENT_PROGRAMS } from "./agreement_programs";
+import { AGREEMENT_PROGRAMS, acceptedHalves } from "./agreement_programs";
 import { finalAgreements } from "./offer";
 
 export type AcceptanceInput = {
@@ -45,7 +45,8 @@ export async function checkAcceptances({ rail, payroll, requestRecords, updateCo
   const waiting = rail.links.filter((l) => l.status === "offered" && finals.has(l.agreementId));
   if (waiting.length === 0) return { accepted: [] };
   const linkedAt = (now ?? (() => new Date().toISOString()))();
-  const halves = new Map([...found].flatMap(([id, f]) => (f.workerHalf ? [[id, f.workerHalf] as const] : [])));
+  // A half seeds the conversation's keys only when it is one a key can be made with.
+  const halves = await acceptedHalves(found);
   await updateCompany((c) => acceptOffers(c, finals, linkedAt, halves));
   const names = new Map(payroll.workers.map((w) => [w.id, w.name]));
   return { accepted: waiting.map((l) => names.get(l.workerId) ?? FALLBACK_NAME) };

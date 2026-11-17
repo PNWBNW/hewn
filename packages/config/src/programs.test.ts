@@ -1,10 +1,12 @@
 // The editions the app pins are the ones the Leo programs' repository records as on chain, and
 // every program the admin key could upgrade is pinned. Reads the submodule (pnw_mvp_v2).
+// And every program the app names has its address listed, as the SDK derives it from the id.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { EDITIONS, EXTERNAL_EDITIONS, OUR_EDITIONS, PROGRAMS } from "./programs";
+import { Address } from "@provablehq/sdk";
+import { EDITIONS, EXTERNAL_EDITIONS, NATIVE_PROGRAM, OUR_EDITIONS, PROGRAMS, PROGRAM_ADDRESSES, isProgramAddress } from "./programs";
 
 const LEO = join(__dirname, "..", "..", "..", "pnw_mvp_v2");
 const MANIFEST = join(LEO, "config", "testnet.manifest.json");
@@ -52,5 +54,30 @@ describe("the stablecoin's pinned editions", () => {
 
   it("are checked with ours before every signature", () => {
     for (const program of [...Object.keys(OUR_EDITIONS), ...Object.keys(EXTERNAL_EDITIONS)]) expect(EDITIONS[program], program).toBeDefined();
+  });
+});
+
+describe("the programs' addresses", () => {
+  /** Every program id the app names: each group of PROGRAMS, and the network's own program. */
+  const named = (): string[] => {
+    const { network: _network, ...groups } = PROGRAMS;
+    return [...Object.values(groups).flatMap((g) => Object.values(g)), NATIVE_PROGRAM];
+  };
+
+  it("list every program the app names, and nothing else", () => {
+    expect(Object.keys(PROGRAM_ADDRESSES).sort()).toEqual([...new Set(named())].sort());
+  });
+
+  it("are the addresses the SDK derives from each program's id", () => {
+    for (const program of named()) {
+      expect(PROGRAM_ADDRESSES[program], program).toBe(Address.fromProgramId(program).to_string());
+    }
+  });
+
+  it("are told from an account's", () => {
+    for (const address of Object.values(PROGRAM_ADDRESSES)) expect(isProgramAddress(address)).toBe(true);
+    expect(new Set(Object.values(PROGRAM_ADDRESSES)).size).toBe(named().length);
+    expect(isProgramAddress("aleo1kypwp5m7qtk9mwazgcpg0tq8aal23mnrvwfvug65qgcg9xvsrqgspyjm6n")).toBe(false);
+    expect(isProgramAddress("")).toBe(false);
   });
 });

@@ -114,8 +114,9 @@ const asV5 = (plaintext: string): string =>
     .replace(/\n  offer_height: \d+u32\.private,/, "");
 
 describe("employer_agreement_v5 records", () => {
-  const employerHalf = "04" + "ab".repeat(64);
-  const workerHalf = "04" + "cd".repeat(64);
+  // Two points on P-256 (G and 2G): a half is read back only when it is one.
+  const employerHalf = "046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5";
+  const workerHalf = "047cf27b188d034f7e8a52380304b51ac3c08969e277f21b35a60b48fc4766997807775510db8ed040293d9ac69f7430dbba7dade63ce982299e04b79d227873d1";
   const pendingV5 = { recordName: "PendingAgreement", spent: false, recordPlaintext: asV5(PENDING_PLAINTEXT).replace("employer_address", `employer_half: ${halfToInput(employerHalf)}.private,\n  employer_address`) };
   const finalV5 = { recordName: "FinalAgreement", spent: false, recordPlaintext: pendingV5.recordPlaintext.replace("employer_half", `worker_half: ${halfToInput(workerHalf)}.private,\n  employer_half`) };
 

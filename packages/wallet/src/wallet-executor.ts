@@ -74,14 +74,14 @@ function classifyError(error: unknown): TransientError | PermanentError {
 // ----------------------------------------------------------------
 
 /**
- * The wallet adapter's executeTransaction interface.
- * Matches @provablehq/aleo-types TransactionOptions.
+ * The wallet adapter's executeTransaction interface: the program, the function
+ * and its inputs. There is no fee here: the app never names one, so the wallet
+ * charges its own estimate and the person sees it in the wallet's prompt.
  */
 export type WalletExecuteFn = (params: {
   program: string;
   function: string;
   inputs: string[];
-  fee: number;
 }) => Promise<string>; // returns transaction ID
 
 /**
@@ -91,7 +91,6 @@ export type WalletExecuteFn = (params: {
  * @param programId - e.g. "pnw_name_registry.aleo"
  * @param functionName - e.g. "register_worker_name"
  * @param inputs - Aleo-formatted input strings
- * @param fee - Fee in microcredits (e.g. 500_000 = 0.5 credits)
  * @returns Transaction ID string
  */
 export async function executeAleoTransaction(
@@ -99,14 +98,12 @@ export async function executeAleoTransaction(
   programId: string,
   functionName: string,
   inputs: string[],
-  fee: number = 500_000,
 ): Promise<string> {
   try {
     const txId = await execute({
       program: programId,
       function: functionName,
       inputs,
-      fee,
     });
     return txId;
   } catch (error) {
@@ -231,7 +228,6 @@ export async function executeAndConfirm(
   programId: string,
   functionName: string,
   inputs: string[],
-  fee?: number,
   onStatusChange?: (status: TransactionStatus) => void,
 ): Promise<TransactionResult> {
   const txId = await executeAleoTransaction(
@@ -239,7 +235,6 @@ export async function executeAndConfirm(
     programId,
     functionName,
     inputs,
-    fee,
   );
 
   return pollTransactionStatus(txId, onStatusChange);

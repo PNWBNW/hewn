@@ -20,6 +20,7 @@ import { addAskingCustomer, customerAt, linkKnownCustomers } from "@/books/clien
 import { type Connections, connectedIn, connectionState, ignoreConnection, keepMine, noteHelloReceived, noteHelloSent, requestsIn } from "@/books/connections";
 import { registeredFor } from "@/books/rail";
 import { BRAND } from "@/brand";
+import { hashFor } from "@/shell/hash_params";
 import { newHalf } from "../key_ring";
 import { ShieldNeeded } from "./ShieldNeeded";
 import { type CheckedHello, useHellos } from "./useHellos";
@@ -180,7 +181,7 @@ function Clients() {
         <ul className="divide-y rounded-md border">
           {connected.map((c) => (
             <li key={c.address}>
-              <Link href={`/messages?client=${encodeURIComponent(c.address)}`} className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
+              <Link href={`/messages${hashFor({ client: c.address })}`} prefetch={false} className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
                 <span className="min-w-0 flex-1 truncate">
                   {(c.customerId && sales.customers.find((x) => x.id === c.customerId)?.name) || c.name}{" "}
                   <span className="text-xs text-muted-foreground">· connected</span>

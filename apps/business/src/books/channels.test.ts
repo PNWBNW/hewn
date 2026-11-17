@@ -90,6 +90,35 @@ describe("a channel, the person's side", () => {
   });
 });
 
+describe("posts that came in", () => {
+  const channel = () => applyChannelMessage([], PK, { type: "channel", channelId: "c".repeat(16), name: "Everyone", epoch: 0, key: "1".repeat(64) })[0]!;
+
+  it("keep the first copy under an id", () => {
+    let ch = addReceivedPost(channel(), { ...post(1, 0, 0), receivedAt: "2026-10-16T12:00:00.000Z" });
+    ch = addReceivedPost(ch, { ...post(1, 0, 3), text: "Something else", receivedAt: "2026-10-16T13:00:00.000Z" });
+    expect(ch.posts).toHaveLength(1);
+    expect(ch.posts[0]).toMatchObject({ text: "Post 1", seq: 0 });
+    expect(ch.nextIn[0]).toBe(4); // the slot still moves on
+    // And through a save.
+    const saved = { ...ch, posts: [...ch.posts, { ...post(1, 0, 3), text: "Something else" }] };
+    expect(validateWorkChannel(JSON.parse(JSON.stringify(saved))).posts.map((p) => p.text)).toEqual(["Post 1"]);
+  });
+
+  it("are placed in the order they came in on this device", () => {
+    let ch = addReceivedPost(channel(), { ...post(5, 0, 0), receivedAt: "2026-10-17T10:00:00.000Z" });
+    ch = addReceivedPost(ch, { ...post(2, 0, 1), receivedAt: "2026-10-18T10:00:00.000Z" }); // written as earlier, came in later
+    expect(ch.posts.map((p) => p.text)).toEqual(["Post 5", "Post 2"]);
+    expect(validateWorkChannel(JSON.parse(JSON.stringify(ch))).posts.map((p) => p.text)).toEqual(["Post 5", "Post 2"]);
+  });
+
+  it("that came in together keep their slots' order", () => {
+    const at = "2026-10-17T10:00:00.000Z";
+    let ch = addReceivedPost(channel(), { ...post(1, 0, 1), receivedAt: at });
+    ch = addReceivedPost(ch, { ...post(1, 0, 0), id: "f".repeat(32), receivedAt: at });
+    expect(ch.posts.map((p) => p.seq)).toEqual([0, 1]);
+  });
+});
+
 describe("posts", () => {
   it("are checked, and travel under kinds tied to the key and the channel", () => {
     expect(validatePost({ version: 1, id: "0".repeat(32), sentAt: "2026-10-16T10:00:00.000Z", text: "Hi" }).text).toBe("Hi");

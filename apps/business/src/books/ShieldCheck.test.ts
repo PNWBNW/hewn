@@ -9,21 +9,30 @@ const text = (s: string) => s.replace(/<[^>]+>/g, "").replace(/&#x27;|&apos;/g, 
 
 describe("the Shield check on the Dashboard", () => {
   it("shows nothing before the books follow Shield, or before the balance is read", () => {
-    expect(html({ kind: "not_started" })).toBe("");
-    expect(html({ kind: "unread", books: 2000n })).toBe("");
+    expect(html({ kind: "not_started", excludedOut: [] })).toBe("");
+    expect(html({ kind: "unread", books: 2000n, excludedOut: [] })).toBe("");
   });
 
   it("says quietly when the two agree, the difference is waiting in For review, or pay is settling", () => {
-    expect(text(html({ kind: "matches", books: 2000n, shield: 2000n }))).toContain("Matches the books' Shield account (20.00)");
-    const waiting = html({ kind: "waiting", books: 2000n, shield: 2325n, count: 2, minor: 3_250_000n });
+    expect(text(html({ kind: "matches", books: 2000n, shield: 2000n, excludedOut: [] }))).toContain("Matches the books' Shield account (20.00)");
+    const waiting = html({ kind: "waiting", books: 2000n, shield: 2325n, count: 2, minor: 3_250_000n, excludedOut: [] });
     expect(text(waiting)).toContain("The difference is 2 transactions waiting in For review.");
     expect(waiting).toContain('href="/transactions?tab=review"');
-    expect(text(html({ kind: "settling", books: 1500n, shield: 2000n, count: 1 }))).toContain("Pay is still settling (1 paycheck)");
-    for (const quiet of [html({ kind: "matches", books: 1n, shield: 1n }), waiting]) expect(quiet).not.toContain('role="status"');
+    expect(text(html({ kind: "settling", books: 1500n, shield: 2000n, count: 1, excludedOut: [] }))).toContain("Pay is still settling (1 paycheck)");
+    for (const quiet of [html({ kind: "matches", books: 1n, shield: 1n, excludedOut: [] }), waiting]) expect(quiet).not.toContain('role="status"');
+  });
+
+  it("lists the outflows kept out of the books under the result: date, amount and account", () => {
+    const excludedOut = [{ id: "at1x", date: "2026-10-20", minor: 2_500_000_000n, counterparty: "aleo1" + "t".repeat(58) }];
+    const matches = text(html({ kind: "matches", books: 2_000_000n, shield: 1_750_000n, excludedOut }));
+    expect(matches).toContain("Matches the books' Shield account");
+    expect(matches).toContain("Kept out of the books: 1 outflow");
+    expect(matches).toContain("October 20, 2026 · 2,500.00 · aleo1tttt…tttt");
+    expect(text(html({ kind: "matches", books: 1n, shield: 1n, excludedOut: [] }))).not.toContain("Kept out");
   });
 
   it("flags a difference nothing explains, with both figures and where to look", () => {
-    const off = html({ kind: "off", books: 1700n, shield: 2000n, gap: 3_000_000n, waiting: 0 });
+    const off = html({ kind: "off", books: 1700n, shield: 2000n, gap: 3_000_000n, waiting: 0, excludedOut: [] });
     expect(off).toContain('role="status"');
     expect(text(off)).toContain("The books don't match Shield");
     expect(text(off)).toContain("The books' Shield account shows 17.00; Shield holds 20.00.");
@@ -33,7 +42,7 @@ describe("the Shield check on the Dashboard", () => {
   });
 
   it("says to review what's waiting first when it doesn't account for all of the difference", () => {
-    const off = text(html({ kind: "off", books: 5009n, shield: 5109n, gap: -57_500_000n, waiting: 2 }));
+    const off = text(html({ kind: "off", books: 5009n, shield: 5109n, gap: -57_500_000n, waiting: 2, excludedOut: [] }));
     expect(off).toContain("2 transactions are waiting in For review, but they don't account for all of it. Review them first.");
     expect(off).not.toContain("Nothing waiting");
   });

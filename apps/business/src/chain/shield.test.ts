@@ -15,13 +15,15 @@ vi.mock("./editions", () => ({
   },
 }));
 
-// useShield() outside a render: state keeps its first value, effects don't run, and the
-// provider's useWallet() hands back whatever adapter the test put in `provider.adaptor`.
+// useShield() outside a render: state keeps its first value, effects don't run, an external
+// store (the desktop app's address, ../desktop.ts) reads as on the server, and the provider's
+// useWallet() hands back whatever adapter the test put in `provider.adaptor`.
 const provider = vi.hoisted(() => ({ adaptor: null as unknown }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useState: <T,>(first: T | (() => T)) => [typeof first === "function" ? (first as () => T)() : first, () => undefined],
   useEffect: () => undefined,
+  useSyncExternalStore: <T,>(_subscribe: unknown, snapshot: () => T, server?: () => T) => (server ?? snapshot)(),
 }));
 vi.mock("@pnw/wallet/wallet-provider", async (original) => ({
   ...(await original<typeof import("@pnw/wallet/wallet-provider")>()),

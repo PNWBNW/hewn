@@ -80,6 +80,13 @@ describe("the chain checks", () => {
     expect(odd.find((x) => x.id === "payments")).toMatchObject({ ok: false, detail: expect.stringContaining("not a transaction id") });
   });
 
+  it("say the anchor is checked, not the account that made it", async () => {
+    const anchored = await chainChecks(proof(), "ab".repeat(32), reads());
+    expect(anchored[0]!.label).toBe("The root is anchored on Aleo (by an account this page doesn't check)");
+    const never = await chainChecks(proof(), "ab".repeat(32), reads({ anchor: async () => null }));
+    expect(never[0]!.label).toBe(anchored[0]!.label);
+  });
+
   it("leave the payments line out of a range with no payments", async () => {
     const c = await chainChecks(proof([]), "ab".repeat(32), reads());
     expect(c.map((x) => x.id)).toEqual(["anchored", "after"]);
