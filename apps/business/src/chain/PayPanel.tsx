@@ -2,8 +2,16 @@
 
 // ---------------------------------------------------------------------------
 // The pay panel: settles one rail run through Shield, one private USDCx
-// transfer per person, all fired at once (@pnw/rail). Opened from the pay
+// transfer per person, one at a time, each made from what the last one left
+// (@pnw/rail, through the release seam in release.ts). Opened from the pay
 // runs list right after a rail run posts, and again from Continue / Retry.
+//
+// Shield has one prompt open at a time. Before the first, the panel says about
+// how many times Shield will ask (release.ts `promptSummary`); while a payment's
+// prompt is open, its line shows the payee's full account and the amount in
+// millionths of a dollar, the two things Shield's own screen gives for it. A
+// payment that doesn't settle stops the run there: the people after it wait,
+// untouched, and Continue takes them up.
 //
 // Every outcome is written to the vault as it happens, so closing the tab
 // loses nothing: a transfer Shield has taken keeps its id on the pending
@@ -30,13 +38,10 @@ import {
   type PayQueueEvent,
   type PaymentQuery,
   type RailWallet,
-  type TokenRecord,
-  centsToMinor,
   explorerNetwork,
   fetchTokenRecords,
   formatMinorAsDollars,
   outstanding,
-  runPayQueue,
   totalBalance,
 } from "@pnw/rail";
 import { Button } from "@pnw/ui/button";
@@ -48,7 +53,20 @@ import { Money } from "@/books/display";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
-import { FOUND_NOTE, LOOKING, lookQuery, payAgainTarget, recordListedForPayAgain, unconfirmedLabel } from "./pay_outcome";
+import {
+  FOUND_NOTE,
+  LOOKING,
+  type RailRecord,
+  dueFromRail,
+  lookQuery,
+  payAgainTarget,
+  recordListedForPayAgain,
+  shortOnRail,
+  stagesAfterPress,
+  tagRecords,
+  unconfirmedLabel,
+} from "./pay_outcome";
+import { pickReleaser, promptSummary } from "./release";
 import { type SentRead, findSentPayment } from "./sent_payment";
 import { useShield } from "./shield";
 import { usePaystubDelivery } from "./usePaystubDelivery";
@@ -97,7 +115,8 @@ function settleTo(payroll: Payroll, runId: string, workerId: string, target: Set
 
 type Stage =
   | { kind: "waiting" }
-  | { kind: "approving" }
+  /** Shield's prompt for this payment is open: `to` and `minor` are the account and the amount it was given. */
+  | { kind: "approving"; to: string; minor: bigint }
   | { kind: "sent" }
   /** Shield didn't confirm it, and the account's own transfers are being looked through for it. */
   | { kind: "looking" }
@@ -148,10 +167,12 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const sendPaystub = usePaystubDelivery(wallet);
   const run = payroll.runs.find((r) => r.id === runId);
   const names = useMemo(() => new Map(payroll.workers.map((w) => [w.id, w.name])), [payroll.workers]);
-  const [records, setRecords] = useState<TokenRecord[] | null>(null);
+  const [records, setRecords] = useState<RailRecord[] | null>(null);
   const [stages, setStages] = useState<Record<string, Stage>>({});
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({});
   const [note, setNote] = useState<string | null>(null);
+  // Why the last press of Pay now or Continue stopped part-way, in the queue's words; null when it didn't.
+  const [stopped, setStopped] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [againFor, setAgainFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -196,7 +217,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   useEffect(() => {
     if (!address || mismatch || loadedFor.current === address) return;
     loadedFor.current = address;
-    fetchTokenRecords(toRailWallet(wallet, address)).then(setRecords, (e: unknown) => setError(errorMessage(e)));
+    fetchTokenRecords(toRailWallet(wallet, address))
+      .then(tagRecords)
+      .then(setRecords, (e: unknown) => setError(errorMessage(e)));
   }, [address, mismatch, wallet]);
 
   if (!rail) return <FormError message="Link Shield in Settings first" />;
@@ -207,7 +230,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const everyone = run.paychecks.filter((p) => p.net > 0n); // settled ones stay on the board
   const totalDue = due.reduce((s, p) => s + p.net, 0n);
   const balance = records ? totalBalance(records) : null;
-  const short = balance !== null && balance < centsToMinor(totalDue);
+  // Short only for what the next press pays from the rail: a payment Shield already took is asked about, and one
+  // whose kept record is gone is looked for, so neither needs funds now (pay_outcome.ts `dueFromRail`).
+  const short = shortOnRail(balance, dueFromRail(due, records ?? []), stopped);
   const attempted = due.some((p) => p.settlement.status === "failed" || p.settlement.reference || p.settlement.attempt);
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
@@ -244,25 +269,26 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     if (!run) return;
     setRunning(true);
     setError(null);
+    // Where an earlier press stopped: still true if this one is refused before anything is asked.
+    const noteBefore = note;
     setNote(null);
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
     const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
     const settled: Promise<string | null>[] = [];
+    let stalledWhy: string | null = null;
+    let refused = false;
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
-          setNote(e.splits > 0 ? `Preparing ${e.splits === 1 ? "a record" : `${e.splits} records`} first, then paying ${e.transfers}.` : null);
           for (const p of due) setStage(p.workerId, { kind: "waiting" });
           break;
-        case "splitting":
-          setNote(`Preparing records… ${e.step} of ${e.of}. Approve each in Shield.`);
-          break;
-        case "split_done":
-          if (e.step === e.of) setNote("Records ready. Approve each payment in Shield.");
-          break;
         case "approving":
-          setStage(e.workerId, { kind: "approving" });
+          setStage(e.workerId, { kind: "approving", to: e.to, minor: e.minor });
+          break;
+        case "stalled":
+          stalledWhy = e.why;
+          setNote(`Stalled at ${e.at} of ${e.of}: ${e.why}.`);
           break;
         case "sent":
           setStage(e.workerId, { kind: "sent" });
@@ -320,8 +346,9 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           break;
       }
     };
-    // The record each transfer will spend is kept before Shield is asked, with the chain's height then: a later
-    // run checks the record instead of paying twice, and a later look reads back no further than that height.
+    // The record each transfer will spend is kept just before Shield is asked for it, with the chain's height when
+    // the run began: a later run, after a pause or a reload, checks the record instead of paying twice, and a later
+    // look reads back no further than that height.
     const beforeSend = async (workerId: string, attempt: string, since?: number) => {
       await write(workerId, { status: "pending", attempt, ...(since !== undefined ? { since } : {}) });
     };
@@ -354,14 +381,24 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           },
         });
       };
-      await runPayQueue({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
+      // How the run is paid: the one-at-a-time queue, the only way there is today. First, about how many times Shield will ask.
+      const releaser = await pickReleaser();
+      setNote(promptSummary(releaser.prompts(latest, links)));
+      await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
+      setStopped(stalledWhy);
       loadedFor.current = null; // re-read the balance
-      setRecords(await fetchTokenRecords(railWallet).catch(() => records ?? []));
+      setRecords(await fetchTokenRecords(railWallet).then(tagRecords).catch(() => records ?? []));
     } catch (e) {
+      refused = true;
       setError(errorMessage(e));
     }
+    // A line the run never reached reads from the books again: what an earlier run left it, with its button.
+    setStages((all) => stagesAfterPress(all));
     // Then each paystub settled this time, one letter (one approval) at a time; `deliver` never throws.
     for (const workerId of await Promise.all(settled)) if (workerId) await deliver(workerId);
+    // Everything it said Shield would ask has been asked; where a run stopped stays up.
+    if (refused) setNote(noteBefore);
+    else if (!stalledWhy) setNote(null);
     setRunning(false);
   }
 
@@ -444,6 +481,13 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
                     )}
                   >
                     {stageLabel(s)}
+                    {s.kind === "approving" && (
+                      <>
+                        {" · to "}
+                        <span className="break-all">{s.to}</span>
+                        {` · ${s.minor.toString()} millionths of a dollar (how Shield's Advanced details show them)`}
+                      </>
+                    )}
                     {s.kind === "failed" && !running && (
                       <Button type="button" variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={() => void start(address)}>
                         Retry
@@ -473,8 +517,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
           </ul>
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
           <p className="text-xs text-muted-foreground">
-            Shield asks you to approve each payment; they all go out together and settle on their own. The employer pays the network fee on each
-            one; nothing is taken from anyone&apos;s pay.
+            Shield asks you to approve each payment, one at a time: each is paid from what the last one left, so the next prompt comes up once the
+            one before has settled. The employer pays the network fee on each one; nothing is taken from anyone&apos;s pay.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button className="min-h-11 sm:min-h-9" disabled={running || short || balance === null || unlinked.length > 0} onClick={() => void start(address)}>
