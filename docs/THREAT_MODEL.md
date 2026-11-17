@@ -166,6 +166,19 @@ The highest risk for a browser app.
   and people with JavaScript off see only the note (the app never worked without it; a browser
   from before late 2023 shows them a blank page instead). The marketing site (`apps/site`) carries the
   same guard. ✅
+- ⚠️ The static bundle served on the web carries an update worker (`apps/business/src/updates`,
+  `docs/HOSTING.md` step 4; never on the website build or in the desktop app). It keeps the last
+  good release on the device, takes a new one only when its `release.json` is signed with a key in
+  `releaseKeys` (`@pnw/brand`) and every file matches its SHA-256, refuses a file that doesn't,
+  checks again the signatures of what it keeps on the device before trusting it, refuses a release
+  dated before the one it holds (a guard against mistakes only: the date isn't signed, so a bad old
+  release is withdrawn by a retirement), honours a retirement only when signed with a release key,
+  and adds `frame-ancestors`, `X-Frame-Options` and `Permissions-Policy` to what it serves. The
+  browser still updates the worker itself from the host, so it can't block a hijacked host: the page
+  says plainly when a new worker starts installing, and the first visit trusts the host. A copy
+  framed by another site gets a worker and storage of its own (both partitioned by the top site),
+  so its first load comes from the host without these headers; the top-page guard
+  (`docs/HOSTING.md` step 1) covers that. Until a release key is published it takes nothing and passes the host's files through.
 - `nosniff`; `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
 - No script whose code is controlled from someone else's dashboard, ever (Joshua, 2026-11-17):
   no tag manager, A/B testing or "paste a snippet" service (Optimizely and its custom project
