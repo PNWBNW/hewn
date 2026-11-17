@@ -1,0 +1,156 @@
+name: Desktop app
+
+# Builds the installable desktop app (apps/desktop) for macOS, Windows and Linux, unsigned, and
+# keeps the installers as the run's artifacts with their SHA-256 sums. Nothing is published from
+# here: the operator downloads the installers, signs the update packages with the update key on
+# their own machine, and makes the release (apps/desktop/README.md, "Releasing").
+#
+# The update key is never in CI, in any form. The operating systems' own certificates (Apple's
+# Developer ID, a Windows code-signing certificate) can be, once bought: their slots are below,
+# commented out, under the secret names Tauri reads. No secret is set today.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Least privilege: the build reads the repository and nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TAURI_CLI_VERSION: 2.12.4
+
+jobs:
+  check:
+    name: Configuration, crates and tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6 # version comes from package.json "packageManager"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (lockfile must match exactly)
+        run: pnpm install --frozen-lockfile
+      - name: tauri.conf.json matches @pnw/brand
+        run: node apps/desktop/scripts/tauri_config.mjs
+      - name: A release carries the update key (never the placeholder)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          key=$(node -e 'console.log(require("./apps/desktop/src-tauri/tauri.conf.json").plugins.updater.pubkey)')
+          if [ -z "$key" ]; then
+            echo "BRAND.desktop.updateKey is empty: add the update key's public half before tagging a release (apps/desktop/README.md)."
+            exit 1
+          fi
+      - name: The tag names the app's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(node -p 'require("./apps/desktop/package.json").version')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME but apps/desktop/package.json says $version."
+            exit 1
+          fi
+      - name: Every crate was at least seven days old when pinned
+        run: python3 -I apps/desktop/scripts/check_crate_age.py
+  build:
+    name: Installers (${{ matrix.name }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            args: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            out: apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle
+          - name: Windows
+            os: windows-latest
+            args: ""
+            rust_targets: ""
+            out: apps/desktop/src-tauri/target/release/bundle
+          - name: Linux
+            # The oldest supported Ubuntu, so the AppImage runs on older systems too.
+            os: ubuntu-22.04
+            args: ""
+            rust_targets: ""
+            out: apps/desktop/src-tauri/target/release/bundle
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (lockfile must match exactly)
+        run: pnpm install --frozen-lockfile
+      - name: The static bundle the app carries
+        run: pnpm --filter @pnw/business build:static
+      - name: Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          if [ -n "${{ matrix.rust_targets }}" ]; then rustup target add $(echo "${{ matrix.rust_targets }}" | tr ',' ' '); fi
+      - name: System libraries for the Linux web view
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - name: Tauri's command line, pinned
+        run: cargo install tauri-cli --version ${{ env.TAURI_CLI_VERSION }} --locked
+      - name: Icons from brand/source
+        run: pnpm --filter @pnw/desktop icons
+      - name: The shell's tests (links, the update key)
+        if: runner.os == 'Linux'
+        working-directory: apps/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build the installers (unsigned)
+        working-directory: apps/desktop
+        shell: bash
+        # env:
+        #   # macOS: Developer ID signing and notarization, once Joshua has an Apple Developer account.
+        #   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}                   # the .p12, base64
+        #   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        #   APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}         # "Developer ID Application: … (TEAMID)"
+        #   APPLE_ID: ${{ secrets.APPLE_ID }}                                     # notarization
+        #   APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}                         # an app-specific password
+        #   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        #   # Windows: a code-signing certificate. With a .pfx, import it into the runner's store
+        #   # in a step before this one (WINDOWS_CERTIFICATE, base64, and
+        #   # WINDOWS_CERTIFICATE_PASSWORD) and set bundle.windows.certificateThumbprint; with a
+        #   # cloud signing service, set bundle.windows.signCommand to its tool instead.
+        #   # Never here: TAURI_SIGNING_PRIVATE_KEY. The update key stays on the operator's machine.
+        run: cargo tauri build --ci ${{ matrix.args }}
+      - name: The macOS update package (the .app as a tar.gz, which the updater installs)
+        if: runner.os == 'macOS'
+        working-directory: ${{ matrix.out }}/macos
+        run: for app in *.app; do tar -czf "$app.tar.gz" "$app"; done
+      - name: SHA-256 of each installer
+        run: node apps/desktop/scripts/sums.mjs ${{ matrix.out }} ${{ matrix.name }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.name }}
+          path: |
+            ${{ matrix.out }}/**/*.dmg
+            ${{ matrix.out }}/**/*.app.tar.gz
+            ${{ matrix.out }}/**/*.msi
+            ${{ matrix.out }}/**/*.exe
+            ${{ matrix.out }}/**/*.AppImage
+            ${{ matrix.out }}/**/*.deb
+            ${{ matrix.out }}/**/*.rpm
+            ${{ matrix.out }}/SHA256SUMS-${{ matrix.name }}.txt
+          if-no-files-found: error
+          retention-days: 30

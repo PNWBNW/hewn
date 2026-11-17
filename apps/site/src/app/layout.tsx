@@ -34,9 +34,18 @@ export const viewport: Viewport = {
 // Render per request so every page gets a fresh CSP nonce (src/proxy.ts).
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
+  // The page stays hidden until the site's own code finds it is the top page and marks <html>
+  // (src/instrumentation-client.ts, before hydration), hence suppressHydrationWarning: that mark
+  // is not in this markup on purpose. Without JavaScript only the note below shows.
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="flex min-h-dvh flex-col overflow-x-hidden antialiased">
+        <noscript>
+          <p className="mx-auto max-w-md p-6 text-sm">
+            {BRAND.name}: {BRAND.tagline} This page needs JavaScript to show. Turn it on for this site and reload
+            the page.
+          </p>
+        </noscript>
         <SiteHeader />
         <main className="flex-1">{children}</main>
         <SiteFooter />

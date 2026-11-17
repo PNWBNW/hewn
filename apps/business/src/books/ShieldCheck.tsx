@@ -4,13 +4,17 @@
 // How the books' Shield account compares with Shield (books/reconcile.ts), as the Dashboard's
 // Shield card shows it: a quiet line when the two agree or the difference is explained, a flag when
 // nothing explains it. Only the Shield account is compared; cash and other bank accounts never are.
+// Under every result, the outflows the business kept out of the books: the check counts them as
+// explained, so they are listed where the business sees it.
 // ---------------------------------------------------------------------------
 
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { CircleCheck, TriangleAlert } from "lucide-react";
 import { Money } from "./display";
-import type { Reconciliation } from "./reconcile";
+import { minorToCents } from "./opening";
+import { shortAddress } from "./rail";
+import type { ExcludedOutflow, Reconciliation } from "./reconcile";
 
 const ReviewLink = () => (
   <Link href="/transactions?tab=review" className="underline underline-offset-2 hover:text-primary">
@@ -18,8 +22,41 @@ const ReviewLink = () => (
   </Link>
 );
 
+const longDate = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** The outflows kept out of the books: when, how much, to which account. */
+function KeptOut({ outflows }: { outflows: ExcludedOutflow[] }) {
+  if (outflows.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+      <p>
+        Kept out of the books: {outflows.length} {outflows.length === 1 ? "outflow" : "outflows"}, excluded in <ReviewLink />.
+      </p>
+      <ul className="flex flex-col gap-0.5 pl-6">
+        {outflows.map((o) => (
+          <li key={o.id}>
+            {longDate(o.date)} · <Money cents={minorToCents(o.minor)} />
+            {o.counterparty ? ` · ${shortAddress(o.counterparty)}` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** `record`: what the flag offers to record the difference with (books/RecordDifference.tsx), when the books can be changed. */
 export function ShieldCheckView({ result, record }: { result: Reconciliation; record?: ReactNode }) {
+  const main = resultView(result, record);
+  if (!main) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      {main}
+      <KeptOut outflows={result.excludedOut} />
+    </div>
+  );
+}
+
+function resultView(result: Reconciliation, record: ReactNode): ReactNode {
   switch (result.kind) {
     case "not_started":
     case "unread":

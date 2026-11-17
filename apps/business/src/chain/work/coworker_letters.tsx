@@ -13,6 +13,7 @@ import { type DirectoryEntry, coworkersFrom } from "@/books/directory";
 import { workThread } from "@/books/work";
 import { useLetters } from "../letter_reader";
 import { LetterBox } from "../letters";
+import { ShieldMissing } from "../ShieldStatus";
 
 export class UnreachableError extends Error {
   constructor(name: string) {
@@ -42,7 +43,7 @@ export function useCoworkerLetters(businessKey: string) {
 export function LettersGate({ shield }: { shield: ReturnType<typeof useCoworkerLetters> }) {
   if (shield.ready) return null;
   if (shield.mismatch) return <p className="text-xs text-muted-foreground">Shield is on a different account; switch accounts in Shield to send.</p>;
-  if (shield.state.kind === "missing") return <p className="text-xs text-muted-foreground">Messages go as letters through Shield. Open this in the Shield app to send.</p>;
+  if (shield.state.kind === "missing") return <ShieldMissing className="text-xs text-muted-foreground">Messages go as letters through Shield. Open this in the Shield app to send.</ShieldMissing>;
   if (shield.state.kind === "connecting") return <p className="text-xs text-muted-foreground">Connecting… approve the request in Shield.</p>;
   return (
     <div className="flex flex-wrap items-center gap-2">

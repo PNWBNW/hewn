@@ -28,6 +28,7 @@ import { shortAddress } from "@/books/rail";
 import { type BackupPlan, planBackup } from "./books_backup";
 import { useLetters } from "./letter_reader";
 import { LetterBox } from "./letters";
+import { ShieldMissing } from "./ShieldStatus";
 
 export default function ChainBackup() {
   return (
@@ -116,7 +117,7 @@ function Backup() {
   if (mismatch && address) {
     body = <p className="text-xs text-muted-foreground">Shield is signed in to {shortAddress(address)}. Switch to {shortAddress(rail.address)} in Shield to back up with your account.</p>;
   } else if (state.kind === "missing") {
-    body = <p className="text-xs text-muted-foreground">Open this page in the Shield app, or with the Shield extension, to back up with your account.</p>;
+    body = <ShieldMissing className="text-xs text-muted-foreground">Open this page in the Shield app, or with the Shield extension, to back up with your account.</ShieldMissing>;
   } else if (!letters) {
     body = (
       <Button variant="outline" className="min-h-11 self-start sm:min-h-9" disabled={state.kind === "connecting"} onClick={connect}>

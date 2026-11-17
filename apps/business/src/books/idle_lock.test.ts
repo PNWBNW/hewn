@@ -294,10 +294,9 @@ describe("where the idle lock is wired", () => {
   it("the pay panel and the backup to the account note each completed step, after the step's own write", () => {
     const pay = read("chain/PayPanel.tsx");
     expect(pay).toContain('import { afterStep, noteProgress } from "@/books/idle_lock";');
-    // "planned" and "split_done" count at once; every write of the run (the record kept before each approval, and
-    // the payment's id, settlement, failure or unconfirmed state) counts once it has settled.
+    // "planned" counts at once; every write of the run (the record kept before each approval, and the payment's
+    // id, settlement, failure or unconfirmed state) counts once it has settled.
     expect(pay).toMatch(/case "planned":\s*noteProgress\(\);/);
-    expect(pay).toMatch(/case "split_done":\s*noteProgress\(\);/);
     expect(pay).toContain(
       "const write = (workerId: string, target: Settlement) => afterStep(updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) })));",
     );
@@ -305,8 +304,8 @@ describe("where the idle lock is wired", () => {
       expect(pay, kind).toMatch(new RegExp(`case "${kind}":\\s*setStage\\([^;]*;\\s*(//[^\\n]*\\s*)*(void |settled\\.push\\(\\s*)write\\(e\\.workerId`));
     }
     expect(pay).toMatch(/const beforeSend = async \([^)]*\) => \{\s*await write\(workerId,/);
-    // Nothing else notes progress: not the waits for an approval ("splitting", "approving"), not "broadcast".
-    expect(pay.match(/noteProgress\(\)/g)).toHaveLength(3);
+    // Nothing else notes progress: not the wait for an approval ("approving"), not "broadcast", not "stalled".
+    expect(pay.match(/noteProgress\(\)/g)).toHaveLength(2);
     expect(pay.match(/afterStep\(/g)).toHaveLength(1);
     // A paystub counts once it has gone out and its delivery is written.
     expect(pay).toMatch(/await sendPaystub\(runId, workerId\);\s*noteProgress\(\);/);

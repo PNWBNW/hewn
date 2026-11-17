@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-12
+updated: 2026-11-17
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
@@ -146,13 +146,55 @@ The highest risk for a browser app.
   stamping refuses a page with an inline style). No `'strict-dynamic'` there (it needs a nonce),
   so scripts by file come from the bundle's own origin alone; `connect-src` adds the website,
   where the bundle reaches the server pieces (`src/api_base.ts`). `frame-ancestors` cannot travel
-  in a meta tag and is left out; the website still sends it. ✅
-- `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
-  `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
-- React escapes all rendered text; `dangerouslySetInnerHTML` is not used. ✅ (add a lint rule 🔜)
-- Dependencies pinned exactly, lockfile enforced in CI (`--frozen-lockfile`). ✅
+  in a meta tag and is left out; the website still sends it, and the top-page guard below covers
+  the bundle. ✅
+- **No one can show the app inside their own page** (clickjacking, a framed copy under another
+  address). On the website, `frame-ancestors 'none'` and `X-Frame-Options: DENY` refuse the frame
+  before anything loads. ✅ Behind them, on every host and in both builds, the **top-page guard**
+  (2026-11-17, `docs/HOSTING.md` step 1; `packages/security/src/frame_guard.ts` and
+  `frame_guard.css`): the stylesheet hides the whole page (`html:not([data-top-page])`), and the
+  first of the app's own code to run (`src/instrumentation-client.ts`, before hydration) shows it
+  only when the page is the top window (`window.top` is the window itself). A frame that runs
+  scripts, sandboxed or not, stays hidden; a frame sandboxed without scripts shows only the
+  no-JavaScript note; the guard never tries to move the top window. The rule is in a stylesheet file and the check in a script file,
+  so the policy is unchanged (no inline script or style). Tested in Chromium against the static
+  bundle served with no headers, as the top page and framed from another origin with no sandbox,
+  `sandbox` and `sandbox="allow-scripts"` (`apps/business/test/frames`, outside CI, which has no
+  browser); Firefox and Safari not yet run. Cost: nothing is drawn until the app's scripts have
+  loaded; on a first visit the first paint comes about 20 ms later on a fast computer and about
+  1.7 s later with a processor slowed four times on an emulated slow 4G network (measured there),
+  and people with JavaScript off see only the note (the app never worked without it; a browser
+  from before late 2023 shows them a blank page instead). The marketing site (`apps/site`) carries the
+  same guard. ✅
+- `nosniff`; `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
+- No script whose code is controlled from someone else's dashboard, ever (Joshua, 2026-11-17):
+  no tag manager, A/B testing or "paste a snippet" service (Optimizely and its custom project
+  JavaScript, Google Tag Manager, Segment and the like). Whoever controls such a dashboard, the
+  vendor or anyone who takes over its login, can run code in every page beside the unlocked books.
+  The policy names no script host, the app's third-party runtime packages are a fixed list, and no
+  page adds a script tag or loads `next/script`, so adding one is a T3 decision, never a version
+  bump. ✅ `apps/business/src/security/no_remote_scripts.test.ts`; the marketing site:
+  `apps/site/src/site_boundary.test.ts`
+- ⚠️ The one script from outside is Vercel Web Analytics (Joshua, 2026-10-19), served from the
+  site's own address, and with `'strict-dynamic'` a trusted script may load others. Vercel already
+  serves every file of the app, so this trusts it with nothing new. Accepted. The static bundle
+  leaves it out.
+- React escapes all rendered text. Raw HTML goes into a page in four places only, each HTML the app
+  built itself: the three card drawings (every word escaped by `@pnw/art`, tested with a `<script>`
+  name) and the paper's fixed text (`out-of-the-basement`). A fifth fails the test above. ✅
+- Dependencies pinned exactly, lockfile enforced and checked in CI: installed with
+  `--frozen-lockfile`, every entry from the npm registry alone (no tarball URL, git or folder
+  source), and every version a pull request adds published at least 7 days before
+  (`scripts/check_lockfile.py`). ✅
 - `pnpm audit --audit-level=moderate` blocks merges. ✅ Baseline 2026-10-13: 47 → 0 advisories.
-- `minimumReleaseAge` 7 days: freshly published (possibly hijacked) versions are never pulled. ✅
+  An advisory with no fixed version may be skipped by its id in `pnpm-workspace.yaml`
+  (`auditConfig.ignoreGhsas`), each with its reason, only when nothing the app ships includes the
+  package (`pnpm audit --prod` stays clean), and removed once a fix can be installed: CI fails as
+  soon as the npm registry lists a version outside the advisory's range that is old enough to
+  install, or the advisory no longer applies (`scripts/check_audit_skips.py`). ✅ Today: one,
+  picomatch through the test runner (2026-11-17).
+- `minimumReleaseAge` 7 days covers resolution: a version added on a machine, or by Dependabot's
+  weekly bumps (which wait the same 7 days, `cooldown`), is never one published that week. ✅
 - Install scripts allowed only for an explicit list (`onlyBuiltDependencies`). ✅
 - Unused wallet adaptors removed (Shield only): fewer packages, smaller attack surface. ✅
 - Dependabot for npm and Actions. ✅
@@ -163,7 +205,8 @@ The highest risk for a browser app.
   can't be created (2026-11-12). These are settings on GitHub, not code. ⚠️ A stolen login of
   Joshua's own account is still enough; passkey 2FA is the guard there.
 - Signed, installable builds with published hashes so users can verify the code they run;
-  release hash anchored on Aleo once anchoring exists. 🔜 (before first external user)
+  release hash anchored on Aleo once anchoring exists. 🔜 (before first external user; the plan,
+  with the desktop app and the limits of a service worker: `docs/HOSTING.md`)
 - Pin GitHub Actions to commit SHAs. 🔜
 
 ### T4 — Silent edits to history (insider, owner, or malware)
@@ -178,12 +221,41 @@ The highest risk for a browser app.
   property-based tests over random entries. 🔜 P1
 - Strict TypeScript, CI blocks on any failing test or type error. ✅
 - Third-party audit of the vault and ledger core alongside the Leo audit. 🔜 budget line
-- **Paying someone twice** (2026-10-22, the security review). A transfer whose outcome isn't
-  known (Shield didn't answer in time, accepted it without an id, the page closed after asking,
-  an answer lost on the way back) is never sent again on its own: before Shield is asked, the
-  vault keeps a tag for the record the transfer will spend, and a later run sends it again only by
-  spending that same record (the network lets one of the two through), or, if the record is gone,
-  shows it as not confirmed until the person checks Shield's activity and chooses to pay again.
+- **Paying someone twice** (2026-10-22; this text 2026-11-15, in effect once both #348 and #355
+  have merged). A run pays one person at a time, each payment from what the last one left, and
+  the first payment that doesn't settle ends the run there: the people after it wait for Continue
+  (`@pnw/rail` `queue.ts`). Before Shield is asked for a transfer, the vault keeps a tag for the
+  record it will spend; if the tag can't be kept, nothing is sent. No other payee is given a
+  record a payment has set aside.
+  **Failed only when nothing moved:** Shield reports the transfer rejected and says why, its
+  approval expired, the explorer says the network rejected it, or the app stopped the request
+  before Shield was asked. The line keeps its record, and Retry spends that same record while it
+  is listed.
+  **Anything else is looked for, never called failed.** No answer in time, Shield accepting it
+  without an id, an error, or Shield giving up in words that don't say whether it landed: the
+  payment is looked for in the account's own transfers (`chain/sent_payment.ts`: Shield's history
+  for the ids, the explorer for what each one was, Shield's transition view keys to open a private
+  one; the account's view key isn't used) and settled if it is there. It is there when an accepted
+  transfer to the person for exactly that amount is the one that spent the record the payment set
+  aside, or the request's own transaction, or else the earliest such transfer from this account
+  since the payment was first asked for. That last kind is never taken while another open payment
+  is to the same person for the same amount, and no transfer settles two payments. A look answers
+  within two minutes, and one that couldn't read everything that might be the payment never says
+  it wasn't paid. Not found, the line reads **Not paid** when the record it set aside went into
+  something that isn't a payment to the person and nothing since paid them; **Not seen on chain
+  yet** when it is asked about again five minutes or more after its try ended and that record is
+  still unspent (a label: nothing is sent because of it); **Not confirmed** otherwise.
+  **Asked again on its own in one case** (Joshua kept it, 2026-11-15): within a run, when the look
+  shows the record the payment was spending went into a transaction that isn't a payment to this
+  person, so the earlier try can no longer land. It is asked again from a record listed now, its
+  new tag kept first, at most three asks per payment per run; a third that ends the same way reads
+  Not paid. On a later run, a payment with a kept tag goes again only by spending that same record
+  (the network lets one of the two through); if the record is gone it is looked for and reported,
+  never asked again. One Shield already took (the books hold its id) is asked about, never sent
+  again.
+  **Everything else waits for the person:** they check Shield's activity and choose Pay again.
+  While the record the last try set aside is still listed, or Shield can't say, Pay again keeps it,
+  so only one of the two tries can land; once it is gone, the next run takes a fresh one.
   An explorer that can't be reached only delays confirming. Two tabs on the same books can't both
   write: a write refuses when another tab wrote since (`books/vault_write.ts`). ✅
 - **Paying the wrong account** (2026-10-22): a pay run pays only people whose agreement both sides

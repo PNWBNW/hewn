@@ -14,7 +14,8 @@
 import { MailboxError, type MailboxClient, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { type Mailbox, type ReceivedHours, nextHoursSeq, threadFor, validateTimesheetPayload } from "../books/mailbox";
 import { mailboxLinks } from "../books/mailbox_feed";
-import type { Rail } from "../books/rail";
+import type { Calendar } from "../books/hours";
+import type { Rail, RailLink } from "../books/rail";
 import { unpackPayload } from "./compress";
 import { findSlot, laterSlotExists, slotKeys } from "./key_ring";
 import { sendReceipt } from "./receipts";
@@ -35,6 +36,12 @@ export type ScanHoursInput = {
   /** The most slots read per agreement in one scan. */
   limit?: number;
 };
+
+/** The calendar the person's app splits shifts on: the work week in the offer's terms. Without one it is their device's, unknown here. */
+function calendarOfLink(link: RailLink): Calendar | undefined {
+  const w = link.terms?.version === 2 ? link.terms.workWeek : undefined;
+  return w ? { startsOn: w.startsOn, timeZone: w.timeZone } : undefined;
+}
 
 export type SkippedHours = { agreementId: string; seq: number; message: string };
 
@@ -86,7 +93,7 @@ export async function scanHours({ rail, mailbox, client: shared, clientFor, stor
       const key = partiesKeyFromHex(found.key);
       try {
         const opened = await unpackPayload(await open(key, TIMESHEET_KIND, seq, bytes));
-        const payload = validateTimesheetPayload(JSON.parse(new TextDecoder().decode(opened)), link.agreementId);
+        const payload = validateTimesheetPayload(JSON.parse(new TextDecoder().decode(opened)), link.agreementId, calendarOfLink(link));
         item = {
           agreementId: link.agreementId,
           seq,

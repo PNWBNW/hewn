@@ -19,8 +19,9 @@ import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
+import { useDesktopApp } from "@/desktop";
 import { checkEditions } from "./editions";
-import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, shieldRoute } from "./shield_route";
+import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, rethrowSendError, shieldRoute } from "./shield_route";
 
 export type { ShieldRoute };
 
@@ -30,12 +31,14 @@ export function useShield() {
   const adaptor = useWallet();
   const wallet = {
     ...adaptor,
-    executeTransaction: async (opts: Parameters<typeof adaptor.executeTransaction>[0] & { feeMode?: FeeMode }) => {
+    // No `fee` in what a caller may pass: the app never names an amount, so Shield charges its own estimate.
+    executeTransaction: async (opts: Omit<Parameters<typeof adaptor.executeTransaction>[0], "fee"> & { feeMode?: FeeMode }) => {
       const { feeMode, ...call } = opts;
       // Before Shield is asked to sign anything: the upgradable programs are still the editions
       // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
       await checkEditions();
-      return adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()));
+      // A connection made before a program joined the list Shield is asked for: say what to do.
+      return adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode())).catch(rethrowSendError);
     },
   };
   const shield = wallet.wallets[0]; // Shield is the only adapter registered
@@ -46,7 +49,10 @@ export function useShield() {
   // answers reads only once it is open again. Injected Shield is always there.
   const [present, setPresent] = useState(true);
 
-  const route = shieldRoute(shield?.readyState, isPhone());
+  // Inside the desktop app Shield can't be reached yet (apps/desktop/README.md): the route is
+  // `none`, so the state is `missing` and the screens say why instead of offering a connect.
+  const desktop = useDesktopApp();
+  const route = shieldRoute(shield?.readyState, isPhone(), desktop);
 
   // Ask the network for the programs' editions as the page opens, so the check at the moment
   // of sending is already answered.
@@ -83,7 +89,7 @@ export function useShield() {
   }, [shield?.adapter, route, wallet.connected]);
 
   const connect = () => {
-    if (!shield) return;
+    if (!shield || desktop) return; // nothing to connect to from the desktop app yet
     setError(null);
     setAsked(true);
     wallet.selectWallet(shield.adapter.name);
@@ -96,7 +102,7 @@ export function useShield() {
    * Tearing the pairing down ends that wait; the connect that follows runs from the tap.
    */
   const restart = async () => {
-    if (!shield) return;
+    if (!shield || desktop) return;
     setError(null);
     setReconnect(true);
     try {
@@ -137,5 +143,5 @@ export function useShield() {
   /** The link that brings Shield to the front for this site's pairing (with its relay channel). */
   const wakeUrl = () => shieldWakeUrl(shield?.adapter);
 
-  return { state, route, away, connect, restart, wakeUrl, error, wallet };
+  return { state, route, desktop, away, connect, restart, wakeUrl, error, wallet };
 }

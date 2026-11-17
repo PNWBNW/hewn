@@ -51,7 +51,7 @@ export type FeedDeps = {
 export const SHIELD_WAIT_MS = 20_000;
 
 /** `p`, or a rejection saying Shield didn't answer `what` in time. The request itself can't be cancelled; it is no longer waited on. */
-function answered<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+export function answered<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`Shield didn't answer ${what} within ${Math.round(ms / 1000)}s`)), ms);

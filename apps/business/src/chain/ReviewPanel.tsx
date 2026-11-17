@@ -44,13 +44,13 @@ import {
 import { BRAND } from "@/brand";
 import { longDate } from "./agreement_draft";
 import { formatSixDecimals } from "./balances";
-import { FIND_DAYS, type MatchCandidate, SUGGEST_DAYS, matchCandidates, matchEntry } from "@/books/match";
+import { FIND_DAYS, type MatchCandidate, SUGGEST_DAYS, matchCandidates, matchEntry, payerLabel } from "@/books/match";
 import { recordedDifferences } from "@/books/reconcile";
 import { decryptTransition, fetchExplorerTransaction, openOwnRecord } from "./decrypt";
 import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
 import { useShield } from "./shield";
-import { ShieldAway } from "./ShieldStatus";
+import { SHIELD_NOT_IN_DESKTOP, ShieldAway } from "./ShieldStatus";
 import { TxLink } from "./TxLink";
 
 export default function ReviewPanel() {
@@ -66,7 +66,7 @@ type Tab = "new" | "reviewed" | "excluded";
 
 function ReviewFlow() {
   const { rail, review, sales, payroll, viewKey, updateCompany } = useOpenBooks();
-  const { state, away, connect, wakeUrl, error: connectError, wallet } = useShield();
+  const { state, desktop, away, connect, wakeUrl, error: connectError, wallet } = useShield();
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [tab, setTab] = useState<Tab>("new");
   const [names, setNames] = useState<Record<string, string>>({});
@@ -170,7 +170,9 @@ function ReviewFlow() {
             ? `Shield is signed in to a different account (${shortAddress(address!)}). Switch to ${shortAddress(rail.address)} to check for new money.`
             : !address
               ? state.kind === "missing"
-                ? "Open this page in the Shield app to check for new money."
+                ? desktop
+                  ? SHIELD_NOT_IN_DESKTOP
+                  : "Open this page in the Shield app to check for new money."
                 : state.kind === "connecting"
                   ? "Connecting… approve the request in Shield."
                   : "Connect Shield to check for new money in the account."
@@ -344,8 +346,9 @@ function ReviewCard({
   const [error, setError] = useState<string | null>(null);
 
   const [finding, setFinding] = useState(false);
-  const suggested = editing || item.within ? [] : matchCandidates({ books, review: review ?? undefined }, item, SUGGEST_DAYS);
-  const found = finding ? matchCandidates({ books, review: review ?? undefined }, item, FIND_DAYS) : [];
+  const matchBooks = { books, review: review ?? undefined, sales, rail: rail ?? undefined };
+  const suggested = editing || item.within ? [] : matchCandidates(matchBooks, item, SUGGEST_DAYS);
+  const found = finding ? matchCandidates(matchBooks, item, FIND_DAYS) : [];
   const cents = minorToCents(BigInt(item.minor));
   const dust = BigInt(item.minor) % 10_000n !== 0n;
   const projects = dimensions.projects.filter((p) => p.status === "active");
@@ -385,11 +388,14 @@ function ReviewCard({
     }
   }
 
-  async function match(entryId: string) {
+  async function match(candidate: MatchCandidate) {
+    // Another account than the named party's: asked once before matching.
+    const payerConfirmed = candidate.payer === "different";
+    if (payerConfirmed && !window.confirm(`${payerLabel(candidate, item.direction)}. Match it to this entry anyway?`)) return;
     setBusy(true);
     setError(null);
     try {
-      await updateCompany((c) => matchEntry(c, item.id, entryId));
+      await updateCompany((c) => matchEntry(c, item.id, candidate.entry.id, { payerConfirmed }));
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -426,7 +432,7 @@ function ReviewCard({
           {suggested[0] && !finding && (
             <div role="status" className="flex flex-col gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
               <p>Looks like this is already in the books:</p>
-              <MatchRow candidate={suggested[0]} busy={busy} onMatch={(id) => void match(id)} />
+              <MatchRow candidate={suggested[0]} direction={item.direction} busy={busy} onMatch={(c) => void match(c)} />
               <p className="text-muted-foreground">Matching posts nothing new: it ties the two together, so the money counts once.</p>
             </div>
           )}
@@ -445,7 +451,7 @@ function ReviewCard({
                   <ul className="flex flex-col gap-2 rounded-md border border-dashed px-3 py-2 text-xs">
                     {found.map((c) => (
                       <li key={c.entry.id}>
-                        <MatchRow candidate={c} busy={busy} onMatch={(id) => void match(id)} />
+                        <MatchRow candidate={c} direction={item.direction} busy={busy} onMatch={(m) => void match(m)} />
                       </li>
                     ))}
                   </ul>
@@ -585,15 +591,26 @@ function bookEntryLabel(books: Books, entry: MatchCandidate["entry"]): string {
   return entry.memo?.trim() || other.join(", ") || "An entry";
 }
 
-function MatchRow({ candidate, busy, onMatch }: { candidate: MatchCandidate; busy: boolean; onMatch: (entryId: string) => void }) {
+function MatchRow({
+  candidate,
+  direction,
+  busy,
+  onMatch,
+}: {
+  candidate: MatchCandidate;
+  direction: "in" | "out";
+  busy: boolean;
+  onMatch: (candidate: MatchCandidate) => void;
+}) {
   const { books } = useOpenBooks();
   const { entry, cents } = candidate;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="min-w-0 flex-1">
         <span className="font-medium">{longDate(entry.date)}</span> · {bookEntryLabel(books, entry)} · <Money cents={cents < 0n ? -cents : cents} />
+        <span className={cn("block", candidate.payer === "different" ? "text-money-negative" : "text-muted-foreground")}>{payerLabel(candidate, direction)}</span>
       </span>
-      <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={busy} onClick={() => onMatch(entry.id)}>
+      <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={busy} onClick={() => onMatch(candidate)}>
         Match
       </Button>
     </div>

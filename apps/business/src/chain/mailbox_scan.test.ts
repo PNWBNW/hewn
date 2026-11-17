@@ -10,6 +10,8 @@ const KEY_HEX = "11".repeat(32);
 const AGREEMENT = "ab".repeat(32);
 const ENTRY = { date: "2026-10-05", in: "2026-10-05T15:00:00.000Z", out: "2026-10-05T23:30:00.000Z", minutes: 510 };
 const PAYLOAD = { version: 1, kind: "timesheet", agreementId: AGREEMENT, weekStart: "2026-10-05", entries: [ENTRY], totalMinutes: 510, sentAt: "2026-10-11T18:00:00.000Z" };
+/** The week after, with its own shift. */
+const NEXT_WEEK = { ...PAYLOAD, weekStart: "2026-10-12", entries: [{ ...ENTRY, date: "2026-10-12", in: "2026-10-12T15:00:00.000Z", out: "2026-10-12T23:30:00.000Z" }], sentAt: "2026-10-18T18:00:00.000Z" };
 
 const link = (over: Partial<RailLink> = {}): RailLink => ({ workerId: "wkr-1", address: ADDRESS, nameHash: "7", agreementId: AGREEMENT, partiesKey: KEY_HEX, status: "linked", ...over });
 const rail = (...links: RailLink[]): Rail => ({ version: 1, network: "testnet", address: ADDRESS, linkedAt: "2026-10-01T00:00:00.000Z", links });
@@ -53,7 +55,7 @@ describe("scanHours", () => {
   it("keeps each week in the vault before dropping its pin, stopping at the first empty slot", async () => {
     const store = new Map<string, Uint8Array<ArrayBuffer>>();
     const l0 = await put(store, 0, PAYLOAD);
-    const l1 = await put(store, 1, { ...PAYLOAD, weekStart: "2026-10-12" });
+    const l1 = await put(store, 1, NEXT_WEEK);
     const client = fakeClient(store);
     const order: string[] = [];
     const r = await scanHours({
@@ -83,7 +85,7 @@ describe("scanHours", () => {
   it("starts at the slot after the ones it already has", async () => {
     const store = new Map<string, Uint8Array<ArrayBuffer>>();
     await put(store, 0, PAYLOAD);
-    await put(store, 1, { ...PAYLOAD, weekStart: "2026-10-12" });
+    await put(store, 1, NEXT_WEEK);
     const known = addHours(emptyMailbox(), { agreementId: AGREEMENT, seq: 0, lookup: lookupId(partiesKeyFromHex(KEY_HEX), TIMESHEET_KIND, 0), receivedAt: "2026-10-11T00:00:00.000Z", workerId: "wkr-1", weekStart: "2026-10-05", entries: [ENTRY], totalMinutes: 510, sentAt: PAYLOAD.sentAt });
     const h = harness(rail(link()), fakeClient(store), known);
     const r = await h.run();
@@ -115,6 +117,36 @@ describe("scanHours", () => {
     expect(r.received).toEqual([]);
     expect(r.skipped.map((s) => s.seq)).toEqual([0, 1]);
     expect(r.skipped[1]?.message).toMatch(/different agreement/);
+  });
+
+  it("checks each entry's day on the agreement's own calendar", async () => {
+    // 03:00 UTC on the 6th is the evening of the 5th in Los Angeles.
+    const evening = { date: "2026-10-06", in: "2026-10-06T03:00:00.000Z", out: "2026-10-06T06:00:00.000Z", minutes: 180 };
+    const sent = { ...PAYLOAD, entries: [evening], totalMinutes: 180 };
+    const workWeek = { startsOn: "monday", timeZone: "America/Los_Angeles", overtimeAfterHours: 40, dailyOvertimeAfterHours: 0, longestShiftHours: 12 };
+    const withCalendar = link({ terms: { version: 2, workWeek } as unknown as RailLink["terms"] });
+    const store = new Map<string, Uint8Array<ArrayBuffer>>();
+    await put(store, 0, sent);
+    await put(store, 1, { ...sent, entries: [{ ...evening, date: "2026-10-05" }] });
+    const r = await harness(rail(withCalendar), fakeClient(store)).run();
+    expect(r.skipped.map((s) => [s.seq, s.message])).toEqual([[0, "An entry's date isn't the day it started"]]);
+    expect(r.received.map((x) => x.seq)).toEqual([1]);
+    // Without a work week in the terms the day can't be pinned down, so a day either side is taken.
+    const store2 = new Map<string, Uint8Array<ArrayBuffer>>();
+    await put(store2, 0, sent);
+    expect((await harness(rail(link()), fakeClient(store2)).run()).received.map((x) => x.seq)).toEqual([0]);
+  });
+
+  it("skips a week whose entries don't match their clock times or fall outside it", async () => {
+    const store = new Map<string, Uint8Array<ArrayBuffer>>();
+    await put(store, 0, { ...PAYLOAD, entries: [{ ...ENTRY, minutes: 1440 }], totalMinutes: 1440 });
+    await put(store, 1, { ...PAYLOAD, weekStart: "2026-10-12" }); // a week whose shift is in the week before
+    await put(store, 2, PAYLOAD);
+    const r = await harness(rail(link()), fakeClient(store)).run();
+    expect(r.skipped.map((s) => s.seq)).toEqual([0, 1]);
+    expect(r.skipped[0]?.message).toMatch(/between its start and end/);
+    expect(r.skipped[1]?.message).toMatch(/outside the week/);
+    expect(r.received.map((x) => x.seq)).toEqual([2]);
   });
 
   it("reads only linked agreements that have a key", async () => {
