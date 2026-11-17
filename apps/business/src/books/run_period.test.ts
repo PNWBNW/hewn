@@ -122,7 +122,7 @@ describe("a weekly business's next run, on the page's defaults", () => {
     expect([week1.run.periodStart, week1.run.periodEnd]).toEqual(["2026-10-25", "2026-11-07"]);
     const week2 = onDefaults(week1.payroll, "2026-11-14", { bankAccountId: s.bankId, lines: s.lines });
     expect([week2.periodStart, week2.periodEnd]).toEqual(["2026-11-08", "2026-11-14"]);
-    expect(checkDoublePay(week1.payroll, week2)).toEqual({ blocked: [], overlap: [] });
+    expect(checkDoublePay(week1.payroll, week2)).toEqual({ blocked: [], overlap: [], failed: [] });
     expect(postPayRun(week1.books, week1.payroll, week2, clock).run.id).toBe("run-2");
     // The two weeks to today, the old default, reached back into the week already paid and was refused.
     const twoWeeks = { ...week2, periodStart: "2026-11-01" };
@@ -142,7 +142,7 @@ describe("a weekly business's next run, on the page's defaults", () => {
     for (const payroll of [week1.payroll, failed]) {
       const week2 = input(payroll, "2026-11-14");
       expect([week2.periodStart, week2.periodEnd]).toEqual(["2026-11-08", "2026-11-14"]);
-      expect(checkDoublePay(payroll, week2)).toEqual({ blocked: [], overlap: [] });
+      expect(checkDoublePay(payroll, week2)).toEqual({ blocked: [], overlap: [], failed: [] });
       expect(postPayRun(week1.books, payroll, week2, clock).run.id).toBe("run-2");
     }
   });
@@ -161,7 +161,7 @@ describe("a weekly business's next run, on the page's defaults", () => {
     );
     const week3 = onDefaults(second.payroll, "2026-11-21", { bankAccountId: s.bankId, lines: s.lines });
     expect([week3.periodStart, week3.periodEnd]).toEqual(["2026-11-15", "2026-11-21"]);
-    expect(checkDoublePay(second.payroll, week3)).toEqual({ blocked: [], overlap: [] });
+    expect(checkDoublePay(second.payroll, week3)).toEqual({ blocked: [], overlap: [], failed: [] });
     expect(postPayRun(second.books, second.payroll, week3, clock).run.id).toBe("run-3");
   });
 });
