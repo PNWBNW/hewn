@@ -1,0 +1,8 @@
+{
+  "note": "The freeze-list program's public mappings as the explorer answered on testnet on 2026-11-14, with nobody frozen: slot 0 holds the zero address, and a key that isn't set answers null.",
+  "mappings": {
+    "freeze_list_last_index": { "true": "0u32" },
+    "freeze_list_index": { "0u32": "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc" },
+    "freeze_list_root": { "1u8": "3642222252059314292809609689035560016959342421640560347114299934615987159853field" }
+  }
+}
