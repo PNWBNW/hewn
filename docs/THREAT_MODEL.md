@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-15
+updated: 2026-11-17
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
@@ -147,6 +147,16 @@ The highest risk for a browser app.
   so scripts by file come from the bundle's own origin alone; `connect-src` adds the website,
   where the bundle reaches the server pieces (`src/api_base.ts`). `frame-ancestors` cannot travel
   in a meta tag and is left out; the website still sends it. ✅
+- ⚠️ The static bundle served on the web carries an update worker (`apps/business/src/updates`,
+  `docs/HOSTING.md` step 4; never on the website build or in the desktop app). It keeps the last
+  good release on the device, takes a new one only when its `release.json` is signed with a key in
+  `releaseKeys` (`@pnw/brand`) and every file matches its SHA-256, refuses a file that doesn't,
+  never goes back to an older release, honours a retirement only when signed with a release key,
+  and adds `frame-ancestors`, `X-Frame-Options` and `Permissions-Policy` to what it serves. The
+  browser still updates the worker itself from the host, so it can't block a hijacked host: the page
+  says plainly when a new worker starts installing, and the first visit trusts the host. A copy
+  framed by another site isn't served by it (storage is partitioned); the top-page guard
+  (`docs/HOSTING.md` step 1) covers that. Until a release key is published it takes nothing and passes the host's files through.
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
 - React escapes all rendered text; `dangerouslySetInnerHTML` is not used. ✅ (add a lint rule 🔜)
