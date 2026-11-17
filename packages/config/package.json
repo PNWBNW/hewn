@@ -12,5 +12,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "devDependencies": {
+    "@provablehq/sdk": "0.13.0"
+  }
 }

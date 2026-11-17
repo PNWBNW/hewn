@@ -5,3 +5,12 @@ packages:
 # Supply-chain guard: never resolve a package version published less than
 # 7 days ago. Most malicious npm releases are caught and pulled within days.
 minimumReleaseAge: 10080
+
+# Advisories the audit may skip, one at a time, each with its reason (docs/THREAT_MODEL.md T3).
+# Remove an entry as soon as a fixed version can be installed.
+auditConfig:
+  ignoreGhsas:
+    # picomatch <= 4.0.7, slow matching on some glob patterns (2026-11-17). No fixed version yet.
+    # Only the test runner (vitest) uses it, on glob patterns written in this repository;
+    # nothing the app ships includes it (pnpm audit --prod is clean).
+    - GHSA-fc5q-39xc-vjpf

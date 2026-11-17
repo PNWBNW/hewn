@@ -196,6 +196,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 | [`apps/site`](apps/site) | The marketing site, hewnaccounting.com |
 | [`packages/`](packages) | Shared libraries: the ledger, vault, payroll, tax engine, wallet, Aleo adapter and more. Layering map in [`packages/README.md`](packages/README.md) |
 | [`brand/`](brand) | Logo source art and the script that builds the brand assets. The name and colours live in [`packages/brand`](packages/brand) |
+| [`scripts/release/`](scripts/release/README.md) | Releases of the static bundle: built twice to the same bytes, listed in `release.json`, signed offline, anchored on Aleo, checked by anyone |
 | [`docs/`](docs/README.md) | Design documents with their status: the [threat model](docs/THREAT_MODEL.md), [letters](docs/LETTERS.md), the [job board](docs/JOB_BOARD.md), the [audit design](docs/AUDIT_DESIGN.md), and the grant proposal |
 | [`memory/`](memory/README.md) | What has been decided and what has been learned, one line each, consolidated across the documents (`docs/MEMORY.md`) |
 | [`docs/map/`](docs/map/README.md) | The map of Hewn, drawn in 3D on GitHub Pages: [pnwbnw.github.io/hewn](https://pnwbnw.github.io/hewn). Where the data lives and what crosses between places, each flow with its rule; the whole tree next |
