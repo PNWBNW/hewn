@@ -301,6 +301,33 @@ describe("a transfer is recorded for a customer only when it came from that cust
     expect(() => recordClientPayment(c, TX)).toThrow(/More than one customer/);
   });
 
+  it("refuses a move within the account that only its own records show, when they don't name another sender", () => {
+    const { company, invoice, customerId } = business();
+    const c = withPayment(company, customerId, paid(invoice.id, invoice.number, "30000"));
+    for (const from of [null, BIZ]) {
+      const records = new Map([[TX, { id: TX, date: "2026-10-25", minor: "300000000", from, fn: "transfer_public_to_private" }]]);
+      expect(paymentsToRecord(c, records)[0]!.seen).toBeUndefined();
+      expect(() => recordClientPayment(c, TX, records)).toThrow(/your own account/);
+    }
+    // A customer paying from their own public balance is still their payment.
+    const theirs = new Map([[TX, { id: TX, date: "2026-10-25", minor: "300000000", from: CUST, fn: "transfer_public_to_private" }]]);
+    expect(paymentsToRecord(c, theirs)[0]!.seen).toBeDefined();
+  });
+
+  it("keeps listing a customer who names a transfer already recorded as another customer's payment", () => {
+    const { company, invoice, customerId } = business();
+    const b = addCustomer(company.sales, { name: "Birch" });
+    const conn = (address: string, cust: string, items: ThreadItem[], c: string) => ({ address, name: "x", nameHash: "42", mine: half(c), theirs: key(c), customerId: cust, thread: { items, nextIn: items.length, nextOut: 0 } });
+    const first = forReview({ ...withPayment(company, customerId, paid(invoice.id, invoice.number, "30000")), sales: b.sales }, {});
+    const done = recordClientPayment(first, TX);
+    expect(paymentsToRecord(done)).toEqual([]);
+    const later = { ...done, clients: { ...done.clients, [CUST_B]: conn(CUST_B, b.customer.id, [item({ type: "payment", amount: "30000", transactionId: TX, note: "Deposit" }, false, "worker")], "3") } as Connections };
+    const listed = paymentsToRecord(later);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ address: CUST_B, problem: expect.stringMatching(/another customer's payment/) });
+    expect(listed[0]!.seen).toBeUndefined();
+  });
+
   it("still records a payment that came from the customer, saying who sent it and the invoice's own number", () => {
     const { company, invoice, customerId } = business();
     const c = forReview(withPayment(company, customerId, paid(invoice.id, "INV-9999", "15490")), { counterparty: CUST, minor: "154900000" });

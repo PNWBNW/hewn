@@ -69,7 +69,7 @@ function Payments() {
     try {
       // What came into this account, from its own records: how a payment is confirmed without waiting on For review.
       const records = receivedRecords(await wallet.requestRecords(USDCX_PROGRAM, true).catch(() => [] as unknown[]));
-      setArrived(new Map(records.map((r) => [r.id, { id: r.id, date: r.when.toISOString().slice(0, 10), minor: r.minor.toString(), from: r.from }])));
+      setArrived(new Map(records.map((r) => [r.id, { id: r.id, date: r.when.toISOString().slice(0, 10), minor: r.minor.toString(), from: r.from, fn: r.fn }])));
       const r = await checkConnections({
         conns: currentCompany()?.clients,
         reader: "business",

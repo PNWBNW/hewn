@@ -51,8 +51,11 @@ export type ClientPayment = {
   problem?: string;
 };
 
-/** A transfer into the business's account as its own records show it (chain/review_feed.ts `receivedRecords`): who sent it, when Shield says. */
-export type Arrived = { id: string; date: string; minor: string; from?: string | null };
+/** A transfer into the business's account as its own records show it (chain/review_feed.ts `receivedRecords`): who sent it, when Shield says, and what made it. */
+export type Arrived = { id: string; date: string; minor: string; from?: string | null; fn?: string };
+
+/** What moves money between the account's own halves, as For review's feed reads it (chain/review_feed.ts `classify`). */
+const MOVES_WITHIN = new Set(["transfer_public_to_private", "transfer_private_to_public", "join", "split"]);
 
 /** A payment without an invoice, spread over the customer's open invoices, oldest due first. */
 function applyToOpen(sales: Sales, customerId: string, cents: bigint): { invoiceId: string; number: string; amount: bigint }[] {
@@ -78,7 +81,8 @@ function senderProblem(sender: string | null | undefined, customer: string, own:
 /** Payments customers told the business about that aren't in its books yet, each with what its own account shows. */
 export function paymentsToRecord(company: Pick<Company, "clients" | "sales" | "review" | "rail">, arrived?: ReadonlyMap<string, Arrived>): ClientPayment[] {
   // A voided payment no longer holds its transfer: it can be recorded again.
-  const recorded = new Set(company.sales.payments.flatMap((p) => (p.reference && !p.voidEntryId ? [p.reference] : [])));
+  const recordedFor = new Map(company.sales.payments.flatMap((p) => (p.reference && !p.voidEntryId ? [[p.reference, p.customerId] as const] : [])));
+  const recorded = new Set(recordedFor.keys());
   // Transfers already in the books: never matched to a second payment.
   const claimed = new Set([...recorded, ...(company.review?.items ?? []).filter((i) => i.status !== "new").map((i) => i.id)]);
   const own = company.rail?.address;
@@ -89,7 +93,8 @@ export function paymentsToRecord(company: Pick<Company, "clients" | "sales" | "r
     for (const item of itemsOf(c)) {
       if (item.mine || item.body.type !== "payment") continue;
       const b = item.body;
-      if (recorded.has(b.transactionId)) continue;
+      // Already in the books as this customer's payment: nothing more to do. As another customer's, it stays listed, below.
+      if (recordedFor.get(b.transactionId) === c.customerId) continue;
       const named = claims.get(b.transactionId) ?? [];
       if (named.some((n) => n.c.address === c.address)) continue;
       claims.set(b.transactionId, [...named, { c, id: item.id, b }]);
@@ -120,11 +125,13 @@ export function paymentsToRecord(company: Pick<Company, "clients" | "sales" | "r
       // Who sent it, as this account shows it: recorded for a customer only when it was that customer.
       const sender = listed?.counterparty ?? found?.from ?? undefined;
       if (sender) p.sender = sender;
-      const notFrom = listed?.within
+      const movedWithin = listed?.within || (found?.fn && MOVES_WITHIN.has(found.fn) && (!found.from || found.from === own));
+      const notFrom = movedWithin
         ? "Your Shield account shows that transfer as a move within your own account, not a payment from this customer. Look at it under For review."
         : (senderProblem(listed?.counterparty, c.address, own) ?? senderProblem(found?.from, c.address, own));
       const start = company.rail?.start?.date;
       if (b.invoiceId && !theirs) p.problem = `${b.number ?? "That invoice"} isn't one of this customer's invoices`;
+      else if (recorded.has(b.transactionId)) p.problem = "That transfer is already in your books as another customer's payment. Look at it under Sales.";
       else if (named.length > 1) p.problem = "More than one customer named this transfer; record it by hand under For review.";
       else if (notFrom) p.problem = notFrom;
       else if (listed) {
