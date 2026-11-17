@@ -39,6 +39,7 @@ import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
 import { assertKindFree } from "./account_kind";
 import { AGREEMENT_PROGRAMS, acceptedHalves } from "./agreement_programs";
+import { isHeldAccount } from "./directory";
 import { finalAgreements } from "./offer";
 import { partiesKeysOf } from "./parties_key";
 import { RegisterFlow } from "./RegisterBusiness";
@@ -142,8 +143,12 @@ function railOf(c: Company): Rail {
   return c.rail;
 }
 
-/** The link for one agreement; the parties key comes from the same record, read separately. */
-function toLink(workerId: string, r: WorkerRecord, partiesKey: string | undefined): RailLink {
+/**
+ * The link for one agreement; the parties key comes from the same record, read separately. An
+ * agreement naming the zero address or a program's is never linked, so no pay run includes it.
+ */
+export function toLink(workerId: string, r: WorkerRecord, partiesKey: string | undefined): RailLink {
+  if (!isHeldAccount(r.worker_addr)) throw new Error("This agreement's account isn't a person's or a business's, so it can't be linked");
   if (!partiesKey) throw new Error("Couldn't read this agreement's key from Shield. Try importing again.");
   return { workerId, address: r.worker_addr, nameHash: r.worker_name_hash, agreementId: r.agreement_id, partiesKey, status: "linked", linkedAt: new Date().toISOString() };
 }
