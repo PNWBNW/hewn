@@ -27,7 +27,8 @@ import { REPORT_AS, type ReportCategory, isReportCategory, notifiesSender } from
 import { MAX_EVENT_TITLE } from "./events";
 import { type Bill, validateBill } from "./bill";
 import { type CloseReason, type ServiceAnswer, type ServiceTerms, serviceId, serviceNote, serviceRev, validateTerms } from "./service";
-import { type HalfOnWire, type KeyRing, emptyRing, noteReceived, noteSent, validateHalfOnWire, validateKeyRing } from "./key_ring";
+import { type HalfOnWire, type KeyRing, checkHalfOnWire, emptyRing, noteReceived, noteSent, validateHalfOnWire, validateKeyRing } from "./key_ring";
+import { isP256Point } from "./key_point";
 
 export type Side = "business" | "worker";
 
@@ -532,6 +533,33 @@ export function validateMessage(raw: unknown, from: Side): ThreadMessage {
     }
   }
   if (body.type === "sealed" && !message.half?.answers) throw new ThreadError("A sealed message carries the half it answers with");
+  return message;
+}
+
+/** Every public key a message carries in its body: a directory's or a group's. */
+function bodyKeys(message: ThreadMessage): string[] {
+  const b = message.body;
+  if (b.type === "directory_join") return [b.publicKey];
+  if (b.type === "directory") return b.entries.map((e) => e.publicKey);
+  if (b.type === "group") return [b.admin, ...b.members.map((m) => m.publicKey)];
+  return [];
+}
+
+/**
+ * What a message from the other side is checked for past its shape, before it is kept: every
+ * public key it carries (its key half, a directory's, a group's) is a point on the curve
+ * (books/key_point.ts), so nothing is kept that could never make a key. Throws a ThreadError, and
+ * the reader skips the message. Messages already in the books aren't checked again.
+ */
+export async function checkMessageKeys(message: ThreadMessage): Promise<ThreadMessage> {
+  if (message.half) {
+    try {
+      await checkHalfOnWire(message.half);
+    } catch (e) {
+      throw new ThreadError(e instanceof Error ? e.message : "A key half isn't a usable public key");
+    }
+  }
+  for (const key of new Set(bodyKeys(message))) if (!(await isP256Point(key))) throw new ThreadError("A public key in that message isn't usable");
   return message;
 }
 

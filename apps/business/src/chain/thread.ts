@@ -27,7 +27,8 @@ import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { packPayload, unpackPayload } from "./compress";
 import { sendReceipt } from "./receipts";
 import { type KeyRing, emptyRing, noteReceived, sendPlan } from "../books/key_ring";
-import { GROUP_TYPES, type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, addToThread, emptyThread, newMessageId, sameMessage, skipIncoming, validateMessage } from "../books/thread";
+import { GROUP_TYPES, type Side, type Thread, type ThreadBody, type ThreadItem, type ThreadMessage, ThreadError, addToThread, checkMessageKeys, emptyThread, newMessageId, sameMessage, skipIncoming, validateMessage } from "../books/thread";
+import { arrivalTime } from "../books/thread_order";
 import { pairKeyHex, pairStreams, sendingKey } from "./key_ring";
 
 export const THREAD_KINDS: Record<Side, string> = { business: "thread_b", worker: "thread_w" };
@@ -206,19 +207,22 @@ export async function readThread({ client, partiesKey, reader, thread, store, sk
         let item: ThreadItem;
         try {
           let message = validateMessage(JSON.parse(new TextDecoder().decode(await unpackPayload(await open(key, kind, seq, bytes)))), from);
+          // A key half counts only in a conversation that has a handshake.
+          if (!twin) delete message.half;
+          // Every key it carries must be one a key can be made with, before anything of it is used or kept.
+          await checkMessageKeys(message);
           // An answer to a handshake: its inside opens with the pair its half makes.
           if (message.body.type === "sealed") {
             if (!twin) throw new ThreadError("A sealed message belongs to a conversation with a handshake");
             const noted = noteReceived(local.ring ?? emptyRing(), { seq, ...(stream.via ? { via: stream.via } : {}), ...(message.half ? { half: message.half } : {}), receivedAt: stamp() });
-            message = await openSealed(message, noted, partiesKey, kind, seq, from);
+            message = await checkMessageKeys(await openSealed(message, noted, partiesKey, kind, seq, from));
           }
           // Group chat kinds only travel between coworkers, under their own filter.
           const allowed = accept ?? ((b: ThreadMessage["body"]) => !GROUP_TYPES.includes(b.type));
           if (!allowed(message.body)) throw new ThreadError("That kind of message doesn't belong in this conversation");
-          // A key half counts only in a conversation that has a handshake.
-          if (!twin) delete message.half;
+          // It takes its place after everything already here, even when this device's clock was set back (books/thread_order.ts).
           // A send time is what the sender wrote; one in the future becomes the time it arrived, so it can't stay "latest" for ever.
-          const receivedAt = stamp();
+          const receivedAt = arrivalTime(local.items, stamp());
           item = { ...message, ...(Date.parse(message.sentAt) > Date.parse(receivedAt) ? { sentAt: receivedAt } : {}), mine: false, seq, receivedAt, ...(stream.via ? { via: stream.via } : {}) };
         } catch (e) {
           result.skipped.push({ seq, message: e instanceof Error ? e.message : "The message couldn't be read" });

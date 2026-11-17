@@ -17,6 +17,12 @@ describe("shieldRoute", () => {
     expect(shieldRoute(WalletReadyState.LOADABLE, false)).toBe("none");
   });
 
+  it("has no way in from the desktop app, whatever the adapter reports, so it never waits on a connect", () => {
+    expect(shieldRoute(WalletReadyState.LOADABLE, false, true)).toBe("none");
+    expect(shieldRoute(WalletReadyState.INSTALLED, false, true)).toBe("none");
+    expect(shieldRoute(WalletReadyState.LOADABLE, true, true)).toBe("none");
+  });
+
   it("has no way in when the adapter found nothing", () => {
     expect(shieldRoute(WalletReadyState.NOT_DETECTED, true)).toBe("none");
     expect(shieldRoute(WalletReadyState.UNSUPPORTED, true)).toBe("none");

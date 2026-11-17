@@ -135,12 +135,19 @@ function validatePostItem(raw: unknown): PostItem {
   return item;
 }
 
-const byTime = (a: PostItem, b: PostItem) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.id < b.id ? -1 : 1);
+/**
+ * A channel's order on this device: by when each post came in here (`receivedAt`; the business's
+ * own, which have none, by when it sent them), then by key and slot, so a post can't be slid in
+ * ahead of what was already here by the time written on it.
+ */
+const placed = (p: PostItem): number => Date.parse(p.receivedAt ?? p.sentAt);
+const byTime = (a: PostItem, b: PostItem) => placed(a) - placed(b) || a.epoch - b.epoch || a.seq - b.seq || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+/** The posts as kept: the first copy under an id stands. */
 function posts(raw: unknown): PostItem[] {
   if (!Array.isArray(raw)) throw new ChannelError("A channel's posts must be a list");
   const byId = new Map<string, PostItem>();
-  for (const p of raw.map(validatePostItem)) byId.set(p.id, p);
+  for (const p of raw.map(validatePostItem)) if (!byId.has(p.id)) byId.set(p.id, p);
   return [...byId.values()].sort(byTime);
 }
 
@@ -222,11 +229,13 @@ export function applyChannelMessage(
   return [...others, { ...rest, name: body.name, keys: { ...base.keys, [body.epoch]: body.key }, nextIn: { [body.epoch]: 0, ...base.nextIn } }];
 }
 
-/** Keeps a post that arrived, and moves its key's slot past it. */
+/** Keeps a post that arrived (unless one under its id is already kept: the first copy stands), and moves its key's slot past it. */
 export function addReceivedPost(ch: WorkChannel, item: PostItem): WorkChannel {
   const fresh = validatePostItem(item);
   const e = String(fresh.epoch);
-  return { ...ch, posts: [...ch.posts.filter((p) => p.id !== fresh.id), fresh].sort(byTime), nextIn: { ...ch.nextIn, [e]: Math.max(ch.nextIn[e] ?? 0, fresh.seq + 1) } };
+  const nextIn = { ...ch.nextIn, [e]: Math.max(ch.nextIn[e] ?? 0, fresh.seq + 1) };
+  if (ch.posts.some((p) => p.id === fresh.id)) return { ...ch, nextIn };
+  return { ...ch, posts: [...ch.posts, fresh].sort(byTime), nextIn };
 }
 
 /** Moves past a slot that couldn't be read. */

@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
+import { useDesktopApp } from "@/desktop";
 import { checkEditions } from "./editions";
 import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, rethrowSendError, shieldRoute } from "./shield_route";
 
@@ -48,7 +49,10 @@ export function useShield() {
   // answers reads only once it is open again. Injected Shield is always there.
   const [present, setPresent] = useState(true);
 
-  const route = shieldRoute(shield?.readyState, isPhone());
+  // Inside the desktop app Shield can't be reached yet (apps/desktop/README.md): the route is
+  // `none`, so the state is `missing` and the screens say why instead of offering a connect.
+  const desktop = useDesktopApp();
+  const route = shieldRoute(shield?.readyState, isPhone(), desktop);
 
   // Ask the network for the programs' editions as the page opens, so the check at the moment
   // of sending is already answered.
@@ -85,7 +89,7 @@ export function useShield() {
   }, [shield?.adapter, route, wallet.connected]);
 
   const connect = () => {
-    if (!shield) return;
+    if (!shield || desktop) return; // nothing to connect to from the desktop app yet
     setError(null);
     setAsked(true);
     wallet.selectWallet(shield.adapter.name);
@@ -98,7 +102,7 @@ export function useShield() {
    * Tearing the pairing down ends that wait; the connect that follows runs from the tap.
    */
   const restart = async () => {
-    if (!shield) return;
+    if (!shield || desktop) return;
     setError(null);
     setReconnect(true);
     try {
@@ -139,5 +143,5 @@ export function useShield() {
   /** The link that brings Shield to the front for this site's pairing (with its relay channel). */
   const wakeUrl = () => shieldWakeUrl(shield?.adapter);
 
-  return { state, route, away, connect, restart, wakeUrl, error, wallet };
+  return { state, route, desktop, away, connect, restart, wakeUrl, error, wallet };
 }

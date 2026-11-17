@@ -6,8 +6,6 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { ChevronLeft, Megaphone, RefreshCw, Users } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
@@ -18,6 +16,7 @@ import { coworkerTag, coworkersFrom } from "@/books/directory";
 import { type Thread, preview, unreadIn } from "@/books/thread";
 import { updateWorkChannels, updateWorkThread, workThread } from "@/books/work";
 import { BRAND } from "@/brand";
+import { HashLink, useHashParams } from "@/shell/hash_params";
 import { PageHeader } from "@/shell/SectionView";
 import { employerLabel } from "../shared";
 
@@ -31,6 +30,9 @@ const ConfirmedFrom = dynamic(() => import("@/chain/confirmed_names"), { ssr: fa
 
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
+// What a link from before may still name in the query (moved to the fragment on opening).
+const SELECTION = ["with", "channel", "coworker", "group", "at"] as const;
+
 export default function WorkMessagesPage() {
   return (
     <Suspense>
@@ -41,7 +43,8 @@ export default function WorkMessagesPage() {
 
 function Messages() {
   const { work, updateWork } = useWork();
-  const params = useSearchParams();
+  // The conversation open is named in the fragment, so no request carries it (shell/hash_params.ts).
+  const params = useHashParams(SELECTION);
   const selected = params.get("with");
   const channelId = params.get("channel");
   const coworker = params.get("coworker");
@@ -90,9 +93,9 @@ function Messages() {
   if (atBusiness && groupId) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/work/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
+        </HashLink>
         <GroupChat key={groupId} businessKey={atBusiness.partiesKey} groupId={groupId} />
       </div>
     );
@@ -101,9 +104,9 @@ function Messages() {
   if (atBusiness && mate) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/work/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
+        </HashLink>
         <CoworkerChat key={mate.publicKey} businessKey={atBusiness.partiesKey} publicKey={mate.publicKey} name={mate.name} />
       </div>
     );
@@ -113,9 +116,9 @@ function Messages() {
     const from = people.find((p) => p.partiesKey === channel.partiesKey);
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/work/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
+        </HashLink>
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Megaphone aria-hidden className="size-4" /> {channel.name}
@@ -134,9 +137,9 @@ function Messages() {
           ))}
         </ol>
         {from && (
-          <Link href={`/work/messages?with=${from.ref}`} className="text-sm font-medium text-primary underline underline-offset-4">
+          <HashLink path="/work/messages" values={{ with: from.ref }} className="text-sm font-medium text-primary underline underline-offset-4">
             Reply privately to {from.name}
-          </Link>
+          </HashLink>
         )}
       </div>
     );
@@ -145,9 +148,9 @@ function Messages() {
   if (open) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/work/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/work/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
+        </HashLink>
         <Conversation key={open.partiesKey} side="worker" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/work/offers" peer={open.address} {...(open.twin ? { twin: true as const } : {})} />
       </div>
     );
@@ -181,7 +184,7 @@ function Messages() {
                 const unread = unreadPosts(c);
                 return (
                   <li key={`${c.partiesKey.slice(0, 8)}:${c.id}`}>
-                    <Link href={`/work/messages?channel=${c.id}`} className="flex min-h-14 items-center gap-3 py-3">
+                    <HashLink path="/work/messages" values={{ channel: c.id }} className="flex min-h-14 items-center gap-3 py-3">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>{c.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">{c.posts.at(-1)?.text ?? (c.left ? "You left this channel" : "Nothing posted yet")}</span>
@@ -191,7 +194,7 @@ function Messages() {
                           {unread}
                         </span>
                       )}
-                    </Link>
+                    </HashLink>
                   </li>
                 );
               })}
@@ -210,7 +213,7 @@ function Messages() {
                 const unread = unreadIn(p.thread);
                 return (
                   <li key={p.partiesKey}>
-                    <Link href={`/work/messages?with=${p.ref}`} className="flex min-h-14 items-center gap-3 py-3">
+                    <HashLink path="/work/messages" values={{ with: p.ref }} className="flex min-h-14 items-center gap-3 py-3">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>{p.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">{preview(p.thread?.items.at(-1))}</span>
@@ -220,7 +223,7 @@ function Messages() {
                           {unread}
                         </span>
                       )}
-                    </Link>
+                    </HashLink>
                   </li>
                 );
               })}
