@@ -10,6 +10,15 @@ export const STAY_NOTE =
   "Your books reopen here without your passphrase until you log out. Anyone who can use this device, or copy its browser data, could open them too. Handy on your own phone, where switching apps can reload the page. Leave it off on a shared device.";
 
 /**
+ * Said on the front page when Log out couldn't forget "stay logged in" on this device (the delete
+ * was refused, or the session was still there after it): the person isn't left to think the books
+ * are closed here when a reload would open them. It never suggests clearing the site's data: that
+ * deletes the books on the device too.
+ */
+export const STILL_REMEMBERED_NOTE =
+  "Log out couldn't make this device forget your login, so your books may still open here without your passphrase. Log in and log out again. If you see this again, close this site's other tabs and windows first.";
+
+/**
  * The "stay logged in" tick box: the same wherever books are opened (log in, setup, restoring a
  * file or from the account), always shown and never ticked for the person.
  */
