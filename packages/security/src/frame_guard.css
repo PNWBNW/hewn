@@ -1,0 +1,21 @@
+/*
+ * The top-page guard's half in the stylesheet (frame_guard.ts has the other half).
+ *
+ * The page is hidden until the app's own script finds it is the top page and marks <html> with
+ * data-top-page. A copy inside someone else's frame never gets the mark, so it stays blank.
+ *
+ * Without scripts (switched off, or a frame sandboxed without them) the only thing shown is the
+ * page's <noscript> note; the app itself stays hidden there too.
+ */
+html:not([data-top-page]) {
+  display: none;
+}
+
+@media (scripting: none) {
+  html:not([data-top-page]) {
+    display: block;
+  }
+  html:not([data-top-page]) body > :not(noscript) {
+    display: none;
+  }
+}

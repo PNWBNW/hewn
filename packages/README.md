@@ -16,7 +16,7 @@ rows, and only `apps/business/src/chain` may.
 | Layer | Package | What it holds | Chain? |
 |---|---|---|---|
 | 0 | `brand` | The name, tagline, colours, asset paths and the app and site addresses: the only place the product is named. Also the release public keys (`releaseKeys`, `scripts/release/README.md`) and the desktop app's identifier and update key (`BRAND.desktop`, `apps/desktop`) | |
-| 0 | `security` | The browser security policy the app and the site share: CSP builder, static headers, nonce | |
+| 0 | `security` | The browser security policy the app and the site share: CSP builder, static headers, nonce; the top-page guard (`frame_guard.ts` and `frame_guard.css`: the page stays hidden unless it is the top page) | |
 | 0 | `ui` | Theme tokens and the shared components (buttons, cards, dialogs) | |
 | 0 | `art` | The cards' renderer (`docs/HEWN_ART.md`): a business's map, a paystub's rings, the constellation, the sky, as deterministic SVG text; colours from `brand` | |
 | 0 | `ledger` | The double-entry core: accounts, entries, the rules with a negative test each, reports | |
