@@ -1,0 +1,11 @@
+{
+  "version": "v0.0-fixture",
+  "commit": "0000000000000000000000000000000000000000",
+  "created": "2026-11-17",
+  "files": {
+    "_next/static/app.css": "e4714234a4b3dcbd9642d20a4b69dc086845ded49ebabbf5fc5000bfd5c57db8",
+    "index.html": "e9835cef364f414b7e5617126232e2d663c000a086c13bd194ad6d00ee0a8bb4",
+    "terms/index.html": "24d05e7a76b1b235b2a811e81befc03b112b89f8bba7283268a36007e756d445"
+  },
+  "digest": "78c73e586e4783294e32ca45bf935aa8b7a82dc4b3e5418ae3d4cffa006bd153"
+}
