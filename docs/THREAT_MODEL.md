@@ -163,7 +163,8 @@ The highest risk for a browser app.
   can't be created (2026-11-12). These are settings on GitHub, not code. ⚠️ A stolen login of
   Joshua's own account is still enough; passkey 2FA is the guard there.
 - Signed, installable builds with published hashes so users can verify the code they run;
-  release hash anchored on Aleo once anchoring exists. 🔜 (before first external user)
+  release hash anchored on Aleo once anchoring exists. 🔜 (before first external user; the plan,
+  with the desktop app and the limits of a service worker: `docs/HOSTING.md`)
 - Pin GitHub Actions to commit SHAs. 🔜
 
 ### T4 — Silent edits to history (insider, owner, or malware)

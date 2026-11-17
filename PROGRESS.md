@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-17](progress/2026-11/2026-11-17.md)
+
+- [Hosting and verifiable releases: the plan, with the desktop app as the priority](progress/2026-11/2026-11-17.md#2026-11-17--hosting-and-verifiable-releases-the-plan-with-the-desktop-app-as-the-priority)
+
 ### [2026-11-15](progress/2026-11/2026-11-15.md)
 
 - [The fix pull requests reviewed twice, and each person's own pay period designed](progress/2026-11/2026-11-15.md#2026-11-15--the-fix-pull-requests-reviewed-twice-and-each-persons-own-pay-period-designed)
