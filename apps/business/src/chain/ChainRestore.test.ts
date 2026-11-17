@@ -215,6 +215,7 @@ describe("the Open Shield line while looking", () => {
     expect(awayHint({ route: "relay", busy: false, waited: true })).toBe(false);
     expect(awayHint({ route: "injected", busy: true, waited: true })).toBe(false); // injected Shield is always there
     expect(awayHint({ route: "none", busy: true, waited: true })).toBe(false);
+    expect(awayHint({ route: "pair", busy: true, waited: true })).toBe(true); // a computer paired with the phone
     expect(AWAY_HINT_MS).toBe(3_000);
   });
 });
@@ -224,6 +225,7 @@ describe("Find my books over the relay", () => {
     expect(mustReconnect("relay", true)).toBe(true);
     expect(mustReconnect("relay", false)).toBe(false); // Shield awake: no trip at all
     expect(mustReconnect("injected", true)).toBe(false);
+    expect(mustReconnect("pair", true)).toBe(false); // a computer: a fresh connect would only show a new code
     expect(mustReconnect("none", true)).toBe(false);
   });
 

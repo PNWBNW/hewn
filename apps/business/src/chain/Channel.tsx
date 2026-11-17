@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Megaphone, Users } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { type BusinessChannel, addMembers, addOwnPost, newChannel, removeMembers } from "@/books/channels";

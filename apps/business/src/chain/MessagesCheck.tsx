@@ -10,7 +10,7 @@
 // Nothing here logs a key, a lookup or a message.
 
 import { useEffect, useRef } from "react";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { applicantWorkerId } from "@/books/jobs";
 import { type Mailbox, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";

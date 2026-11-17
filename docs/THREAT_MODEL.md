@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-15
+updated: 2026-11-17
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
@@ -129,6 +129,32 @@ The highest risk for a browser app.
   could use that session until then; the CSP above is the backstop, and nothing in the session can
   read the vault. The adapter's default relay is pinned in `packages/wallet` and named in the
   policy, so the two cannot drift apart. Accepted (Joshua, 2026-10-19).
+- ⚠️ A computer without the extension pairs with the Shield app on the person's phone over the
+  same relay (2026-11-17, `apps/business/src/chain/ShieldPairing.tsx`,
+  `packages/wallet/DESKTOP_PAIRING.md`): the page shows the pairing link as a QR code for the
+  phone's camera to open in Shield, and the person opens Shield for each approval. The link is the
+  secret here, so it appears only after a tap, only on that screen, drawn on the device (no image
+  service), never logged, stored by the app or sent; the adapter keeps its own copy of the pairing
+  in `localStorage`, as on a phone. The code shown carries only the channel, the page's relay key,
+  the relay, the origin and the 32-byte secret (`desktopPairingLink` refuses any other relay or
+  origin and drops the bundled first request). **Someone who photographs the screen** while the
+  code waits can open it before the person's own Shield does: their app then holds the pairing and
+  the person's Shield is refused. They can't sign anything as the person (their Shield signs with
+  their own account), but they can answer the page as if they were the person's Shield: name an
+  account, refuse requests, and hand back made-up reads (balances, records, history) that would
+  show in the open books, and the page would ask them, not the person, to approve. The window is
+  from the code appearing until the first of: the person's Shield pairing (the first key that
+  proves the secret is pinned for the pairing's life, so a later photo is refused and everything
+  after is sealed to the person's Shield and signed by it), five minutes passing (the adapter stops
+  waiting and forgets the keys), or Cancel. Tests: `packages/wallet/src/desktop_pairing.test.ts`
+  runs the adapter's own transport against a simulated Shield app and shows both sides of that
+  window. The guards are the person's own: Shield shows what it connects to, and the connected
+  account is compared with the one setup linked: the chain panels stop with "Shield is signed in to
+  …" when they differ (the mismatch notes in `apps/business/src/chain`). In setup, before any
+  account is linked, there is nothing to compare with: the person has to see their own Shield
+  approve the connection and name their own account. Whether a
+  phone camera opens a `shield://` link at all is up to the phone; Shield's app has no scanner for
+  it yet. Waiting on Joshua's review and a test on real phones.
 - ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
   so the explorer's operator can tie the user's IP to that address. The address is already public
   (it owns a registered name). Private balances come from Shield's own records and touch no server

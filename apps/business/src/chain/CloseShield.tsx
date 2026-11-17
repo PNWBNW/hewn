@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CircleCheck, Circle } from "lucide-react";
 import { formatCents } from "@pnw/ledger";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import type { AnchorActionProps, CloseActionProps } from "@/books/ClosePanel";

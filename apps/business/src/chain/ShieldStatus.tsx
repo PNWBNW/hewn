@@ -8,7 +8,8 @@ const link = "font-medium text-primary underline-offset-4 hover:underline";
 
 /**
  * The not-found / connecting / connect-button states every chain panel starts with.
- * `route` words the phone case: there the Shield app opens by itself.
+ * `route` words the phone case (there the Shield app opens by itself) and the computer without the
+ * extension (the code for the phone is shown above the panel, by ShieldPairing).
  */
 export function ShieldStatus({
   state,
@@ -41,7 +42,11 @@ export function ShieldStatus({
     return (
       <>
         <p className="text-sm">
-          {route === "relay" ? "Shield should open now. Approve the request there, then come back here." : "Connecting… approve the request in Shield."}
+          {route === "relay"
+            ? "Shield should open now. Approve the request there, then come back here."
+            : route === "pair"
+              ? "Waiting for Shield on your phone: open the code above with your phone's camera, then approve in Shield."
+              : "Connecting… approve the request in Shield."}
         </p>
         {route === "relay" ? (
           <p className="text-xs text-muted-foreground">
@@ -67,6 +72,7 @@ export function ShieldStatus({
         Cancel
       </Button>
       {route === "relay" ? <span className="text-xs text-muted-foreground">Opens the Shield app.</span> : null}
+      {route === "pair" ? <span className="text-xs text-muted-foreground">Shows a code for the Shield app on your phone.</span> : null}
     </div>
   );
 }
@@ -75,8 +81,12 @@ export function ShieldStatus({
  * Shown when the page is paired over the relay but the Shield app is in the
  * background: it answers reads only while open. The link brings it to the front; `href` is
  * `useShield().wakeUrl()`, which names this site's pairing so Shield doesn't call it expired.
+ * On a computer paired with a phone `href` is empty: no link can open Shield there.
  */
 export function ShieldAway({ what, href }: { what: string; href: string }) {
+  if (href === "") {
+    return <p className="text-xs text-muted-foreground">Shield is closed on your phone, so it can&apos;t answer yet. Open Shield on your phone for {what}.</p>;
+  }
   return (
     <p className="text-xs text-muted-foreground">
       Shield is in the background, so it can&apos;t answer yet.{" "}

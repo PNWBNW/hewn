@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { stoppedBeforeWallet } from "@pnw/rail";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
-import { isPairingCancelled, mayReconnect, notAllowedProgramHint, rethrowSendError, shieldRoute } from "./shield_route";
+import { isPairingCancelled, mayReconnect, notAllowedProgramHint, overRelay, rethrowSendError, shieldRoute } from "./shield_route";
 
 describe("shieldRoute", () => {
   it("uses injected Shield wherever it is found: the extension, or Shield's own browser", () => {
@@ -13,8 +13,15 @@ describe("shieldRoute", () => {
     expect(shieldRoute(WalletReadyState.LOADABLE, true)).toBe("relay");
   });
 
-  it("has no way in on a computer without the extension: the app can't scan a pairing code yet", () => {
-    expect(shieldRoute(WalletReadyState.LOADABLE, false)).toBe("none");
+  it("shows a pairing code on a computer without the extension, for the phone's camera", () => {
+    expect(shieldRoute(WalletReadyState.LOADABLE, false)).toBe("pair");
+  });
+
+  it("counts both relay routes as over the relay, and nothing else", () => {
+    expect(overRelay("relay")).toBe(true);
+    expect(overRelay("pair")).toBe(true);
+    expect(overRelay("injected")).toBe(false);
+    expect(overRelay("none")).toBe(false);
   });
 
   it("has no way in when the adapter found nothing", () => {

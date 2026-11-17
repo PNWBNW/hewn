@@ -11,7 +11,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { Button } from "@pnw/ui/button";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useWork } from "@/books/BooksProvider";

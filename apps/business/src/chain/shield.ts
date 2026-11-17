@@ -10,17 +10,21 @@
 // (`feeMode` on the call, from a choice next to its send button), or else as
 // this device's switch says at the moment of sending.
 //
-// Three ways in (@pnw/wallet/wallet-provider): the extension on a computer and
+// Four ways in (@pnw/wallet/wallet-provider): the extension on a computer and
 // Shield's own browser on a phone both inject Shield into the page; a plain
-// phone browser pairs with the Shield app over its relay instead. The route
-// decides the wording and whether the app can be reached at all.
+// phone browser pairs with the Shield app over its relay instead, and so can a
+// computer without the extension, by showing the pairing link as a QR code for
+// the phone (`pair`, ShieldPairing.tsx). The route decides the wording and
+// whether the app can be reached at all.
 
 import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
+import { desktopPairingLink } from "@pnw/wallet/desktop-pairing";
 import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
 import { checkEditions } from "./editions";
-import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, rethrowSendError, shieldRoute } from "./shield_route";
+import { awaitingPhone } from "./phone_approval";
+import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, overRelay, rethrowSendError, shieldRoute } from "./shield_route";
 
 export type { ShieldRoute };
 
@@ -28,6 +32,11 @@ export type ShieldState = { kind: "missing" } | { kind: "ready" } | { kind: "con
 
 export function useShield() {
   const adaptor = useWallet();
+  const shield = adaptor.wallets[0]; // Shield is the only adapter registered
+  const route = shieldRoute(shield?.readyState, isPhone());
+  // On a computer paired with the phone, nothing can bring Shield to the front: every approval
+  // waits until the person opens it on the phone, and ShieldPairing says so while one is waiting.
+  const onPhone = <T,>(work: () => Promise<T>) => (route === "pair" ? awaitingPhone(work) : work());
   const wallet = {
     ...adaptor,
     // No `fee` in what a caller may pass: the app never names an amount, so Shield charges its own estimate.
@@ -37,18 +46,16 @@ export function useShield() {
       // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
       await checkEditions();
       // A connection made before a program joined the list Shield is asked for: say what to do.
-      return adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode())).catch(rethrowSendError);
+      return onPhone(() => adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()))).catch(rethrowSendError);
     },
+    signMessage: (message: Parameters<typeof adaptor.signMessage>[0]) => onPhone(() => adaptor.signMessage(message)),
   };
-  const shield = wallet.wallets[0]; // Shield is the only adapter registered
   const [asked, setAsked] = useState(false);
   const [reconnect, setReconnect] = useState(false); // restart: a fresh connect waits for the old pairing to go
   const [error, setError] = useState<string | null>(null);
   // Over the relay, the Shield app leaves whenever it is in the background and
   // answers reads only once it is open again. Injected Shield is always there.
   const [present, setPresent] = useState(true);
-
-  const route = shieldRoute(shield?.readyState, isPhone());
 
   // Ask the network for the programs' editions as the page opens, so the check at the moment
   // of sending is already answered.
@@ -69,7 +76,7 @@ export function useShield() {
   // Presence, relay only: the adapter says when the app comes and goes.
   useEffect(() => {
     const adapter = shield?.adapter;
-    if (!adapter || route !== "relay" || !wallet.connected) return;
+    if (!adapter || !overRelay(route) || !wallet.connected) return;
     const onPresence = (value: boolean) => setPresent(value);
     const onActive = () => setPresent(true);
     adapter.on("walletPresenceChanged", onPresence);
@@ -113,6 +120,21 @@ export function useShield() {
     wallet.selectWallet(null);
   };
 
+  /**
+   * Ends a pairing that is waiting for the phone: the code stops working at once (the page leaves
+   * the relay channel and forgets its keys), and nothing reconnects until the person asks.
+   */
+  const cancel = async () => {
+    setAsked(false);
+    setReconnect(false);
+    try {
+      await adaptor.disconnect();
+    } catch {
+      // Nothing was waiting.
+    }
+    wallet.selectWallet(null);
+  };
+
   // The fresh connect is asked for only once the provider shows the old pairing gone; see
   // mayReconnect. The connect that follows still runs within the tap's few seconds.
   useEffect(() => {
@@ -134,10 +156,22 @@ export function useShield() {
           : { kind: "missing" };
 
   /** Connected over the relay, but the Shield app is in the background: reads wait until it opens. */
-  const away = route === "relay" && state.kind === "connected" && !present;
+  const away = overRelay(route) && state.kind === "connected" && !present;
 
-  /** The link that brings Shield to the front for this site's pairing (with its relay channel). */
-  const wakeUrl = () => shieldWakeUrl(shield?.adapter);
+  /**
+   * The link that brings Shield to the front for this site's pairing (with its relay channel). Empty
+   * on a computer: a `shield://` link opens nothing there, so the person opens Shield on the phone.
+   */
+  const wakeUrl = () => (route === "pair" ? "" : shieldWakeUrl(shield?.adapter));
 
-  return { state, route, away, connect, restart, wakeUrl, error, wallet };
+  /**
+   * The pairing link to show as a QR code while a computer waits for the phone, or null. A secret
+   * while it waits (docs/THREAT_MODEL.md T3): ShieldPairing draws it and nothing else may read it.
+   */
+  const pairing =
+    route === "pair" && !wallet.connected && typeof location !== "undefined"
+      ? desktopPairingLink(adaptor.pairingUrl, adaptor.pairingSameDevice, location.origin)
+      : null;
+
+  return { state, route, away, connect, restart, cancel, wakeUrl, pairing, error, wallet };
 }

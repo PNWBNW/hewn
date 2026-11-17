@@ -10,7 +10,7 @@
 // logs a key, a lookup or an hour.
 
 import { useEffect, useRef } from "react";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { type Mailbox, addHours, bumpHoursSeq, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { addToThread, skipIncoming } from "@/books/thread";
