@@ -24,7 +24,7 @@ never contains a route handler. CI builds both.
 - No server holds messages: the old mailbox server is retired (2026-10-22; `archive/README.md`
   names the commit that holds it), and every message is a letter on chain sent from the user's wallet.
 
-The stack: Next.js 16.4.1 (moved up from the portal's 16.1.6 for security fixes), React 19.2.3,
+The stack: Next.js 16.4.6 (moved up for security fixes, most recently GHSA-mfr8-8qww-v76h), React 19.3.1,
 pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/` for `src/`.
 
 ## The source, folder by folder

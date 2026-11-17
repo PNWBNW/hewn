@@ -3,9 +3,10 @@
 // side makes (register a name, create a profile, accept an offer) goes
 // through here: the wallet package's executor with `privateFee: false` (a
 // public fee, unless this device's fee switch makes it private: chain/shield.ts
-// applies it to every call), the fee left to Shield's own
-// estimate as the pay queue does, then the wallet's own status until it
-// says accepted or rejected. Nothing here logs an input, an id or an error.
+// applies it to every call) and no fee amount: no call names one, here or in
+// the pay queue, so Shield charges its own estimate. Then the wallet's own
+// status until it says accepted or rejected. Nothing here logs an input, an id
+// or an error.
 // ---------------------------------------------------------------------------
 
 import type { FeeMode } from "@pnw/wallet/fee-mode";
@@ -13,7 +14,7 @@ import { type WalletExecuteFn, executeAleoTransaction } from "@pnw/wallet/wallet
 
 /** The slice of the adaptor this needs; a fake with the two methods does for tests. */
 export type WorkWallet = {
-  executeTransaction(opts: { program: string; function: string; inputs: string[]; fee?: number; privateFee: false; feeMode?: FeeMode }): Promise<{ transactionId: string } | null | undefined>;
+  executeTransaction(opts: { program: string; function: string; inputs: string[]; privateFee: false; feeMode?: FeeMode }): Promise<{ transactionId: string } | null | undefined>;
   transactionStatus(id: string): Promise<{ status: string; transactionId?: string; error?: string }>;
 };
 
@@ -58,8 +59,7 @@ export async function executeAndWait(wallet: WorkWallet, call: Call, options: Ex
     if (!r?.transactionId) throw new ExecuteError("Shield didn't take the request");
     return r.transactionId;
   };
-  // The fee argument is unused: the adaptor call above leaves it to Shield's estimate.
-  const walletId = await executeAleoTransaction(execute, call.program, call.function, call.inputs, 0);
+  const walletId = await executeAleoTransaction(execute, call.program, call.function, call.inputs);
 
   let onChainId: string | undefined = isOnChainId(walletId) ? walletId : undefined;
   const started = now();

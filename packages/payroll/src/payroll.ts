@@ -129,6 +129,16 @@ export type Settlement = {
    * one of the two through; if it's gone, the payment may have gone out and nothing is sent again.
    */
   attempt?: string;
+  /**
+   * Rail only: the chain's height when this payment was first asked of Shield. A later look at
+   * what became of it, in the account's own transfers, reads nothing older.
+   */
+  since?: number;
+  /**
+   * Rail only: when the last try ended without a known outcome. How long ago that was decides what
+   * the line says while the record it set aside is still unspent.
+   */
+  endedAt?: string;
 };
 
 export type Paycheck = {
@@ -726,6 +736,12 @@ export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId
   }
   if (settlement.attempt !== undefined && (typeof settlement.attempt !== "string" || !/^[0-9a-f]{32}$/.test(settlement.attempt))) {
     throw new PayrollError("A payment attempt is tagged with 32 hex characters");
+  }
+  if (settlement.since !== undefined && (!Number.isInteger(settlement.since) || settlement.since < 0)) {
+    throw new PayrollError("The height a payment was first asked at must be a whole number");
+  }
+  if (settlement.endedAt !== undefined && (typeof settlement.endedAt !== "string" || Number.isNaN(Date.parse(settlement.endedAt)))) {
+    throw new PayrollError("When a payment's last try ended must be a time");
   }
   const from = paycheck.settlement.status;
   const to = settlement.status;

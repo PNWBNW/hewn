@@ -4,12 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { type LineInput, type Tags, accountMap, formatCents, parseCents, postEntry } from "@pnw/ledger";
+import { type LineInput, type Tags, accountMap, formatCents, parseCents } from "@pnw/ledger";
 import { Button, buttonVariants } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, todayIso } from "@/books/display";
+import { partyNamed, postJournalEntry } from "@/books/posting";
 import { TagFields, pickedTags } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
 
@@ -30,7 +31,7 @@ function cents(text: string): bigint | null {
 }
 
 export default function NewJournalEntryPage() {
-  const { books, dimensions, update } = useOpenBooks();
+  const { books, dimensions, updateCompany } = useOpenBooks();
   const router = useRouter();
   const accounts = accountMap(books);
   const [date, setDate] = useState(todayIso());
@@ -52,20 +53,23 @@ export default function NewJournalEntryPage() {
   async function save() {
     setError(null);
     setBusy(true);
-    const lines: LineInput[] = filled.map((r) => {
-      const acct = accounts.get(r.accountId);
-      const kind = acct?.type === "accounts_receivable" ? "customer" : acct?.type === "accounts_payable" ? "vendor" : undefined;
-      const tags = pickedTags(r.tags);
-      return {
-        accountId: r.accountId,
-        ...(cents(r.debit) ? { debit: cents(r.debit)! } : { credit: cents(r.credit)! }),
-        ...(r.memo.trim() ? { memo: r.memo.trim() } : {}),
-        ...(kind && r.name.trim() ? { name: { kind, id: r.name.trim() } } : {}),
-        ...(tags ? { tags } : {}),
-      };
-    });
     try {
-      await update((b) => postEntry(b, { date, ...(memo.trim() ? { memo: memo.trim() } : {}), lines }).books);
+      await updateCompany((c) => {
+        // A receivable or payable line's typed name must be a customer or vendor these books hold; the line keeps their id.
+        const lines: LineInput[] = filled.map((r) => {
+          const acct = accounts.get(r.accountId);
+          const kind = acct?.type === "accounts_receivable" ? "customer" : acct?.type === "accounts_payable" ? "vendor" : undefined;
+          const tags = pickedTags(r.tags);
+          return {
+            accountId: r.accountId,
+            ...(cents(r.debit) ? { debit: cents(r.debit)! } : { credit: cents(r.credit)! }),
+            ...(r.memo.trim() ? { memo: r.memo.trim() } : {}),
+            ...(kind && r.name.trim() ? { name: { kind, id: partyNamed(c, kind, r.name) } } : {}),
+            ...(tags ? { tags } : {}),
+          };
+        });
+        return postJournalEntry(c, { date, ...(memo.trim() ? { memo: memo.trim() } : {}), lines });
+      });
       router.push("/transactions");
     } catch (e) {
       setError(errorMessage(e));

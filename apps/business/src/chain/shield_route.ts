@@ -33,6 +33,30 @@ export function isPairingCancelled(message: string): boolean {
 }
 
 /**
+ * Shield refuses a call to a program it was not asked to allow when this site connected ("<id> is
+ * not in the allowed programs, request it when connect"). The list it is asked for grows with the
+ * app (`WALLET_PROGRAMS` in @pnw/wallet), and a connection made before a program joined the list
+ * keeps the old one. The cure is the person's: connect again. This says so in their words, or
+ * returns null for any other error.
+ */
+export function notAllowedProgramHint(message: string): string | null {
+  if (!/not in the allowed programs/i.test(message)) return null;
+  return "Shield hasn't been asked to allow this part of the site yet. In Shield, disconnect this site, then connect again here and try once more. Nothing was sent.";
+}
+
+/**
+ * What a refused send rethrows (the wallet's send in shield.ts ends with it): Shield's "not in the
+ * allowed programs" as the hint above, with Shield's own error kept as its cause, and any other
+ * error as it was, the same object. Shield refuses that before it builds anything, so the hint
+ * carries `nothingSent: true`: the pay queue reads it as a payment that failed and can be tried
+ * again, not one whose outcome isn't known (@pnw/rail `stoppedBeforeWallet`).
+ */
+export function rethrowSendError(e: unknown): never {
+  const hint = e instanceof Error ? notAllowedProgramHint(e.message) : null;
+  throw hint === null ? e : Object.assign(new Error(hint, { cause: e }), { nothingSent: true as const });
+}
+
+/**
  * Whether a fresh connect may be asked for yet: only once the provider shows the old pairing
  * gone. Asking straight after the disconnect lets the provider fold "forget the wallet" and
  * "pick it again" into one update, so it never sees the change, keeps showing the closed pairing

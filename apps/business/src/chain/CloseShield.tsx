@@ -11,11 +11,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CircleCheck, Circle } from "lucide-react";
+import { formatCents } from "@pnw/ledger";
 import { Button } from "@pnw/ui/button";
 import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import type { AnchorActionProps, CloseActionProps } from "@/books/ClosePanel";
+import { minorToCents } from "@/books/opening";
+import { shortAddress } from "@/books/rail";
 import { reconcileShield } from "@/books/reconcile";
 import { USDCX_PROGRAM, explorerMappingRead, privateTokens, publicTokens } from "./balances";
 import { anchorCall } from "./close_anchor";
@@ -124,6 +127,15 @@ function Close({ end, ready, close, anchored }: CloseActionProps) {
     line = <span className="text-xs text-muted-foreground">Reading the Shield account…</span>;
   } else if (!matches) {
     line = <span className="text-xs text-muted-foreground">The books don&apos;t match Shield yet. The Dashboard shows the difference.</span>;
+  } else if (check.excludedOut.length > 0) {
+    // It matches only because these were kept out of the books on purpose: name them.
+    const n = check.excludedOut.length;
+    line = (
+      <span className="text-xs text-muted-foreground">
+        Counting {n} {n === 1 ? "outflow" : "outflows"} kept out of the books:{" "}
+        {check.excludedOut.map((o) => [o.date, formatCents(minorToCents(o.minor)), ...(o.counterparty ? [shortAddress(o.counterparty)] : [])].join(" · ")).join("; ")}.
+      </span>
+    );
   }
 
   return (
