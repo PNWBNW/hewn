@@ -50,7 +50,7 @@ import { decryptTransition, fetchExplorerTransaction, openOwnRecord } from "./de
 import { entryLabel, lookupAddress } from "./directory";
 import { findMovements } from "./review_feed";
 import { useShield } from "./shield";
-import { ShieldAway } from "./ShieldStatus";
+import { SHIELD_NOT_IN_DESKTOP, ShieldAway } from "./ShieldStatus";
 import { TxLink } from "./TxLink";
 
 export default function ReviewPanel() {
@@ -66,7 +66,7 @@ type Tab = "new" | "reviewed" | "excluded";
 
 function ReviewFlow() {
   const { rail, review, sales, payroll, viewKey, updateCompany } = useOpenBooks();
-  const { state, away, connect, wakeUrl, error: connectError, wallet } = useShield();
+  const { state, desktop, away, connect, wakeUrl, error: connectError, wallet } = useShield();
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [tab, setTab] = useState<Tab>("new");
   const [names, setNames] = useState<Record<string, string>>({});
@@ -170,7 +170,9 @@ function ReviewFlow() {
             ? `Shield is signed in to a different account (${shortAddress(address!)}). Switch to ${shortAddress(rail.address)} to check for new money.`
             : !address
               ? state.kind === "missing"
-                ? "Open this page in the Shield app to check for new money."
+                ? desktop
+                  ? SHIELD_NOT_IN_DESKTOP
+                  : "Open this page in the Shield app to check for new money."
                 : state.kind === "connecting"
                   ? "Connecting… approve the request in Shield."
                   : "Connect Shield to check for new money in the account."

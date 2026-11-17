@@ -11,12 +11,15 @@ import { WalletReadyState } from "@pnw/wallet/wallet-provider";
  *   in Shield (`ShieldPairing.tsx`), and the person opens Shield on the phone for every approval.
  *   Whether a phone's camera opens a `shield://` link is up to the phone (Shield's app has no
  *   scanner for it yet; packages/wallet/DESKTOP_PAIRING.md), so the extension stays on offer.
- * - `none`: the adapter can't pair at all (no relay, an unsupported browser).
+ * - `none`: the adapter can't pair at all (no relay, an unsupported browser). The desktop app
+ *   (`desktop`) is always here: no extension runs inside it, and it can't reach Shield yet
+ *   (apps/desktop/README.md), so it never offers a connect that can't finish.
  */
 export type ShieldRoute = "injected" | "relay" | "pair" | "none";
 
 /** The adapter reports LOADABLE wherever the relay could pair: a phone opens the link itself, a computer shows it. */
-export function shieldRoute(readyState: WalletReadyState | undefined, phone: boolean): ShieldRoute {
+export function shieldRoute(readyState: WalletReadyState | undefined, phone: boolean, desktop = false): ShieldRoute {
+  if (desktop) return "none";
   if (readyState === WalletReadyState.INSTALLED) return "injected";
   if (readyState === WalletReadyState.LOADABLE) return phone ? "relay" : "pair";
   return "none";

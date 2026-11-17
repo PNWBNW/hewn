@@ -15,6 +15,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { type Mailbox, addHours, bumpHoursSeq, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { addToThread, skipIncoming } from "@/books/thread";
 import { checkAcceptances } from "./acceptance";
+import { type EachOutcome, checkEach, couldntCheck } from "./check_each";
 import { businessListening, checkEvents } from "./events";
 import { scanHours } from "./mailbox_scan";
 import { useLetters } from "./letter_reader";
@@ -76,11 +77,13 @@ function Check({ onFinished }: MailboxCheckProps) {
       });
       // Then each person's side of the conversation (asking for changes to an offer).
       let latest: Mailbox | null | undefined = mailbox;
+      let threads: EachOutcome = { off: false, failed: 0 };
       if (!r.off && !r.failed) {
-        for (const link of rail.links) {
-          if (!link.partiesKey) continue;
+        // Each conversation on its own: one that can't be read is passed over, and the rest are still checked.
+        threads = await checkEach(rail.links, async (link) => {
+          if (!link.partiesKey) return;
           const partiesKey = link.partiesKey;
-          await readThread({
+          const read = await readThread({
             client: letterThread(wallet, link.address, { letters }).reader,
             partiesKey,
             reader: "business",
@@ -93,20 +96,22 @@ function Check({ onFinished }: MailboxCheckProps) {
               latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => skipIncoming(t, seq, via)) }))).mailbox;
             },
           });
+          if (read.off || read.failed) return read;
           await keepHalvesReady(threadFor(latest, partiesKey)?.ring, async (change) => {
             latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => ({ ...t, ring: change(t.ring) })) }))).mailbox;
           });
-        }
+        });
         // Invitations, now that any new calendar keys are in.
-        await checkEvents(letters, businessListening(rail, latest), calendar, updateCompany);
+        if (!threads.off) await checkEvents(letters, businessListening(rail, latest), calendar, updateCompany);
       }
-      const message = r.off
-        ? "Connect Shield to check for what your team sent."
-        : r.failed
-          ? `Couldn't finish checking: ${r.failed}`
-          : acceptFailed
-            ? `Couldn't check for a reply to your offer: ${acceptFailed}`
-            : undefined;
+      const message =
+        r.off || threads.off
+          ? "Connect Shield to check for what your team sent."
+          : r.failed
+            ? `Couldn't finish checking: ${r.failed}`
+            : acceptFailed
+              ? `Couldn't check for a reply to your offer: ${acceptFailed}`
+              : (couldntCheck(threads) ?? undefined);
       onFinished({
         received: r.received.length,
         skipped: r.skipped.length,

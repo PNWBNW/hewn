@@ -15,6 +15,7 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { applicantWorkerId } from "@/books/jobs";
 import { type Mailbox, emptyMailbox, threadFor, updateThread } from "@/books/mailbox";
 import { addToThread, skipIncoming } from "@/books/thread";
+import { checkEach, couldntCheck } from "./check_each";
 import { businessListening, checkEvents } from "./events";
 import { useLetters } from "./letter_reader";
 import { keepHalvesReady } from "./key_ring";
@@ -48,7 +49,8 @@ function Check({ onFinished }: MessagesCheckProps) {
         ...(jobs?.postings ?? []).flatMap((p) => (p.applicants ?? []).map((a) => ({ partiesKey: a.partiesKey, address: a.address, workerId: applicantWorkerId(a.partiesKey), twin: false }))),
       ];
       let latest: Mailbox | null | undefined = mailbox;
-      for (const link of people) {
+      // Each conversation on its own: one that can't be read is passed over, and the rest are still checked.
+      const outcome = await checkEach(people, async (link) => {
         const partiesKey = link.partiesKey;
         const r = await readThread({
           client: letterThread(wallet, link.address, { letters }).reader,
@@ -63,17 +65,17 @@ function Check({ onFinished }: MessagesCheckProps) {
             latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => skipIncoming(t, seq, via)) }))).mailbox;
           },
         });
-        if (r.off) return onFinished("Connect Shield (open a conversation) to check for messages.");
-        if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
+        if (r.off || r.failed) return r;
         if (link.twin) {
           await keepHalvesReady(threadFor(latest, partiesKey)?.ring, async (change) => {
             latest = (await updateCompany((c) => ({ ...c, mailbox: updateThread(c.mailbox ?? emptyMailbox(), partiesKey, link.workerId, (t) => ({ ...t, ring: change(t.ring) })) }))).mailbox;
           });
         }
-      }
+      });
+      if (outcome.off) return onFinished("Connect Shield (open a conversation) to check for messages.");
       // Invitations, now that any new calendar keys are in.
       await checkEvents(letters, businessListening(rail, latest), calendar, updateCompany);
-      onFinished(null);
+      onFinished(couldntCheck(outcome));
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
   }, [rail, mailbox, jobs, calendar, updateCompany, onFinished, settled, letters, wallet]);
 

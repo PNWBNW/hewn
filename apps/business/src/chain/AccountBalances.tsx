@@ -51,7 +51,7 @@ import {
   totalOf,
 } from "./balances";
 import { useShield } from "./shield";
-import { ShieldAway } from "./ShieldStatus";
+import { ShieldAway, ShieldMissing } from "./ShieldStatus";
 
 export type AccountBalancesProps = { address: string };
 
@@ -165,7 +165,7 @@ function BalancesCard({ address }: AccountBalancesProps) {
             Shield is signed in to a different account ({shortAddress(connected)}). Switch to {shortAddress(address)} in Shield to see the private balances.
           </p>
         ) : state.kind === "missing" ? (
-          <p className="text-xs text-muted-foreground">Open this page in the Shield app, or install the Shield extension, to see the private balances.</p>
+          <ShieldMissing className="text-xs text-muted-foreground">Open this page in the Shield app, or install the Shield extension, to see the private balances.</ShieldMissing>
         ) : state.kind === "connecting" ? (
           <p className="text-xs text-muted-foreground">Connecting… approve the request in Shield.</p>
         ) : state.kind === "ready" ? (

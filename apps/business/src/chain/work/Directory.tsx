@@ -9,7 +9,6 @@
 // Nothing here logs a key or a name.
 // ---------------------------------------------------------------------------
 
-import Link from "next/link";
 import { useState } from "react";
 import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { Button } from "@pnw/ui/button";
@@ -19,6 +18,7 @@ import { type DirectoryEntry, coworkerTag, coworkersFrom } from "@/books/directo
 import { groupsFor, newGroupId } from "@/books/groups";
 import { MAX_GROUP, addToThread, unreadIn } from "@/books/thread";
 import { type Work, setIdentity, updateWorkThread, workThread } from "@/books/work";
+import { HashLink } from "@/shell/hash_params";
 import { newIdentity } from "../coworkers";
 import { fanOut, keepSent } from "../groups";
 import { LetterBox } from "../letters";
@@ -116,7 +116,7 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
             const unread = unreadIn(work.coworkers?.[c.publicKey], (i) => i.body.type === "text");
             return (
               <li key={c.publicKey}>
-                <Link href={`/work/messages?coworker=${coworkerTag(c.publicKey)}&at=${agreementRef}`} className="flex min-h-12 items-center gap-3 py-2">
+                <HashLink path="/work/messages" values={{ coworker: coworkerTag(c.publicKey), at: agreementRef }} className="flex min-h-12 items-center gap-3 py-2">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{c.name}</span>
                     {c.address ? <ConfirmedNameLine shown={chainNames.get(c.address)} /> : <span className="block truncate text-xs text-muted-foreground">No account listed yet</span>}
@@ -127,7 +127,7 @@ function DirectoryView({ businessKey, businessName, agreementRef }: DirectoryPro
                       {unread}
                     </span>
                   )}
-                </Link>
+                </HashLink>
               </li>
             );
           })}
@@ -230,7 +230,7 @@ function Groups({
         <ul className="divide-y">
           {groups.map((g) => (
             <li key={g.id}>
-              <Link href={`/work/messages?group=${g.id}&at=${agreementRef}`} className="flex min-h-12 items-center gap-3 py-2">
+              <HashLink path="/work/messages" values={{ group: g.id, at: agreementRef }} className="flex min-h-12 items-center gap-3 py-2">
                 <span className="min-w-0 flex-1">
                   <span className={g.unread > 0 ? "block truncate text-sm font-semibold" : "block truncate text-sm font-medium"}>{g.name}</span>
                   <span className="block truncate text-xs text-muted-foreground">{g.joined ? (g.messages.at(-1)?.text ?? `${g.members.length} people`) : "You left this group"}</span>
@@ -240,7 +240,7 @@ function Groups({
                     {g.unread}
                   </span>
                 )}
-              </Link>
+              </HashLink>
             </li>
           ))}
         </ul>

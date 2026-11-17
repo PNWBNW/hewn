@@ -96,6 +96,57 @@ describe("a timesheet another person sent", () => {
   });
 });
 
+describe("a timesheet's entries are their clock times", () => {
+  const one = (entry: Record<string, unknown> & { minutes: number }, weekStart = "2026-10-05") => ({ ...PAYLOAD, weekStart, entries: [entry], totalMinutes: entry.minutes });
+  const LA = { startsOn: "monday" as const, timeZone: "America/Los_Angeles" };
+
+  it("counts the minutes between an entry's start and end, not a number beside them", () => {
+    expect(() => validateTimesheetPayload(one({ date: "2026-10-05", in: "2026-10-05T17:00:00.000Z", out: "2026-10-06T01:00:00.000Z", minutes: 1440 }), AGREEMENT)).toThrow(/between its start and end/);
+    expect(() => validateTimesheetPayload(one({ ...ENTRY, minutes: 509 }), AGREEMENT)).toThrow(/between its start and end/);
+    expect(() => validateTimesheetPayload(one({ ...ENTRY, minutes: 511 }), AGREEMENT)).toThrow(/between its start and end/);
+    // Seconds past the minute are dropped, as the clock does.
+    expect(validateTimesheetPayload(one({ ...ENTRY, out: "2026-10-05T23:30:59.000Z" }), AGREEMENT).entries[0]?.minutes).toBe(510);
+    // A clock-in and clock-out at the same moment is an entry of no minutes.
+    expect(validateTimesheetPayload(one({ ...ENTRY, out: ENTRY.in, minutes: 0 }), AGREEMENT).totalMinutes).toBe(0);
+  });
+
+  it("refuses an entry that ends before it starts", () => {
+    expect(() => validateTimesheetPayload(one({ ...ENTRY, in: ENTRY.out, out: ENTRY.in, minutes: 0 }), AGREEMENT)).toThrow(/end after it starts/);
+    expect(() => validateTimesheetPayload(one({ ...ENTRY, in: ENTRY.out, out: ENTRY.in, minutes: 510 }), AGREEMENT)).toThrow(/end after it starts/);
+  });
+
+  it("keeps every entry inside the week it is sent for", () => {
+    const later = { date: "2026-10-12", in: "2026-10-12T15:00:00.000Z", out: "2026-10-12T23:00:00.000Z", minutes: 480 };
+    expect(() => validateTimesheetPayload(one(later), AGREEMENT)).toThrow(/outside the week/);
+    expect(() => validateTimesheetPayload(one(ENTRY, "2026-10-06"), AGREEMENT)).toThrow(/outside the week/);
+    expect(validateTimesheetPayload(one(later, "2026-10-12"), AGREEMENT).weekStart).toBe("2026-10-12");
+    // The last day of the week is in it.
+    const sunday = { date: "2026-10-11", in: "2026-10-11T15:00:00.000Z", out: "2026-10-11T16:00:00.000Z", minutes: 60 };
+    expect(validateTimesheetPayload(one(sunday), AGREEMENT).entries).toHaveLength(1);
+  });
+
+  it("dates each entry by the day it started", () => {
+    // Far from the day it started, in any zone.
+    expect(() => validateTimesheetPayload(one({ date: "2026-10-10", in: "2026-10-05T15:00:00.000Z", out: "2026-10-05T23:30:00.000Z", minutes: 510 }), AGREEMENT)).toThrow(/day it started/);
+    // On the agreement's calendar, exactly that day.
+    expect(() => validateTimesheetPayload(one({ date: "2026-11-10", in: "2026-09-01T15:00:00.000Z", out: "2026-09-01T23:00:00.000Z", minutes: 480 }, "2026-11-09"), AGREEMENT, LA)).toThrow(/day it started/);
+    const evening = { date: "2026-10-06", in: "2026-10-06T03:00:00.000Z", out: "2026-10-06T06:00:00.000Z", minutes: 180 };
+    expect(validateTimesheetPayload(one(evening), AGREEMENT).entries).toHaveLength(1); // the zone unknown: a day either side
+    expect(() => validateTimesheetPayload(one(evening), AGREEMENT, LA)).toThrow(/day it started/); // 8pm on the 5th in Los Angeles
+    expect(validateTimesheetPayload(one({ ...evening, date: "2026-10-05" }), AGREEMENT, LA).entries[0]?.date).toBe("2026-10-05");
+    expect(validateTimesheetPayload(PAYLOAD, AGREEMENT, LA)).toEqual(PAYLOAD);
+  });
+
+  it("starts the week on the agreement's first day", () => {
+    expect(() => validateTimesheetPayload(PAYLOAD, AGREEMENT, { ...LA, startsOn: "sunday" })).toThrow(/first day/);
+  });
+
+  it("holds what is already in these books to the rules it arrived under", () => {
+    const kept = addHours(emptyMailbox(), { ...hours(0), entries: [{ ...ENTRY, minutes: 1440 }], totalMinutes: 1440 });
+    expect(mailboxFromJson(mailboxToJson(kept)).hours[0]?.entries[0]?.minutes).toBe(1440);
+  });
+});
+
 describe("the mailbox", () => {
   it("keeps a week and moves the next slot past it", () => {
     const m = addHours(emptyMailbox(), hours(0));

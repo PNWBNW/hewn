@@ -24,7 +24,7 @@ import { restoreBackup } from "./books_backup";
 import { AWAY_HINT_MS, CONNECT_HINT_MS, type FindChain, RESTART_CAP_MS, awayHint, mustReconnect, ownReader, restoreNotes, stepFindChain } from "./chain_restore";
 import { LetterBox, type LetterWallet } from "./letters";
 import { useShield } from "./shield";
-import { ShieldAway } from "./ShieldStatus";
+import { ShieldAway, ShieldMissing } from "./ShieldStatus";
 
 type Props = { username?: string; replacing: boolean; onCancel: () => void };
 
@@ -181,7 +181,11 @@ function Restore({ username: initialUsername = "", replacing, onCancel }: Props)
 
   let shieldPart;
   if (state.kind === "missing") {
-    shieldPart = <p className="rounded-md border bg-muted px-3 py-2 text-sm">Open this page in the Shield app, or with the Shield extension, to find your books.</p>;
+    shieldPart = (
+      <ShieldMissing className="rounded-md border bg-muted px-3 py-2 text-sm" website>
+        Open this page in the Shield app, or with the Shield extension, to find your books.
+      </ShieldMissing>
+    );
   } else if (!address) {
     shieldPart = (
       <div className="flex flex-col gap-2">

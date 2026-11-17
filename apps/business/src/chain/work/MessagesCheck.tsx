@@ -19,6 +19,7 @@ import { type Work, updateCoworker, updateWorkChannels, updateWorkThread, workTh
 import { coworkersFrom } from "@/books/directory";
 import { COWORKER_KINDS, coworkerAccepts, mySide, pairKey } from "../coworkers";
 import { readChannel } from "../channels";
+import { checkEach, couldntCheck, together } from "../check_each";
 import { checkEvents, workListening } from "../events";
 import { useLetters } from "../letter_reader";
 import { keepHalvesReady } from "../key_ring";
@@ -52,7 +53,8 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
       const employers = new Map([...work.agreements.map((a) => [a.partiesKey, a.employerAddress] as const), ...(work.applications ?? []).map((a) => [a.partiesKey, a.employerAddress] as const)]);
       // An employer's conversation moves to keys made by handshake; an application's key already comes from key exchange.
       const hired = new Set(work.agreements.map((a) => a.partiesKey));
-      for (const [partiesKey, employer] of employers) {
+      // Each conversation on its own: one that can't be read is passed over, and the rest are still checked.
+      const threads = await checkEach(employers, async ([partiesKey, employer]) => {
         const twin = hired.has(partiesKey);
         const r = await readThread({
           client: letterThread(wallet, employer, { letters }).reader,
@@ -63,47 +65,48 @@ function Check({ onFinished }: WorkMessagesCheckProps) {
           store: (item) => apply((w) => updateWorkThread(w, partiesKey, (t) => addToThread(t, item))),
           skip: (seq, via) => apply((w) => updateWorkThread(w, partiesKey, (t) => skipIncoming(t, seq, via))),
         });
-        if (r.off) return onFinished("Connect Shield (open a conversation) to check for messages.");
-        if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
+        if (r.off || r.failed) return r;
         if (twin) await keepHalvesReady(workThread(latest, partiesKey)?.ring, (change) => apply((w) => updateWorkThread(w, partiesKey, (t) => ({ ...t, ring: change(t.ring) }))));
-      }
+      });
+      if (threads.off) return onFinished("Connect Shield (open a conversation) to check for messages.");
       // Channels as they stand after the threads (new keys may have just arrived).
-      for (const channel of latest.channels ?? []) {
+      const channels = await checkEach(latest.channels ?? [], async (channel) => {
         // A post counts only from the business's own account: everyone in the channel holds its key.
         const business = employers.get(channel.partiesKey);
-        if (!business) continue;
-        const r = await readChannel({
+        if (!business) return;
+        return readChannel({
           // Posts come as letters (send_many).
           client: { get: letterReader(letters, business).get },
           channel,
           store: (item) => apply((w) => updateWorkChannels(w, (all) => all.map((c) => (c.id === channel.id && c.partiesKey === channel.partiesKey ? addReceivedPost(c, item) : c)))),
           skip: (epoch, seq) => apply((w) => updateWorkChannels(w, (all) => all.map((c) => (c.id === channel.id && c.partiesKey === channel.partiesKey ? skipPost(c, epoch, seq) : c)))),
         });
-        if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
-      }
+      });
       // Coworkers: each one in each directory this person is listed in.
-      for (const [businessKey, identity] of Object.entries(latest.identities ?? {})) {
-        if (!identity.listed) continue;
-        for (const c of coworkersFrom(workThread(latest, businessKey))) {
-          // A coworker's letters count only from the account the business listed for them.
-          if (c.publicKey === identity.publicKey || !c.address) continue;
-          const key = await pairKey(identity, c.publicKey);
-          const r = await readThread({
-            client: letterReader(letters, c.address),
-            partiesKey: key,
-            reader: mySide(identity.publicKey, c.publicKey),
-            thread: latest.coworkers?.[c.publicKey],
-            kinds: COWORKER_KINDS,
-            accept: coworkerAccepts,
-            store: (item) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...addToThread(t, item) }))),
-            skip: (seq) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...skipIncoming(t, seq) }))),
-          });
-          if (r.failed) return onFinished(`Couldn't finish checking: ${r.failed}`);
-        }
-      }
+      const coworkers = Object.entries(latest.identities ?? {}).flatMap(([businessKey, identity]) =>
+        identity.listed
+          ? coworkersFrom(workThread(latest, businessKey)).flatMap((c) =>
+              // A coworker's letters count only from the account the business listed for them.
+              c.publicKey === identity.publicKey || !c.address ? [] : [{ businessKey, identity, c, address: c.address }],
+            )
+          : [],
+      );
+      const others = await checkEach(coworkers, async ({ businessKey, identity, c, address }) => {
+        const key = await pairKey(identity, c.publicKey);
+        return readThread({
+          client: letterReader(letters, address),
+          partiesKey: key,
+          reader: mySide(identity.publicKey, c.publicKey),
+          thread: latest.coworkers?.[c.publicKey],
+          kinds: COWORKER_KINDS,
+          accept: coworkerAccepts,
+          store: (item) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...addToThread(t, item) }))),
+          skip: (seq) => apply((w) => updateCoworker(w, c.publicKey, { businessKey, name: c.name }, (t) => ({ ...t, ...skipIncoming(t, seq) }))),
+        });
+      });
       // Invitations, now that any new calendar keys are in.
       await checkEvents(letters, await workListening(latest), calendar, updateCompany);
-      onFinished(null);
+      onFinished(couldntCheck(together(together(threads, channels), others)));
     })().catch((e: unknown) => onFinished(e instanceof Error ? e.message : "Couldn't check for messages"));
   }, [work, updateWork, calendar, updateCompany, onFinished, settled, letters, wallet]);
 

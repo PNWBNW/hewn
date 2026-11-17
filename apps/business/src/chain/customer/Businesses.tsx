@@ -17,6 +17,7 @@ import { FormError, errorMessage } from "@/books/AuthCard";
 import { useCustomer } from "@/books/BooksProvider";
 import { type Connections, connectedIn, connectionState, ignoreConnection, keepMine, noteHelloReceived, noteHelloSent, requestsIn } from "@/books/connections";
 import { BRAND } from "@/brand";
+import { hashFor } from "@/shell/hash_params";
 import type { DirectoryEntry } from "../directory";
 import { newHalf } from "../key_ring";
 import NameLookup from "../NameLookup";
@@ -163,10 +164,10 @@ function List() {
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                 {c.name}.{BRAND.nameSuffix}
               </span>
-              <Link href={`/customer/messages?with=${encodeURIComponent(c.address)}`} className="inline-flex min-h-11 items-center text-xs underline underline-offset-4 sm:min-h-0">
+              <Link href={`/customer/messages${hashFor({ with: c.address })}`} prefetch={false} className="inline-flex min-h-11 items-center text-xs underline underline-offset-4 sm:min-h-0">
                 Agreements and messages
               </Link>
-              <Link href={`/customer/bills?pay=${encodeURIComponent(c.address)}`} className="inline-flex min-h-11 items-center text-xs underline underline-offset-4 sm:min-h-0">
+              <Link href={`/customer/bills${hashFor({ pay: c.address })}`} prefetch={false} className="inline-flex min-h-11 items-center text-xs underline underline-offset-4 sm:min-h-0">
                 Pay
               </Link>
             </li>

@@ -22,6 +22,7 @@ import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { desktopPairingLink } from "@pnw/wallet/desktop-pairing";
 import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
+import { useDesktopApp } from "@/desktop";
 import { checkEditions } from "./editions";
 import { awaitingPhone } from "./phone_approval";
 import { type ShieldRoute, isPairingCancelled, isPhone, mayReconnect, overRelay, rethrowSendError, shieldRoute } from "./shield_route";
@@ -33,7 +34,10 @@ export type ShieldState = { kind: "missing" } | { kind: "ready" } | { kind: "con
 export function useShield() {
   const adaptor = useWallet();
   const shield = adaptor.wallets[0]; // Shield is the only adapter registered
-  const route = shieldRoute(shield?.readyState, isPhone());
+  // Inside the desktop app Shield can't be reached yet (apps/desktop/README.md): the route is
+  // `none`, so the state is `missing` and the screens say why instead of offering a connect.
+  const desktop = useDesktopApp();
+  const route = shieldRoute(shield?.readyState, isPhone(), desktop);
   // On a computer paired with the phone, nothing can bring Shield to the front: every approval
   // waits until the person opens it on the phone, and ShieldPairing says so while one is waiting.
   const onPhone = <T,>(work: () => Promise<T>) => (route === "pair" ? awaitingPhone(work) : work());
@@ -92,7 +96,7 @@ export function useShield() {
   }, [shield?.adapter, route, wallet.connected]);
 
   const connect = () => {
-    if (!shield) return;
+    if (!shield || desktop) return; // nothing to connect to from the desktop app yet
     setError(null);
     setAsked(true);
     wallet.selectWallet(shield.adapter.name);
@@ -105,7 +109,7 @@ export function useShield() {
    * Tearing the pairing down ends that wait; the connect that follows runs from the tap.
    */
   const restart = async () => {
-    if (!shield) return;
+    if (!shield || desktop) return;
     setError(null);
     setReconnect(true);
     try {
@@ -173,5 +177,5 @@ export function useShield() {
       ? desktopPairingLink(adaptor.pairingUrl, adaptor.pairingSameDevice, location.origin)
       : null;
 
-  return { state, route, away, connect, restart, cancel, wakeUrl, pairing, error, wallet };
+  return { state, route, desktop, away, connect, restart, cancel, wakeUrl, pairing, error, wallet };
 }
