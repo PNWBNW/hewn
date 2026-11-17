@@ -1,0 +1,68 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Hewn",
+  "version": "../package.json",
+  "identifier": "com.hewnaccounting.desktop",
+  "build": {
+    "frontendDist": "../../business/out"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Hewn",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 360,
+        "minHeight": 560,
+        "useHttpsScheme": true,
+        "devtools": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": [],
+      "dangerousDisableAssetCspModification": false,
+      "freezePrototype": false
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": false,
+    "category": "Finance",
+    "shortDescription": "honest books, grounded and true.",
+    "longDescription": "Hewn: honest books, grounded and true.",
+    "publisher": "Joshua Day",
+    "copyright": "© 2025-2026 Joshua Daniel Day",
+    "homepage": "https://hewnaccounting.com",
+    "license": "AGPL-3.0-only",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/PNWBNW/hewn/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

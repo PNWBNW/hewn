@@ -53,6 +53,7 @@ import { backupContents, writeBackup } from "./conversation_backup";
 import { useLetters } from "./letter_reader";
 import { LETTER_BYTES, LetterBox, type LetterWallet, letterReader, letterThread } from "./letters";
 import { Report } from "./Report";
+import { ShieldMissing } from "./ShieldStatus";
 import { type PostInput, type ReadInput, type ThreadKinds, postToThread, readThread } from "./thread";
 
 export type ConversationProps = {
@@ -127,7 +128,7 @@ function LetterConversation(props: ConversationProps) {
   if (mismatch && address) {
     gate = <p className="text-sm">Shield is signed in to a different account ({shortAddress(address)}) than this one. Switch accounts in Shield to send and read messages.</p>;
   } else if (state.kind === "missing") {
-    gate = <p className="text-sm">Messages travel as letters on the network, through Shield. Install the Shield extension, or open this page in the Shield app.</p>;
+    gate = <ShieldMissing className="text-sm">Messages travel as letters on the network, through Shield. Install the Shield extension, or open this page in the Shield app.</ShieldMissing>;
   } else if (state.kind === "connecting") {
     gate = <p className="text-sm">Connecting… approve the request in Shield.</p>;
   } else if (state.kind === "ready") {

@@ -11,7 +11,7 @@ server piece counts visits by country.
 | Build | Command | What it makes |
 |---|---|---|
 | The website | `pnpm build` | Served by Next.js at www.hewnaccounting.com (app.hewnaccounting.com doesn't resolve yet), with the server pieces (`src/app/api/*.server.ts`) and the per-request security policy (`src/proxy.ts`) |
-| The static bundle | `pnpm build:static` (`HEWN_STATIC=1`) | Plain files in `out/` for the installable app. The policy is stamped into each page by `scripts/static_csp.mjs`, and the bundle reaches the server pieces on the website by full address (`src/api_base.ts`) |
+| The static bundle | `pnpm build:static` (`HEWN_STATIC=1`) | Plain files in `out/` for the installable app (`apps/desktop` carries them). The policy is stamped into each page by `scripts/static_csp.mjs`, and the bundle reaches the server pieces on the website by full address (`src/api_base.ts`) |
 
 Server-only files end in `.server.ts`, an extension only the website build looks at, so the bundle
 never contains a route handler. CI builds both.
@@ -80,6 +80,7 @@ pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/
 | `src/traction/` | The public traction map and the visit counter that feeds it |
 | `src/paper/` | The paper's text and figures (`basement.ts`, generated from its draft with the PDF in `public/papers/`; regenerate both, never edit by hand) and its journal-style CSS |
 | `src/api_base.ts`, `src/brand.ts`, `src/proxy.ts` | Where the server pieces are for this build; the brand re-export; the per-request policy |
+| `src/desktop.ts` | Whether the page runs inside the desktop app (`apps/desktop`), by its origin: no service worker there (`mayRegisterServiceWorker`, asked by whatever registers one), and the chain screens say Shield can't be reached from it yet |
 | `src/fiat_boundary.test.ts` | The test that keeps chain code inside `src/chain` and chain words off a fiat user's screens |
 | `src/instrumentation-client.ts` | The first of the app's code to run in the browser: the top-page guard (above) |
 | `test/frames/` | The top-page guard in Chromium, outside `pnpm test` (CI has no browser): the static bundle served with no headers, as the top page and framed from another origin (no sandbox, `sandbox`, `sandbox="allow-scripts"`), and what the guard costs in blank time |
