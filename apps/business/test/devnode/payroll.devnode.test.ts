@@ -3,8 +3,8 @@
 // rehearsed (BUILD_PLAN.md), with Hewn's own code at every step. The payroll
 // package posts the run and its three journal entries (`postPayRun`); the
 // rail's pay queue plans the transfers, builds the freeze-list proof and
-// sends `split` and `transfer_private` exactly as it does through Shield
-// (`runPayQueue`); each settlement is written back the way the Pay panel
+// sends one `transfer_private` at a time, each from what the last one left,
+// exactly as it does through Shield (`runPayQueue`); each settlement is written back the way the Pay panel
 // writes it (`markPaycheckSettlement`). What the unit tests can only fake is
 // checked here against the VM: the inputs the queue builds are what the
 // stablecoin takes, the records it reads back are what the chain returns,
@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FinalizeRevertError, waitForConfirmation } from "@provablehq/veil-core";
 import { type Books, type Entry, addAccount, applyTemplate, createBooks, verifyChain } from "@pnw/ledger";
 import { type Payroll, type Settlement, type W4, addWorker, emptyPayroll, markPaycheckSettlement, postPayRun } from "@pnw/payroll";
-import { type PayQueueEvent, type RailNetwork, RailNetworkError, type RailWallet, USDCX_PROGRAM, centsToMinor, explorerNetwork, runPayQueue } from "@pnw/rail";
+import { type PayQueueEvent, type RailNetwork, type RailWallet, USDCX_PROGRAM, ZERO_ADDRESS, centsToMinor, explorerNetwork, freezeListRoot, runPayQueue } from "@pnw/rail";
 import { FREEZELIST_PROGRAM } from "@pnw/rail";
 import { type Aleo, type Clients, type Devnode, type Listed, type Output, deploy, opened, outputsOf, send, sendTx, start } from "./harness";
 
@@ -33,7 +33,6 @@ const PROGRAM_SHA256 = "1b00b69ef302f2c6a5af8e6888b8e33cb9fd77edf332cf79a35241f9
 const DEVNODE_REST = "http://127.0.0.1:3030/testnet";
 
 const TRANSFER_OUTPUTS = ["ComplianceRecord", "Token", "Token"] as const;
-const SPLIT_OUTPUTS = ["Token", "Token"] as const;
 const MINT_OUTPUTS = ["ComplianceRecord", "Token"] as const;
 
 const W4_SINGLE: W4 = { filingStatus: "single", dependentCredit: 0n, otherIncome: 0n, extraDeductions: 0n, extraWithholding: 0n };
@@ -108,10 +107,9 @@ class DevnodeWallet implements RailWallet {
       return { status: "pending", transactionId: id }; // not in a block yet
     }
     // Confirmed: the record it spent is gone, and the ones it made are the account's now.
-    const spentIndex = sent.function === "split" ? 0 : 2;
-    const spent = this.records.get(sent.inputs[spentIndex] ?? "");
+    const spent = this.records.get(sent.inputs[2] ?? "");
     if (spent) spent.spent = true;
-    this.credit(outputsOf(tx), sent.function === "split" ? SPLIT_OUTPUTS : TRANSFER_OUTPUTS);
+    this.credit(outputsOf(tx), TRANSFER_OUTPUTS);
     this.pending.delete(id);
     return { status: "accepted", transactionId: id };
   }
@@ -119,19 +117,22 @@ class DevnodeWallet implements RailWallet {
 
 /**
  * The devnode's REST API as the rail reads the explorer. The freeze-list program isn't on a
- * devnode, so its mapping reads answer "not found", which the rail takes as an empty list, as it
- * would from the explorer before the first address is frozen.
+ * devnode, and the rail sends nothing when it can't read the list, so its mapping reads answer
+ * what the deployed program holds while nobody is frozen: one slot, holding the zero address, and
+ * the root of an empty list. Any other key answers null, as the explorer does.
  */
 function devnodeNetwork(): RailNetwork {
   const rest = explorerNetwork(DEVNODE_REST, fetch);
+  const freezeList = `program/${FREEZELIST_PROGRAM}/mapping/`;
+  const nobodyFrozen: Record<string, string> = {
+    "freeze_list_last_index/true": "0u32",
+    "freeze_list_index/0u32": ZERO_ADDRESS,
+    "freeze_list_root/1u8": freezeListRoot([]),
+  };
   return {
     async fetchJson(path: string) {
-      try {
-        return await rest.fetchJson(path);
-      } catch (e) {
-        if (path.startsWith(`program/${FREEZELIST_PROGRAM}/`) && e instanceof RailNetworkError) throw new RailNetworkError("not found", 404);
-        throw e;
-      }
+      if (path.startsWith(freezeList)) return nobodyFrozen[path.slice(freezeList.length)] ?? null;
+      return rest.fetchJson(path);
     },
   };
 }
@@ -221,13 +222,14 @@ describe("a three-worker payroll run on a real Aleo node", () => {
       },
     });
 
-    // Every payment settled, none failed or in doubt; the one record was split before the transfers.
+    // Every payment settled, none failed or in doubt, the run never stopped short; from the one record, three
+    // transfers and nothing else, each after the first spending what the one before it left.
     expect(result.failed).toEqual([]);
     expect(result.unconfirmed).toEqual([]);
+    expect(result.stalled).toBeUndefined();
     expect(result.settled).toHaveLength(3);
-    const planned = events.find((e) => e.kind === "planned");
-    expect(planned && planned.kind === "planned" ? planned.splits : -1).toBeGreaterThan(0);
-    expect(wallet.calls.filter((c) => c.function === "transfer_private")).toHaveLength(3);
+    expect(events.find((e) => e.kind === "planned")).toEqual({ kind: "planned", transfers: 3 });
+    expect(wallet.calls.map((c) => c.function)).toEqual(["transfer_private", "transfer_private", "transfer_private"]);
     for (const c of wallet.calls) expect(c.program).toBe(USDCX_PROGRAM);
 
     // The books: each paycheck settled with its on-chain transaction id, each entry balanced and
@@ -304,5 +306,5 @@ describe("a three-worker payroll run on a real Aleo node", () => {
   // program does (the subtraction underflows; its Leo test `test_pay_over_token_fails`), but
   // through the SDK that underflow is a panic inside the VM's WebAssembly during local execution:
   // the promise never settles, so the test can only time out. Shield would refuse to build the
-  // transaction the same way; the queue never builds one (`planTransfers` splits first).
+  // transaction the same way; the queue never builds one (it picks a record that covers the payment, or refuses the run).
 });

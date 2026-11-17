@@ -14,6 +14,20 @@ import type { ThreadItem } from "./thread";
 export const placedAt = (i: ThreadItem): number => Date.parse(i.mine ? i.sentAt : (i.receivedAt ?? i.sentAt));
 
 /**
+ * When one of their messages arriving at `now` takes its place: `now`, or just after the latest
+ * message already here when this device's clock reads earlier than that (it was set back), so a
+ * new arrival still comes after everything that was here when it arrived.
+ */
+export function arrivalTime(items: readonly ThreadItem[], now: string): string {
+  let latest = -Infinity;
+  for (const i of items) {
+    const t = placedAt(i);
+    if (Number.isFinite(t) && t > latest) latest = t;
+  }
+  return latest === -Infinity || Date.parse(now) > latest ? now : new Date(latest + 1).toISOString();
+}
+
+/**
  * The order of a conversation on this device: by `placedAt`, so each of their messages comes
  * after everything that was here when it arrived, and nothing I answered can be given a
  * different question afterwards. Messages that arrived together keep their slots' order.

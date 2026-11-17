@@ -39,7 +39,7 @@ function setup() {
 describe("paystub document", () => {
   it("carries the whole paycheck in plain fields, with year-to-date after this check", () => {
     const s = setup();
-    const first = postPayRun(s.books, s.payroll, { ...s.input, payDate: "2026-10-02" }, clock);
+    const first = postPayRun(s.books, s.payroll, { ...s.input, payDate: "2026-10-02", periodStart: "2026-09-17", periodEnd: "2026-09-30" }, clock);
     const second = postPayRun(first.books, first.payroll, s.input, clock);
     const run = second.run;
     const ben = run.paychecks[1]!;
@@ -217,7 +217,7 @@ describe("payroll files", () => {
   it("round-trip runs with settlement and paystub hashes exactly", () => {
     const s = setup();
     const ext = postPayRun(s.books, s.payroll, { ...s.input, reference: "ACH 1" }, clock);
-    const rail = postPayRun(ext.books, ext.payroll, { ...s.input, payDate: "2026-10-30", mode: "rail" }, clock);
+    const rail = postPayRun(ext.books, ext.payroll, { ...s.input, payDate: "2026-10-30", periodStart: "2026-10-15", periodEnd: "2026-10-28", mode: "rail" }, clock);
     const marked = markPaycheckSettlement(rail.payroll, rail.run.id, s.ana.id, { status: "settled", reference: "at1x", height: 12 });
     expect(payrollFromJson(payrollToJson(marked))).toEqual(marked);
   });

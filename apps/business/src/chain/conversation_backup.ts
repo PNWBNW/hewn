@@ -17,7 +17,7 @@ import { MailboxError, lookupId, open, partiesKeyFromHex, seal } from "@pnw/mail
 import type { FeeMode } from "@pnw/wallet/fee-mode";
 import { type ConversationBackup, validateConversationBackup } from "../books/conversation_backup";
 import { type KeyRing, pairsBefore } from "../books/key_ring";
-import { type Side, type ThreadItem, type ThreadMessage, validateMessage } from "../books/thread";
+import { type Side, type ThreadItem, type ThreadMessage, checkMessageKeys, validateMessage } from "../books/thread";
 import { packPayload, unpackPayload } from "./compress";
 import { pairKeyHex } from "./key_ring";
 import { THREAD_KINDS, openInner } from "./thread";
@@ -169,6 +169,7 @@ export async function restoreHistory({
             // An answer to a handshake keeps its inside under the pair it made: opened only when the backup holds that pair.
             if (message.body.type === "sealed") message = await openWithAny(message, backup.keys, kind, seq, from);
             delete message.half;
+            await checkMessageKeys(message);
             const place = Math.max(floor, Math.min(Date.parse(message.sentAt), Date.parse(stamp())));
             floor = place;
             item = { ...message, mine: isMine, seq, ...(isMine ? {} : { receivedAt: new Date(place).toISOString() }), ...(stream.via ? { via: stream.via } : {}) };

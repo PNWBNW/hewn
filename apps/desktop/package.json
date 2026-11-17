@@ -1,0 +1,23 @@
+{
+  "name": "@pnw/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "config": "node scripts/tauri_config.mjs --write",
+    "icons": "cargo tauri icon ../../brand/source/hewn-icon.png --output src-tauri/icons",
+    "bundle": "cargo tauri build --ci"
+  },
+  "dependencies": {
+    "@pnw/brand": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

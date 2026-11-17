@@ -1,0 +1,118 @@
+name: Release
+
+# A release of the static bundle (scripts/release/README.md; docs/HOSTING.md step 2). On a v* tag,
+# or by hand, the same commit is built twice from scratch, on two machines in two folders, and the
+# run fails unless the two bundles are byte for byte the same. Then release.json (every file's
+# SHA-256 and one digest over the list) is uploaded with the bundle.
+#
+# No secrets and no signing here: the operator downloads the artifact, rebuilds it locally,
+# compares the two, and signs the digest on their own machine with a key that never comes near
+# GitHub (INV-06). The anchor on Aleo is signed in their Shield wallet (INV-11).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to write in release.json (v1.2). Empty: the tag on the commit, else dev-<commit>."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.copy }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        copy: [first, second-copy]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          path: ${{ matrix.copy }}
+      - uses: pnpm/action-setup@v6 # version comes from package.json "packageManager"
+        with:
+          package_json_file: ${{ matrix.copy }}/package.json
+      # No dependency cache: each build installs from the registry against the lockfile.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install (lockfile must match exactly)
+        working-directory: ${{ matrix.copy }}
+        run: pnpm install --frozen-lockfile
+      - name: The release scripts' own tests
+        working-directory: ${{ matrix.copy }}
+        run: node --test scripts/release/release.test.mjs
+      - name: Build the static bundle and write release.json
+        working-directory: ${{ matrix.copy }}
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+        run: |
+          args=()
+          if [ -n "$VERSION" ]; then args+=(--version "$VERSION"); fi
+          node scripts/release/build.mjs "${args[@]}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ matrix.copy }}
+          path: ${{ matrix.copy }}/apps/business/out
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: Compare the two builds
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v8
+        with:
+          name: build-first
+          path: builds/first
+      - uses: actions/download-artifact@v8
+        with:
+          name: build-second-copy
+          path: builds/second
+      - name: The two builds are the same bytes
+        run: |
+          node scripts/release/compare.mjs builds/first builds/second
+          cmp builds/first/release.json builds/second/release.json
+          node scripts/release/compare.mjs builds/first builds/first/release.json
+      - name: Summary
+        run: |
+          node -e '
+            const m = JSON.parse(require("fs").readFileSync("builds/first/release.json", "utf8"));
+            const lines = ["### Release " + m.version, "", "| | |", "|---|---|",
+              "| Commit | `" + m.commit + "` |", "| Files | " + Object.keys(m.files).length + " |",
+              "| Digest | `" + m.digest + "` |", "",
+              "Two clean builds gave the same bytes. Not signed and not anchored yet: see scripts/release/README.md."];
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+            console.log("digest " + m.digest);
+          '
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-bundle
+          path: builds/first
+          include-hidden-files: true
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-manifest
+          path: builds/first/release.json
+          if-no-files-found: error

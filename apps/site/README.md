@@ -7,6 +7,42 @@ app, and nothing else: no ledger, no vault, no chain package, no analytics, no t
 Pages: `/` (landing) and `/privacy`. Joshua's paper on how Hewn was built, *Out of the Basement*, lives in the app (`apps/business`, `/out-of-the-basement`), since this site isn't deployed yet; the front page and the footer link it there (2026-11-09). Every page is rendered per request so it carries a fresh CSP
 nonce (`src/proxy.ts`), like the app.
 
+## The top-page guard
+
+The site carries the app's top-page guard (`docs/THREAT_MODEL.md` T3; `apps/business/README.md`
+says how it works): `globals.css` imports `@pnw/security/frame_guard.css`, which hides the page,
+and `src/instrumentation-client.ts` shows it only as the top page. Without JavaScript only the note
+at the top of `src/app/layout.tsx` shows.
+
+**Why the site has it too (2026-11-17).** A brochure holds nothing a frame could misuse, and on
+Vercel the framing headers already refuse a frame, so the guard was weighed against what it costs
+a page that wants to be found:
+
+- **Search.** Google and Bing render pages with scripts, as the top page, so they see the page
+  whole; crawlers and link previews that don't run scripts read the raw HTML, which still carries
+  every word, the title, the description and the preview tags (CSS doesn't remove text from it).
+  Checked here: a fresh Chromium load of `/` with a crawler's user agent shows `<main>` and about
+  2,400 characters of text; the raw HTML has the text and the tags; no `robots.txt` keeps a
+  crawler from `/_next/`. What could not be checked from here: Google's own renderer (Search
+  Console's URL inspection, once the site is deployed).
+- **Speed.** Nothing is drawn until the scripts have loaded. Median of five first loads of `/`
+  (`next start`, Chromium):
+
+  | Machine | First paint, with / without | Largest paint, with / without |
+  |---|---|---|
+  | This machine | 156 / 144 ms | 156 / 144 ms |
+  | Processor slowed 4× | 356 / 192 ms | 356 / 192 ms |
+  | Processor slowed 4×, slow 4G | 2528 / 304 ms | 2528 / 2092 ms |
+
+  On a slow phone network the first screen comes about 2.2 s later, and the largest paint (what
+  search ranking measures) about 0.4 s later, since the hero image is late either way.
+
+Kept, because the site shares the app's hosting plan (`docs/HOSTING.md`): on a host that sends no
+headers of ours the guard is the only frame protection, and one rule for both is simpler to check.
+If the speed matters more, taking it out is two lines (the import in `globals.css` and
+`src/instrumentation-client.ts`) plus the note and the test (`src/frame_guard.test.ts`); the app
+keeps it either way.
+
 ## Deploying on Vercel
 
 Not set up yet (2026-11-09): hewnaccounting.com and www both serve the app. When it is, a second
@@ -38,5 +74,5 @@ branches get no preview unless the commit's title says `[preview]`. The rule is
 ```sh
 pnpm --filter @pnw/site dev     # http://localhost:3000
 pnpm --filter @pnw/site build && pnpm --filter @pnw/site start
-pnpm --filter @pnw/site test    # boundary and policy checks
+pnpm --filter @pnw/site test    # boundary, policy and top-page guard checks
 ```

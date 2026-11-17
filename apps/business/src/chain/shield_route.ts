@@ -7,12 +7,15 @@ import { WalletReadyState } from "@pnw/wallet/wallet-provider";
  * - `injected`: the extension, or Shield's own browser; always reachable.
  * - `relay`: a plain phone browser; the Shield app is opened by a link and answers over the relay.
  * - `none`: a computer without the extension. The relay is not an option there yet: Shield's app
- *   can't scan a pairing code, so the only way in is to install the extension.
+ *   can't scan a pairing code, so the only way in is to install the extension. The desktop app
+ *   (`desktop`) is always here: no extension runs inside it, and the relay's link would open
+ *   nothing on a computer, so it never offers a connect that can't finish.
  */
 export type ShieldRoute = "injected" | "relay" | "none";
 
 /** The adapter reports LOADABLE wherever the relay could pair; only a phone can act on the link. */
-export function shieldRoute(readyState: WalletReadyState | undefined, phone: boolean): ShieldRoute {
+export function shieldRoute(readyState: WalletReadyState | undefined, phone: boolean, desktop = false): ShieldRoute {
+  if (desktop) return "none";
   if (readyState === WalletReadyState.INSTALLED) return "injected";
   if (readyState === WalletReadyState.LOADABLE && phone) return "relay";
   return "none";
@@ -47,11 +50,13 @@ export function notAllowedProgramHint(message: string): string | null {
 /**
  * What a refused send rethrows (the wallet's send in shield.ts ends with it): Shield's "not in the
  * allowed programs" as the hint above, with Shield's own error kept as its cause, and any other
- * error as it was, the same object.
+ * error as it was, the same object. Shield refuses that before it builds anything, so the hint
+ * carries `nothingSent: true`: the pay queue reads it as a payment that failed and can be tried
+ * again, not one whose outcome isn't known (@pnw/rail `stoppedBeforeWallet`).
  */
 export function rethrowSendError(e: unknown): never {
   const hint = e instanceof Error ? notAllowedProgramHint(e.message) : null;
-  throw hint === null ? e : new Error(hint, { cause: e });
+  throw hint === null ? e : Object.assign(new Error(hint, { cause: e }), { nothingSent: true as const });
 }
 
 /**

@@ -29,6 +29,7 @@ import { Money, todayIso } from "@/books/display";
 import { PageHeader } from "@/shell/SectionView";
 import { LinkBadge } from "@/books/LinkBadge";
 import { linkStatus } from "@/books/rail";
+import { reopenForVoidedEntry } from "@/books/review";
 import { PartyForm, partyLinkView, withRegistered } from "../sales/PartyForm";
 import { AgingCard, StatusBadge, voidWithFallback } from "../sales/parts";
 import { PayBillsForm } from "./PayBillsForm";
@@ -373,7 +374,8 @@ function BillPayments() {
                             await voidWithFallback("This payment", (options) =>
                               updateCompany((c) => {
                                 const r = voidBillPayment(c.books, c.sales, p.id, options);
-                                return { ...c, books: r.books, sales: r.sales };
+                                // Its transfer, if For review had it recorded with this payment, waits there again.
+                                return reopenForVoidedEntry({ ...c, books: r.books, sales: r.sales }, p.entryId);
                               }),
                             );
                           } catch (e) {
