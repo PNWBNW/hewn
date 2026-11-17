@@ -14,6 +14,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
 
 - [No script from someone else's dashboard, written into the threat model with a test](progress/2026-11/2026-11-17.md#2026-11-17--no-script-from-someone-elses-dashboard-written-into-the-threat-model-with-a-test)
+- [Hosting and verifiable releases: the plan, with the desktop app as the priority](progress/2026-11/2026-11-17.md#2026-11-17--hosting-and-verifiable-releases-the-plan-with-the-desktop-app-as-the-priority)
 
 ### [2026-11-15](progress/2026-11/2026-11-15.md)
 
