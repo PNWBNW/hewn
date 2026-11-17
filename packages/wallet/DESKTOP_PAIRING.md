@@ -50,6 +50,13 @@ offer, waiting on a test on real phones and on Provable.
 - **Waiting.** A connect waits five minutes for the app (`remote.ts:42`), each request five
   minutes for an answer (`transport.ts:76`). The app forgets a session 12 hours after pairing
   (`remoteSession.ts:118`).
+- **What is kept.** The transport writes the channel, its key and the secret to `localStorage`
+  (`shield:remote-session`, `transport.ts:75`, :567-579) as soon as a connect starts, before the
+  app joins, and the next `connect()` resumes whatever it finds (:157-169): a page closed or
+  reloaded while a code waits leaves that code good for the next visit's connect, with a new
+  five-minute wait. A timeout, Cancel or the app's disconnect clear it (`remote.ts:372-384`,
+  `transport.ts:267-269`). The app forgets an unfinished one when it next opens on a computer
+  (below).
 - **Approvals.** `needsApproval` (`remoteSession.ts:229-251`) names the requests Shield shows an
   approval for. On a phone the adapter opens `shield://wake?channelId=…` for each
   (`remote.ts:285-298`, `remoteSession.ts:212-221`); on a computer it opens nothing ("Same-device
@@ -88,6 +95,10 @@ offer, waiting on a test on real phones and on Provable.
   this page's origin. Its test runs the adapter's own transport against a simulated Shield app:
   pairing through the shown link, the connect going over the sealed channel, a second handshake
   (a photo of the code) refused after Shield pairs, and the race before it.
+  `forgetUnfinishedPairing` drops a pairing an earlier visit left unfinished, and the choice of
+  Shield that would start another by itself, so an old code pairs with nothing; a finished pairing
+  is kept. The app calls it once per visit on a computer, before any panel connects
+  (`ShieldProvider.tsx`); never on a phone, which comes back from Shield by reloading.
 - In the app (`apps/business/src/chain`): the `pair` route (a computer, no extension, the adapter
   able to pair), `ShieldPairing.tsx` (the code after a tap, the steps, the warning, Cancel, and
   "Open Shield on your phone to approve" while an approval waits), mounted by every chain panel's

@@ -146,7 +146,13 @@ The highest risk for a browser app.
   from the code appearing until the first of: the person's Shield pairing (the first key that
   proves the secret is pinned for the pairing's life, so a later photo is refused and everything
   after is sealed to the person's Shield and signed by it), five minutes passing (the adapter stops
-  waiting and forgets the keys), or Cancel. Tests: `packages/wallet/src/desktop_pairing.test.ts`
+  waiting and forgets the keys), Cancel, or the visit ending. A panel opened later in the same visit
+  picks up the same code and waits up to five minutes more. The adapter keeps an unfinished pairing
+  when the page closes or reloads and would resume it, same secret, at the next connect; the app
+  forgets it, and the choice of Shield that would start another by itself, when it next opens on a
+  computer, before any panel connects (`forgetUnfinishedPairing`,
+  `apps/business/src/chain/ShieldProvider.tsx`), so a code from an earlier visit pairs with nothing.
+  Tests: `packages/wallet/src/desktop_pairing.test.ts`
   runs the adapter's own transport against a simulated Shield app and shows both sides of that
   window. The guards are the person's own: Shield shows what it connects to, and the connected
   account is compared with the one setup linked: the chain panels stop with "Shield is signed in to

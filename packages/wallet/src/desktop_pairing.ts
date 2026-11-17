@@ -10,7 +10,8 @@
 //
 // The link is a secret while it waits: it carries the pairing secret, and whoever opens it first
 // pairs (docs/THREAT_MODEL.md T3). It is shown only on the pairing screen, never logged, stored or
-// sent; nothing here prints it, and the errors name no part of it.
+// sent; nothing here prints it, and the errors name no part of it. The adapter's own copy of an
+// unfinished pairing is forgotten when the app next opens (`forgetUnfinishedPairing`).
 
 import { DEFAULT_SHIELD_DEEPLINK_BASE } from "@provablehq/aleo-wallet-adapter-shield";
 import { SHIELD_RELAY_ORIGIN } from "./wallet-provider";
@@ -22,6 +23,52 @@ import { SHIELD_RELAY_ORIGIN } from "./wallet-provider";
  * its keys.
  */
 export const PAIRING_WAIT_MS = 5 * 60 * 1000;
+
+/**
+ * Where the adapter's relay transport keeps this browser's pairing (`STORAGE_KEY` in its
+ * `relay/transport.ts`; a test pins it to the installed source): the channel, the page's relay key
+ * and the pairing secret, written as soon as a connect starts, before Shield has joined.
+ */
+export const SHIELD_SESSION_KEY = "shield:remote-session";
+
+/**
+ * Where the wallet provider remembers that Shield was chosen (`@provablehq/aleo-wallet-adapter-react`'s
+ * default `localStorageKey`; a test pins it): while it is set, every panel connects as it mounts.
+ */
+export const SELECTED_WALLET_KEY = "walletName";
+
+/**
+ * Forgets a pairing an earlier page started and never finished, so a new visit never shows the old
+ * code again. The adapter keeps the unfinished pairing when a page closes or reloads while it waits,
+ * and the next connect resumes it with the same secret and a fresh five-minute wait: a code
+ * photographed on the earlier visit would pair with the new one. A finished pairing (Shield's key
+ * recorded) is kept, so a reload still finds Shield. The choice of Shield goes with an unfinished
+ * pairing, so no panel starts a new one by itself: the person asks again with a tap. Returns
+ * whether one was forgotten.
+ *
+ * For a computer only, once per page load, before any connect: on a phone the page is often
+ * reloaded while Shield is open for the pairing, and must find it on return.
+ */
+export function forgetUnfinishedPairing(storage: Pick<Storage, "getItem" | "removeItem"> | undefined): boolean {
+  if (!storage) return false;
+  try {
+    const raw = storage.getItem(SHIELD_SESSION_KEY);
+    if (raw === null) return false;
+    let paired = false;
+    try {
+      const session = JSON.parse(raw) as { walletPublicKey?: unknown } | null;
+      paired = typeof session?.walletPublicKey === "string" && session.walletPublicKey !== "";
+    } catch {
+      // Unreadable: the adapter would ignore it too.
+    }
+    if (paired) return false;
+    storage.removeItem(SHIELD_SESSION_KEY);
+    storage.removeItem(SELECTED_WALLET_KEY);
+    return true;
+  } catch {
+    return false; // storage blocked: nothing was kept to forget
+  }
+}
 
 /** The parameters a v1 Shield pairing link carries, in the adapter's order. `req` is dropped. */
 const PARAMS = ["channelId", "pubkey", "relay", "origin", "secret", "v"] as const;

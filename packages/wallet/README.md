@@ -11,7 +11,7 @@ on any other path (`scripts/check_signing_path.py`).
 | `wallet-executor.ts` | Submitting a transaction through the adapter and following it to confirmation |
 | `fee_mode.ts` | The per-device fee switch (public or private fee) and `withFeeMode`, applied to every call |
 | `credential-signer.ts` | Proving who holds an account by a signed challenge (`signMessage`), never a pasted key |
-| `desktop_pairing.ts` | A computer without the extension: the pairing link to show as a QR code for the phone, checked and shortened (`DESKTOP_PAIRING.md`) |
+| `desktop_pairing.ts` | A computer without the extension: the pairing link to show as a QR code for the phone, checked and shortened, and `forgetUnfinishedPairing` for one an earlier visit left waiting (`DESKTOP_PAIRING.md`) |
 | `qr.ts` | A small QR code encoder (no dependency), drawn as one SVG path |
 
 ## Shield only, pinned exactly

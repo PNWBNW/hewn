@@ -12,7 +12,7 @@ import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import jsQR from "jsqr";
 import { BRAND } from "@pnw/brand";
-import { PAIRING_WAIT_MS, desktopPairingLink } from "./desktop_pairing";
+import { PAIRING_WAIT_MS, SELECTED_WALLET_KEY, SHIELD_SESSION_KEY, desktopPairingLink, forgetUnfinishedPairing } from "./desktop_pairing";
 import { encodeQr } from "./qr";
 import { SHIELD_RELAY_ORIGIN, WALLET_PROGRAMS } from "./wallet-provider";
 
@@ -43,15 +43,14 @@ type Transport = {
   readonly connected: boolean;
 };
 
-/** The adapter's relay transport, with the socket replaced by a list of what it publishes. */
-async function relayTransport(): Promise<{ transport: Transport; published: Envelope[]; deliver(payload: Envelope["payload"]): void }> {
+/** The adapter's relay transport, with the socket replaced by a list of what it publishes, and its storage by `memory`. */
+async function relayTransport(memory = new Map<string, string>()): Promise<{ transport: Transport; published: Envelope[]; deliver(payload: Envelope["payload"]): void }> {
   // The transport chunk isn't in the package's exports; the version is pinned exactly, and the
   // file name is checked below so a bump that renames it fails here, not quietly.
   const chunk = readFileSync(join(ADAPTER_DIST, "index.mjs"), "utf8").match(/import\("\.\/(transport-[A-Z0-9]+\.mjs)"\)/);
   expect(chunk, "the adapter still lazy-loads its relay transport chunk").not.toBeNull();
   const { RemoteShieldTransport } = (await import(pathToFileURL(join(ADAPTER_DIST, chunk![1])).href)) as { RemoteShieldTransport: new (o: object) => Transport };
   const published: Envelope[] = [];
-  const memory = new Map<string, string>();
   const transport = new RemoteShieldTransport({
     relayUrl: SHIELD_RELAY_ORIGIN,
     deeplinkBase: "shield://connect",
@@ -275,11 +274,80 @@ describe("pairing a computer through the shown link (the adapter's transport, a 
   });
 });
 
+describe("an unfinished pairing left by an earlier page (forgetUnfinishedPairing)", () => {
+  const storageOf = (memory: Map<string, string>) => ({ getItem: (k: string) => memory.get(k) ?? null, removeItem: (k: string) => void memory.delete(k) });
+
+  it("is resumed by the adapter with the same secret, so the app forgets it before connecting again", async () => {
+    const memory = new Map<string, string>();
+    // A page shows a code and is closed or reloaded before Shield pairs.
+    const first = await relayTransport(memory);
+    const earlier = new URL(desktopPairingLink((await first.transport.connect(GRANT)).url, false, ORIGIN)!).searchParams;
+    expect(memory.has(SHIELD_SESSION_KEY)).toBe(true);
+    // Left alone, the next page's connect would wait for that same code again.
+    const resumed = await relayTransport(new Map(memory));
+    const again = await resumed.transport.connect(GRANT);
+    expect(again.resumed).toBe(true);
+    expect(new URL(again.url).searchParams.get("secret")).toBe(earlier.get("secret"));
+    // Forgotten first, with the choice of Shield that would reconnect every panel by itself, the
+    // next connect mints a new channel and secret: the earlier code pairs with nothing.
+    memory.set(SELECTED_WALLET_KEY, JSON.stringify("Shield Wallet"));
+    expect(forgetUnfinishedPairing(storageOf(memory))).toBe(true);
+    expect(memory.has(SELECTED_WALLET_KEY)).toBe(false);
+    const next = await relayTransport(memory);
+    const fresh = await next.transport.connect(GRANT);
+    expect(fresh.resumed).toBe(false);
+    const now = new URL(desktopPairingLink(fresh.url, false, ORIGIN)!).searchParams;
+    expect(now.get("secret")).not.toBe(earlier.get("secret"));
+    expect(now.get("channelId")).not.toBe(earlier.get("channelId"));
+    for (const t of [first, resumed, next]) t.transport.disconnect();
+  });
+
+  it("keeps a finished pairing, so a reload still finds Shield", async () => {
+    const memory = new Map<string, string>();
+    const { transport, deliver } = await relayTransport(memory);
+    const shown = desktopPairingLink((await transport.connect(GRANT)).url, false, ORIGIN)!;
+    deliver(walletJoins(shown).handshake);
+    await transport.waitForWallet();
+    const saved = memory.get(SHIELD_SESSION_KEY);
+    expect(saved).toBeDefined();
+    memory.set(SELECTED_WALLET_KEY, JSON.stringify("Shield Wallet"));
+    expect(forgetUnfinishedPairing(storageOf(memory))).toBe(false);
+    expect(memory.get(SHIELD_SESSION_KEY)).toBe(saved);
+    expect(memory.has(SELECTED_WALLET_KEY)).toBe(true);
+    transport.disconnect();
+  });
+
+  it("does nothing without storage or with nothing stored, and survives blocked or unreadable storage", () => {
+    expect(forgetUnfinishedPairing(undefined)).toBe(false);
+    expect(forgetUnfinishedPairing(storageOf(new Map()))).toBe(false);
+    const blocked = {
+      getItem: (): string | null => {
+        throw new Error("blocked");
+      },
+      removeItem: () => undefined,
+    };
+    expect(forgetUnfinishedPairing(blocked)).toBe(false);
+    const garbled = new Map([[SHIELD_SESSION_KEY, "{not json"]]);
+    expect(forgetUnfinishedPairing(storageOf(garbled))).toBe(true);
+    expect(garbled.size).toBe(0);
+  });
+});
+
 describe("what the adapter does on a computer (pinned to the installed source)", () => {
   const remote = () => {
     const name = readFileSync(join(ADAPTER_DIST, "index.mjs"), "utf8").match(/import\("\.\/(remote-[A-Z0-9]+\.mjs)"\)/)![1];
     return readFileSync(join(ADAPTER_DIST, name), "utf8");
   };
+
+  it("keeps its pairing under the key the app forgets an unfinished one by", () => {
+    const name = readFileSync(join(ADAPTER_DIST, "index.mjs"), "utf8").match(/import\("\.\/(transport-[A-Z0-9]+\.mjs)"\)/)![1];
+    expect(readFileSync(join(ADAPTER_DIST, name), "utf8")).toContain(`var STORAGE_KEY = "${SHIELD_SESSION_KEY}";`);
+  });
+
+  it("remembers the chosen wallet under the key the app forgets with an unfinished pairing", () => {
+    const react = dirname(require.resolve("@provablehq/aleo-wallet-adapter-react"));
+    expect(readFileSync(join(react, "index.mjs"), "utf8")).toContain(`localStorageKey = "${SELECTED_WALLET_KEY}",`);
+  });
 
   it("waits five minutes for Shield to pair, the time the screen states", () => {
     expect(PAIRING_WAIT_MS).toBe(5 * 60 * 1e3);
