@@ -5,13 +5,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch: # the Submodule pins workflow starts a run on its bump branch
+  schedule:
+    - cron: "23 7 * * 1" # Mondays: the dependency audit runs even in a week with no push
 
 # Least privilege: CI reads the repo and nothing else. No secrets are used.
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }} # the weekly run never cancels a push
   cancel-in-progress: true
 
 jobs:
@@ -24,6 +26,17 @@ jobs:
         with:
           persist-credentials: false
           submodules: true # the map draws the Leo programs' repository too (docs/map)
+      - name: Every lockfile entry comes from the npm registry (docs/INVARIANTS.md, OPS-04)
+        run: python3 -I scripts/check_lockfile.py
+      - name: The lockfile check's own tests
+        run: python3 -I scripts/check_lockfile_test.py
+      - name: Versions a pull request adds to the lockfile are at least 7 days old (OPS-04)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          python3 -I scripts/check_lockfile.py --age --base "origin/$BASE_REF"
       - name: No keys or tokens in the tree (docs/INVARIANTS.md, INV-06)
         run: python3 -I scripts/check_secrets.py
       - uses: pnpm/action-setup@v6 # version comes from package.json "packageManager"
