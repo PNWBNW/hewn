@@ -63,6 +63,7 @@ export async function payOne({ wallet, key, to, cents, settlement, write }: PayO
   });
   const settled = result.settled[0];
   if (settled) return { transactionId: settled.transactionId };
-  const failure = result.failed[0]?.failure ?? result.unconfirmed[0]?.failure;
+  // Stopped before Shield was asked (it didn't list a record for the payment just then): said, so the try isn't silent.
+  const failure = result.failed[0]?.failure ?? result.unconfirmed[0]?.failure ?? result.stalled?.why;
   return failure ? { failure } : {};
 }

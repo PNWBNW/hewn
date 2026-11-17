@@ -38,8 +38,8 @@ jobs:
         run: pnpm install --frozen-lockfile --filter @pnw/art
       - name: Check the graphs and their companions, then build
         run: node docs/map/build.mjs --check && node docs/map/build.mjs
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/map/dist
 
@@ -53,4 +53,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

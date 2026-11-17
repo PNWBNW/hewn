@@ -35,8 +35,8 @@ It is not part of `pnpm test` (the root runs only `vitest.config.ts` files); its
   - `payroll.devnode.test.ts` (the USDCx stand-in, below): Phase 2's three-worker payroll run,
     rehearsed. `postPayRun` and `markPaycheckSettlement` (`@pnw/payroll`) post the run and write
     each settlement back as the Pay panel does; `runPayQueue`, `explorerNetwork` and
-    `centsToMinor` (`@pnw/rail`) plan the transfers, build the freeze-list proof and send `split`
-    and `transfer_private` exactly as through Shield, over a `RailWallet` that signs with the
+    `centsToMinor` (`@pnw/rail`) plan the transfers, build the freeze-list proof and send one
+    `transfer_private` at a time, each from what the last one left, exactly as through Shield, over a `RailWallet` that signs with the
     node's account and lists its Token records. Checked against the VM: three balanced entries,
     each linked to the transaction that paid it (`source.ref`, `source.doc`, the settlement's
     reference); each worker's view key opens exactly their net pay in that transaction and no one
@@ -89,4 +89,5 @@ Paying more than a Token holds. The stand-in refuses it the way the deployed pro
 subtraction underflows; its Leo test `test_pay_over_token_fails`), but through the SDK that
 underflow is a panic inside the VM's WebAssembly during local execution, not a rejected promise:
 the call never settles and a test can only time out. Shield would refuse to build such a
-transaction the same way, and the pay queue never builds one (`planTransfers` splits first).
+transaction the same way, and the pay queue never builds one (it picks a record that covers the
+payment, or refuses the run).

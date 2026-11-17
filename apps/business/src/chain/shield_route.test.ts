@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { stoppedBeforeWallet } from "@pnw/rail";
 import { WalletReadyState } from "@pnw/wallet/wallet-provider";
-import { isPairingCancelled, mayReconnect, shieldRoute } from "./shield_route";
+import { isPairingCancelled, mayReconnect, notAllowedProgramHint, rethrowSendError, shieldRoute } from "./shield_route";
 
 describe("shieldRoute", () => {
   it("uses injected Shield wherever it is found: the extension, or Shield's own browser", () => {
@@ -28,6 +29,53 @@ describe("isPairingCancelled", () => {
     expect(isPairingCancelled("Shield pairing was cancelled")).toBe(true);
     expect(isPairingCancelled("timed out waiting for the Shield app to pair")).toBe(false);
     expect(isPairingCancelled("could not reach the Shield relay")).toBe(false);
+  });
+});
+
+describe("notAllowedProgramHint", () => {
+  it("tells the person to connect again when Shield was never asked for the program", () => {
+    // Shield's own words, seen 2026-11-14 on the card step of setup.
+    const hint = notAllowedProgramHint("hewn_cards_v1.aleo is not in the allowed programs, request it when connect");
+    expect(hint).toMatch(/disconnect this site, then connect again/);
+    expect(hint).toMatch(/Nothing was sent/);
+    // Chain vocabulary stays out of what the person reads.
+    expect(hint).not.toMatch(/\.aleo/);
+  });
+
+  it("leaves every other error alone", () => {
+    expect(notAllowedProgramHint("User rejected the request")).toBeNull();
+    expect(notAllowedProgramHint("Shield pairing was cancelled")).toBeNull();
+    expect(notAllowedProgramHint("")).toBeNull();
+  });
+});
+
+describe("rethrowSendError", () => {
+  const NOTHING = Symbol("nothing thrown");
+  const thrownBy = (e: unknown): unknown => {
+    try {
+      rethrowSendError(e);
+    } catch (thrown) {
+      return thrown;
+    }
+    return NOTHING;
+  };
+
+  it("rethrows Shield's refusal as the hint, keeping Shield's error as its cause", () => {
+    const refused = new Error("hewn_cards_v1.aleo is not in the allowed programs, request it when connect");
+    const thrown = thrownBy(refused);
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe(notAllowedProgramHint(refused.message));
+    expect((thrown as Error).cause).toBe(refused);
+    // Nothing was sent: a payment refused this way fails with its record kept, never "not confirmed".
+    expect(stoppedBeforeWallet(thrown)).toBe(true);
+  });
+
+  it("rethrows any other error as the same object", () => {
+    // Only an Error's message is read: anything else thrown passes through untouched.
+    for (const other of [new Error("User rejected the request"), "not in the allowed programs", undefined]) {
+      expect(thrownBy(other)).toBe(other);
+    }
+    expect(stoppedBeforeWallet(thrownBy(new Error("User rejected the request")))).toBe(false);
   });
 });
 

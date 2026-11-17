@@ -22,6 +22,8 @@ import { EDITIONS } from "@pnw/config/programs";
 
 /** A program changed, or couldn't be checked. Nothing was sent. */
 export class EditionError extends Error {
+  /** Thrown before the wallet is asked: the pay queue reads this as a payment that failed, not one whose outcome isn't known (@pnw/rail `stoppedBeforeWallet`). */
+  readonly nothingSent = true;
   constructor(message: string) {
     super(message);
     this.name = "EditionError";

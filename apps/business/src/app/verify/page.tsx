@@ -15,7 +15,7 @@ export default function VerifyPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Check a proof"
-        summary={`A period proof from ${BRAND.name} shows a closed range of a business's books is complete and unchanged: every entry recomputes to the fingerprint the business anchored in public when it closed the range.`}
+        summary={`A period proof from ${BRAND.name} shows a closed range of a business's books is complete and unchanged: every entry recomputes to a fingerprint anchored in public when the range was closed. This page doesn't check who anchored it.`}
       />
       <VerifyProof />
     </div>
