@@ -20,6 +20,7 @@
 
 import type { Connection, Hello, HelloSide } from "../books/connections";
 import { validateHello } from "../books/connections";
+import { isP256Point } from "../books/key_point";
 import type { Half } from "../books/key_ring";
 import type { ThreadBody } from "../books/thread";
 import { pairKey } from "./coworkers";
@@ -68,7 +69,8 @@ export async function readHellos(getAll: (lookup: string) => Promise<LetterRecor
     for (const r of records) {
       if (!r.sender || r.sender === me) continue;
       const hello = unpackHello(r.envelope);
-      if (hello) latest.set(r.sender, hello);
+      // Its key must be a point on the curve (books/key_point.ts), or no pair could ever be made with it.
+      if (hello && (await isP256Point(hello.publicKey))) latest.set(r.sender, hello);
     }
   }
   return [...latest].map(([sender, hello]) => ({ sender, hello }));
