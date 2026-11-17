@@ -1,12 +1,14 @@
 // ---------------------------------------------------------------------------
-// Log out, the idle lock and the end of "stay logged in" close the books in
-// every open tab of this app, not only the one they happened in. Each tab
-// hears it on one BroadcastChannel (same origin only) and locks itself,
-// whatever account it has open; a tab that locks because another told it to
-// doesn't pass the word on again. Inside a tab, what a page kept in memory
-// for the open books (a conversation's keys, say) is dropped by a listener
-// registered here. No books data travels: the message is only {type: "lock"}.
-// A browser without BroadcastChannel locks just the tab it is in.
+// Log out closes the books in every open tab of this app, not only the one it
+// happened in. Each tab hears it on one BroadcastChannel (same origin only) and
+// locks itself, whatever account it has open; a tab that locks because another
+// told it to doesn't pass the word on again. The idle lock and the end of "stay
+// logged in" lock only their own tab: each tab keeps its own time, so a tab
+// left alone never locks the one in use (a pay run's, say). Inside a tab, on
+// every lock, what a page kept in memory for the open books (a conversation's
+// keys, say) is dropped by a listener registered here. No books data travels:
+// the message is only {type: "lock"}. A browser without BroadcastChannel locks
+// just the tab it is in.
 // ---------------------------------------------------------------------------
 
 import { BRAND } from "@/brand";
@@ -41,10 +43,11 @@ export function onBooksClosed(fn: () => void): () => void {
 }
 
 /**
- * The books closed in this tab: everything registered with `onBooksClosed` drops what it kept,
- * and, unless this tab is locking because another one said so, every other tab is told to lock.
+ * The books closed in this tab: everything registered with `onBooksClosed` drops what it kept.
+ * With `toOtherTabs` (Log out), every other tab is told to lock too; a lock that came from
+ * another tab, the idle lock and the end of "stay logged in" leave it unset.
  */
-export function announceBooksClosed({ fromOtherTab = false }: { fromOtherTab?: boolean } = {}): void {
+export function announceBooksClosed({ toOtherTabs = false }: { toOtherTabs?: boolean } = {}): void {
   for (const fn of [...here]) {
     try {
       fn();
@@ -52,7 +55,7 @@ export function announceBooksClosed({ fromOtherTab = false }: { fromOtherTab?: b
       // One listener failing doesn't keep the others' memory.
     }
   }
-  if (fromOtherTab) return;
+  if (!toOtherTabs) return;
   try {
     lockChannel()?.postMessage({ type: "lock" } satisfies LockMessage);
   } catch {

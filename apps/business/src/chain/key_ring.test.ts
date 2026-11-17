@@ -325,7 +325,7 @@ describe("the pair keys this tab has made", () => {
       // Kept for this tab while the books are open: no exchange the second time.
       expect(await pairKeyHex(KEY, pair)).toBe(key);
       expect(derive.mock.calls.length).toBe(made);
-      announceBooksClosed({ fromOtherTab: true });
+      announceBooksClosed();
       // Gone: the next read does the exchange again, and comes to the same key.
       expect(await pairKeyHex(KEY, pair)).toBe(key);
       expect(derive.mock.calls.length).toBe(2 * made);
@@ -339,7 +339,7 @@ describe("the pair keys this tab has made", () => {
     const derive = vi.spyOn(globalThis.crypto.subtle, "deriveBits");
     try {
       const making = pairKeyHex(KEY, pair);
-      announceBooksClosed({ fromOtherTab: true });
+      announceBooksClosed();
       const key = await making;
       const made = derive.mock.calls.length;
       expect(await pairKeyHex(KEY, pair)).toBe(key);

@@ -204,11 +204,12 @@ type BooksContextValue = {
   unlockLegacy: (passphrase: string, stay?: boolean) => Promise<void>;
   /**
    * Log out: drops the key and plaintext from memory at once, and forgets "stay logged in" on this
-   * device. Resolves once the device has forgotten it, or `stillRemembered` says it hasn't. Every
-   * other open tab of the app locks too (books/lock_signal.ts); `fromOtherTab` is set when this
-   * lock is that word arriving, so it isn't passed on again.
+   * device. Resolves once the device has forgotten it, or `stillRemembered` says it hasn't. With
+   * `everyTab` (the Log out buttons), every other open tab of the app locks too
+   * (books/lock_signal.ts); the idle lock, the end of "stay logged in" and a lock that came from
+   * another tab lock only this one.
    */
-  lock: (options?: { fromOtherTab?: boolean }) => Promise<void>;
+  lock: (options?: { everyTab?: boolean }) => Promise<void>;
   /** Set when the last Log out couldn't forget "stay logged in" on this device: the books may reopen here by themselves. */
   stillRemembered: boolean;
   /** When "stay logged in" ends, or null when the books aren't kept open. */
@@ -534,7 +535,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store, open],
   );
 
-  const lock = useCallback(async ({ fromOtherTab = false }: { fromOtherTab?: boolean } = {}) => {
+  const lock = useCallback(async ({ everyTab = false }: { everyTab?: boolean } = {}) => {
     // Started first and awaited last: the key and the books leave this tab's memory without
     // waiting for the device's storage. A store that doesn't answer in time counts as not forgotten.
     const gone = withinTime(forgetSession(store), STARTUP_WAIT_MS).catch(() => false);
@@ -550,9 +551,10 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     setRecoveryMadeAt(null);
     setCompany(null);
     setStatus((s) => (s === "open" ? "locked" : s));
-    forgetChosenWallet();
-    // What pages kept for these books leaves memory too, and every other tab locks (books/lock_signal.ts).
-    announceBooksClosed({ fromOtherTab });
+    // Log out only: a tab locking on its own timer leaves it, so the tabs still open keep connecting.
+    if (everyTab) forgetChosenWallet();
+    // What pages kept for these books leaves memory too; on Log out every other tab locks (books/lock_signal.ts).
+    announceBooksClosed({ toOtherTabs: everyTab });
     const forgotten = await gone;
     // Only the latest Log out speaks: an earlier one that ends later says nothing.
     if (forgetting.current === gone) setStillRemembered(!forgotten);
@@ -793,9 +795,9 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store],
   );
 
-  // Another tab of the app locked (Log out, the idle lock, the end of "stay logged in"): this one
-  // locks too, whatever account it has open, and doesn't pass the word on.
-  useEffect(() => listenForOtherTabs(() => void lock({ fromOtherTab: true })), [lock]);
+  // Log out in another tab of the app: this one locks too, whatever account it has open, and
+  // doesn't pass the word on.
+  useEffect(() => listenForOtherTabs(() => void lock()), [lock]);
 
   // Kept open: log out when the 24 hours are up. Not kept: auto-lock after inactivity.
   // A timer doesn't run while a phone sleeps or a tab is frozen, so the time is checked again

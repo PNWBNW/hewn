@@ -40,7 +40,7 @@ describe("closing the books in one tab", () => {
     expect(dropped).not.toHaveBeenCalled();
   });
 
-  it("tells every other tab, which locks without passing the word on, and never itself", async () => {
+  it("on Log out tells every other tab, which locks without passing the word on, and never itself", async () => {
     const a = await newTab();
     const b = await newTab();
     const c = await newTab();
@@ -50,15 +50,30 @@ describe("closing the books in one tab", () => {
     stops.push(a.listenForOtherTabs(heardByA));
     stops.push(c.listenForOtherTabs(heardByC));
     stops.push(b.onBooksClosed(droppedInB));
-    // B does what BooksProvider does when another tab locks: lock({ fromOtherTab: true }).
-    stops.push(b.listenForOtherTabs(() => b.announceBooksClosed({ fromOtherTab: true })));
+    // B does what BooksProvider does when another tab logs out: lock(), for this tab only.
+    stops.push(b.listenForOtherTabs(() => b.announceBooksClosed()));
 
-    a.announceBooksClosed();
+    a.announceBooksClosed({ toOtherTabs: true });
     await settle();
 
     expect(droppedInB).toHaveBeenCalledTimes(1);
     expect(heardByC).toHaveBeenCalledTimes(1); // A's word only: B said nothing more
     expect(heardByA).not.toHaveBeenCalled(); // no echo, from itself or from B
+  });
+
+  it("keeps a lock of this tab alone (the idle lock, the end of stay logged in) to this tab", async () => {
+    const a = await newTab();
+    const b = await newTab();
+    const droppedInA = vi.fn();
+    const heardByB = vi.fn();
+    stops.push(a.onBooksClosed(droppedInA));
+    stops.push(b.listenForOtherTabs(heardByB));
+
+    a.announceBooksClosed();
+    await settle();
+
+    expect(droppedInA).toHaveBeenCalledTimes(1);
+    expect(heardByB).not.toHaveBeenCalled();
   });
 
   it("ignores any other message on the channel", async () => {
@@ -94,19 +109,29 @@ describe("the open books' provider", () => {
   const provider = read("books/BooksProvider.tsx");
   const lock = provider.slice(provider.indexOf("const lock = useCallback("), provider.indexOf("// Updates run one at a time"));
 
-  it("tells this tab's listeners and the other tabs on every lock, unless another tab asked for it", () => {
-    expect(lock).toContain("async ({ fromOtherTab = false }: { fromOtherTab?: boolean } = {}) => {");
-    expect(lock).toContain("announceBooksClosed({ fromOtherTab });");
+  it("tells this tab's listeners on every lock, and the other tabs only when asked to", () => {
+    expect(lock).toContain("async ({ everyTab = false }: { everyTab?: boolean } = {}) => {");
+    expect(lock).toContain("announceBooksClosed({ toOtherTabs: everyTab });");
   });
 
-  it("locks when another tab does, without passing the word on", () => {
-    expect(provider).toContain("useEffect(() => listenForOtherTabs(() => void lock({ fromOtherTab: true })), [lock]);");
+  it("locks when another tab logs out, without passing the word on", () => {
+    expect(provider).toContain("useEffect(() => listenForOtherTabs(() => void lock()), [lock]);");
+  });
+
+  it("asks every tab to lock only from Log out, never from its own timers", () => {
+    // The idle lock and the end of "stay logged in" lock this tab alone: a tab left idle in the
+    // background must not lock the one in use.
+    expect(provider).not.toMatch(/everyTab:\s*true/);
+    expect(provider).not.toMatch(/toOtherTabs:\s*true/);
+    const logOuts = [read("app/settings/page.tsx"), read("shell/AppShell.tsx")].join("\n");
+    expect(logOuts.match(/void lock\(\{ everyTab: true \}\)/g)).toHaveLength(3);
+    expect(logOuts).not.toMatch(/void lock\(\)/);
   });
 
   it("forgets which wallet was chosen, so the next login waits for a tap", () => {
     expect(provider).toMatch(/const SHIELD_WALLET_NAME = "walletName";/);
     expect(provider).toContain("localStorage.removeItem(SHIELD_WALLET_NAME);");
-    expect(lock).toContain("forgetChosenWallet();");
+    expect(lock).toContain("if (everyTab) forgetChosenWallet();");
     // The adapter's default key, which the wallet package doesn't change.
     const wrapper = read("../../../packages/wallet/src/wallet-provider.tsx");
     expect(wrapper).toContain("<AleoWalletProvider");
