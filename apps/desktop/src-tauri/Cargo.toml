@@ -1,0 +1,50 @@
+# The desktop app's shell: one window that runs the static bundle (apps/business/out) from the
+# app's own origin, and the updater, which installs an update only when it is signed with the
+# operator's update key. See ../README.md.
+#
+# Versions are exact (`=`) and at least seven days old when pinned, as the npm side's
+# minimumReleaseAge asks; Cargo.lock is committed and every build uses it (`--locked`).
+[package]
+name = "pnw-desktop"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "AGPL-3.0-only"
+publish = false
+description = "The installable desktop app: the static bundle in a window, updated only under the operator's signature."
+
+[lib]
+name = "pnw_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pnw-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+# No default features beyond what a window needs: no tray, no shell, no file system access.
+tauri = { version = "=2.12.5", features = [] }
+# Installs updates, after checking each one against the update key in tauri.conf.json.
+tauri-plugin-updater = { version = "=2.14.1" }
+# Opens the web links the pages carry (the source code, the website, the explorer) in the
+# person's own browser. Called from Rust only: the pages are given no permission to call it.
+tauri-plugin-opener = { version = "=2.7.2" }
+# The configuration tauri::generate_context! embeds is read through it.
+serde_json = "1"
+
+[dev-dependencies]
+# tests/update_key.rs: an app on the mock runtime, and throwaway minisign keys made at test time
+# (the format `cargo tauri signer` makes and the updater checks).
+tauri = { version = "=2.12.5", features = ["test"] }
+minisign = { version = "=0.9.1" }
+base64 = "0.23"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

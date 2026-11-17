@@ -194,6 +194,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 |---|---|
 | [`apps/business`](apps/business) | **The Hewn app** (Next.js). Screens in `src/app`, book logic in `src/books`, everything that touches Aleo in `src/chain` |
 | [`apps/site`](apps/site) | The marketing site, hewnaccounting.com |
+| [`apps/desktop`](apps/desktop/README.md) | The installable desktop app (Tauri): the app's static bundle in a window, updated only under the operator's signature. Built, not usable until it can reach Shield |
 | [`packages/`](packages) | Shared libraries: the ledger, vault, payroll, tax engine, wallet, Aleo adapter and more. Layering map in [`packages/README.md`](packages/README.md) |
 | [`brand/`](brand) | Logo source art and the script that builds the brand assets. The name and colours live in [`packages/brand`](packages/brand) |
 | [`docs/`](docs/README.md) | Design documents with their status: the [threat model](docs/THREAT_MODEL.md), [letters](docs/LETTERS.md), the [job board](docs/JOB_BOARD.md), the [audit design](docs/AUDIT_DESIGN.md), and the grant proposal |
