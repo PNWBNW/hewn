@@ -8,9 +8,16 @@ version, not when it installs one a lockfile already names. So this check reads 
 itself.
 
 Always (no network):
-  - every `resolution:` in pnpm-lock.yaml is a plain registry entry, `{integrity: ...}`; one
+  - pnpm-lock.yaml has only the shape pnpm writes for packages from the registry. Every entry
+    under `packages:` has one `resolution:`, written `{integrity: sha512-...}` on one line; one
     carrying `tarball`, `repo`, `commit`, `path`, `directory` or `type` (a tarball URL, a git
-    repository, a folder on disk) fails;
+    repository, a folder on disk) fails. pnpm reads an entry's fields from `packages:` and
+    `snapshots:` together, and fetches the `version` an entry names over the one in its key,
+    so only the fields pnpm writes for a registry package are accepted in each section (no
+    `version`, `name` or `id`; no `resolution` under `snapshots:`), and every snapshot has its
+    entry under `packages:`. Anything this line-by-line reader doesn't recognise (another
+    indentation, a flow-style entry, a quoted or explicit key, an alias, a comment after a
+    section's name) fails rather than being skipped;
   - no tracked .npmrc points a registry anywhere but https://registry.npmjs.org/, or lowers
     `minimum-release-age`;
   - pnpm-workspace.yaml sets `minimumReleaseAge` to at least 10080 minutes (7 days) and
@@ -43,57 +50,128 @@ MIN_AGE = timedelta(minutes=MIN_AGE_MINUTES)
 # Keys a resolution may carry only when the package doesn't come from the registry.
 FOREIGN = ("tarball", "repo", "commit", "path", "directory", "type")
 FOREIGN_KEY = re.compile(r"(?:^|[{,\s])(" + "|".join(FOREIGN) + r")\s*:")
-TOP = re.compile(r"^(\S[^:]*):\s*$")
-ENTRY = re.compile(r"^  (\S.*):\s*$")
-RESOLUTION = re.compile(r"^(\s+)resolution:\s*(.*)$")
+# A registry package's resolution, exactly as pnpm writes it.
+PLAIN_RESOLUTION = re.compile(r"\{integrity: sha(?:1|256|384|512)-[A-Za-z0-9+/]+=*\}")
+TOP = re.compile(r"^([A-Za-z][A-Za-z0-9]*):(?: (.*))?$")
+ENTRY = re.compile(r"^  (?:'([^'\s]+)'|([^\s'\"#&*!|>%@`{}\[\],?][^\s'\"#{}\[\],]*)):( \{\})?$")
+FIELD = re.compile(r"^    ([A-Za-z]+):(?: (.*))?$")
+# The fields pnpm writes under an entry of each section for a package from the registry.
+FIELDS = {
+    "packages": {"resolution", "engines", "cpu", "os", "libc", "hasBin", "peerDependencies",
+                 "peerDependenciesMeta", "bundledDependencies", "deprecated"},
+    "snapshots": {"dependencies", "optionalDependencies", "transitivePeerDependencies", "dev",
+                  "optional"},
+}
 
 
 def _key(raw: str) -> str:
-    key = raw.strip().strip("'\"")
-    return key[1:] if key.startswith("/") else key  # lockfile v6 wrote '/name@1.0.0'
+    return raw[1:] if raw.startswith("/") else raw  # lockfile v6 wrote '/name@1.0.0'
+
+
+def _judge(where: str, value: str) -> str | None:
+    if PLAIN_RESOLUTION.fullmatch(value):
+        return None
+    found = FOREIGN_KEY.findall(value)
+    if found:
+        return f"{where}: resolution has {', '.join(sorted(set(found)))} (not the npm registry)"
+    if "integrity:" not in value:
+        return f"{where}: resolution has no integrity hash"
+    return f"{where}: resolution isn't written as a registry entry ({{integrity: ...}} on one line)"
 
 
 def parse_lockfile(text: str) -> tuple[dict[str, str], list[str]]:
-    """The `packages:` section as {name@version: resolution text}, and problems found.
+    """The `packages:` entries as {name@version: resolution text}, and problems found.
 
     A resolution written as a block (`resolution:` with its keys on the lines below) is gathered
-    into one string, so it is judged the same way as the inline form."""
+    into one string for the message; it fails either way."""
     entries: dict[str, str] = {}
     problems: list[str] = []
-    section, entry = None, None
+    resolutions: list[dict[str, int]] = [{}]  # per YAML document: packages entry -> resolutions
+    snapshots: list[tuple[int, int, str]] = []  # (document, line, key)
+    seen: list[set] = [set()]  # per document: (section, key) and section names already read
+    doc, section, entry, block = 0, None, None, False
     lines = text.splitlines()
     i = 0
     while i < len(lines):
-        line = lines[i]
-        top = TOP.match(line)
-        if top:
-            section, entry = top.group(1), None
-        elif section == "packages":
-            m = ENTRY.match(line)
-            if m:
-                entry = _key(m.group(1))
-            else:
-                r = RESOLUTION.match(line)
-                if r and entry is not None:
-                    indent, value = len(r.group(1)), r.group(2).strip()
-                    if not value:  # block form: the keys follow, indented further
-                        parts = []
-                        while i + 1 < len(lines) and (
-                            not lines[i + 1].strip()
-                            or len(lines[i + 1]) - len(lines[i + 1].lstrip()) > indent
-                        ):
-                            i += 1
-                            if lines[i].strip():
-                                parts.append(lines[i].strip())
-                        value = "{" + ", ".join(parts) + "}"
-                    entries[entry] = value
-                    where = f"pnpm-lock.yaml:{i + 1}: {entry}"
-                    found = FOREIGN_KEY.findall(value)
-                    if found:
-                        problems.append(f"{where}: resolution has {', '.join(sorted(set(found)))} (not the npm registry)")
-                    elif "integrity:" not in value:
-                        problems.append(f"{where}: resolution has no integrity hash")
+        line, n = lines[i], i + 1
         i += 1
+        where = f"pnpm-lock.yaml:{n}"
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line == "---":  # another YAML document (pnpm 10 may write one for its own tools)
+            doc, section, entry, block = doc + 1, None, None, False
+            resolutions.append({})
+            seen.append(set())
+            continue
+        if not line[0].isspace():
+            entry, block = None, False
+            m = TOP.match(line)
+            if not m:
+                problems.append(f"{where}: unexpected line at the top level")
+                section = None
+                continue
+            section = m.group(1)
+            if section in FIELDS:
+                if m.group(2) is not None:
+                    problems.append(f"{where}: `{section}:` has something after it on its line")
+                if section in seen[doc]:
+                    problems.append(f"{where}: `{section}:` appears twice")
+                seen[doc].add(section)
+            continue
+        if section not in FIELDS:
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if indent == 2:
+            m = ENTRY.match(line)
+            block = False
+            if not m:
+                problems.append(f"{where}: unexpected line under {section}")
+                entry = None
+                continue
+            entry = _key(m.group(1) or m.group(2))
+            if (section, entry) in seen[doc]:
+                problems.append(f"{where}: {entry} appears twice under {section}")
+            seen[doc].add((section, entry))
+            if section == "packages":
+                resolutions[doc].setdefault(entry, 0)
+            else:
+                snapshots.append((doc, n, entry))
+        elif indent == 4 and entry is not None:
+            m = FIELD.match(line)
+            if not m:
+                problems.append(f"{where}: {entry}: unexpected line under {section}")
+                block = False
+                continue
+            name, value = m.group(1), m.group(2)
+            block = value is None
+            if name not in FIELDS[section]:
+                problems.append(f"{where}: {entry}: `{name}` under {section} (not a field of a registry package)")
+            elif name == "resolution":
+                resolutions[doc][entry] += 1
+                if block:  # the keys follow, indented further
+                    parts = []
+                    while i < len(lines) and (
+                        not lines[i].strip() or len(lines[i]) - len(lines[i].lstrip(" ")) > 4
+                    ):
+                        if lines[i].strip():
+                            parts.append(lines[i].strip())
+                        i += 1
+                    value, block = "{" + ", ".join(parts) + "}", False
+                entries[entry] = value
+                problem = _judge(f"{where}: {entry}", value.strip())
+                if problem:
+                    problems.append(problem)
+        elif indent >= 6 and block:
+            continue  # inside a field written as a block (a map of dependencies, a list)
+        else:
+            problems.append(f"{where}: unexpected line under {section}")
+    for counts in resolutions:
+        for key, count in counts.items():
+            if count != 1:
+                problems.append(f"pnpm-lock.yaml: {key}: {'no resolution' if not count else 'more than one resolution'}")
+    for d, n, key in snapshots:
+        if key.split("(", 1)[0] not in resolutions[d]:
+            problems.append(f"pnpm-lock.yaml:{n}: {key} is under snapshots but not under packages")
     return entries, problems
 
 

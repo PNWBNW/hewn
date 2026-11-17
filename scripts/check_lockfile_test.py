@@ -26,7 +26,12 @@ def lockfile(*entries: tuple[str, str]) -> str:
         "        version: 1.3.0\n\npackages:\n\n"
     )
     body = "".join(f"  '{key}':\n    resolution: {res}\n    engines: {{node: '>=18'}}\n\n" for key, res in entries)
-    return head + body + "snapshots:\n\n  left-pad@1.3.0: {}\n"
+    snaps = "".join(f"  '{key}': {{}}\n" for key, _ in entries)
+    return head + body + "snapshots:\n\n" + snaps
+
+
+PLAIN = lockfile(("left-pad@1.3.0", f"{{integrity: {SHA}}}"))
+TARBALL = f"{{integrity: {SHA}, tarball: https://example.com/a.tgz}}"
 
 
 def published(**ages_in_days):
@@ -82,6 +87,54 @@ class ResolutionTest(unittest.TestCase):
         _, problems = c.parse_lockfile(lockfile(("left-pad@1.3.0", "{}")))
         self.assertEqual(len(problems), 1)
         self.assertIn("no integrity", problems[0])
+
+    def test_a_resolution_in_snapshots_fails(self):
+        # pnpm reads an entry's fields from both sections, so a resolution there counts too.
+        text = PLAIN.replace(f"    resolution: {{integrity: {SHA}}}\n", "").replace(
+            "  'left-pad@1.3.0': {}\n", f"  'left-pad@1.3.0':\n    resolution: {TARBALL}\n")
+        _, problems = c.parse_lockfile(text)
+        self.assertTrue(any("snapshots" in p and "resolution" in p for p in problems), problems)
+        self.assertTrue(any("no resolution" in p for p in problems), problems)
+
+    def test_a_version_or_name_beside_the_resolution_fails(self):
+        # pnpm fetches the version written there, not the one in the entry's key.
+        for field in ("version: 1.2.0", "name: right-pad", "id: right-pad@1.2.0"):
+            text = PLAIN.replace("    engines:", f"    {field}\n    engines:", 1)
+            _, problems = c.parse_lockfile(text)
+            self.assertEqual(len(problems), 1, (field, problems))
+            self.assertIn(field.split(":")[0], problems[0])
+        text = PLAIN.replace("  'left-pad@1.3.0': {}\n", "  'left-pad@1.3.0':\n    version: 1.2.0\n")
+        self.assertEqual(len(c.parse_lockfile(text)[1]), 1)
+
+    def test_an_entry_in_snapshots_only_fails(self):
+        _, problems = c.parse_lockfile(PLAIN + "  right-pad@1.0.0: {}\n")
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("right-pad@1.0.0", problems[0])
+
+    def test_only_the_shape_pnpm_writes_is_read(self):
+        variants = {
+            "a comment after the section": PLAIN.replace("packages:\n", "packages: # sorted\n"),
+            "a quoted section name": PLAIN.replace("packages:\n", "'packages':\n"),
+            "an entry on one line": PLAIN.replace(
+                f"  'left-pad@1.3.0':\n    resolution: {{integrity: {SHA}}}\n",
+                f"  'left-pad@1.3.0': {{resolution: {TARBALL}}}\n"),
+            "a quoted field name": PLAIN.replace("    resolution:", "    'resolution':"),
+            "a resolution over two lines": PLAIN.replace(
+                f"{{integrity: {SHA}}}", f"{{integrity: {SHA},\n      tarball: https://example.com/a.tgz}}"),
+            "an alias": PLAIN.replace(f"{{integrity: {SHA}}}", "*plain"),
+            "a merge key": PLAIN.replace("    engines:", "    <<: *other\n    engines:"),
+            "a double-quoted key": PLAIN.replace("  'left-pad@1.3.0':\n    res", '  "left-pad@1.3.0":\n    res'),
+            "an explicit key": PLAIN.replace("    engines:", "    ? version\n    : 1.2.0\n    engines:"),
+            "an entry twice": PLAIN.replace("snapshots:", f"  left-pad@1.3.0:\n    resolution: {TARBALL}\n\nsnapshots:"),
+        }
+        self.assertEqual(c.parse_lockfile(PLAIN)[1], [])
+        for name, text in variants.items():
+            self.assertNotEqual(c.parse_lockfile(text)[1], [], name)
+
+    def test_a_second_document_is_read_the_same_way(self):
+        _, problems = c.parse_lockfile(PLAIN + "---\n" + lockfile(("right-pad@1.0.0", TARBALL)))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("tarball", problems[0])
 
     def test_the_words_inside_an_integrity_hash_or_engines_are_not_keys(self):
         _, problems = c.parse_lockfile(lockfile(("type-fest@4.0.0", f"{{integrity: {SHA}}}")))
