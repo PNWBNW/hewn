@@ -7,8 +7,6 @@
 
 import { Suspense, useCallback, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Megaphone, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { Card, CardContent } from "@pnw/ui/card";
@@ -19,6 +17,7 @@ import { type Thread, preview, unreadIn } from "@/books/thread";
 import { businessDirectory, directoryOutbox } from "@/books/directory";
 import { connectedIn, updateConnectionThread } from "@/books/connections";
 import { emptyThread } from "@/books/thread";
+import { HashLink, setHashParams, useHashParams } from "@/shell/hash_params";
 import { PageHeader } from "@/shell/SectionView";
 
 const loading = () => <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -28,6 +27,9 @@ const MessagesCheck = dynamic(() => import("@/chain/MessagesCheck"), { ssr: fals
 const RestoreBackups = dynamic(() => import("@/chain/RestoreBackups"), { ssr: false });
 const SendDirectory = dynamic(() => import("@/chain/SendDirectory"), { ssr: false, loading });
 const ClientConversation = dynamic(() => import("@/chain/clients/ClientConversation"), { ssr: false, loading });
+
+// What a link from before may still name in the query (moved to the fragment on opening).
+const SELECTION = ["with", "channel", "client"] as const;
 
 export default function MessagesPage() {
   return (
@@ -39,8 +41,8 @@ export default function MessagesPage() {
 
 function Messages() {
   const { rail, payroll, mailbox, sales, clients, updateCompany } = useOpenBooks();
-  const params = useSearchParams();
-  const router = useRouter();
+  // The conversation open is named in the fragment, so no request carries it (shell/hash_params.ts).
+  const params = useHashParams(SELECTION);
   const selected = params.get("with");
   const channelId = params.get("channel");
   const clientAddress = params.get("client");
@@ -80,9 +82,9 @@ function Messages() {
   if (client) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
+        </HashLink>
         <ClientConversation key={client.address} side="business" connection={client} title={client.label} update={updateClient} />
       </div>
     );
@@ -92,10 +94,10 @@ function Messages() {
   if (channel) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
-        <Channel key={channel.id} channelId={channel.id} onClose={() => router.push("/messages")} />
+        </HashLink>
+        <Channel key={channel.id} channelId={channel.id} onClose={() => setHashParams({})} />
       </div>
     );
   }
@@ -103,9 +105,9 @@ function Messages() {
   if (open) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
+        </HashLink>
         <Conversation key={open.partiesKey} side="business" partiesKey={open.partiesKey} title={open.name} thread={open.thread} update={update} offersHref="/jobs?tab=offers" peer={open.address} twin />
       </div>
     );
@@ -145,7 +147,7 @@ function Messages() {
               channelId={null}
               onCreated={(id) => {
                 setMaking(false);
-                router.push(`/messages?channel=${id}`);
+                setHashParams({ channel: id });
               }}
               onClose={() => setMaking(false)}
             />
@@ -156,14 +158,14 @@ function Messages() {
             <ul className="divide-y">
               {(mailbox?.channels ?? []).map((c) => (
                 <li key={c.id}>
-                  <Link href={`/messages?channel=${c.id}`} className="flex min-h-14 items-center gap-3 py-3">
+                  <HashLink path="/messages" values={{ channel: c.id }} className="flex min-h-14 items-center gap-3 py-3">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{c.name}</span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {c.members.length} {c.members.length === 1 ? "person" : "people"} · {c.posts.at(-1)?.text ?? "Nothing posted yet"}
                       </span>
                     </span>
-                  </Link>
+                  </HashLink>
                 </li>
               ))}
             </ul>
@@ -181,7 +183,7 @@ function Messages() {
                 const unread = unreadIn(p.thread);
                 return (
                   <li key={p.workerId}>
-                    <Link href={`/messages?with=${encodeURIComponent(p.workerId)}`} className="flex min-h-14 items-center gap-3 py-3">
+                    <HashLink path="/messages" values={{ with: p.workerId }} className="flex min-h-14 items-center gap-3 py-3">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>{p.name}</span>
                         <span className="block truncate text-xs text-muted-foreground">{preview(p.thread?.items.at(-1))}</span>
@@ -191,7 +193,7 @@ function Messages() {
                           {unread}
                         </span>
                       )}
-                    </Link>
+                    </HashLink>
                   </li>
                 );
               })}
@@ -208,7 +210,7 @@ function Messages() {
                 const unread = unreadIn(c.thread);
                 return (
                   <li key={c.address}>
-                    <Link href={`/messages?client=${encodeURIComponent(c.address)}`} className="flex min-h-14 items-center gap-3 py-3">
+                    <HashLink path="/messages" values={{ client: c.address }} className="flex min-h-14 items-center gap-3 py-3">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>{c.label}</span>
                         <span className="block truncate text-xs text-muted-foreground">{c.thread?.items.length ? preview(c.thread.items.at(-1)) : "Connected. Say hello."}</span>
@@ -218,7 +220,7 @@ function Messages() {
                           {unread}
                         </span>
                       )}
-                    </Link>
+                    </HashLink>
                   </li>
                 );
               })}
