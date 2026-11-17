@@ -413,6 +413,7 @@ describe("sendOffer", () => {
     await expect(sendOffer(input({ client, wallet, employerNameHash: "" }))).rejects.toThrow(/business name/);
     await expect(sendOffer(input({ client, wallet, workerNameHash: "field" }))).rejects.toThrow(NO_NAME_MESSAGE);
     await expect(sendOffer(input({ client, wallet, workerAddress: "aleo1nope" }))).rejects.toThrow(/Find the person/);
+    await expect(sendOffer(input({ client, wallet, workerAddress: "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc" }))).rejects.toThrow(/Find the person/);
     await expect(sendOffer(input({ client, wallet, industryCode: 0 }))).rejects.toThrow(/industry/);
     await expect(sendOffer(input({ client, wallet, endDate: "2026-11-02" }))).rejects.toThrow(/end date/);
     expect(client.puts).toEqual([]);
