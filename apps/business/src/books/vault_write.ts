@@ -9,13 +9,18 @@
 // again, and any two tabs would undo each other's work.
 // ---------------------------------------------------------------------------
 
-import type { VaultSession, VaultStore } from "@pnw/vault";
+import type { SealedAttachment, VaultSession, VaultStore } from "@pnw/vault";
 
 export const CHANGED_ELSEWHERE = "These books changed in another tab or window, so nothing was saved here. Reload this page to carry on.";
 
 type Locks = { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
 
 const browserLocks = (): Locks | undefined => (typeof navigator !== "undefined" ? (navigator.locks as Locks | undefined) : undefined);
+
+/** Runs `fn` under the one lock across the browser's tabs that every write of these books takes. */
+export function underVaultLock<T>(id: string, fn: () => Promise<T>, locks: Locks | undefined = browserLocks()): Promise<T> {
+  return locks ? locks.request(`hewn-vault-${id}`, fn) : fn();
+}
 
 /**
  * Encrypts `json` and saves it over the stored record, if that record is still the one this tab
@@ -36,5 +41,26 @@ export async function saveOver(
     await store.save(record);
     return record.payload.iv;
   };
-  return locks ? locks.request(`hewn-vault-${session.id}`, write) : write();
+  return underVaultLock(session.id, write, locks);
+}
+
+/**
+ * Writes `json` again under `session` and puts that record and `attachments` in place of what is
+ * stored (restoring a backup), under the same lock as `saveOver`: a save another tab has already
+ * checked lands first, and its next save is then refused, instead of landing over the restored
+ * books. Returns the new record's IV.
+ */
+export async function replaceOver(
+  store: Pick<VaultStore, "replace">,
+  session: VaultSession,
+  json: string,
+  attachments: SealedAttachment[],
+  locks: Locks | undefined = browserLocks(),
+): Promise<string> {
+  const put = async () => {
+    const record = await session.write(json);
+    await store.replace(record, attachments);
+    return record.payload.iv;
+  };
+  return underVaultLock(session.id, put, locks);
 }

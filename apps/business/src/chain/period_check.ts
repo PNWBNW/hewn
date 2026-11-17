@@ -65,15 +65,18 @@ export type ChainCheck = { id: "anchored" | "after" | "payments"; ok: boolean; l
 
 const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 
+/** The anchor is looked up by its root alone: `anchor_event` records no caller, so who anchored it isn't known here. */
+const ANCHORED = "The root is anchored on Aleo (by an account this page doesn't check)";
+
 /** The chain checks of a proof whose offline checks passed, with `root` the root it recomputed to. */
 export async function chainChecks(proof: Pick<PeriodProof, "end" | "settlements">, root: string, reads: ChainReads = explorerReads()): Promise<ChainCheck[]> {
   const out: ChainCheck[] = [];
   const height = await reads.anchor(root);
   if (height === null) {
-    out.push({ id: "anchored", ok: false, label: "The root is anchored on Aleo", detail: "No anchor for this root: it was never put on chain, or the range was closed again with a different root" });
+    out.push({ id: "anchored", ok: false, label: ANCHORED, detail: "No anchor for this root: it was never put on chain, or the range was closed again with a different root" });
     return out;
   }
-  out.push({ id: "anchored", ok: true, label: "The root is anchored on Aleo", detail: `In block ${height.toLocaleString("en-US")}`, height });
+  out.push({ id: "anchored", ok: true, label: ANCHORED, detail: `In block ${height.toLocaleString("en-US")}`, height });
   const time = await reads.blockTime(height);
   if (time) {
     const after = dayOf(time) > proof.end;

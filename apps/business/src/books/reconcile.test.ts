@@ -42,16 +42,16 @@ function railRun(c: Company, net: bigint, status: "pending" | "settled" | "faile
 describe("reconciling the Shield account", () => {
   it("has nothing to compare until the books follow a Shield account", () => {
     const books = createBooks({ businessName: "T", fiscalYearStartMonth: 1 });
-    expect(reconcileShield(emptyCompany(books), 20_000_000n)).toEqual({ kind: "not_started" });
-    expect(reconcileShield({ ...emptyCompany(books), rail }, 20_000_000n)).toEqual({ kind: "not_started" });
+    expect(reconcileShield(emptyCompany(books), 20_000_000n)).toEqual({ kind: "not_started", excludedOut: [] });
+    expect(reconcileShield({ ...emptyCompany(books), rail }, 20_000_000n)).toEqual({ kind: "not_started", excludedOut: [] });
   });
 
   it("waits for the balance when Shield isn't read", () => {
-    expect(reconcileShield(company().c, null)).toEqual({ kind: "unread", books: 2000n });
+    expect(reconcileShield(company().c, null)).toEqual({ kind: "unread", books: 2000n, excludedOut: [] });
   });
 
   it("matches when the books and Shield agree", () => {
-    expect(reconcileShield(company().c, 20_000_000n)).toEqual({ kind: "matches", books: 2000n, shield: 2000n });
+    expect(reconcileShield(company().c, 20_000_000n)).toEqual({ kind: "matches", books: 2000n, shield: 2000n, excludedOut: [] });
   });
 
   it("matches when the opening balance dropped a fraction of a cent", () => {
@@ -77,7 +77,7 @@ describe("reconciling the Shield account", () => {
   it("explains a difference by movements waiting in For review", () => {
     const { c } = company();
     const next = addReviewItems(c, [item(1, "in", "4250000"), item(2, "out", "1000000")]);
-    expect(reconcileShield(next, 23_250_000n)).toEqual({ kind: "waiting", books: 2000n, shield: 2325n, count: 2, minor: 3_250_000n });
+    expect(reconcileShield(next, 23_250_000n)).toEqual({ kind: "waiting", books: 2000n, shield: 2325n, count: 2, minor: 3_250_000n, excludedOut: [] });
   });
 
   it("matches once a movement is accepted, keeping the fraction of a cent it dropped", () => {
@@ -94,10 +94,22 @@ describe("reconciling the Shield account", () => {
     expect(reconcileShield(next, 21_000_000n)).toMatchObject({ kind: "matches", books: 2000n });
   });
 
+  it("lists every outflow kept out of the books, whatever the result, and no inflow or move within", () => {
+    const { c } = company(20_000_000_000n);
+    const away = { ...item(1, "out", "2500000000"), date: "2026-10-20", counterparty: "aleo1" + "t".repeat(58) };
+    let next = excludeItem(addReviewItems(c, [away, item(2, "in", "1000000"), { ...item(3, "out", "3000000"), within: true }]), tx(1));
+    next = excludeItem(next, tx(2));
+    const listed = [{ id: tx(1), date: "2026-10-20", minor: 2_500_000_000n, counterparty: away.counterparty }];
+    // The books hold $20,000 on the Shield account; Shield holds $17,500 and the $2,500 was excluded.
+    expect(reconcileShield(next, 17_501_000_000n)).toEqual({ kind: "matches", books: 2_000_000n, shield: 1_750_100n, excludedOut: listed });
+    expect(reconcileShield(next, null)).toMatchObject({ kind: "unread", excludedOut: listed });
+    expect(reconcileShield(next, 10_000_000_000n)).toMatchObject({ kind: "off", excludedOut: listed });
+  });
+
   it("flags a difference nothing explains, either way", () => {
     const { c } = company();
     // Shield holds a dollar less than the books, and nothing is waiting or settling.
-    expect(reconcileShield(c, 19_000_000n)).toEqual({ kind: "off", books: 2000n, shield: 1900n, gap: -1_000_000n, waiting: 0 });
+    expect(reconcileShield(c, 19_000_000n)).toEqual({ kind: "off", books: 2000n, shield: 1900n, gap: -1_000_000n, waiting: 0, excludedOut: [] });
     // Shield holds a dollar more: money the feed hasn't found yet, say.
     expect(reconcileShield(c, 21_000_000n)).toMatchObject({ kind: "off", gap: 1_000_000n });
   });
@@ -137,7 +149,7 @@ describe("reconciling the Shield account", () => {
     // The run posted: $5.00 net is gone from the books, not yet from Shield.
     const books = postEntry(c.books, { date: "2026-10-17", lines: [{ accountId: c.books.accounts.find((a) => a.type === "expense")!.id, debit: 500n }, { accountId: shield, credit: 500n }] }).books;
     const posted = { ...c, books };
-    expect(reconcileShield(railRun(posted, 500n, "pending"), 20_000_000n)).toEqual({ kind: "settling", books: 1500n, shield: 2000n, count: 1 });
+    expect(reconcileShield(railRun(posted, 500n, "pending"), 20_000_000n)).toEqual({ kind: "settling", books: 1500n, shield: 2000n, count: 1, excludedOut: [] });
     expect(reconcileShield(railRun(posted, 500n, "failed"), 20_000_000n)).toMatchObject({ kind: "settling" });
     // Once the transfer left Shield, the two agree, settled or not.
     expect(reconcileShield(railRun(posted, 500n, "pending"), 15_000_000n)).toMatchObject({ kind: "matches" });
