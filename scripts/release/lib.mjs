@@ -131,6 +131,20 @@ export function parseManifest(text) {
   return m;
 }
 
+/**
+ * The Next.js build ids a list of files names (`_next/static/<id>/…`) that are 40-hex commits. A
+ * release build uses its commit as the id (build.mjs), so the signed list itself says which commit
+ * it was built from; the version and date in release.json are outside the signature.
+ */
+export function buildIds(files) {
+  const ids = new Set();
+  for (const path of Object.keys(files)) {
+    const m = /^_next\/static\/([0-9a-f]{40})\//.exec(path);
+    if (m) ids.add(m[1]);
+  }
+  return [...ids].sort();
+}
+
 // ---------------------------------------------------------------------------
 // Keys and signatures (Ed25519 over the 32 raw digest bytes).
 // ---------------------------------------------------------------------------

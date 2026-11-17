@@ -11,7 +11,7 @@ import { sign as edSign, verify as edVerify, createPublicKey } from "node:crypto
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { BRAND_RELEASE_KEYS, MANIFEST, ReleaseError, SIGNATURE, compareFiles, hashBundle, keyId, parseArgs, parseManifest, rawPublicKey, run } from "./lib.mjs";
+import { BRAND_RELEASE_KEYS, MANIFEST, ReleaseError, SIGNATURE, buildIds, compareFiles, hashBundle, keyId, parseArgs, parseManifest, rawPublicKey, run } from "./lib.mjs";
 import { askHidden, readReleaseKey } from "./keys.mjs";
 import { DEFAULT_BUNDLE } from "./manifest.mjs";
 
@@ -32,6 +32,8 @@ export function signRelease(target, privateKey) {
     throw new ReleaseError(`No ${MANIFEST} at ${manifestPath}: write it with manifest.mjs or build.mjs first`);
   }
   const manifest = parseManifest(text);
+  const ids = buildIds(manifest.files);
+  if (ids.some((id) => id !== manifest.commit)) throw new ReleaseError(`${MANIFEST} names commit ${manifest.commit}, but the bundle was built as ${ids.join(", ")}; nothing was signed`);
   if (bundle) {
     const problems = compareFiles(manifest.files, hashBundle(bundle), { complete: true });
     if (problems.length > 0) throw new ReleaseError(`The bundle doesn't match its ${MANIFEST}; nothing was signed:\n  ${problems.slice(0, 20).join("\n  ")}`);

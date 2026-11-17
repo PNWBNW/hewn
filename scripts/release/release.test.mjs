@@ -20,6 +20,7 @@ import {
   BRAND_RELEASE_KEYS,
   anchorHeight,
   anchorUrl,
+  buildIds,
   buildManifest,
   canonicalFiles,
   filesDigest,
@@ -199,8 +200,11 @@ test("verify.mjs exits 0 on a good release and 1 with a plain message on a bad o
 
 test("verifying from a URL fetches each listed file", async (t) => {
   const dir = fixtureCopy();
+  let folderOverride = {};
   const server = createServer((req, res) => {
-    const path = decodeURIComponent(new URL(req.url, "http://x").pathname).replace(/^\/app\//, "");
+    const pathname = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (Object.hasOwn(folderOverride, pathname)) return res.end(folderOverride[pathname]);
+    const path = pathname.replace(/^\/app\//, "").replace(/(^|\/)$/, "$1index.html");
     try {
       res.end(readFileSync(join(dir, ...path.split("/"))));
     } catch {
@@ -212,11 +216,38 @@ test("verifying from a URL fetches each listed file", async (t) => {
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}/app`;
   assert.deepEqual((await verifyRelease(urlSource(base), { keys: [RELEASE_KEY_FIXTURE] })).problems, []);
+  // A page is also checked at its folder's address, where a browser asks for it.
+  folderOverride = { "/app/terms/": "<p>other terms at the folder's address</p>" };
+  assert.deepEqual((await verifyRelease(urlSource(base), { keys: [RELEASE_KEY_FIXTURE] })).problems, ["changed: /terms/ (served differently from terms/index.html)"]);
+  folderOverride = { "/app/": "<p>another front page</p>" };
+  assert.deepEqual((await verifyRelease(urlSource(base), { keys: [RELEASE_KEY_FIXTURE] })).problems, ["changed: / (served differently from index.html)"]);
+  folderOverride = {};
   writeFileSync(join(dir, "index.html"), "served something else");
   rmSync(join(dir, "terms", "index.html"));
   assert.deepEqual((await verifyRelease(urlSource(base), { keys: [RELEASE_KEY_FIXTURE] })).problems, ["changed: index.html", "missing: terms/index.html"]);
   assert.throws(() => urlSource("http://example.com/"), /https/);
   assert.throws(() => urlSource("https://example.com/?x=1"), /no query/);
+});
+
+test("the commit release.json names must be the bundle's build id, which the signature covers", async () => {
+  const other = "b".repeat(40);
+  assert.deepEqual(buildIds({ "_next/static/x/a.js": "0".repeat(64), [`_next/static/${COMMIT}/_ssgManifest.js`]: "0".repeat(64), [`_next/static/${COMMIT}/b.js`]: "0".repeat(64) }), [COMMIT]);
+  const dir = fixtureCopy();
+  mkdirSync(join(dir, "_next", "static", COMMIT), { recursive: true });
+  writeFileSync(join(dir, "_next", "static", COMMIT, "_buildManifest.js"), "self.__BUILD_MANIFEST={}");
+  const { privateKey, publicKey } = throwawayKey();
+  writeManifest(dir, INPUTS);
+  signRelease(dir, privateKey);
+  const good = await verifyRelease(dirSource(dir), { keys: [{ publicKey }] });
+  assert.deepEqual(good.problems, []);
+  assert.equal(good.commitSigned, true);
+  // The same signed list relabelled with another commit: the signature still checks (it covers the
+  // files), the commit doesn't, and sign.mjs won't sign such a release.json either.
+  writeManifest(dir, { ...INPUTS, commit: other, version: "v99.0" });
+  assert.throws(() => signRelease(dir, privateKey), /built as .*nothing was signed/);
+  assert.deepEqual((await verifyRelease(dirSource(dir), { keys: [{ publicKey }] })).problems, [`release.json names commit ${other}, but the bundle was built as ${COMMIT}`]);
+  // A bundle with no build id (a plain build, the fixture) can't vouch for its commit.
+  assert.equal((await verifyRelease(dirSource(FIXTURE), { keys: [RELEASE_KEY_FIXTURE] })).commitSigned, false);
 });
 
 // ---------------------------------------------------------------------------

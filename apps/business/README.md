@@ -20,7 +20,7 @@ The bundle is also what a release signs (`scripts/release/README.md`), so two cl
 commit must give the same bytes. `node scripts/release/build.mjs` builds it in a fixed environment
 with the commit as Next.js's build id (`HEWN_BUILD_ID`, read by `next.config.ts`) instead of a
 random one, shows that commit as the version while the books open, and writes `release.json`.
-A plain `build:static` keeps a random id.
+A plain `build:static` keeps a random id (`src/release_build_id.test.ts`).
 
 - The request proxy stays `src/proxy.ts`; the static export tolerates it.
 - Client code reaches the server pieces only through `src/api_base.ts` (`apiUrl("/api/…")`), which

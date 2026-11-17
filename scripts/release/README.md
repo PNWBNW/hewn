@@ -4,7 +4,9 @@ Step 2 of `docs/HOSTING.md`: make the code people run checkable. A release is th
 (`pnpm --filter @pnw/business build:static`, the folder `apps/business/out`) built from a tagged
 commit, with a list of every file's SHA-256, one digest over that list, the operator's signature
 of the digest, and the digest anchored on Aleo. Anyone can rebuild it, compare, and check the
-signature and the anchor. Node's own modules only; no dependency.
+signature and the anchor. Node's own modules only; no dependency. The scripts read `@pnw/brand`
+and `@pnw/config` from their TypeScript source, so they need Node 22.18 or later and a copy of
+this repository, but no `pnpm install`.
 
 | File | What it does | Who runs it |
 |---|---|---|
@@ -43,6 +45,11 @@ holds no secret and signs nothing.
 - `release.json` and `release.sig` are not listed in `files`.
 - `created` is the commit's day (UTC) and `version` the tag on it (else `dev-<12 hex>`), so two
   builds of one commit write the same `release.json`.
+- **What the signature covers:** the list of files, and nothing else in `release.json`. The commit
+  is covered too, indirectly: a release build names its folders by it (`_next/static/<commit>/`),
+  and `verify.mjs` fails a `release.json` whose commit isn't that one. The `version` and `created`
+  fields are not signed: an old release keeps its valid signature under any version label, so
+  check the commit (or the digest) against the release notes, not the label.
 
 `release.sig`, beside it: `{"key": "<key id>", "sig": "<base64>"}`, an Ed25519 signature over the
 32 raw digest bytes. A key's id is the first 16 hex characters of the SHA-256 of its raw 32-byte
@@ -68,14 +75,16 @@ Each asks for a passphrase (twice; never shown) and encrypts the key with it. Th
 path inside this repository or any git checkout, never overwrites a file, writes the key with
 mode 0600 and prints only the key id and the public key, as the line to add to `releaseKeys`.
 Add both lines in a pull request (the spare is how a lost or leaked key is replaced). The private
-keys never go into GitHub, CI, Vercel, a chat or a password manager that syncs (INV-06).
+keys never go into GitHub, CI, Vercel, a chat or a password manager that syncs (INV-06). The key
+file's passphrase uses the standard encrypted-PKCS8 format (as `openssl` writes it), which is a
+second lock, not the only one: keep the file on an encrypted drive too, and pick a long passphrase.
 
 ### Each release
 
 1. **Tag the commit** on `main`: `git tag v1.2 <commit> && git push origin v1.2`. The Release
    workflow builds it twice and fails if the builds differ. Its summary shows the digest.
-2. **Rebuild it yourself** from a fresh clone of the same commit, with Node 22 and the pnpm in
-   `package.json`:
+2. **Rebuild it yourself** from a fresh clone of the same commit, with the pnpm in `package.json`
+   and the same Node as the workflow (its build log's first line names it: "with Node v22…"):
    ```bash
    git clone https://github.com/PNWBNW/hewn release-check && cd release-check
    git checkout v1.2 && pnpm install --frozen-lockfile
@@ -90,9 +99,9 @@ keys never go into GitHub, CI, Vercel, a chat or a password manager that syncs (
    ```bash
    node scripts/release/sign.mjs path/to/release.json --key /Volumes/ReleaseKey/release-1.pem
    ```
-   It checks that the digest is the list's (given a bundle folder instead, that every file matches
-   too), asks for the passphrase, and writes `release.sig` beside `release.json`. It prints the
-   digest and the key id, never the key.
+   It checks that the digest is the list's and the commit the bundle's build id (given a bundle
+   folder instead, also that every file matches), asks for the passphrase, and writes
+   `release.sig` beside `release.json`. It prints the digest and the key id, never the key.
 5. **Check the signature** against the published keys:
    ```bash
    node scripts/release/verify.mjs apps/business/out     # with release.sig copied in
@@ -105,8 +114,11 @@ keys never go into GitHub, CI, Vercel, a chat or a password manager that syncs (
 7. **Publish**: a GitHub release on the tag with the bundle (zipped), `release.json`,
    `release.sig`, the digest and the anchor's transaction id in its notes. The hosts (step 4 of the
    plan) serve the bundle with `release.json` and `release.sig` at its root, so
-   `node scripts/release/verify.mjs https://<where it is served>/ --anchor` checks the files
-   people are actually served.
+   `node scripts/release/verify.mjs https://<where it is served>/ --anchor` checks what that host
+   serves: every listed file at its own address, and each page at its folder's address too (`/`,
+   `/terms/`). It can't see an address the list doesn't name, or what the host sends someone else
+   at another moment; the desktop app and the website's worker (steps 3 and 4) check every
+   response as it arrives.
 
 ### Anchoring a release
 
@@ -116,9 +128,16 @@ hash first appeared in, under `audit_event_height`, and refuses the same hash tw
 program. It is the same call the app makes when the books are closed
 (`apps/business/src/chain/close_anchor.ts`: `anchorCall(root)` builds it with a public fee, and
 `CloseShield.tsx` sends it with `executeAndWait(wallet, …)` from the wallet package, approved in
-Shield). The signature says who released it; the anchor says when, in public, so a release can't
-be quietly replaced afterwards. `anchor_event` records no caller: the account that anchored shows
-only as the payer of the transaction's public fee, so the notes name the transaction.
+Shield). The signature says who released it; the anchor says, in public, the block by which that
+exact list of files existed, so a release swapped for another later can't claim the earlier date:
+its digest would have a later anchor, or none. Checking which release *should* be served (the
+latest, by its anchor) is left to the person, or to the desktop app and the worker later.
+`anchor_event` records no caller and takes any 32 bytes from anyone: the anchor proves when, not
+who (the signature does that). The account that anchored shows only as the payer of the
+transaction's public fee, so the notes name the transaction. Anchor before the release is
+published; the CI artifact is public, so someone else may anchor the digest first. Then
+`anchor_event` refuses the operator's call (the same hash twice), and `anchor.mjs check` still shows
+the earlier block, which is all the anchor is for.
 
 `node scripts/release/anchor.mjs literal <bundle | release.json | digest>` prints the program,
 the function, the fee and the input:
@@ -157,7 +176,9 @@ tree twice in two folders and comparing:
   `VERCEL_*`, time zone UTC, a fixed locale, telemetry off, the old output and cache removed.
 - **Checked:** two builds in different folders, one with a different time zone, umask and
   `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_ALEO_ENDPOINT` set, gave identical trees and identical
-  `release.json` files. No absolute path or build time appears in the output.
+  `release.json` files; checked again in a second review from two fresh copies of the tree, and with
+  `CI=true` set (as GitHub sets it) against one without. No absolute path or build time appears in
+  the output.
 - **Not yet checked:** a build on macOS or Windows against one on Linux. Next.js compiles with a
   native binary per system; if they differ, build the release on Linux (CI's system), in a
   container if need be.
@@ -171,4 +192,8 @@ changed, missing or added file fails and is named, that an edited list no longer
 signature, that no key is trusted until one is published, sign then verify with a key made for
 the test, that `keygen.mjs` refuses a path in the repository or any git checkout and prints no
 private key, the anchor's input and mapping key against the app's, the explorer reads (mocked),
-and verification over HTTP against a local server.
+verification over HTTP against a local server (each page at its folder's address too), and that
+a `release.json` naming another commit than the bundle's build id fails.
+`apps/business/src/release_build_id.test.ts` checks that `next.config.ts` takes the static
+build's id from `HEWN_BUILD_ID`, refuses anything but a 40-hex commit, and leaves the website
+build alone.

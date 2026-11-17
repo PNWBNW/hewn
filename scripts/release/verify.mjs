@@ -6,8 +6,12 @@
 // 2. release.sig is an Ed25519 signature of that digest by a release key: those in @pnw/brand
 //    `releaseKeys`, or only the ones given with --key.
 // 3. Every listed file is there with the listed SHA-256: read from the directory (where a file
-//    the list doesn't name is a problem too), or fetched from the URL.
-// 4. With --anchor, the digest is anchored on Aleo (payroll_audit_log, audit_event_height), read
+//    the list doesn't name is a problem too), or fetched from the URL (where each page is also
+//    fetched at its folder's address, /terms/ for terms/index.html, and must be the same bytes).
+// 4. The commit release.json names is the one the bundle was built as (its Next.js build id, in
+//    the signed list of files). The version and the date are release.json's word: the signature
+//    covers only the list of files.
+// 5. With --anchor, the digest is anchored on Aleo (payroll_audit_log, audit_event_height), read
 //    from the explorer: the block it first appeared in.
 // Exits 0 when every check passes, 1 with one plain line per problem otherwise.
 
@@ -22,6 +26,7 @@ import {
   ReleaseError,
   SIGNATURE,
   anchorHeight,
+  buildIds,
   checkSignature,
   compareFiles,
   hashBundle,
@@ -88,6 +93,22 @@ export function urlSource(base, fetchImpl = fetch, concurrency = 8) {
       await Promise.all(Array.from({ length: Math.min(concurrency, paths.length) }, worker));
       return out;
     },
+    /** Each listed page that matched, fetched again at its folder's address (what a browser asks for): the same bytes, or a problem. */
+    folders: async (files, actual) => {
+      const pages = Object.keys(files).filter((p) => (p === "index.html" || p.endsWith("/index.html")) && actual[p] === files[p]);
+      const problems = [];
+      let next = 0;
+      const worker = async () => {
+        while (next < pages.length) {
+          const page = pages[next++];
+          const folder = page.slice(0, -"index.html".length);
+          const body = await get(folder).catch(() => null);
+          if (body && sha256Hex(body) !== files[page]) problems.push(`changed: /${folder} (served differently from ${page})`);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(concurrency, pages.length) }, worker));
+      return problems.sort();
+    },
   };
 }
 
@@ -108,6 +129,9 @@ export async function verifyRelease(source, { keys = BRAND_RELEASE_KEYS, anchor 
   }
   const actual = await source.hashes(Object.keys(manifest.files));
   problems.push(...compareFiles(manifest.files, actual, { complete: source.complete }));
+  if (source.folders) problems.push(...(await source.folders(manifest.files, actual)));
+  const ids = buildIds(manifest.files);
+  if (ids.some((id) => id !== manifest.commit)) problems.push(`release.json names commit ${manifest.commit}, but the bundle was built as ${ids.join(", ")}`);
   let height = null;
   if (anchor) {
     try {
@@ -118,7 +142,7 @@ export async function verifyRelease(source, { keys = BRAND_RELEASE_KEYS, anchor 
       problems.push(`Couldn't read the anchor: ${e.message}`);
     }
   }
-  return { manifest, problems, signer, height };
+  return { manifest, problems, signer, height, commitSigned: ids.length === 1 && ids[0] === manifest.commit };
 }
 
 async function main() {
@@ -128,7 +152,7 @@ async function main() {
   const source = /^https?:\/\//i.test(target) ? urlSource(target) : dirSource(resolve(target));
   const keys = args.key ? args.key.map((publicKey) => ({ publicKey })) : BRAND_RELEASE_KEYS;
   const anchor = args.anchor ? { endpoint: args.endpoint?.at(-1) ?? DEFAULT_ENDPOINT } : null;
-  const { manifest, problems, signer, height } = await verifyRelease(source, { keys, anchor });
+  const { manifest, problems, signer, height, commitSigned } = await verifyRelease(source, { keys, anchor });
   console.log(`${manifest.version} (commit ${manifest.commit}, ${manifest.created}): ${Object.keys(manifest.files).length} files, digest ${manifest.digest}`);
   if (problems.length > 0) {
     console.error(`NOT VERIFIED: ${source.label}`);
@@ -137,6 +161,7 @@ async function main() {
     return 1;
   }
   console.log(`Signed by release key ${signer}; every file matches${source.complete ? ", and there is nothing else" : ""}.`);
+  console.log(`The signature covers the files${commitSigned ? " and so the commit (the bundle's build id)" : ""}; the version${commitSigned ? "" : ", the commit"} and the date are release.json's word.`);
   if (height !== null) console.log(`Anchored on Aleo in block ${height}.`);
   console.log(`VERIFIED: ${source.label}`);
   return 0;
