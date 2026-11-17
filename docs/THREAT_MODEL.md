@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-15
+updated: 2026-11-17
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
@@ -144,8 +144,10 @@ The highest risk for a browser app.
   page's two inline scripts (Next.js's hydration payload) named by SHA-256 digest instead of a
   nonce (`apps/business/src/security/static_csp.ts`, stamped by `scripts/static_csp.mjs`; the
   stamping refuses a page with an inline style). No `'strict-dynamic'` there (it needs a nonce),
-  so scripts by file come from the bundle's own origin alone; `connect-src` adds the website,
-  where the bundle reaches the server pieces (`src/api_base.ts`). `frame-ancestors` cannot travel
+  so scripts by file come from the bundle's own origin alone; `connect-src` adds the traction
+  counter's origin (`BRAND.counterUrl`), the one server piece, which the bundle reaches by full
+  address (`src/api_base.ts`) and which answers cross-site only the app's own origins (its
+  address, and the desktop app's). `frame-ancestors` cannot travel
   in a meta tag and is left out; the website still sends it. ✅
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
@@ -423,8 +425,10 @@ Upstash store (`apps/business/src/app/api/traction/`), and shows them on the pub
   visitors can point at a person who someone knows opened the link, an accepted risk for testnet's
   few, mostly known visitors. The floor of 5 visitors per country comes back before mainnet.
 - **If the store leaks:** per-country totals, nothing about anyone. **If someone spams the counter:**
-  inflated totals; the endpoint takes same-origin requests only and caps the body, and the numbers
-  are presented as rough. It never touches the vault, keys, wallets or the chain.
+  inflated totals; the endpoint takes requests only from the app's own pages (its own address, and
+  cross-site from the app's address and the desktop app's origins, with permission for those
+  alone, never credentials; 2026-11-17) and caps the body, and the numbers are presented as
+  rough. It never touches the vault, keys, wallets or the chain.
 
 ## T12 — Reports (2026-10-20)
 

@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-03
+updated: 2026-11-17
 summary: The map of Hewn in 3D on GitHub Pages: every file in both repositories, every rule and dependency, how they connect; its extractor, layout, viewer, query tool and build.
 ---
 
@@ -8,8 +8,8 @@ summary: The map of Hewn in 3D on GitHub Pages: every file in both repositories,
 
 The map of Hewn, drawn in 3D: glowing points in regions, lines between them coloured by what
 crosses, a legend, labels, and a panel for the point you tap. It lives on GitHub Pages at
-[pnwbnw.github.io/hewn](https://pnwbnw.github.io/hewn), built from the tree on every push to
-`main`, so it always shows the current state and nothing generated is committed. Nothing of it
+[pnwbnw.github.io/hewn-map](https://pnwbnw.github.io/hewn-map), built from the tree every day,
+so it shows the current state and nothing generated is committed. Nothing of it
 is on the product's website: it's a window into the repository, for people reading the code and
 for the agents that work on it.
 
@@ -86,11 +86,66 @@ counts what is shown ("74 of 77").
 
 ## How it's published
 
-`.github/workflows/map.yml` runs on every push to `main`: checks out the submodule, installs the
-art package's dependencies, builds `dist/` and deploys it to GitHub Pages. It is the one automatic workflow with
-a write permission, and it writes to Pages alone (`docs/INVARIANTS.md`, OPS-05). The CI gate
-(`ci.yml`) runs `--check` on every pull request, so a graph that drifts from the rules, or a
-companion that drifts from its graph, can't merge.
+A repository has one GitHub Pages site, and this repository's serves the app on its own domain
+(`.github/workflows/pages.yml`, `docs/HOSTING.md` step 4). The map stays off the app's address:
+it is our own code, but nothing besides the app runs where the books are opened. So the map is
+published from a repository of its own, `PNWBNW/hewn-map`, which holds one workflow and nothing
+else: once a day, and when started by hand, it checks this repository out (public, so no token),
+builds `dist/` and deploys it to that repository's Pages, at `pnwbnw.github.io/hewn-map`, the
+organisation's shared origin, where a page that holds nothing is fine.
+
+Here, `.github/workflows/map.yml` builds the map on every push to `main`, read-only, so a change
+that breaks the build shows at once (`docs/INVARIANTS.md`, OPS-05), and the CI gate (`ci.yml`)
+runs `--check` on every pull request, so a graph that drifts from the rules, or a companion that
+drifts from its graph, can't merge.
+
+The workflow in `PNWBNW/hewn-map`, as `.github/workflows/map.yml`:
+
+```yaml
+name: Map
+on:
+  schedule: [{ cron: "17 7 * * *" }] # daily
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: PNWBNW/hewn
+          persist-credentials: false
+          submodules: true
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @pnw/art
+      - run: node docs/map/build.mjs --check && node docs/map/build.mjs
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/map/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v6
+      - id: deployment
+        uses: actions/deploy-pages@v5
+```
 
 ## Rules it keeps
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type TractionStore, countHandler, countryOf, publish, tractionHandler } from "./counts";
+import { BRAND } from "@/brand";
+import { APP_ORIGINS, DESKTOP_ORIGINS, type TractionStore, countHandler, countPreflightHandler, countryOf, publish, tractionHandler } from "./counts";
 import { storeSettings, upstashStore } from "./store";
 
 const memory = (): TractionStore & { visits: Record<string, number>; visitors: Record<string, number> } => {
@@ -64,6 +65,121 @@ describe("counting a visit", () => {
     expect((await countHandler(broken)(req({ first: true }))).status).toBe(204);
     const res = await tractionHandler(broken)();
     expect(await res.json()).toMatchObject({ countries: [], visitors: 0, visits: 0 });
+  });
+});
+
+describe("asking from the app's other origins (the static bundle, the desktop app)", () => {
+  const app = new URL(BRAND.appUrl).origin;
+  // The counter on an address of its own, asked by the app's pages from elsewhere.
+  const crossSite = (origin: string, body: unknown = { first: true }) => req(body, { origin, host: "count.hewn.test" });
+  const preflight = (origin: string | null, method = "POST", headers: string | null = "content-type") =>
+    new Request("https://count.hewn.test/api/count", {
+      method: "OPTIONS",
+      headers: {
+        host: "count.hewn.test",
+        ...(origin ? { origin } : {}),
+        ...(method ? { "access-control-request-method": method } : {}),
+        ...(headers !== null ? { "access-control-request-headers": headers } : {}),
+      },
+    });
+  const traction = (origin: string | null) =>
+    new Request("https://count.hewn.test/api/traction", { headers: { host: "count.hewn.test", ...(origin ? { origin } : {}) } });
+
+  it("knows the app's own origins: its address and the desktop app's two, nothing else", () => {
+    expect(APP_ORIGINS).toEqual([app, "tauri://localhost", "http://tauri.localhost"]);
+    expect(DESKTOP_ORIGINS).toEqual(["tauri://localhost", "http://tauri.localhost"]);
+    expect(app).toMatch(/^https:\/\//);
+  });
+
+  it("counts a visit from each of them, and answers with permission for that origin alone", async () => {
+    for (const origin of APP_ORIGINS) {
+      const store = memory();
+      const res = await countHandler(store)(crossSite(origin));
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+      expect(res.headers.get("vary")).toBe("Origin");
+      expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+      expect(store.visits).toEqual({ NG: 1 });
+    }
+  });
+
+  it("still counts the website asking itself", async () => {
+    const store = memory();
+    const res = await countHandler(store)(req({ first: false }));
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://hewn.test");
+    expect(store.visits).toEqual({ NG: 1 });
+  });
+
+  it("counts nothing and gives no permission to any other origin, a lookalike, a sandboxed frame or a missing origin", async () => {
+    const store = memory();
+    for (const origin of ["https://evil.test", `${app}.evil.test`, app.replace("https://", "http://"), "https://tauri.localhost", "tauri://evil", "null"]) {
+      const res = await countHandler(store)(crossSite(origin));
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    }
+    const bare = new Request("https://count.hewn.test/api/count", { method: "POST", headers: { host: "count.hewn.test", "x-vercel-ip-country": "NG" }, body: '{"first":true}' });
+    expect((await countHandler(store)(bare)).headers.get("access-control-allow-origin")).toBeNull();
+    expect(store.visits).toEqual({});
+  });
+
+  it("sends only yes or no and stores only the two counts, whoever asks (INV-05)", async () => {
+    const store = memory();
+    await countHandler(store)(crossSite("tauri://localhost", { first: true, name: "someone", id: "x" }));
+    await countHandler(store)(crossSite("tauri://localhost", { first: "yes" }));
+    expect(store.visits).toEqual({ NG: 1 });
+    expect(store.visitors).toEqual({ NG: 1 });
+  });
+
+  it("answers the browser's preflight for a POST with a JSON body, from the app's origins only", async () => {
+    const preflightFor = countPreflightHandler();
+    for (const origin of APP_ORIGINS) {
+      const res = preflightFor(preflight(origin));
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+      expect(res.headers.get("access-control-allow-methods")).toBe("POST");
+      expect(res.headers.get("access-control-allow-headers")).toBe("Content-Type");
+      expect(res.headers.get("access-control-max-age")).toBe("86400");
+      expect(res.headers.get("vary")).toBe("Origin");
+      expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+    }
+    // Without a header list (a plain POST) is fine too, and header names are case-insensitive.
+    expect(preflightFor(preflight(app, "POST", null)).headers.get("access-control-allow-origin")).toBe(app);
+    expect(preflightFor(preflight(app, "POST", "Content-Type")).headers.get("access-control-allow-origin")).toBe(app);
+  });
+
+  it("refuses a preflight from elsewhere, for another method or for any other header", () => {
+    const preflightFor = countPreflightHandler();
+    for (const r of [
+      preflight("https://evil.test"),
+      preflight(null),
+      preflight("null"),
+      preflight(app, "PUT"),
+      preflight(app, "GET"),
+      preflight(app, ""),
+      preflight(app, "POST", "content-type, authorization"),
+      preflight(app, "POST", "x-anything"),
+    ]) {
+      const res = preflightFor(r);
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+      expect(res.headers.get("access-control-allow-methods")).toBeNull();
+    }
+  });
+
+  it("lets the app's origins read the published numbers, keeps the day's cache, and gives no one else permission", async () => {
+    const store = memory();
+    await store.add("NG", true);
+    for (const origin of APP_ORIGINS) {
+      const res = await tractionHandler(store)(traction(origin));
+      expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+      expect(res.headers.get("vary")).toBe("Origin");
+      expect(res.headers.get("cache-control")).toContain("s-maxage=86400");
+    }
+    for (const origin of ["https://evil.test", null]) {
+      const res = await tractionHandler(store)(traction(origin));
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+      expect(res.headers.get("vary")).toBe("Origin");
+    }
   });
 });
 

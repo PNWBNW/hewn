@@ -4,6 +4,8 @@
 // brand/build_assets.py with the new art.
 // ---------------------------------------------------------------------------
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.hewnaccounting.com";
+
 export const BRAND = {
   name: "Hewn",
   tagline: "honest books, grounded and true.",
@@ -50,11 +52,18 @@ export const BRAND = {
     },
   },
   /**
-   * Where the app lives. The site's "Open the app" button, the icon Shield shows and the installable
-   * app's calls to the server all point here. www for now: app.hewnaccounting.com doesn't resolve
-   * yet (2026-10-21).
+   * Where the app lives. The site's "Open the app" button and the icon Shield shows point here, and
+   * the traction counter answers cross-site requests from this origin. www for now:
+   * app.hewnaccounting.com doesn't resolve yet (2026-10-21).
    */
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://www.hewnaccounting.com",
+  appUrl: APP_URL,
+  /**
+   * Where the traction counter answers (`/api/count`, `/api/traction`; INV-05), the one server
+   * piece: the static bundle reaches it by full address (apps/business/src/api_base.ts) and names
+   * its origin in its security policy. The app's own address until a domain of its own points at
+   * the counter (docs/HOSTING.md, step 4): served as plain files, the app's address has no server.
+   */
+  counterUrl: process.env.NEXT_PUBLIC_COUNTER_URL ?? APP_URL,
   /** Where the marketing site lives. */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://hewnaccounting.com",
   /**

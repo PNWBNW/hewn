@@ -46,8 +46,10 @@ export function buildCsp(options: CspOptions): string {
 /**
  * The static bundle's policy, one per exported page (`scripts/static_csp.ts` stamps it in as a
  * meta tag): the same allowances, with the page's inline scripts named by hash instead of a
- * nonce, plus the website itself, where the bundle reaches the server pieces (src/api_base.ts).
+ * nonce, plus `apiOrigin`: the traction counter's origin (`BRAND.counterUrl`), the one server piece the
+ * bundle reaches by full address (src/api_base.ts). Nothing else: the bundle has no other server.
  */
 export function buildStaticCsp({ scriptHashes, apiOrigin }: { scriptHashes: readonly string[]; apiOrigin: string }): string {
+  if (!/^https:\/\/[a-z0-9.-]+$/.test(apiOrigin)) throw new Error(`the counter must be an https origin, not ${apiOrigin}`);
   return buildSharedCsp({ scriptHashes, meta: true, connect: [apiOrigin, ...CONNECT], wasm: true });
 }

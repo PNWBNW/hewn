@@ -1,10 +1,11 @@
 name: Map
 
-# The map (docs/map/README.md): built from the tree on every push to main and published on
-# GitHub Pages, so it always shows the current tree and nothing generated is committed. This is
-# the one automatic workflow with a write permission, and it writes to Pages alone (OPS-05 in
-# docs/INVARIANTS.md). No secrets are used. The CI gate (ci.yml) checks the map's data on every
-# pull request; this only builds and publishes it.
+# The map (docs/map/README.md): built from the tree on every push to main, so a change that breaks
+# its build shows on main at once. It is no longer published from here: this repository's GitHub
+# Pages site serves the app on its own domain (pages.yml, docs/HOSTING.md step 4), and a
+# repository has one Pages site. The map is published from a repository of its own, which builds
+# it from this one (docs/map/README.md, "How it's published"). Read-only, no secrets (OPS-05 in
+# docs/INVARIANTS.md). The CI gate (ci.yml) checks the map's data on every pull request.
 
 on:
   push:
@@ -13,11 +14,9 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: map
   cancel-in-progress: true
 
 jobs:
@@ -28,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          persist-credentials: false
           submodules: true # the map draws the Leo programs' repository too
       - uses: pnpm/action-setup@v6 # version comes from package.json "packageManager"
       - uses: actions/setup-node@v7
@@ -38,19 +38,3 @@ jobs:
         run: pnpm install --frozen-lockfile --filter @pnw/art
       - name: Check the graphs and their companions, then build
         run: node docs/map/build.mjs --check && node docs/map/build.mjs
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: docs/map/dist
-
-  deploy:
-    name: Publish to GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5

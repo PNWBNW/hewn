@@ -31,6 +31,13 @@ export const SKIP = 0;
 const titleOf = (message = "") => message.split("\n", 1)[0].toLowerCase();
 
 /**
+ * Whether a commit on main is a release: its title says `[deploy]`. The one
+ * rule for every host: Vercel (below) and GitHub Pages
+ * (.github/workflows/pages.yml) both ask it.
+ */
+export const isRelease = (message = "") => titleOf(message).includes("[deploy]");
+
+/**
  * The decision, from what Vercel says about the push. `changed` is the list
  * of files changed since the project's last deployment (paths from the
  * repository root), or null when that couldn't be read.
@@ -42,7 +49,7 @@ export function decide({ env, message = "", changed, watched }) {
       ? { exit: BUILD, why: "the commit asks for a preview" }
       : { exit: SKIP, why: "previews build only on request ([preview] in the commit's title)" };
   }
-  if (!title.includes("[deploy]")) return { exit: SKIP, why: "not a release; main deploys when a merge's title says [deploy]" };
+  if (!isRelease(message)) return { exit: SKIP, why: "not a release; main deploys when a merge's title says [deploy]" };
   if (changed === null) return { exit: BUILD, why: "a release, and what changed since the last deployment couldn't be read, so building to be safe" };
   const hit = changed.find((f) => watched.some((w) => f === w || f.startsWith(w.endsWith("/") ? w : `${w}/`)));
   return hit
@@ -80,7 +87,7 @@ function main() {
   }
   const env = process.env.VERCEL_ENV ?? "";
   const message = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? "";
-  const release = env === "production" && titleOf(message).includes("[deploy]");
+  const release = env === "production" && isRelease(message);
   const decision = decide({
     env,
     message,

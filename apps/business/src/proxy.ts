@@ -1,9 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { offCounterPath } from "@/security/counter_host";
 import { buildCsp, newNonce } from "@/security/headers";
 
 // Next.js reads the nonce from the request's CSP header and stamps it on the
 // framework's own scripts and styles; anything without it is refused.
 export function proxy(request: NextRequest) {
+  // On the traction counter's own address, only the counter answers (security/counter_host.ts).
+  if (offCounterPath(request.headers.get("host"), request.nextUrl.pathname)) {
+    return new NextResponse(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
+
   const csp = buildCsp({
     nonce: newNonce(),
     dev: process.env.NODE_ENV === "development",

@@ -4,12 +4,13 @@ import { SECURITY_HEADERS } from "./src/security/headers";
 /**
  * Two builds from one app (2026-10-19):
  *
- * - The website (default): served by Next.js with the server pieces (the
- *   mailbox courier, the visit counter, the traction feed) and the per-request
- *   security policy in `src/proxy.ts`.
- * - The static bundle (`HEWN_STATIC=1`): plain files for the installable app,
- *   which carries the screens and reaches the server pieces on the website by
- *   full address (`src/api_base.ts`). Server-only files end in `.server.ts`,
+ * - The website (default): served by Next.js with the one server piece (the
+ *   traction counter: the visit count and the published numbers) and the
+ *   per-request security policy in `src/proxy.ts`.
+ * - The static bundle (`HEWN_STATIC=1`): plain files, served from GitHub Pages
+ *   on the app's domain (.github/workflows/pages.yml) or carried by the
+ *   desktop app, which reach the counter by full address (`BRAND.counterUrl`,
+ *   `src/api_base.ts`). Server-only files end in `.server.ts`,
  *   an extension only the website build looks at, so the static build never
  *   sees a route handler or the proxy; its security policy is stamped into
  *   each page after the export (`scripts/static_csp.ts`).
@@ -23,9 +24,9 @@ const nextConfig: NextConfig = {
     "@pnw/wallet", "@pnw/records", "@pnw/rail", "@pnw/config", "@pnw/commitments", "@pnw/handshake",
   ],
   poweredByHeader: false,
-  // The client bundle reads this to find the server pieces (src/api_base.ts).
-  // The build's commit, shown small while the books open, so a stuck screen says which version it is.
-  env: { NEXT_PUBLIC_HEWN_STATIC: STATIC ? "1" : "", NEXT_PUBLIC_HEWN_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) },
+  // The client bundle reads this to find the counter (src/api_base.ts).
+  // The build's commit (Vercel's, or GitHub Actions' for Pages), shown small while the books open, so a stuck screen says which version it is.
+  env: { NEXT_PUBLIC_HEWN_STATIC: STATIC ? "1" : "", NEXT_PUBLIC_HEWN_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "").slice(0, 7) },
   pageExtensions: STATIC ? ["tsx", "ts"] : ["server.tsx", "server.ts", "tsx", "ts"],
   ...(STATIC
     ? {

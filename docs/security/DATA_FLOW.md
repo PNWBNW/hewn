@@ -1,13 +1,13 @@
 ---
 status: living
-updated: 2026-11-11
+updated: 2026-11-17
 summary: Where the data lives and what crosses between places: every store and flow classed private, sealed, public or control, each citing its rule; the map's data-flow view in writing.
 ---
 
 # Data flow: where the data lives and what crosses between places
 
 **Status:** living, generated in part (2026-11-03). The written companion of the **data-flow view
-of the map** at [pnwbnw.github.io/hewn](https://pnwbnw.github.io/hewn/#data-flow), the same
+of the map** at [pnwbnw.github.io/hewn-map](https://pnwbnw.github.io/hewn-map/#data-flow), the same
 graph drawn in 3D (how it's made: [`../map/README.md`](../map/README.md)). This page is for
 anyone who can't or won't run the map: an auditor with a checklist, a reader on GitHub. The
 tables and the diagram below are generated from [`../map/data/data_flow.json`](../map/data/data_flow.json),
@@ -131,7 +131,7 @@ The source, the CI gate, this map, and the one secret that deploys programs (in 
 |---|---|---|---|---|
 | The source | artifact | Public | AGPL-3.0. Every change is one pull request, merged after Joshua approves it in session. | [OPS-01](../INVARIANTS.md) [OPS-08](../INVARIANTS.md) |
 | The CI gate | process | Control | Tests, the rule checks, the build, the dependency audit, on every pull request. Read-only, no secrets. | [OPS-04](../INVARIANTS.md) [OPS-05](../INVARIANTS.md) |
-| This map | artifact | Public | Built from the tree on every push to main and published on GitHub Pages. | [OPS-05](../INVARIANTS.md) |
+| This map | artifact | Public | Built from the tree every day and published on GitHub Pages from a repository of its own, apart from the app's address. | [OPS-05](../INVARIANTS.md) |
 | The admin key | key | Private | The key that deploys and upgrades the programs, only in the chain repository's environment secret, read by manual workflows that print a redacted form. | [OPS-03](../INVARIANTS.md) [T18](../THREAT_MODEL.md) |
 
 #### Observers
@@ -173,7 +173,7 @@ Who sees what regardless of Hewn: anyone reading public state, and the stablecoi
 | Traction route | Two counts a country | adds one to two counts | Public | [INV-05](../INVARIANTS.md) |
 | The source | The CI gate | every pull request | Control | [OPS-08](../INVARIANTS.md) |
 | The source | The app's code | a deploy on every merge | Control | [OPS-01](../INVARIANTS.md) |
-| The source | This map | this map, rebuilt on every push to main | Control | [OPS-05](../INVARIANTS.md) |
+| The source | This map | this map, rebuilt every day | Control | [OPS-05](../INVARIANTS.md) |
 | The admin key | The programs | a deploy or an upgrade, run by hand | Control | [OPS-03](../INVARIANTS.md) [INV-20](../INVARIANTS.md) |
 | The programs | Public mappings | the only writer of public state | Public | [INV-03](../INVARIANTS.md) |
 | Public mappings | Anyone reading the chain | hashes, commitments, heights; the shape of each transaction | Public | [INV-03](../INVARIANTS.md) |

@@ -1,6 +1,6 @@
 ---
 status: plan
-updated: 2026-11-06
+updated: 2026-11-17
 summary: Running Hewn without a subscription: what costs money, the small fee on what moves money, name sales, hosting; estimates.
 ---
 
@@ -18,8 +18,16 @@ real traffic before mainnet.
 - Mailbox storage: Cloudflare R2 (replacing Pinata, see "Scaling the mailbox" below). The free
   tier (10 GB-month, 1M writes, 10M reads a month, no egress fees) carries roughly 150–200
   businesses of about 10 people. Past it: about $0.36 per million reads, $4.50 per million writes.
-- Hosting: Vercel. The Hobby plan is for personal, non-commercial use, so plan on Pro ($20 a
-  month) before mainnet. Builds happen once per release (2026-11-06, `scripts/vercel_ignore.mjs`):
+- Hosting: moving to GitHub Pages for the app (2026-11-17, `docs/HOSTING.md` step 4;
+  `.github/workflows/pages.yml`), free for a public repository, with the app's own domain; the
+  same release rule (`[deploy]`) builds it. What stays on Vercel is the traction counter, on an
+  address of its own, and the marketing site (`apps/site`, which holds no books) for now. The
+  Hobby plan is for personal, non-commercial use, so plan on Pro ($20 a month) before mainnet
+  while anything stays there, or move the counter to a Cloudflare function (free tier) and the
+  marketing site to a Pages site of its own repository. Pages has soft limits (a site of 1 GB,
+  100 GB of traffic a month) and its terms rule out using it as free hosting for a business or
+  commercial software as a service, so before mainnet, and before any fee, check that use with
+  GitHub or plan on a paid host for the same files. Builds happen once per release (2026-11-06, `scripts/vercel_ignore.mjs`):
   `main` deploys only when a merge's title says `[deploy]`, and only the projects whose files
   changed; no previews unless asked for. From 2026-11-01 to 11-06 that would have been one or two
   builds a day at most, against 144 production builds and about 126 previews.

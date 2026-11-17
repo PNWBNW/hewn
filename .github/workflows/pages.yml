@@ -1,0 +1,94 @@
+name: Pages
+
+# The app's static bundle on GitHub Pages, at its own domain (docs/HOSTING.md, step 4). Built from
+# main on a release only, the same rule Vercel follows (scripts/vercel_ignore.mjs): a merge whose
+# title says [deploy], or a run started by hand from main. The bundle is served only on the custom
+# domain the CNAME file names, never from the shared pnwbnw.github.io origin
+# (apps/business/src/security/pages.ts refuses to build one for it). No secrets are used.
+#
+# Least privilege, job by job: the build installs and runs third-party packages, so it can only
+# read; the write permission (Pages, and the identity token Pages checks) belongs to the deploy
+# job alone, which runs no code from the repository (OPS-05 in docs/INVARIANTS.md).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false # never stop a deploy halfway
+
+jobs:
+  gate:
+    name: Is this a release?
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.gate.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: gate
+        name: A release when started by hand, or when the commit's title says [deploy]
+        env:
+          EVENT: ${{ github.event_name }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          node --input-type=module -e '
+            import { appendFileSync } from "node:fs";
+            import { isRelease } from "./scripts/vercel_ignore.mjs";
+            const release = process.env.EVENT === "workflow_dispatch" || isRelease(process.env.MESSAGE ?? "");
+            appendFileSync(process.env.GITHUB_OUTPUT, `release=${release}\n`);
+            console.log(release ? "a release: building the static bundle" : "not a release; main deploys when a merge title says [deploy]");
+          '
+
+  build:
+    name: Build the static bundle
+    needs: gate
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6 # version comes from package.json "packageManager"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (lockfile must match exactly)
+        run: pnpm install --frozen-lockfile
+      - name: The static bundle, its policy stamped into every page
+        run: pnpm --filter @pnw/business build:static
+      - name: The CNAME file, the app's own domain (refuses a shared origin)
+        run: node apps/business/scripts/pages_files.mjs
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/business/out
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v6
+      - id: deployment
+        uses: actions/deploy-pages@v5
