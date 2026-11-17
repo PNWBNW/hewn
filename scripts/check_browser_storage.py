@@ -19,7 +19,13 @@ Outside tests and comments, this fails when:
   - a listed file stores under a key that isn't its own (the key's constant must still hold the
     literal above, and every setItem must use it);
   - a listed file removes a key that is neither its own nor the one it may remove above;
-  - a file outside packages/vault opens IndexedDB, or anything uses document.cookie or the Cache API.
+  - a file outside packages/vault opens IndexedDB, or anything uses document.cookie;
+  - anything but the update worker uses the Cache API.
+
+One file may use the Cache API, and nothing else of this list: the static bundle's update worker
+(apps/business/src/updates/worker.js, docs/HOSTING.md step 4, Joshua 2026-11-17). It keeps the app's
+own release files and their signed list there, never the books or anything a person typed; it can't
+reach the vault, which a worker has no key to open.
 
 A new flag means a new row here and in docs/INVARIANTS.md, reviewed like any change to the rules.
 
@@ -42,7 +48,9 @@ REMOVE_ONLY = {
     "apps/business/src/books/BooksProvider.tsx": {"SHIELD_WALLET_NAME": "walletName"},
 }
 WEB_STORAGE = re.compile(r"\b(?:localStorage|sessionStorage)\b")
-OTHER = re.compile(r"\bindexedDB\b|\bdocument\.cookie\b|\bcaches\.(?:open|match|keys|delete|has)\b")
+OTHER = re.compile(r"\bindexedDB\b|\bdocument\.cookie\b")
+CACHE_API = re.compile(r"\bcaches\.(?:open|match|keys|delete|has)\b")
+CACHE_API_ALLOWED = {"apps/business/src/updates/worker.js"}
 SET_ITEM = re.compile(r"\.setItem\(\s*([^,)]+)\s*,")
 REMOVE_ITEM = re.compile(r"\.removeItem\(\s*([^,)]+)\s*\)")
 
@@ -92,7 +100,9 @@ def main() -> int:
                     if arg not in removable and arg.strip("\"'") not in removable.values():
                         problems.append(f"{rel}: removes {arg}, which isn't one of its flags or the key it may remove")
         if OTHER.search(code) and not rel.startswith("packages/vault/"):
-            problems.append(f"{rel}: opens IndexedDB, a cookie or the Cache API outside the vault")
+            problems.append(f"{rel}: opens IndexedDB or a cookie outside the vault")
+        if CACHE_API.search(code) and rel not in CACHE_API_ALLOWED:
+            problems.append(f"{rel}: uses the Cache API, which only the update worker may (its release files)")
     if count == 0:
         problems.append("no source files found: run it from the repository's scripts/ folder")
     if problems:

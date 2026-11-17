@@ -6,6 +6,7 @@ import { BooksGate } from "@/books/BooksGate";
 import { BooksProvider } from "@/books/BooksProvider";
 import { PageViews } from "@/shell/PageViews";
 import { VisitCounter } from "@/traction/VisitCounter";
+import { UpdateNotice } from "@/updates/UpdateNotice";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -48,6 +49,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         </BooksProvider>
         <PageViews />
         <VisitCounter />
+        <UpdateNotice />
       </body>
     </html>
   );
