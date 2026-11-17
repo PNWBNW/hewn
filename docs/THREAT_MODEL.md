@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-11-12
+updated: 2026-11-15
 summary: What Hewn protects, from whom, how, and what it can't: threats T1 to T21, each tied to the rules that answer it.
 ---
 
@@ -178,12 +178,41 @@ The highest risk for a browser app.
   property-based tests over random entries. 🔜 P1
 - Strict TypeScript, CI blocks on any failing test or type error. ✅
 - Third-party audit of the vault and ledger core alongside the Leo audit. 🔜 budget line
-- **Paying someone twice** (2026-10-22, the security review). A transfer whose outcome isn't
-  known (Shield didn't answer in time, accepted it without an id, the page closed after asking,
-  an answer lost on the way back) is never sent again on its own: before Shield is asked, the
-  vault keeps a tag for the record the transfer will spend, and a later run sends it again only by
-  spending that same record (the network lets one of the two through), or, if the record is gone,
-  shows it as not confirmed until the person checks Shield's activity and chooses to pay again.
+- **Paying someone twice** (2026-10-22; this text 2026-11-15, in effect once both #348 and #355
+  have merged). A run pays one person at a time, each payment from what the last one left, and
+  the first payment that doesn't settle ends the run there: the people after it wait for Continue
+  (`@pnw/rail` `queue.ts`). Before Shield is asked for a transfer, the vault keeps a tag for the
+  record it will spend; if the tag can't be kept, nothing is sent. No other payee is given a
+  record a payment has set aside.
+  **Failed only when nothing moved:** Shield reports the transfer rejected and says why, its
+  approval expired, the explorer says the network rejected it, or the app stopped the request
+  before Shield was asked. The line keeps its record, and Retry spends that same record while it
+  is listed.
+  **Anything else is looked for, never called failed.** No answer in time, Shield accepting it
+  without an id, an error, or Shield giving up in words that don't say whether it landed: the
+  payment is looked for in the account's own transfers (`chain/sent_payment.ts`: Shield's history
+  for the ids, the explorer for what each one was, Shield's transition view keys to open a private
+  one; the account's view key isn't used) and settled if it is there. It is there when an accepted
+  transfer to the person for exactly that amount is the one that spent the record the payment set
+  aside, or the request's own transaction, or else the earliest such transfer from this account
+  since the payment was first asked for. That last kind is never taken while another open payment
+  is to the same person for the same amount, and no transfer settles two payments. A look answers
+  within two minutes, and one that couldn't read everything that might be the payment never says
+  it wasn't paid. Not found, the line reads **Not paid** when the record it set aside went into
+  something that isn't a payment to the person and nothing since paid them; **Not seen on chain
+  yet** when it is asked about again five minutes or more after its try ended and that record is
+  still unspent (a label: nothing is sent because of it); **Not confirmed** otherwise.
+  **Asked again on its own in one case** (Joshua kept it, 2026-11-15): within a run, when the look
+  shows the record the payment was spending went into a transaction that isn't a payment to this
+  person, so the earlier try can no longer land. It is asked again from a record listed now, its
+  new tag kept first, at most three asks per payment per run; a third that ends the same way reads
+  Not paid. On a later run, a payment with a kept tag goes again only by spending that same record
+  (the network lets one of the two through); if the record is gone it is looked for and reported,
+  never asked again. One Shield already took (the books hold its id) is asked about, never sent
+  again.
+  **Everything else waits for the person:** they check Shield's activity and choose Pay again.
+  While the record the last try set aside is still listed, or Shield can't say, Pay again keeps it,
+  so only one of the two tries can land; once it is gone, the next run takes a fresh one.
   An explorer that can't be reached only delays confirming. Two tabs on the same books can't both
   write: a write refuses when another tab wrote since (`books/vault_write.ts`). ✅
 - **Paying the wrong account** (2026-10-22): a pay run pays only people whose agreement both sides
