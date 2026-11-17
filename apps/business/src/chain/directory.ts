@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { ENV } from "@pnw/config/env";
-import { PROGRAMS } from "@pnw/config/programs";
+import { PROGRAMS, isProgramAddress } from "@pnw/config/programs";
 import {
   INDUSTRY_SUFFIXES,
   computeNameHash,
@@ -22,9 +22,12 @@ import {
   queryNamePlaintext,
   queryWorkerName,
 } from "@pnw/records/registry/name_registry";
-import { isRailAddress } from "../books/rail";
+import { ZERO_ADDRESS, isRailAddress } from "../books/rail";
 
 export type NameKind = "worker" | "business";
+
+/** An account a person or a business can hold: written like one, and neither the zero address nor a program's. */
+export const isHeldAccount = (address: string): boolean => isRailAddress(address) && !isProgramAddress(address);
 
 export type DirectoryEntry = {
   /** The bare registered name; empty when the registry holds no plaintext for it. */
@@ -114,7 +117,11 @@ async function describe(nameHash: string, address: string, kind: NameKind, reads
 
 /** An account → whoever holds it: a business name first, else a worker's, else an error. */
 export async function lookupAddress(address: string, reads: DirectoryReads = directoryReads): Promise<DirectoryEntry> {
+  // The zero address is a whole account that nobody holds a key for: say so, not that it was typed short.
+  if (address === ZERO_ADDRESS) throw new DirectoryError("That account isn't a person's or a business's");
   if (!isRailAddress(address)) throw new DirectoryError("That account isn't complete: 63 characters starting aleo1");
+  // A program's address is written like an account's, and nobody holds a key for it.
+  if (isProgramAddress(address)) throw new DirectoryError("That account is a program's, not a person's or a business's");
   // An account's primary name counts only while the account still owns it (one sold back can linger as the primary).
   const owns = async (hash: string | null) => !!hash && (await reads.nameOwner(bareField(hash))) === address;
   const employer = await reads.employerName(address);
@@ -140,6 +147,8 @@ export async function lookupName(text: string, suffix: string, reads: DirectoryR
   const nameHash = computeNameHash(name);
   const owner = await reads.nameOwner(nameHash);
   if (!owner) throw new DirectoryError(`No one has registered ${name}.${suffix}. Names have to match exactly; check the spelling`);
+  // Whoever is found here can be offered work, billed and paid, so the owner must be an account someone holds.
+  if (!isHeldAccount(owner)) throw new DirectoryError(`${name}.${suffix} isn't held by a person or a business`);
   const entry = await describe(nameHash, owner, await nameKindOf(nameHash, owner, reads), reads);
   return entry.name ? entry : { ...entry, name };
 }
