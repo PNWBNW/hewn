@@ -10,6 +10,7 @@ Most files pair up that way. The ones worth knowing first:
 | File | What it holds |
 |---|---|
 | `account.ts`, `setup.ts`, `BooksProvider.tsx`, `BooksGate.tsx` | Opening the vault with email and passphrase; the setup flow; the React context every page reads |
+| `lock_signal.ts` | Closing the books everywhere: Log out, the idle lock and the end of "stay logged in" lock every open tab of the app (one BroadcastChannel, nothing from the books on it), and what pages kept in memory for the open books is dropped |
 | `company.ts` | The business's record: books, payroll, rail links, mailbox, schedule, all in one |
 | `work.ts` | The worker's record: agreements, punches, sent timecards, paystubs, threads |
 | `thread.ts` | The conversation between a business and one person: every kind of message, who may send which, how offers are negotiated |

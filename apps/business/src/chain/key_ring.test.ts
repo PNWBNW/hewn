@@ -2,9 +2,10 @@
 // fake chain whose letters stay where they are (books/key_ring.ts has how it
 // goes): who writes where, under which key, and what someone holding only the
 // agreement's key can still open.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MailboxError, open, partiesKeyFromHex } from "@pnw/mailbox";
-import { addHalves, emptyRing, isTwinSealed, noteReceived, pairId, validateKeyRing } from "../books/key_ring";
+import { announceBooksClosed } from "../books/lock_signal";
+import { type Pair, addHalves, emptyRing, isTwinSealed, noteReceived, pairId, validateKeyRing } from "../books/key_ring";
 import { type Side, type Thread, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
 import { makeHalves, newHalf, pairKeyHex } from "./key_ring";
 import { unpackPayload } from "./compress";
@@ -308,5 +309,43 @@ describe("what a key half can and can't do", () => {
     const ring = addHalves(undefined, (await makeHalves(undefined))!, "2026-10-23T12:00:00.000Z");
     expect(() => validateKeyRing({ ...ring, out: pairId(ring.pairs[0]!) })).toThrow();
     expect(() => validateKeyRing({ pairs: [{ ...ring.pairs[0]!, mine: { publicKey: "04", privateKey: {} } }] })).toThrow();
+  });
+});
+
+describe("the pair keys this tab has made", () => {
+  it("leave memory when the books close, and are made again from the vault's halves after", async () => {
+    const mine = await newHalf();
+    const theirs = await newHalf();
+    const pair: Pair = { mine, theirs: theirs.publicKey, sent: true, nextIn: 0, nextOut: 0, createdAt: "2026-10-23T12:00:00.000Z" };
+    const derive = vi.spyOn(globalThis.crypto.subtle, "deriveBits");
+    try {
+      const key = await pairKeyHex(KEY, pair);
+      const made = derive.mock.calls.length;
+      expect(made).toBeGreaterThan(0);
+      // Kept for this tab while the books are open: no exchange the second time.
+      expect(await pairKeyHex(KEY, pair)).toBe(key);
+      expect(derive.mock.calls.length).toBe(made);
+      announceBooksClosed({ fromOtherTab: true });
+      // Gone: the next read does the exchange again, and comes to the same key.
+      expect(await pairKeyHex(KEY, pair)).toBe(key);
+      expect(derive.mock.calls.length).toBe(2 * made);
+    } finally {
+      derive.mockRestore();
+    }
+  });
+
+  it("aren't kept when the books close while one is being made", async () => {
+    const pair: Pair = { mine: await newHalf(), theirs: (await newHalf()).publicKey, sent: true, nextIn: 0, nextOut: 0, createdAt: "2026-10-23T12:00:00.000Z" };
+    const derive = vi.spyOn(globalThis.crypto.subtle, "deriveBits");
+    try {
+      const making = pairKeyHex(KEY, pair);
+      announceBooksClosed({ fromOtherTab: true });
+      const key = await making;
+      const made = derive.mock.calls.length;
+      expect(await pairKeyHex(KEY, pair)).toBe(key);
+      expect(derive.mock.calls.length).toBe(2 * made);
+    } finally {
+      derive.mockRestore();
+    }
   });
 });

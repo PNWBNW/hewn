@@ -320,7 +320,7 @@ function OpenShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15rem_1fr] print:block print:bg-white">
       <aside className="sticky top-0 hidden h-dvh border-r border-rail-border lg:block print:hidden">
-        <Rail pathname={pathname} role={role} setupDone={setupDone} onBackup={backup} onLock={lock} />
+        <Rail pathname={pathname} role={role} setupDone={setupDone} onBackup={backup} onLock={() => void lock()} />
       </aside>
 
       {drawerOpen && (
@@ -331,7 +331,7 @@ function OpenShell({ children }: { children: ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">
-            <Rail pathname={pathname} role={role} setupDone={setupDone} onNavigate={() => setDrawerOpen(false)} onBackup={() => { setDrawerOpen(false); backup(); }} onLock={lock} />
+            <Rail pathname={pathname} role={role} setupDone={setupDone} onNavigate={() => setDrawerOpen(false)} onBackup={() => { setDrawerOpen(false); backup(); }} onLock={() => void lock()} />
           </div>
         </div>
       )}
