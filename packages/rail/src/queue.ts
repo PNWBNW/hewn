@@ -69,6 +69,22 @@
 // answered for, or accepted without an id, is unconfirmed too, never failed,
 // and an explorer that can't be reached only delays confirming.
 //
+// One step before the first payment (`beforeTransfers`, when the caller has
+// one): once the first payment's tag is kept and before Shield is asked for
+// it, the caller is handed every payment this run is about to ask for, with
+// the tags held so far, and awaited. It is where a caller says what the run
+// is about to pay where its other devices can read it (marker.ts). If it
+// throws, no transfer is asked for and the run stops there. The first
+// payment fails with the reason and the tag kept for it in this run is
+// dropped, so its record is free again, unless the books held it as pending
+// with a record set aside (an earlier try with it may still go through):
+// then it stays unconfirmed, with that record and when its try ended, and
+// says nothing was asked this time. A payment the books held that way says
+// the same when its record can't be kept again just before Shield would be
+// asked for it (`beforeSend`). The step runs once:
+// a payment asked again from another record later in the run is handed to
+// `beforeSend` with the new tag, and saying so is the caller's.
+//
 // Failures are per payee. The queue takes whatever is still pending or
 // failed in the run, so calling it again resumes, after a pause or a reload
 // alike: a pending paycheck that already carries the wallet's id for its
@@ -178,6 +194,14 @@ export type PaymentQuery = {
  */
 export type PaymentLookup = { found: string } | "none" | "unknown";
 
+/**
+ * A payment a run is about to ask for, as `beforeTransfers` is given it: the payee's account, the
+ * amount in USDCx minor units, and the tag of the record set aside for it, when it has one. In a run
+ * paid from one record that is the first payment only: each one after it is paid from what the one
+ * before leaves, a record that doesn't exist yet.
+ */
+export type QueuedLine = { workerId: string; to: string; minor: bigint; attempt?: string };
+
 /** What the queue reads of each payment: who it's to, how much, and where it stands. A paycheck, or a customer paying a bill. */
 export type QueuedPayment = Pick<Paycheck, "workerId" | "net" | "settlement">;
 
@@ -197,9 +221,25 @@ export type PayQueueContext = {
    * Called, and awaited, just before Shield is asked for each transfer, with the tag of the record
    * it will spend and the chain's height when the payment was first asked for (when the explorer
    * said): the caller keeps both (books/PayPanel). If it throws, that transfer isn't sent, and the
-   * run stops there.
+   * run stops there: the payment fails with the reason, keeping only what was held for it before; or,
+   * on its first ask in the run, when the books hold it as pending with that same record set aside, it
+   * stays unconfirmed with that record and when its try ended, starting "Nothing was asked of Shield
+   * this time".
    */
   beforeSend?: (workerId: string, attempt: string, since?: number) => Promise<void>;
+  /**
+   * Called once in a run, and awaited, between keeping the first payment's tag and asking Shield for
+   * that payment, with every payment the run is about to ask for, in order. If it throws, no payment
+   * is asked of Shield and the run stops there: the first one fails with "Nothing was paid: " and the
+   * reason, without the tag kept for it in this run; or, when the books hold it as pending with a
+   * record set aside (an earlier try with that record, if there was one, may still land), it stays
+   * unconfirmed with that record and when its try ended, starting "Nothing was asked of Shield this
+   * time". Not called when no payment is to be
+   * asked for, and not again in the run: a payment asked again from another record (its own went into
+   * something else) reaches `beforeSend` with the new tag, and a caller that told its other devices
+   * which record the payment spends says so again there.
+   */
+  beforeTransfers?: (lines: readonly QueuedLine[]) => Promise<void>;
   /**
    * A look in the account's own sent transfers, asked before a payment is called unconfirmed. Without
    * one (or when it throws) every such look answers "unknown".
@@ -247,6 +287,14 @@ const NOT_PAID_RECORD_USED = `${NOT_PAID}: the record set aside for this payment
 const RECORD_GONE = `The record this payment was spending is gone, so it may have gone through. ${CHECK}`;
 /** Shield gave up on the request, or threw on it, in words that don't say whether the transfer reached the chain. */
 const problem = (said: string) => `Shield reported a problem (${said.replace(/\s+/g, " ").trim().slice(0, 200)}); the payment may still go through. ${CHECK}`;
+/** How a line starts when the step before the first payment (`beforeTransfers`) stopped the run: no payment was asked of Shield. */
+export const NOTHING_PAID = "Nothing was paid";
+/**
+ * The same, for a payment the books held as pending with a record set aside when the run reached it: this run asked
+ * for nothing, and an earlier try with that record, if there was one, is still open.
+ */
+export const NOTHING_ASKED = "Nothing was asked of Shield this time";
+const stillOpen = (said: string) => `${NOTHING_ASKED} (${said.replace(/\s+/g, " ").trim().replace(/\.$/, "")}); if it was asked for before, that payment may still go through. ${CHECK}`;
 // Why a run stopped, to follow "Stalled at 2 of 3: ".
 /** The wallet lists no record that covers the next payment, two minutes after the last one. */
 export const NOT_LISTED = "Shield hasn't listed a record that covers the next payment yet (what the last payment left can take a minute to show), so nothing more was asked for";
@@ -637,6 +685,9 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     }
   };
 
+  // Whether the step before the first payment has been run: once in a run, however many times Shield is then asked.
+  let stepped = false;
+
   /**
    * Pays one payee, from `first`. Resolves the record the payment spent and what was free to it
    * beforehand, or null when it didn't settle (its line has said why).
@@ -648,6 +699,8 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
     const since = keptOf(p).since;
     // What the caller holds for this payment: the tag an earlier run kept, then each one kept here.
     let held: Kept = p.settlement.attempt ? { attempt: p.settlement.attempt, ...(since !== undefined ? { since } : {}) } : {};
+    // An earlier try whose outcome isn't known, as the books held it when this run reached it: it may still land.
+    const open = p.settlement.status === "pending" && p.settlement.attempt ? ended(keptOf(p)) : null;
     let record = first;
     for (let asks = 1; ; asks++) {
       const before = total(freeFor(p, records));
@@ -655,9 +708,28 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
       try {
         await ctx.beforeSend?.(p.workerId, record.tag, since);
       } catch (e) {
-        // Nothing was asked with this record. The line keeps only what the caller already held for it.
-        fail(p.workerId, message(e), held);
+        // Nothing was asked with this record. An earlier try that may still land, its record the one about to be asked
+        // again, stays unconfirmed with when it ended; any other line keeps only what the caller already held for it.
+        if (open && asks === 1) unconfirmed(p.workerId, stillOpen(message(e)), open);
+        else fail(p.workerId, message(e), held);
         return null;
+      }
+      if (!stepped) {
+        stepped = true;
+        try {
+          await ctx.beforeTransfers?.(
+            chain.slice(index).map((q, i): QueuedLine => {
+              const attempt = i === 0 ? record.tag : q.settlement.attempt;
+              return { ...lineOf(q), ...(attempt ? { attempt } : {}) };
+            }),
+          );
+        } catch (e) {
+          // No payment was asked of Shield this time. A line whose earlier try may still land stays unconfirmed, with
+          // that try's record and when it ended. Any other drops the tag just kept: it is left what it held before.
+          if (open) unconfirmed(p.workerId, stillOpen(message(e)), open);
+          else fail(p.workerId, `${NOTHING_PAID}: ${message(e)}`, held);
+          return null;
+        }
       }
       held = kept;
       const outcome = await sendOne(line, record, kept, step, asks < MAX_ASKS);

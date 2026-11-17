@@ -4,6 +4,7 @@ import { FREEZELIST_PROGRAM } from "./exclusion";
 import fixture from "./fixtures/transaction.json";
 import {
   MAX_ASKS,
+  NOTHING_ASKED,
   NOT_PAID,
   NOT_SEEN,
   type PayQueueEvent,
@@ -1375,6 +1376,238 @@ describe("runPayQueue: one payment at a time, each from what the last one left",
     expect(shield.calls[1]!.inputs[2]).toContain(`amount: ${centsToMinor(9_00n)}u128`);
     expect(shield.now - reopened).toBeGreaterThanOrEqual(38_000);
     expect(paidTimes(shield, crew(2))).toEqual([1, 1]);
+  });
+});
+
+describe("runPayQueue: one step before the first payment", () => {
+  type Given = Parameters<NonNullable<Parameters<typeof runPayQueue>[0]["beforeTransfers"]>>[0];
+  const WHY = "Another device marked this run first";
+  const NOTHING_PAID = `Nothing was paid: ${WHY}`;
+
+  it("it is called once, after the first payment's record is kept and before Shield is asked for anything, with each payment's payee and amount and the tags held", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n), centsToMinor(3_00n)]);
+    // w3's earlier try set the 3.00 aside and was left to expire.
+    const w3Tag = await recordTag(plaintextOf(centsToMinor(3_00n), "t2"));
+    const books = keeper([paycheck("w1", 1_00n), paycheck("w2", 1_00n), paycheck("w3", 1_00n, { status: "failed", failure: EXPIRED, attempt: w3Tag, since: HEIGHT })]);
+    const log: string[] = [];
+    const given: Given[] = [];
+    const exec = shield.executeTransaction.bind(shield);
+    shield.executeTransaction = async (o) => (log.push(`ask ${o.inputs[0]}`), exec(o));
+    const { result } = await payWith(shield, books, {
+      beforeSend: async (w, tag, since) => (log.push(`keep ${w}`), books.beforeSend(w, tag, since)),
+      beforeTransfers: async (lines) => {
+        log.push("step");
+        given.push(lines);
+        // The first payment's tag is in the books by now.
+        expect(books.paychecks[0]!.settlement.attempt).toBe(lines[0]!.attempt);
+      },
+    });
+    expect(log).toEqual(["keep w1", "step", `ask ${ADDR(1)}`, "keep w2", `ask ${ADDR(2)}`, "keep w3", `ask ${ADDR(3)}`]);
+    expect(given).toHaveLength(1);
+    // The first names the record it is about to spend; the second has none yet (it is paid from what the first leaves); the third holds its own.
+    expect(given[0]).toStrictEqual([
+      { workerId: "w1", to: ADDR(1), minor: centsToMinor(1_00n), attempt: await recordTag(shield.calls[0]!.inputs[2]!) },
+      { workerId: "w2", to: ADDR(2), minor: centsToMinor(1_00n) },
+      { workerId: "w3", to: ADDR(3), minor: centsToMinor(1_00n), attempt: w3Tag },
+    ]);
+    expect(result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
+  });
+
+  it("a throwing beforeTransfers sends no transfer", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n)]);
+    const books = keeper(crew(3).map((w) => paycheck(w, 1_00n)));
+    let steps = 0;
+    const a = await payWith(shield, books, {
+      beforeTransfers: async () => {
+        steps++;
+        throw new Error(WHY);
+      },
+    });
+    expect(shield.calls.filter((c) => c.function === TRANSFER_FUNCTION)).toHaveLength(0);
+    expect(shield.calls).toHaveLength(0);
+    expect(promptsFor(a.events)).toEqual([]);
+    expect(a.result.settled).toEqual([]);
+    expect(a.result.unconfirmed).toEqual([]);
+    expect(a.result.failed).toEqual([{ workerId: "w1", failure: NOTHING_PAID }]);
+    // The run stops there, like any run whose payment didn't settle: the ones after it are not asked for, and nothing is said for them.
+    expect(a.result.stalled).toMatchObject({ at: 1, of: 3 });
+    // The record kept for the first payment in this run is free again; nobody else had one.
+    expect(failedIn(a.events)).not.toHaveProperty("attempt");
+    expect(books.paychecks.map((p) => p.settlement)).toEqual([{ status: "failed", failure: NOTHING_PAID }, { status: "pending" }, { status: "pending" }]);
+    expect(await shield.listed()).toEqual([centsToMinor(10_00n)]);
+
+    // Paying on: the step is run again, once, and this time each person is paid once.
+    const b = await payWith(shield, books, { beforeTransfers: async () => void steps++ });
+    expect(steps).toBe(2);
+    expect(b.result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
+  });
+
+  it("a line tagged in this run fails without its attempt; a resumed line keeps it", async () => {
+    // Tagged in this run: its tag was kept just before the step, and is dropped with it.
+    const fresh = new TimedShield([centsToMinor(10_00n)]);
+    const kept: string[] = [];
+    const a = await payWith(fresh, keeper([paycheck("w1", 1_00n)]), {
+      beforeSend: async (_w, tag) => void kept.push(tag),
+      beforeTransfers: async () => Promise.reject(new Error(WHY)),
+    });
+    expect(kept).toHaveLength(1);
+    expect(a.events.filter((e) => e.kind === "failed")).toEqual([{ kind: "failed", workerId: "w1", failure: NOTHING_PAID }]);
+    expect(a.result.stalled).toBeUndefined(); // the only payment: nothing was left waiting behind it
+
+    // Resumed: the first payment holds a record from an earlier try, and so does the third. Both still hold them afterwards.
+    const shield = new TimedShield([centsToMinor(10_00n), centsToMinor(3_00n)]);
+    const w1Tag = await recordTag(plaintextOf(centsToMinor(10_00n), "t1"));
+    const w3Tag = await recordTag(plaintextOf(centsToMinor(3_00n), "t2"));
+    const w3 = { status: "failed", failure: EXPIRED, attempt: w3Tag, since: HEIGHT - 7 } as const;
+    const books = keeper([paycheck("w1", 1_00n, { status: "failed", failure: EXPIRED, attempt: w1Tag, since: HEIGHT - 9 }), paycheck("w2", 1_00n), paycheck("w3", 1_00n, { ...w3 })]);
+    const b = await payWith(shield, books, { beforeTransfers: async () => Promise.reject(new Error(WHY)) });
+    expect(shield.calls).toHaveLength(0);
+    expect(b.events.filter((e) => e.kind === "failed")).toEqual([{ kind: "failed", workerId: "w1", failure: NOTHING_PAID, attempt: w1Tag, since: HEIGHT - 9 }]);
+    expect(books.paychecks.map((p) => p.settlement)).toEqual([{ status: "failed", failure: NOTHING_PAID, attempt: w1Tag, since: HEIGHT - 9 }, { status: "pending" }, w3]);
+
+    // Paying on spends the very records they held.
+    const c = await payWith(shield, books, { beforeTransfers: async () => {} });
+    expect(c.result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(await recordTag(shield.calls[0]!.inputs[2]!)).toBe(w1Tag);
+    expect(await recordTag(shield.calls[2]!.inputs[2]!)).toBe(w3Tag);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
+  });
+
+  it("a first payment whose earlier try may still go through stays Not confirmed, with when that try ended, and says nothing was asked this time", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n)]);
+    const t1 = await recordTag(plaintextOf(centsToMinor(10_00n), "t1"));
+    const endedAt = new Date(NOON - MINUTE).toISOString();
+    const was = { status: "pending", failure: "Shield reported a problem (interrupted); the payment may still go through. Check Shield's activity before paying again.", attempt: t1, since: HEIGHT - 3, endedAt } as const;
+    const books = keeper([paycheck("w1", 1_00n, { ...was }), paycheck("w2", 1_00n)]);
+    const { result, events } = await payWith(shield, books, { beforeTransfers: async () => Promise.reject(new Error(`${WHY}.`)) });
+    expect(shield.calls).toHaveLength(0);
+    expect(result.failed).toEqual([]);
+    const said = `${NOTHING_ASKED} (${WHY}); if it was asked for before, that payment may still go through. Check Shield's activity before paying again.`;
+    expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: said }]);
+    expect(unconfirmedIn(events)).toEqual({ kind: "unconfirmed", workerId: "w1", failure: said, attempt: t1, since: HEIGHT - 3, endedAt });
+    expect(books.paychecks.map((p) => p.settlement)).toEqual([{ ...was, failure: said }, { status: "pending" }]);
+    expect(result.stalled).toMatchObject({ at: 1, of: 2 });
+
+    // A line kept just before a reload (Shield may hold the request) reads the same, from now.
+    const reloaded = new TimedShield([centsToMinor(10_00n)]);
+    const kept = keeper([paycheck("w1", 1_00n, { status: "pending", attempt: t1, since: HEIGHT - 3 })]);
+    const b = await payWith(reloaded, kept, { beforeTransfers: async () => Promise.reject(new Error(WHY)) });
+    expect(reloaded.calls).toHaveLength(0);
+    expect(b.result.unconfirmed).toEqual([{ workerId: "w1", failure: said }]);
+    expect(kept.paychecks[0]!.settlement).toEqual({ status: "pending", failure: said, attempt: t1, since: HEIGHT - 3, endedAt: new Date(NOON).toISOString() });
+
+    // Paying on, once the step lets it, spends that same record: one transfer, whichever try lands.
+    const c = await payWith(shield, books, { beforeTransfers: async () => {} });
+    expect(c.result.settled.map((s) => s.workerId)).toEqual(["w1", "w2"]);
+    expect(await recordTag(shield.calls[0]!.inputs[2]!)).toBe(t1);
+    expect(paidTimes(shield, crew(2))).toEqual([1, 1]);
+  });
+
+  it("the same when its record can't be kept again before Shield is asked: the earlier try stays Not confirmed, and paying on spends that record once", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n)]);
+    const t1 = await recordTag(plaintextOf(centsToMinor(10_00n), "t1"));
+    const endedAt = new Date(NOON - MINUTE).toISOString();
+    const was = { status: "pending", failure: "Shield reported a problem (interrupted); the payment may still go through. Check Shield's activity before paying again.", attempt: t1, since: HEIGHT - 3, endedAt } as const;
+    const books = keeper([paycheck("w1", 1_00n, { ...was }), paycheck("w2", 1_00n)]);
+    const unkept = "These books changed in another tab or window";
+    let steps = 0;
+    const { result, events } = await payWith(shield, books, {
+      beforeSend: async () => Promise.reject(new Error(unkept)),
+      beforeTransfers: async () => void steps++,
+    });
+    expect(shield.calls).toHaveLength(0);
+    expect(steps).toBe(0);
+    expect(result.failed).toEqual([]);
+    const said = `${NOTHING_ASKED} (${unkept}); if it was asked for before, that payment may still go through. Check Shield's activity before paying again.`;
+    expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: said }]);
+    expect(unconfirmedIn(events)).toEqual({ kind: "unconfirmed", workerId: "w1", failure: said, attempt: t1, since: HEIGHT - 3, endedAt });
+    expect(books.paychecks.map((p) => p.settlement)).toEqual([{ ...was, failure: said }, { status: "pending" }]);
+    expect(result.stalled).toMatchObject({ at: 1, of: 2 });
+
+    // A line with no earlier try still fails, keeping nothing: there is nothing that may land.
+    const fresh = keeper([paycheck("w1", 1_00n), paycheck("w2", 1_00n)]);
+    const b = await payWith(new TimedShield([centsToMinor(10_00n)]), fresh, { beforeSend: async () => Promise.reject(new Error(unkept)) });
+    expect(b.result.failed).toEqual([{ workerId: "w1", failure: unkept }]);
+    expect(b.result.unconfirmed).toEqual([]);
+
+    // Asked once in this run, its record then went into something else and nothing paid them: that record can't land any
+    // more, so when the next record can't be kept the line fails, holding the record the books had for it.
+    const combined = new TimedShield([centsToMinor(10_00n)], { combine: "hidden", onRaise: (n, s) => void (n === 0 && s.deposit(centsToMinor(1n), s.now + 1_000)) });
+    const asked = keeper([paycheck("w1", 1_00n, { ...was })]);
+    let keeps = 0;
+    const d = await payWith(combined, asked, { beforeSend: async (w, tag, since) => (++keeps === 2 ? Promise.reject(new Error(unkept)) : asked.beforeSend(w, tag, since)) });
+    expect(combined.calls).toHaveLength(1);
+    expect(d.result.unconfirmed).toEqual([]);
+    expect(d.result.failed).toEqual([{ workerId: "w1", failure: unkept }]);
+    expect(failedIn(d.events).attempt).toBe(t1);
+
+    // Paying on, once the record can be kept, spends that same record: one transfer, whichever try lands.
+    const c = await payWith(shield, books);
+    expect(c.result.settled.map((s) => s.workerId)).toEqual(["w1", "w2"]);
+    expect(await recordTag(shield.calls[0]!.inputs[2]!)).toBe(t1);
+    expect(paidTimes(shield, crew(2))).toEqual([1, 1]);
+  });
+
+  it("it isn't run when no payment is asked for: one only asked about, a run refused before Shield, a first record that couldn't be kept", async () => {
+    let steps = 0;
+    const beforeTransfers = async () => void steps++;
+
+    // Sent before a reload: asked about, never asked for again.
+    const wallet = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
+    wallet.know("shield_9", accepted(AT(9)));
+    const sent = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "pending", reference: "shield_9" })], { beforeTransfers });
+    expect(sent.result.settled.map((s) => s.workerId)).toEqual(["w1"]);
+
+    // Short: refused before anything is kept or asked.
+    const short = new FakeWallet([centsToMinor(1_00n)], (_c, n) => accepted(AT(n)));
+    await expect(settleRun(short, fakeNetwork(), [paycheck("w1", 10_00n)], { beforeTransfers })).rejects.toThrow(/Not enough balance/);
+
+    // The first payment's tag couldn't be kept: nothing is asked, so there is nothing to step in front of.
+    const unkept = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
+    const { result } = await settleRun(unkept, fakeNetwork(), [paycheck("w1", 1_00n), paycheck("w2", 1_00n)], {
+      beforeTransfers,
+      beforeSend: async () => Promise.reject(new Error("These books changed in another tab or window")),
+    });
+    expect(result.failed).toEqual([{ workerId: "w1", failure: "These books changed in another tab or window" }]);
+    expect(unkept.calls).toHaveLength(0);
+
+    expect(steps).toBe(0);
+  });
+
+  it("a payment asked again from another record within the run doesn't run it a second time", async () => {
+    const shield = new TimedShield([centsToMinor(10_00n)], {
+      combine: "hidden",
+      // One second after the second prompt is raised, money arrives and the record it was spending is combined away.
+      onRaise: (n, s) => void (n === 1 && s.deposit(centsToMinor(1n), s.now + 1_000)),
+    });
+    const books = keeper(crew(3).map((w) => paycheck(w, 1_00n)));
+    let steps = 0;
+    const { result, events } = await payWith(shield, books, { beforeTransfers: async () => void steps++ });
+    expect(promptsFor(events)).toEqual(["w1", "w2", "w2", "w3"]);
+    expect(steps).toBe(1);
+    expect(result.settled.map((s) => s.workerId)).toEqual(["w1", "w2", "w3"]);
+    expect(paidTimes(shield, crew(3))).toEqual([1, 1, 1]);
+  });
+
+  it("when the first payment's own record went before its turn, it runs before the first one that is asked for, with the payments from there on", async () => {
+    const shield = new TimedShield([centsToMinor(5_00n), centsToMinor(3_00n)]);
+    const w1Tag = await recordTag(plaintextOf(centsToMinor(3_00n), "t2"));
+    const books = keeper([paycheck("w1", 1_00n, { status: "failed", failure: EXPIRED, attempt: w1Tag, since: HEIGHT }), paycheck("w2", 1_00n), paycheck("w3", 1_00n)]);
+    // The 3.00 is listed when the run is planned and has gone into something else by the time w1's turn comes.
+    const base = fakeNetwork();
+    const network: RailNetwork = { fetchJson: async (path) => (path.includes("freeze_list_count") && shield.lose(1), base.fetchJson(path)) };
+    const given: Given[] = [];
+    const { result, events } = await payWith(shield, books, { network, beforeTransfers: async (lines) => void given.push(lines) });
+    expect(result.unconfirmed).toEqual([{ workerId: "w1", failure: expect.stringMatching(new RegExp(`^${NOT_PAID}`)) }]);
+    expect(promptsFor(events)).toEqual(["w2", "w3"]);
+    expect(given).toHaveLength(1);
+    expect(given[0]).toStrictEqual([
+      { workerId: "w2", to: ADDR(2), minor: centsToMinor(1_00n), attempt: await recordTag(shield.calls[0]!.inputs[2]!) },
+      { workerId: "w3", to: ADDR(3), minor: centsToMinor(1_00n) },
+    ]);
+    expect(paidTimes(shield, crew(3))).toEqual([0, 1, 1]);
   });
 });
 
