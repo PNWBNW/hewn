@@ -168,7 +168,9 @@ The highest risk for a browser app.
 - `pnpm audit --audit-level=moderate` blocks merges. ✅ Baseline 2026-10-13: 47 → 0 advisories.
   An advisory with no fixed version may be skipped by its id in `pnpm-workspace.yaml`
   (`auditConfig.ignoreGhsas`), each with its reason, only when nothing the app ships includes the
-  package (`pnpm audit --prod` stays clean), and removed once a fix can be installed. Today: one,
+  package (`pnpm audit --prod` stays clean), and removed once a fix can be installed: CI fails as
+  soon as the npm registry lists a version outside the advisory's range that is old enough to
+  install, or the advisory no longer applies (`scripts/check_audit_skips.py`). ✅ Today: one,
   picomatch through the test runner (2026-11-17).
 - `minimumReleaseAge` 7 days: freshly published (possibly hijacked) versions are never pulled. ✅
 - Install scripts allowed only for an explicit list (`onlyBuiltDependencies`). ✅
