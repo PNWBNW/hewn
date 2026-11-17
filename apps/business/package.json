@@ -10,9 +10,10 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build:static": "HEWN_STATIC=1 next build && node scripts/static_csp.mjs",
+    "build:static": "HEWN_STATIC=1 next build && node scripts/static_csp.mjs && node scripts/update_worker.mjs",
     "test:devnode": "vitest run --config vitest.devnode.config.ts",
     "test:frames": "vitest run --config vitest.frames.config.ts",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
     "codegen": "veil-codegen --config codegen/veil.config.json"
   },
   "dependencies": {
