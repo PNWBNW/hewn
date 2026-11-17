@@ -7,7 +7,6 @@
 import { Suspense, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Card, CardContent } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
@@ -15,9 +14,13 @@ import { useCustomer } from "@/books/BooksProvider";
 import { connectedIn, updateConnectionThread } from "@/books/connections";
 import { type Thread, emptyThread, preview, unreadIn } from "@/books/thread";
 import { BRAND } from "@/brand";
+import { HashLink, useHashParams } from "@/shell/hash_params";
 import { PageHeader } from "@/shell/SectionView";
 
 const ClientConversation = dynamic(() => import("@/chain/clients/ClientConversation"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
+
+// What a link from before may still name in the query (moved to the fragment on opening).
+const SELECTION = ["with"] as const;
 
 export default function CustomerMessagesPage() {
   return (
@@ -29,7 +32,8 @@ export default function CustomerMessagesPage() {
 
 function Messages() {
   const { customer, updateCustomer } = useCustomer();
-  const selected = useSearchParams().get("with");
+  // The conversation open is named in the fragment, so no request carries it (shell/hash_params.ts).
+  const selected = useHashParams(SELECTION).get("with");
   const businesses = connectedIn(customer.businesses);
   const open = businesses.find((b) => b.address === selected);
 
@@ -44,9 +48,9 @@ function Messages() {
   if (open) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/customer/messages" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+        <HashLink path="/customer/messages" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
           <ChevronLeft aria-hidden className="size-4" /> All messages
-        </Link>
+        </HashLink>
         <ClientConversation key={open.address} side="worker" connection={open} title={`${open.name}.${BRAND.nameSuffix}`} update={update} />
       </div>
     );
@@ -71,7 +75,7 @@ function Messages() {
                 const unread = unreadIn(b.thread);
                 return (
                   <li key={b.address}>
-                    <Link href={`/customer/messages?with=${encodeURIComponent(b.address)}`} className="flex min-h-14 items-center gap-3 py-3">
+                    <HashLink path="/customer/messages" values={{ with: b.address }} className="flex min-h-14 items-center gap-3 py-3">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>
                           {b.name}.{BRAND.nameSuffix}
@@ -83,7 +87,7 @@ function Messages() {
                           {unread}
                         </span>
                       )}
-                    </Link>
+                    </HashLink>
                   </li>
                 );
               })}

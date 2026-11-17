@@ -21,6 +21,9 @@ never contains a route handler. CI builds both.
   names the website by its full address in the bundle.
 - In the bundle a pathname may end in `/`: compare pathnames through `canonicalPath`
   (`src/shell/AppShell.tsx`), never as raw strings.
+- A page names the conversation or bill it has open in the fragment (`#with=…`), never the query:
+  `useHashParams` and `HashLink` (`src/shell/hash_params.ts`) on the page, a
+  `<Link href="/messages#client=…" prefetch={false}>` from another one.
 - No server holds messages: the old mailbox server is retired (2026-10-22; `archive/README.md`
   names the commit that holds it), and every message is a letter on chain sent from the user's wallet.
 
@@ -36,8 +39,8 @@ pnpm, vitest (tests beside their source as `*.test.ts`), and one path alias, `@/
 | `src/books/` | Everything about the books that needs no chain: the vault session, the company, the models behind each screen (hours, schedule, thread, mailbox, jobs, hiring…), pure functions with their tests beside them. See its README. |
 | `src/chain/` | Everything that touches Aleo: Shield, letters, offers, pay, the registry, the job board. Loaded only by the pages that need it, through `import("@/chain/…")`. See its README. |
 | `src/legal/` | The terms and the privacy page, and the small print every screen shares ("Testnet · provided as is", the note beside worked-out figures). The one folder outside `src/chain` that may name the chain and the wallet. |
-| `src/shell/` | The app shell: navigation, section views, page views |
-| `src/security/` | The content security policy for both builds, with tests |
+| `src/shell/` | The app shell: navigation, section views, page views, and the page's fragment (`hash_params.ts`), which names the conversation or bill a page has open |
+| `src/security/` | The content security policy for both builds, with tests, and the test that keeps a page's links naming what is open in the fragment, never the query |
 | `src/traction/` | The public traction map and the visit counter that feeds it |
 | `src/paper/` | The paper's text and figures (`basement.ts`, generated from its draft with the PDF in `public/papers/`; regenerate both, never edit by hand) and its journal-style CSS |
 | `src/api_base.ts`, `src/brand.ts`, `src/proxy.ts` | Where the server pieces are for this build; the brand re-export; the per-request policy |
