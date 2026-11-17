@@ -13,6 +13,9 @@ import { postToThread, readThread } from "./thread";
 const KEY = "ab".repeat(32);
 const at = (m: number) => () => new Date(Date.UTC(2026, 9, 23, 12, m));
 
+/** The same x with y moved by one: a public key's shape, but not a point on the curve. */
+const offCurve = (key: string): string => key.slice(0, -2) + ((parseInt(key.slice(-2), 16) + 1) & 0xff).toString(16).padStart(2, "0");
+
 /** Letters on chain: nothing is dropped once read. */
 function chain() {
   const slots = new Map<string, Uint8Array<ArrayBuffer>>();
@@ -267,6 +270,25 @@ describe("what a key half can and can't do", () => {
     expect(business.thread.nextIn).toBe(1);
   });
 
+  it("refuses a message whose half has a key's shape but isn't a point on the curve: nothing of it is kept", async () => {
+    const box = chain();
+    const business = party("business", box);
+    const sent = await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "hi" } });
+    const { seal } = await import("@pnw/mailbox");
+    const { packPayload } = await import("./compress");
+    const bad = await seal(partiesKeyFromHex(KEY), "thread_w", 0, await packPayload(new TextEncoder().encode(JSON.stringify({ version: 1, id: sent.id, from: "worker", sentAt: sent.sentAt, body: { type: "text", text: "hi" }, half: { publicKey: offCurve((await newHalf()).publicKey) } }))));
+    box.slots.clear();
+    await box.put(bad.lookup, bad.envelope);
+    expect(await business.check()).toEqual([]);
+    expect(business.thread.items).toEqual([]);
+    expect(business.thread.ring).toBeUndefined();
+    expect(business.thread.nextIn).toBe(1);
+    // Nothing waits to be answered, so the next check makes no key from it and goes on.
+    expect(await makeHalves(business.thread.ring)).not.toBeNull(); // only this side's own start
+    await business.prepare();
+    expect(business.thread.ring?.pairs.every((p) => !p.theirs)).toBe(true);
+  });
+
   it("refuses a sealed message that doesn't carry the half it answers with", async () => {
     const { validateMessage } = await import("../books/thread");
     const base = { version: 1, id: "1".repeat(32), from: "worker", sentAt: "2026-10-23T12:00:00.000Z", body: { type: "sealed", inner: "AAAA" } };
@@ -302,6 +324,14 @@ describe("what a key half can and can't do", () => {
     await other.check();
     expect(other.thread.items[0]!.half).toBeUndefined();
     expect(other.thread.ring).toBeUndefined();
+  });
+
+  it("seeds from an agreement record's halves only those that are points on the curve", async () => {
+    const { usableHalves } = await import("./agreement_programs");
+    const employerHalf = (await newHalf()).publicKey;
+    const workerHalf = offCurve((await newHalf()).publicKey);
+    expect(await usableHalves({ agreementId: "x", employerHalf, workerHalf })).toEqual({ agreementId: "x", employerHalf });
+    expect(await usableHalves({ workerHalf: employerHalf })).toEqual({ workerHalf: employerHalf });
   });
 
   it("keeps a ring honest: writing under a pair needs both halves", async () => {

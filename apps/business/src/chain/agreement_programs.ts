@@ -15,6 +15,7 @@
 
 import { PROGRAMS } from "@pnw/config/programs";
 import { arrayFieldHex, packedWords } from "@pnw/records/packed";
+import { PUBLIC_KEY_SHAPE, isP256Point } from "../books/key_point";
 
 export const AGREEMENT_V4: string = PROGRAMS.layer1.employer_agreement;
 export const AGREEMENT_V5: string = PROGRAMS.layer1.employer_agreement_v5;
@@ -27,7 +28,7 @@ export const AGREEMENT_PROGRAMS: readonly string[] = [AGREEMENT_V5, AGREEMENT_V4
 /** Whether a program's records carry the halves and pack their bytes (v5). Absent means v4. */
 export const carriesHalves = (program: string | undefined): boolean => program === AGREEMENT_V5;
 
-const PUBLIC_KEY = /^04[0-9a-f]{128}$/;
+const PUBLIC_KEY = PUBLIC_KEY_SHAPE;
 
 /** A P-256 public half (`04` + x + y, hex) as the program's `[u128; 4]` input: x and y, 64 bytes packed. */
 export function halfToInput(publicKey: string): string {
@@ -44,3 +45,15 @@ export function halfFromRecord(hex: string | null): string | null {
 
 /** A record's half field (`employer_half`, `worker_half`) as the public key, or null when the record has none. */
 export const halfOf = (plaintext: string, field: "employer_half" | "worker_half"): string | null => halfFromRecord(arrayFieldHex(plaintext, field, 64));
+
+/**
+ * The halves a record carries, each kept only when it is a point on the curve (books/key_point.ts):
+ * one that isn't could never make the conversation's key, so the conversation starts under the
+ * agreement's key instead, as with a v4 record. Call before a half is seeded into a ring.
+ */
+export async function usableHalves<T extends { employerHalf?: string; workerHalf?: string }>(record: T): Promise<T> {
+  const out = { ...record };
+  if (out.employerHalf !== undefined && !(await isP256Point(out.employerHalf))) delete out.employerHalf;
+  if (out.workerHalf !== undefined && !(await isP256Point(out.workerHalf))) delete out.workerHalf;
+  return out;
+}
