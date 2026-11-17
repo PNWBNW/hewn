@@ -10,7 +10,7 @@ vi.mock("@/desktop", () => ({ useDesktopApp: () => where.desktop }));
 const { SHIELD_NOT_IN_DESKTOP, ShieldMissing } = await import("./ShieldStatus");
 
 const html = (props: { website?: boolean }) =>
-  renderToStaticMarkup(createElement(ShieldMissing, { className: "x", ...props }, "Install the Shield extension."));
+  renderToStaticMarkup(createElement(ShieldMissing, { className: "x", ...props, children: "Install the Shield extension." }));
 const text = (s: string) => s.replace(/<[^>]+>/g, "").replace(/&#x27;|&apos;/g, "'");
 
 describe("ShieldMissing", () => {
