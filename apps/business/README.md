@@ -10,7 +10,7 @@ server piece counts visits by country.
 
 | Build | Command | What it makes |
 |---|---|---|
-| The website | `pnpm build` | Served by Next.js on Vercel at www.hewnaccounting.com (app.hewnaccounting.com doesn't resolve yet), with the one server piece, the traction counter (`src/app/api/*.server.ts`), and the per-request security policy (`src/proxy.ts`). Once the app moves to GitHub Pages, it stays on Vercel as the counter's own address and answers nothing else there (`src/security/counter_host.ts`) |
+| The website | `pnpm build` | Served by Next.js on Vercel at www.hewnaccounting.com (app.hewnaccounting.com doesn't resolve yet), with the one server piece, the traction counter (`src/app/api/*.server.ts`), and the per-request security policy (`src/proxy.ts`). Once the app moves to GitHub Pages, it stays on Vercel as the counter's own address, where every page and public file answers 404 (`src/security/counter_host.ts`; the framework's own script files, which the request proxy never sees, are still served there) |
 | The static bundle | `pnpm build:static` (`HEWN_STATIC=1`) | Plain files in `out/`: what GitHub Pages serves on the app's domain (`.github/workflows/pages.yml`) and what the desktop app will carry. The policy is stamped into each page by `scripts/static_csp.mjs`, and the bundle reaches the counter by full address (`BRAND.counterUrl`, `src/api_base.ts`), the one extra origin its policy names |
 
 Server-only files end in `.server.ts`, an extension only the website build looks at, so the bundle
@@ -81,11 +81,17 @@ never from the shared `pnwbnw.github.io` origin, and this repository's one Pages
 (the map is published from a repository of its own, `docs/map/README.md`). Until the domain's DNS
 points at Pages, www.hewnaccounting.com is still Vercel; the switch is a settings change, in order:
 
-1. A domain for the counter on the Vercel project (say `count.hewnaccounting.com`), and
+1. The top-page guard (`docs/HOSTING.md` step 1) merged and released first: Pages sends none of
+   our headers, and the guard is what keeps the app out of another site's frame there. And any
+   `NEXT_PUBLIC_*` setting the Vercel project has is set in the Pages workflow too (the workflow
+   sets none, so the bundle takes the defaults: testnet, the brand's addresses).
+2. A domain for the counter on the Vercel project (say `count.hewnaccounting.com`), and
    `counterUrl` in `packages/brand` set to it (or `NEXT_PUBLIC_COUNTER_URL` on both builds).
-2. The domain verified for the organisation on GitHub, then the custom domain and "Enforce HTTPS"
-   in this repository's Pages settings, with Pages published by GitHub Actions.
-3. A release (`[deploy]`), or the Pages workflow run by hand; then `www` pointed at Pages in DNS.
+3. The map's own repository set up and published (`docs/map/README.md`), since this repository's
+   Pages address forwards to the app's domain from then on. Then the domain verified for the
+   organisation on GitHub, and the custom domain and "Enforce HTTPS" in this repository's Pages
+   settings, with Pages published by GitHub Actions.
+4. A release (`[deploy]`), or the Pages workflow run by hand; then `www` pointed at Pages in DNS.
 
 Only the title counts, so a description can mention the tokens freely. The marketing site
 (`apps/site`) follows the same rule with its own folders. Until a release, the live app is the

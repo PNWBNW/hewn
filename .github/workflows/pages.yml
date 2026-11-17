@@ -18,9 +18,10 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: pages
-  cancel-in-progress: false # never stop a deploy halfway
+# No workflow-wide concurrency group: every push to main runs the gate, and a run that is not a
+# release would otherwise take the place of a release still waiting for its turn (GitHub keeps one
+# waiting run per group). The groups are on the build and deploy jobs, so only releases queue, in
+# order, and a deploy is never stopped halfway.
 
 jobs:
   gate:
@@ -58,6 +59,9 @@ jobs:
     if: needs.gate.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: pages-build
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
@@ -82,6 +86,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: pages
+      cancel-in-progress: false # never stop a deploy halfway
     permissions:
       pages: write
       id-token: write
