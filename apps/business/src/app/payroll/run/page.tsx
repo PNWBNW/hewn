@@ -5,12 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCents } from "@pnw/ledger";
 import {
+  type DoublePayCheck,
   type PaycheckDraft,
   checkDoublePay,
   computePaycheck,
+  doublePayRefusal,
   employerTaxes,
   ensureRailAccount,
   grossFor,
+  paidPeriods,
   postPayRun,
   withheld,
   yearToDate,
@@ -72,7 +75,7 @@ export default function RunPayrollPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmSameDay, setConfirmSameDay] = useState<string[] | null>(null);
+  const [confirmOverlap, setConfirmOverlap] = useState<DoublePayCheck["overlap"] | null>(null);
 
   // Live preview, one paycheck at a time so each row can show its own problem.
   const preview = useMemo(
@@ -135,26 +138,35 @@ export default function RunPayrollPage() {
       ...(row.project ? { tags: { project: row.project } } : {}),
     }));
 
-  /** Before posting: refuse an exact repeat of a payment on this date; ask about any other same-day pay. */
+  // The confirm box's two lists: those with another paycheck for some of this period, and those with one only on this pay date.
+  const overlapNames = (by: "period" | "date") => [...new Set((confirmOverlap ?? []).filter((m) => m.by === by).map((m) => names.get(m.workerId) ?? m.workerId))];
+  const samePeriod = overlapNames("period");
+  const sameDate = overlapNames("date").filter((n) => !samePeriod.includes(n));
+  // What those earlier paychecks were for, so the box says which period was paid, not only this run's.
+  const earlier = paidPeriods(payroll, (confirmOverlap ?? []).filter((m) => m.by === "period")).join(" and ");
+
+  /** Before posting: refuse an exact repeat of a payment for this period or on this date; ask about any other pay for either. */
   function submit() {
     setError(null);
-    const check = checkDoublePay(payroll, { payDate, lines: lines() });
-    const who = (xs: { workerId: string }[]) => [...new Set(xs.map((x) => names.get(x.workerId) ?? x.workerId))];
-    if (check.blocked.length > 0) {
-      setError(`Already paid on ${payDate} for the same amount: ${who(check.blocked).join(", ")}. Change the amount or the pay date to pay again.`);
+    const input = { payDate, periodStart, periodEnd, lines: lines() };
+    const check = checkDoublePay(payroll, input);
+    const refusal = doublePayRefusal(payroll, input, check);
+    if (refusal) {
+      setError(refusal);
       return;
     }
-    if (check.sameDay.length > 0) {
-      setConfirmSameDay(who(check.sameDay));
+    if (check.overlap.length > 0) {
+      setConfirmOverlap(check.overlap);
       return;
     }
-    void post();
+    void post([]);
   }
 
-  async function post() {
+  /** `confirmed`: the people whose earlier paycheck was shown in the box and posted anyway. */
+  async function post(confirmed: string[]) {
     setBusy(true);
     setError(null);
-    setConfirmSameDay(null);
+    setConfirmOverlap(null);
     try {
       let runId = "";
       await updateCompany((c) => {
@@ -169,6 +181,7 @@ export default function RunPayrollPage() {
           mode: onRail ? "rail" : "external",
           ...(!onRail && reference.trim() ? { reference: reference.trim() } : {}),
           lines: lines(),
+          ...(confirmed.length > 0 ? { confirmedOverlaps: confirmed } : {}),
         });
         runId = r.run.id;
         // The stretches this run paid are marked with it, so they're never paid twice and the card says which paycheck.
@@ -389,19 +402,21 @@ export default function RunPayrollPage() {
         </div>
       </form>
 
-      <Dialog open={confirmSameDay !== null} onOpenChange={(open) => !open && setConfirmSameDay(null)}>
+      <Dialog open={confirmOverlap !== null} onOpenChange={(open) => !open && setConfirmOverlap(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Already paid on {payDate}</DialogTitle>
+            <DialogTitle>{samePeriod.length > 0 ? "Already paid in this pay period" : `Already paid on ${payDate}`}</DialogTitle>
             <DialogDescription>
-              {confirmSameDay?.join(", ")} {confirmSameDay?.length === 1 ? "has" : "have"} another paycheck dated {payDate}. Post this one as well?
+              {samePeriod.length > 0 && `${samePeriod.join(", ")} ${samePeriod.length === 1 ? "has" : "have"} another paycheck for ${earlier}, which overlaps this run's pay period (${periodStart} to ${periodEnd}). `}
+              {sameDate.length > 0 && `${sameDate.join(", ")} ${sameDate.length === 1 ? "has" : "have"} another paycheck dated ${payDate}. `}
+              Post this one as well?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4 gap-2">
-            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmSameDay(null)}>
+            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => setConfirmOverlap(null)}>
               Go back
             </Button>
-            <Button className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void post()}>
+            <Button className="min-h-11 sm:min-h-9" disabled={busy} onClick={() => void post([...new Set((confirmOverlap ?? []).map((m) => m.workerId))])}>
               Post anyway
             </Button>
           </DialogFooter>
