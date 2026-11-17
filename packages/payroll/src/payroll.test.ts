@@ -117,8 +117,8 @@ describe("gross pay", () => {
     expect(posted.run.paychecks[0]).toMatchObject({ overtimeHours: 3, overtimeRate: 1.5, gross: 215_475n });
     expect(payrollFromJson(payrollToJson(posted.payroll)).runs[0]!.paychecks[0]).toMatchObject({ overtimeHours: 3, overtimeRate: 1.5 });
     // The double-pay guard compares the whole gross, overtime included.
-    expect(checkDoublePay(posted.payroll, { payDate: run(s).payDate, lines: [{ workerId: s.ben.id, hours: 80, overtime: { hours: 3, rate: 1.5 } }] }).blocked).toHaveLength(1);
-    expect(checkDoublePay(posted.payroll, { payDate: run(s).payDate, lines: [{ workerId: s.ben.id, hours: 80 }] }).blocked).toHaveLength(0);
+    expect(checkDoublePay(posted.payroll, { ...run(s), lines: [{ workerId: s.ben.id, hours: 80, overtime: { hours: 3, rate: 1.5 } }] }).blocked).toHaveLength(1);
+    expect(checkDoublePay(posted.payroll, { ...run(s), lines: [{ workerId: s.ben.id, hours: 80 }] }).blocked).toHaveLength(0);
   });
 });
 
