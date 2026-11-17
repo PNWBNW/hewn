@@ -27,6 +27,8 @@
 // track of what was sent and read. Nothing here logs a key.
 // ---------------------------------------------------------------------------
 
+import { assertP256Point } from "./key_point";
+
 /** A side's half: the public half travels, the private half stays in this vault. */
 export type Half = { publicKey: string; privateKey: JsonWebKey };
 
@@ -97,6 +99,21 @@ export function validateHalfOnWire(raw: unknown): HalfOnWire {
   if (raw.answers === undefined) return { publicKey: raw.publicKey };
   if (typeof raw.answers !== "string" || !PUBLIC_KEY.test(raw.answers) || raw.answers === raw.publicKey) throw new KeyRingError("A key half answers another public key");
   return { publicKey: raw.publicKey, answers: raw.answers };
+}
+
+/**
+ * The other side's half as it arrives, checked as a point on the curve (books/key_point.ts) before
+ * it is kept: a value of the right shape that isn't one could never make a key. Throws a
+ * KeyRingError. The shape check above stays synchronous, for the vault's own copy.
+ */
+export async function checkHalfOnWire(half: HalfOnWire): Promise<HalfOnWire> {
+  try {
+    await assertP256Point(half.publicKey, "their key half");
+    if (half.answers !== undefined) await assertP256Point(half.answers, "the half it answers");
+  } catch (e) {
+    throw new KeyRingError(e instanceof Error ? e.message : "A key half isn't a usable public key");
+  }
+  return half;
 }
 
 export function validateHalf(raw: unknown): Half {

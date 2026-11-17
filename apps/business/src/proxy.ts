@@ -17,10 +17,13 @@ export function proxy(request: NextRequest) {
   return response;
 }
 
+// Runs for every address except the framework's built files, the image
+// endpoint and the favicon, each named exactly, so every page (the not-found
+// page included) is sent with the policy (security/proxy_matcher.test.ts).
 export const config = {
   matcher: [
     {
-      source: "/((?!_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!_next/static/|_next/image$|favicon\\.ico$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
