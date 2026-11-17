@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "@pnw/ui/tokens.css";
+/* Hidden unless it is the top page (the top-page guard, docs/THREAT_MODEL.md T3). */
+@import "@pnw/security/frame_guard.css";
 
 /* Tailwind only scans this app by default; include the shared kit's class names. */
 @source "../../../../packages/ui/src";
