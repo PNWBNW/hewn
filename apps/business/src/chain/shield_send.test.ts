@@ -7,13 +7,15 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./editions", () => ({ checkEditions: async () => undefined }));
 
-// useShield() outside a render: state keeps its first value, effects don't run, and the
-// provider's useWallet() hands back whatever adapter the test put in `provider.adaptor`.
+// useShield() outside a render: state keeps its first value, effects don't run, a store reads its
+// snapshot (useDesktopApp: false, as in a browser), and the provider's useWallet() hands back
+// whatever adapter the test put in `provider.adaptor`.
 const provider = vi.hoisted(() => ({ adaptor: null as unknown }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useState: <T,>(first: T | (() => T)) => [typeof first === "function" ? (first as () => T)() : first, () => undefined],
   useEffect: () => undefined,
+  useSyncExternalStore: <T,>(_subscribe: unknown, snapshot: () => T) => snapshot(),
 }));
 vi.mock("@pnw/wallet/wallet-provider", async (original) => ({
   ...(await original<typeof import("@pnw/wallet/wallet-provider")>()),

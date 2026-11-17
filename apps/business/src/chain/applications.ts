@@ -27,7 +27,8 @@
 
 import { MailboxError, open, partiesKeyFromHex, seal } from "@pnw/mailbox";
 import type { HiringKey } from "../books/jobs";
-import { PUBLIC_KEY, type ThreadItem, type ThreadMessage, ThreadError, validateMessage } from "../books/thread";
+import { isP256Point } from "../books/key_point";
+import { type ThreadItem, type ThreadMessage, ThreadError, validateMessage } from "../books/thread";
 import { packPayload, unpackPayload } from "./compress";
 import { PAGE_BYTES } from "./letters";
 
@@ -57,8 +58,9 @@ const checkPostingId = (id: string): string => {
   if (!POSTING_ID.test(id) || /^0+$/.test(id)) throw new ApplicationError("The posting id isn't valid");
   return id;
 };
-const checkPoint = (publicKey: string, what: string): string => {
-  if (!PUBLIC_KEY.test(publicKey)) throw new ApplicationError(`The ${what} isn't a valid key`);
+/** A public key's shape and a point on the curve (books/key_point.ts), or an ApplicationError. */
+const checkPoint = async (publicKey: string, what: string): Promise<string> => {
+  if (!(await isP256Point(publicKey))) throw new ApplicationError(`The ${what} isn't a valid key`);
   return publicKey;
 };
 
@@ -89,7 +91,7 @@ async function derive(privateKey: JsonWebKey, theirPublic: string, postingId: st
 
 /** The applicant's side: a one-time key pair and the parties key it makes with the posting's hiring key. The one-time private half is dropped. */
 export async function applicantKey(hiringPublicKey: string, postingId: string): Promise<{ partiesKey: string; oneTimePublicKey: string }> {
-  checkPoint(hiringPublicKey, "posting's hiring key");
+  await checkPoint(hiringPublicKey, "posting's hiring key");
   checkPostingId(postingId);
   const pair = await subtle().generateKey(ECDH, true, ["deriveBits"]);
   const oneTimePublicKey = hex(await subtle().exportKey("raw", pair.publicKey));
@@ -100,14 +102,14 @@ export async function applicantKey(hiringPublicKey: string, postingId: string): 
 
 /** The business's side: the same parties key, from the posting's private half and the one-time public key in the letter. */
 export async function businessKey(hiring: HiringKey, oneTimePublicKey: string, postingId: string): Promise<string> {
-  checkPoint(oneTimePublicKey, "applicant's key");
+  await checkPoint(oneTimePublicKey, "applicant's key");
   return derive(hiring.privateKey, oneTimePublicKey, checkPostingId(postingId), oneTimePublicKey, hiring.publicKey);
 }
 
 /** The letter's parcel: the one-time public key in the clear, then the application sealed under the parties key. */
 export async function packApplication(partiesKey: string, oneTimePublicKey: string, message: ThreadMessage): Promise<Uint8Array<ArrayBuffer>> {
   if (message.body.type !== "application" || message.from !== "worker") throw new ApplicationError("That isn't an application");
-  const point = hexToBytes(checkPoint(oneTimePublicKey, "one-time key"));
+  const point = hexToBytes(await checkPoint(oneTimePublicKey, "one-time key"));
   const bytes = await packPayload(utf8(JSON.stringify(validateMessage(message, "worker"))));
   const key = partiesKeyFromHex(partiesKey);
   try {

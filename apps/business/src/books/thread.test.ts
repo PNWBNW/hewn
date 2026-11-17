@@ -23,7 +23,10 @@ import {
   validateMessage,
   validateProposal,
   validateThread,
+  checkMessageKeys,
+  ThreadError,
 } from "./thread";
+import { arrivalTime } from "./thread_order";
 
 const A = "aa".repeat(32);
 const B = "bb".repeat(32);
@@ -323,5 +326,50 @@ describe("the order of a conversation on this device", () => {
     const together = "2026-10-16T12:00:00.000Z";
     const t = [say(5, false, "2026-10-16T11:30:00.000Z", together), say(4, false, "2026-10-16T11:45:00.000Z", together), say(6, false, "2026-10-16T07:00:00.000Z")].sort(inOrder);
     expect(t.map((i) => i.seq)).toEqual([6, 4, 5]);
+  });
+});
+
+describe("the keys a message from the other side carries", () => {
+  const realKey = async () => {
+    const pair = await globalThis.crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+    return Array.from(new Uint8Array(await globalThis.crypto.subtle.exportKey("raw", pair.publicKey)), (x) => x.toString(16).padStart(2, "0")).join("");
+  };
+  // A public key's shape, not a point on the curve.
+  const shapeOnly = "04" + "f".repeat(128);
+
+  it("are each checked as a point on the curve before the message is kept", async () => {
+    const good = await realKey();
+    const other = await realKey();
+    await expect(checkMessageKeys(validateMessage(msg(1, "worker", { type: "directory_join", name: "Ana", publicKey: good }), "worker"))).resolves.toBeTruthy();
+    await expect(checkMessageKeys(validateMessage(msg(2, "worker", { type: "directory_join", name: "Ana", publicKey: shapeOnly }), "worker"))).rejects.toThrow(/isn't usable/);
+    await expect(checkMessageKeys(validateMessage(msg(3, "business", { type: "directory", entries: [{ name: "Ana", publicKey: good }, { name: "Bo", publicKey: shapeOnly }] }), "business"))).rejects.toThrow(/isn't usable/);
+    const group = { type: "group", groupId: "1".repeat(16), name: "Lunch", admin: good, members: [{ name: "A", publicKey: good }, { name: "B", publicKey: shapeOnly }] };
+    await expect(checkMessageKeys(validateMessage(msg(4, "worker", group), "worker"))).rejects.toThrow(/isn't usable/);
+    const text = { type: "text", text: "hi" };
+    await expect(checkMessageKeys(validateMessage({ ...msg(5, "worker", text), half: { publicKey: good } }, "worker"))).resolves.toBeTruthy();
+    await expect(checkMessageKeys(validateMessage({ ...msg(6, "worker", text), half: { publicKey: shapeOnly } }, "worker"))).rejects.toThrow(ThreadError);
+    await expect(checkMessageKeys(validateMessage({ ...msg(7, "worker", text), half: { publicKey: good, answers: shapeOnly } }, "worker"))).rejects.toThrow(ThreadError);
+    await expect(checkMessageKeys(validateMessage({ ...msg(8, "worker", text), half: { publicKey: other, answers: good } }, "worker"))).resolves.toBeTruthy();
+  });
+
+  it("aren't checked again when the books open: a conversation kept before still loads", () => {
+    const kept = { ...item(1, "worker", { type: "directory_join", name: "Ana", publicKey: shapeOnly }, false, 0), half: { publicKey: shapeOnly } };
+    expect(validateThread({ items: [kept], nextIn: 1, nextOut: 0 }).items).toHaveLength(1);
+  });
+});
+
+describe("when one of their messages takes its place", () => {
+  const theirs = (n: number, receivedAt: string): ThreadItem => ({ ...item(n, "worker", { type: "text", text: `m${n}` }, false, n), receivedAt });
+  const mine = (n: number, sentAt: string): ThreadItem => ({ ...item(n, "business", { type: "text", text: `m${n}` }, true, n), sentAt });
+
+  it("is now, unless this device's clock reads earlier than what is already here", () => {
+    expect(arrivalTime([], "2026-10-16T12:00:00.000Z")).toBe("2026-10-16T12:00:00.000Z");
+    expect(arrivalTime([theirs(1, "2026-10-16T11:00:00.000Z")], "2026-10-16T12:00:00.000Z")).toBe("2026-10-16T12:00:00.000Z");
+    // The clock stepped back an hour behind my last answer: it goes just after it.
+    const items = [theirs(1, "2026-10-16T11:00:00.000Z"), mine(2, "2026-10-16T13:00:00.000Z")];
+    const at = arrivalTime(items, "2026-10-16T12:00:00.000Z");
+    expect(at).toBe("2026-10-16T13:00:00.001Z");
+    const t = addToThread({ ...emptyThread(), items }, { ...theirs(3, at), sentAt: "2026-10-16T12:00:00.000Z" });
+    expect(t.items.map((i) => i.seq)).toEqual([1, 2, 3]);
   });
 });

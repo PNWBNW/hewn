@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { addAccount, balanceOf, createBooks } from "@pnw/ledger";
-import { findRailAccount } from "@pnw/payroll";
+import { ensureRailAccount, findRailAccount } from "@pnw/payroll";
+import { addCustomer, addVendor, createInvoice, enterBill, payBills, sendInvoice, voidBillPayment, voidPayment } from "@pnw/sales";
+import { paymentsToRecord, recordClientPayment } from "./client_payments";
 import { type Company, companyFromJson, companyToJson, emptyCompany } from "./company";
+import type { Connections } from "./connections";
+import type { Half } from "./key_ring";
 import { startFromShield } from "./opening";
 import { type Rail } from "./rail";
 import {
@@ -14,10 +18,12 @@ import {
   excludeItem,
   keepWithin,
   knownIds,
+  reopenForVoidedEntry,
   undoReview,
   validateReview,
   waitingCount,
 } from "./review";
+import type { ThreadItem } from "./thread";
 
 const ADDR = "aleo1" + "q".repeat(58);
 const DAO = "aleo1" + "d".repeat(58);
@@ -174,5 +180,66 @@ describe("the review list", () => {
     const waiting = addReviewItems(next, [received]);
     expect(() => changeItem(waiting, tx(2), { accountId: income }, "2026-10-17")).toThrow(/Only an accepted/);
     expect(choicesOf(waiting, tx(2))).toBeNull();
+  });
+});
+
+describe("voiding a payment puts its transfer back under For review", () => {
+  const CUST = "aleo1" + "c".repeat(58);
+  const CTX = "at1" + "q".repeat(58);
+  const OTHER_TX = "at1" + "w".repeat(58);
+  const half = (c: string): Half => ({ publicKey: "04" + c.repeat(128), privateKey: { kty: "EC", crv: "P-256", x: "x", y: "y", d: "d" } });
+  const paidMessage = (invoiceId: string, number: string): ThreadItem => ({
+    version: 1,
+    id: "f".repeat(32),
+    from: "worker",
+    sentAt: "2026-10-26T10:00:00.000Z",
+    body: { type: "payment", invoiceId, number, amount: "15490", transactionId: CTX },
+    mine: false,
+    seq: 1,
+  });
+  // A recorded item for some other entry, to show it's left alone.
+  const elsewhere: ReviewItem = { id: OTHER_TX, date: "2026-10-20", direction: "in", minor: "1000000", kind: "transfer_public", status: "recorded", entryId: "je-elsewhere" };
+
+  it("a customer's payment: the transfer waits again, and can be recorded again", () => {
+    const { c: start, income } = company();
+    const cust = addCustomer(start.sales, { name: "Rowan" });
+    const inv = createInvoice(start.books, cust.sales, { customerId: cust.customer.id, date: "2026-10-20", lines: [{ description: "Sink", accountId: income, quantity: "1", unitPrice: 15490n }] });
+    const sent = sendInvoice(start.books, inv.sales, inv.invoice.id);
+    const clients = { [CUST]: { address: CUST, name: "rowan", nameHash: "42", mine: half("1"), theirs: "04" + "2".repeat(128), customerId: cust.customer.id, thread: { items: [paidMessage(inv.invoice.id, inv.invoice.number)], nextIn: 1, nextOut: 0 } } } as Connections;
+    let c: Company = { ...start, books: sent.books, sales: sent.sales, clients };
+    c = addReviewItems(c, [{ id: CTX, date: "2026-10-26", direction: "in", minor: "154900000", counterparty: CUST, kind: "transfer_private", status: "new" }, elsewhere]);
+    c = recordClientPayment(c, CTX);
+    const payment = c.sales.payments[0]!;
+    expect(c.review!.items.find((i) => i.id === CTX)).toMatchObject({ status: "recorded", entryId: payment.entryId });
+
+    const v = voidPayment(c.books, c.sales, payment.id, { date: "2026-10-27" });
+    const voided = reopenForVoidedEntry({ ...c, books: v.books, sales: v.sales }, payment.entryId);
+    const item = voided.review!.items.find((i) => i.id === CTX)!;
+    expect(item.status).toBe("new");
+    expect(item.entryId).toBeUndefined();
+    expect(voided.review!.items.find((i) => i.id === OTHER_TX)).toEqual(elsewhere);
+    // The customer's word shows again with the transfer seen, ready to record.
+    expect(paymentsToRecord(voided)[0]).toMatchObject({ transactionId: CTX, seen: { txId: CTX, inReview: true } });
+    const again = recordClientPayment(voided, CTX);
+    expect(again.sales.payments.filter((p) => !p.voidEntryId)).toHaveLength(1);
+    expect(again.review!.items.find((i) => i.id === CTX)).toMatchObject({ status: "recorded", entryId: again.sales.payments[1]!.entryId });
+  });
+
+  it("a bill payment from the Shield account: the transfer waits again", () => {
+    const { c: start, expense } = company();
+    const { books: withShield, accountId: shield } = ensureRailAccount(start.books);
+    const vendor = addVendor(start.sales, { name: "Hosting Co" });
+    const bill = enterBill(withShield, vendor.sales, { vendorId: vendor.vendor.id, date: "2026-10-16", lines: [{ description: "Hosting", accountId: expense, amount: 462n }] });
+    const paidBill = payBills(bill.books, bill.sales, { vendorId: vendor.vendor.id, date: "2026-10-16", bankAccountId: shield, applications: [{ billId: bill.bill.id, amount: 462n }] });
+    let c: Company = { ...start, books: paidBill.books, sales: paidBill.sales };
+    c = addReviewItems(c, [{ ...sent, status: "recorded", entryId: paidBill.billPayment.entryId }, elsewhere]);
+
+    const v = voidBillPayment(c.books, c.sales, paidBill.billPayment.id, { date: "2026-10-17" });
+    const voided = reopenForVoidedEntry({ ...c, books: v.books, sales: v.sales }, paidBill.billPayment.entryId);
+    expect(voided.review!.items.find((i) => i.id === sent.id)).toEqual({ ...sent, status: "new" });
+    expect(voided.review!.items.find((i) => i.id === OTHER_TX)).toEqual(elsewhere);
+    expect(waitingCount(voided.review)).toBe(1);
+    // Nothing recorded with that entry: unchanged.
+    expect(reopenForVoidedEntry(voided, paidBill.billPayment.entryId)).toBe(voided);
   });
 });

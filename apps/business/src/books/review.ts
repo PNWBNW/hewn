@@ -256,6 +256,22 @@ export function undoReview(company: Company, id: string, date: IsoDate): Company
   return withItem({ ...company, books }, { ...rest, status: "new" });
 }
 
+/**
+ * A payment voided where it was made (Sales, Expenses): the transfers For review had marked
+ * recorded with its entry go back to waiting, without that entry, so each can be recorded again
+ * or reviewed like any other. Items recorded with other entries are left alone.
+ */
+export function reopenForVoidedEntry(company: Company, entryId: string): Company {
+  const review = company.review;
+  if (!review?.items.some((i) => i.status === "recorded" && i.entryId === entryId)) return company;
+  const items = review.items.map((i): ReviewItem => {
+    if (i.status !== "recorded" || i.entryId !== entryId) return i;
+    const { entryId: _e, matched: _m, ...rest } = i;
+    return { ...rest, status: "new" };
+  });
+  return { ...company, review: validateReview({ ...review, items }) };
+}
+
 /** The expense account that buying network fee money posts to. */
 export const NETWORK_FEES = "Network fees";
 
