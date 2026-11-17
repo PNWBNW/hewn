@@ -60,13 +60,17 @@ function business(...people: Person[]) {
     set payroll(next: Payroll) {
       payroll = next;
     },
-    /** Posts one run for one period; hourly people get 40 hours unless `hours` says otherwise. */
-    post(payDate: string, periodStart: string, periodEnd: string, names: string[], mode: SettlementMode = "external", hours = 40): string {
+    /**
+     * Posts one run for one period; hourly people get 40 hours unless `hours` says otherwise.
+     * `confirmOverlap` confirms another paycheck over the same days, as the run screen asks to.
+     */
+    post(payDate: string, periodStart: string, periodEnd: string, names: string[], mode: SettlementMode = "external", hours = 40, confirmOverlap = false): string {
       const lines = names.map((n) => {
         const w = payroll.workers.find((x) => x.id === id[n])!;
         return w.payType === "hourly" ? { workerId: w.id, hours } : { workerId: w.id };
       });
-      const r = postPayRun(books, payroll, { payDate, periodStart, periodEnd, bankAccountId: mode === "rail" ? rail.accountId : bankId, mode, lines }, clock);
+      const confirmedOverlaps = confirmOverlap ? names.map((n) => id[n]!) : undefined;
+      const r = postPayRun(books, payroll, { payDate, periodStart, periodEnd, bankAccountId: mode === "rail" ? rail.accountId : bankId, mode, lines, confirmedOverlaps }, clock);
       books = r.books;
       payroll = r.payroll;
       return r.run.id;
@@ -227,7 +231,9 @@ describe("paidThrough: the last day any of a person's paychecks covers", () => {
   it("takes the union of overlapping periods from the old two-week default, and runs posted out of order", () => {
     const biz = business({ name: "Ana", frequency: "weekly" });
     biz.post("2026-11-07", "2026-10-25", "2026-11-07", ["Ana"]);
-    biz.post("2026-11-14", "2026-11-01", "2026-11-14", ["Ana"]);
+    // Old books paid the same amount again over the shared week; that repeat is refused now, so
+    // the second window pays other hours, confirmed. Which days are covered is what counts here.
+    biz.post("2026-11-14", "2026-11-01", "2026-11-14", ["Ana"], "external", 32, true);
     expect(paidThrough(biz.payroll, biz.id.Ana!)).toBe("2026-11-14");
     // A catch-up for an earlier week posted after the latest week.
     biz.post("2026-11-21", "2026-10-18", "2026-10-24", ["Ana"]);
@@ -311,7 +317,8 @@ describe("duePeriods: the worked examples", () => {
   it("A. books from the old two-week default: overlapping windows, and the next week follows the last", () => {
     const biz = business({ name: "Ana", frequency: "weekly" }, { name: "Ben", frequency: "weekly" });
     biz.post("2026-11-07", "2026-10-25", "2026-11-07", ["Ana", "Ben"]);
-    biz.post("2026-11-14", "2026-11-01", "2026-11-14", ["Ana", "Ben"]);
+    // The overlapping second window at other hours, confirmed (an exact repeat is refused now).
+    biz.post("2026-11-14", "2026-11-01", "2026-11-14", ["Ana", "Ben"], "external", 32, true);
     for (const name of ["Ana", "Ben"]) {
       const r = biz.due(name, "2026-11-21");
       expect(r.paidThrough).toBe("2026-11-14");

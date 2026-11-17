@@ -207,7 +207,11 @@ importers:
         specifier: 2.4.0
         version: 2.4.0
 
-  packages/config: {}
+  packages/config:
+    devDependencies:
+      '@provablehq/sdk':
+        specifier: 0.13.0
+        version: 0.13.0
 
   packages/handshake:
     dependencies:

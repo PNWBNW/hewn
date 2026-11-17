@@ -96,3 +96,21 @@ export const CREDIT = {
   url: "https://github.com/PNWBNW/hewn",
   copyright: "© 2025-2026 Joshua Daniel Day",
 } as const;
+
+/** A release public key: its id (the first 16 hex of the SHA-256 of the raw key) and the raw 32-byte Ed25519 key in base64. */
+export type ReleaseKey = { readonly id: string; readonly publicKey: string };
+
+/**
+ * The keys a release of this app must be signed with (scripts/release/README.md). A release is
+ * the static bundle with its release.json; its digest is signed with one of these keys, offline,
+ * by whoever runs this copy. verify.mjs, and later the desktop app and the website's worker,
+ * accept a release only under one of them. Empty until the operator adds the public half of
+ * their key (and of the spare kept apart for recovery); a fork lists its own.
+ */
+export const releaseKeys: readonly ReleaseKey[] = [];
+
+/**
+ * For tests only, never trusted: the public key that signed scripts/release/fixture. Its private
+ * half was made in memory for the fixture and never kept.
+ */
+export const RELEASE_KEY_FIXTURE: ReleaseKey = { id: "e8605ea7f54dad93", publicKey: "QHzyXDv61fB8w9nNyyvTIWLiPOZlm67NAWcLJHynbJQ=" };
