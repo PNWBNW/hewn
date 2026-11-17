@@ -16,6 +16,12 @@ server piece counts visits by country.
 Server-only files end in `.server.ts`, an extension only the website build looks at, so the bundle
 never contains a route handler. CI builds both.
 
+The bundle is also what a release signs (`scripts/release/README.md`), so two clean builds of one
+commit must give the same bytes. `node scripts/release/build.mjs` builds it in a fixed environment
+with the commit as Next.js's build id (`HEWN_BUILD_ID`, read by `next.config.ts`) instead of a
+random one, shows that commit as the version while the books open, and writes `release.json`.
+A plain `build:static` keeps a random id.
+
 - The request proxy stays `src/proxy.ts`; the static export tolerates it.
 - Client code reaches the server pieces only through `src/api_base.ts` (`apiUrl("/api/…")`), which
   names the website by its full address in the bundle.
