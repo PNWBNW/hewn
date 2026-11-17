@@ -146,9 +146,27 @@ The highest risk for a browser app.
   stamping refuses a page with an inline style). No `'strict-dynamic'` there (it needs a nonce),
   so scripts by file come from the bundle's own origin alone; `connect-src` adds the website,
   where the bundle reaches the server pieces (`src/api_base.ts`). `frame-ancestors` cannot travel
-  in a meta tag and is left out; the website still sends it. ✅
-- `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
-  `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
+  in a meta tag and is left out; the website still sends it, and the top-page guard below covers
+  the bundle. ✅
+- **No one can show the app inside their own page** (clickjacking, a framed copy under another
+  address). On the website, `frame-ancestors 'none'` and `X-Frame-Options: DENY` refuse the frame
+  before anything loads. ✅ Behind them, on every host and in both builds, the **top-page guard**
+  (2026-11-17, `docs/HOSTING.md` step 1; `packages/security/src/frame_guard.ts` and
+  `frame_guard.css`): the stylesheet hides the whole page (`html:not([data-top-page])`), and the
+  first of the app's own code to run (`src/instrumentation-client.ts`, before hydration) shows it
+  only when the page is the top window (`window.top` is the window itself). A frame that runs
+  scripts, sandboxed or not, stays hidden; a frame sandboxed without scripts shows only the
+  no-JavaScript note; the guard never tries to move the top window. The rule is in a stylesheet file and the check in a script file,
+  so the policy is unchanged (no inline script or style). Tested in Chromium against the static
+  bundle served with no headers, as the top page and framed from another origin with no sandbox,
+  `sandbox` and `sandbox="allow-scripts"` (`apps/business/test/frames`, outside CI, which has no
+  browser); Firefox and Safari not yet run. Cost: nothing is drawn until the app's scripts have
+  loaded; on a first visit the first paint comes about 20 ms later on a fast computer and about
+  1.7 s later with a processor slowed four times on an emulated slow 4G network (measured there),
+  and people with JavaScript off see only the note (the app never worked without it; a browser
+  from before late 2023 shows them a blank page instead). The marketing site (`apps/site`) carries the
+  same guard. ✅
+- `nosniff`; `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
 - No script whose code is controlled from someone else's dashboard, ever (Joshua, 2026-11-17):
   no tag manager, A/B testing or "paste a snippet" service (Optimizely and its custom project
   JavaScript, Google Tag Manager, Segment and the like). Whoever controls such a dashboard, the
@@ -183,7 +201,8 @@ The highest risk for a browser app.
   can't be created (2026-11-12). These are settings on GitHub, not code. ⚠️ A stolen login of
   Joshua's own account is still enough; passkey 2FA is the guard there.
 - Signed, installable builds with published hashes so users can verify the code they run;
-  release hash anchored on Aleo once anchoring exists. 🔜 (before first external user)
+  release hash anchored on Aleo once anchoring exists. 🔜 (before first external user; the plan,
+  with the desktop app and the limits of a service worker: `docs/HOSTING.md`)
 - Pin GitHub Actions to commit SHAs. 🔜
 
 ### T4 — Silent edits to history (insider, owner, or malware)
