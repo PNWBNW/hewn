@@ -91,6 +91,19 @@ describe("the thread through the mailbox", () => {
     expect(business.thread.items.at(-1)).toMatchObject({ sentAt: "2026-10-02T08:00:00.000Z", receivedAt: "2026-10-16T21:00:00.000Z" });
   });
 
+  it("puts a new arrival after everything here, even when this device's clock was set back", async () => {
+    const box = fakeMailbox();
+    const business = side();
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "The first one" }, now: () => new Date("2026-10-16T18:00:00.000Z") });
+    await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip, now: () => "2026-10-16T19:00:00.000Z" });
+    business.keep(await postToThread({ client: box, partiesKey: KEY, from: "business", nextOut: 0, body: { type: "text", text: "My answer" }, now: () => new Date("2026-10-16T20:00:00.000Z") }));
+    await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 1, body: { type: "text", text: "After the answer" }, now: () => new Date("2026-10-16T18:30:00.000Z") });
+    // The clock here now reads an hour before the answer was sent.
+    await readThread({ client: box, partiesKey: KEY, reader: "business", thread: business.thread, store: business.store, skip: business.skip, now: () => "2026-10-16T19:00:00.000Z" });
+    expect(business.thread.items.map((i) => (i.body.type === "text" ? i.body.text : ""))).toEqual(["The first one", "My answer", "After the answer"]);
+    expect(Date.parse(business.thread.items.at(-1)!.receivedAt!)).toBeGreaterThan(Date.parse("2026-10-16T20:00:00.000Z"));
+  });
+
   it("steps over a slot that's already taken", async () => {
     const box = fakeMailbox();
     await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "counter", agreementId: A, proposal: PROPOSAL, note: "" } });

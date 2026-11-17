@@ -8,14 +8,15 @@
 // Everything that arrives comes from another person's device, so it is
 // checked field by field before it is kept, and nothing is trusted for its
 // own claims: the total must equal the sum of the entries, the minutes of
-// each entry must fit in a day, and the document must name the agreement
-// whose key opened it.
+// each entry must be the time between its start and end (at most a day),
+// each entry must sit in the week it is sent for, dated by the day it
+// started, and the document must name the agreement whose key opened it.
 //
 // Nothing here talks to the network. Reading the mailbox lives in
 // src/chain/mailbox_scan.ts, loaded only when the page asks.
 // ---------------------------------------------------------------------------
 
-import type { TimesheetPayload } from "./hours";
+import { type Calendar, type TimesheetPayload, addDays, localDate, weekStartOf } from "./hours";
 import { type Thread, emptyThread, validateThread } from "./thread";
 import { agreedChanges, hoursChanges, wholeShifts } from "./hours_change";
 import { type BusinessChannel, validateBusinessChannel } from "./channels";
@@ -73,6 +74,7 @@ export const emptyMailbox = (): Mailbox => ({ version: 1, hours: [] });
 const MAX_SEQ = 0xffff_ffff;
 const MAX_ENTRIES = 100;
 const MINUTES_IN_DAY = 24 * 60;
+const DAY_MS = 86_400_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LOOKUP = /^[0-9a-f]{64}$/;
 
@@ -92,6 +94,15 @@ function validateEntries(raw: unknown, kept = false): ReceivedEntry[] {
     if (!isDate(x.date)) throw new MailboxError("Every entry needs a date");
     if (!isStamp(x.in) || !isStamp(x.out)) throw new MailboxError("Every entry needs a start and an end time");
     if (!isMinutes(x.minutes, MINUTES_IN_DAY)) throw new MailboxError("An entry's minutes must be a whole number within one day");
+    if (!kept) {
+      // From the wire, an entry's minutes are its clock times, as the person's app splits a shift into days (books/hours.ts
+      // `shiftsOf`). What is already in the vault keeps the rules it arrived under, so the books still open; a pay run reads the
+      // clock times either way (books/timecard_pay.ts).
+      const span = Date.parse(x.out) - Date.parse(x.in);
+      if (span < 0) throw new MailboxError("An entry has to end after it starts");
+      if (span > DAY_MS) throw new MailboxError("An entry can be at most one day");
+      if (x.minutes !== Math.floor(span / 60_000)) throw new MailboxError("An entry's minutes must be the time between its start and end");
+    }
     if (x.long !== undefined && x.long !== true) throw new MailboxError("An entry's long flag can only be true");
     if (x.callout !== undefined && x.callout !== true) throw new MailboxError("An entry's callout flag can only be true");
     // `long`: a shift past the longest shift in the terms, which the sender confirmed (books/hours.ts).
@@ -117,15 +128,28 @@ function validateEntries(raw: unknown, kept = false): ReceivedEntry[] {
 /**
  * Checks a timesheet the other person sent. It must be a version 1 timesheet
  * for exactly this agreement, and its total must be the sum of its entries.
+ * Every entry sits in the week it is sent for and is dated by the day it
+ * started: on `calendar`, the agreement's own (its terms' work week), exactly,
+ * and that week starts on the calendar's first day; without one, within a day
+ * either side of the day it started in UTC (no zone is further off).
  */
-export function validateTimesheetPayload(raw: unknown, agreementId: string): TimesheetPayload {
+export function validateTimesheetPayload(raw: unknown, agreementId: string, calendar?: Calendar): TimesheetPayload {
   const p = raw as Partial<TimesheetPayload> | null;
   if (!p || typeof p !== "object") throw new MailboxError("The hours aren't a document");
   if (p.version !== 1) throw new MailboxError("Unknown hours version");
   if (p.kind !== "timesheet") throw new MailboxError("That document isn't a week of hours");
   if (p.agreementId !== agreementId) throw new MailboxError("The hours are for a different agreement");
   if (!isDate(p.weekStart)) throw new MailboxError("The hours need a week");
+  if (calendar && weekStartOf(p.weekStart, calendar) !== p.weekStart) throw new MailboxError("The hours' week doesn't start on the agreement's first day");
   const entries = validateEntries(p.entries);
+  const lastDay = addDays(p.weekStart, 6);
+  for (const e of entries) {
+    if (e.date < p.weekStart || e.date > lastDay) throw new MailboxError("An entry falls outside the week it was sent for");
+    const started = new Date(e.in);
+    const day = calendar ? localDate(started, calendar.timeZone) : started.toISOString().slice(0, 10);
+    const near = calendar ? [day] : [addDays(day, -1), day, addDays(day, 1)];
+    if (!near.includes(e.date)) throw new MailboxError("An entry's date isn't the day it started");
+  }
   const sum = entries.reduce((t, e) => t + e.minutes, 0);
   if (p.totalMinutes !== sum) throw new MailboxError("The hours don't add up");
   if (!isStamp(p.sentAt)) throw new MailboxError("The hours need the time they were sent");

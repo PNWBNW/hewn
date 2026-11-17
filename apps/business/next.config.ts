@@ -16,6 +16,20 @@ import { SECURITY_HEADERS } from "./src/security/headers";
  */
 const STATIC = process.env.HEWN_STATIC === "1";
 
+/**
+ * The static bundle is a release (scripts/release/README.md): two clean builds of one commit must
+ * give the same bytes. Next.js names each build with a random id, which lands in file paths and
+ * every page, so a release build (`node scripts/release/build.mjs`) passes the commit as
+ * `HEWN_BUILD_ID` and the bundle is named by it. Without it, Next.js picks its own.
+ */
+function staticBuildId(): string | null {
+  const given = process.env.HEWN_BUILD_ID;
+  if (!given) return null;
+  if (!/^[0-9a-f]{40}$/.test(given)) throw new Error("HEWN_BUILD_ID is a 40-hex commit");
+  return given;
+}
+const BUILD_ID = STATIC ? staticBuildId() : null;
+
 const nextConfig: NextConfig = {
   transpilePackages: [
     "@pnw/brand", "@pnw/security", "@pnw/ui", "@pnw/ledger", "@pnw/vault", "@pnw/payroll", "@pnw/sales", "@pnw/tax-engine", "@pnw/mailbox",
@@ -25,11 +39,12 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The client bundle reads this to find the server pieces (src/api_base.ts).
   // The build's commit, shown small while the books open, so a stuck screen says which version it is.
-  env: { NEXT_PUBLIC_HEWN_STATIC: STATIC ? "1" : "", NEXT_PUBLIC_HEWN_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA ?? "").slice(0, 7) },
+  env: { NEXT_PUBLIC_HEWN_STATIC: STATIC ? "1" : "", NEXT_PUBLIC_HEWN_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA ?? BUILD_ID ?? "").slice(0, 7) },
   pageExtensions: STATIC ? ["tsx", "ts"] : ["server.tsx", "server.ts", "tsx", "ts"],
   ...(STATIC
     ? {
         output: "export",
+        generateBuildId: () => BUILD_ID,
         // Every page is a folder with an index.html, so a plain file server (the app's) finds it.
         trailingSlash: true,
         images: { unoptimized: true },

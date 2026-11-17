@@ -13,6 +13,7 @@ import { APPLICATION_STATUS_LABEL } from "@/books/thread";
 import { applicationStatus, workThread } from "@/books/work";
 import { unreadIn } from "@/books/thread";
 import { BRAND } from "@/brand";
+import { hashFor } from "@/shell/hash_params";
 import { PageHeader } from "@/shell/SectionView";
 
 export default function ApplicationsPage() {
@@ -39,7 +40,7 @@ export default function ApplicationsPage() {
                 const done = status === "hired" || status === "not_selected" || status === "closed";
                 return (
                   <li key={a.postingId}>
-                    <Link href={`/work/messages?with=${a.postingId}`} className="flex min-h-14 items-center gap-3 py-3">
+                    <Link href={`/work/messages${hashFor({ with: a.postingId })}`} prefetch={false} className="flex min-h-14 items-center gap-3 py-3">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm", unread > 0 ? "font-semibold" : "font-medium")}>{a.title}</span>
                         <span className="block truncate text-xs text-muted-foreground">

@@ -2,9 +2,10 @@
 // fake chain whose letters stay where they are (books/key_ring.ts has how it
 // goes): who writes where, under which key, and what someone holding only the
 // agreement's key can still open.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MailboxError, open, partiesKeyFromHex } from "@pnw/mailbox";
-import { addHalves, emptyRing, isTwinSealed, noteReceived, pairId, validateKeyRing } from "../books/key_ring";
+import { announceBooksClosed } from "../books/lock_signal";
+import { type Pair, addHalves, emptyRing, isTwinSealed, noteReceived, pairId, validateKeyRing } from "../books/key_ring";
 import { type Side, type Thread, type ThreadItem, addToThread, emptyThread, skipIncoming } from "../books/thread";
 import { makeHalves, newHalf, pairKeyHex } from "./key_ring";
 import { unpackPayload } from "./compress";
@@ -12,6 +13,9 @@ import { postToThread, readThread } from "./thread";
 
 const KEY = "ab".repeat(32);
 const at = (m: number) => () => new Date(Date.UTC(2026, 9, 23, 12, m));
+
+/** The same x with y moved by one: a public key's shape, but not a point on the curve. */
+const offCurve = (key: string): string => key.slice(0, -2) + ((parseInt(key.slice(-2), 16) + 1) & 0xff).toString(16).padStart(2, "0");
 
 /** Letters on chain: nothing is dropped once read. */
 function chain() {
@@ -267,6 +271,25 @@ describe("what a key half can and can't do", () => {
     expect(business.thread.nextIn).toBe(1);
   });
 
+  it("refuses a message whose half has a key's shape but isn't a point on the curve: nothing of it is kept", async () => {
+    const box = chain();
+    const business = party("business", box);
+    const sent = await postToThread({ client: box, partiesKey: KEY, from: "worker", nextOut: 0, body: { type: "text", text: "hi" } });
+    const { seal } = await import("@pnw/mailbox");
+    const { packPayload } = await import("./compress");
+    const bad = await seal(partiesKeyFromHex(KEY), "thread_w", 0, await packPayload(new TextEncoder().encode(JSON.stringify({ version: 1, id: sent.id, from: "worker", sentAt: sent.sentAt, body: { type: "text", text: "hi" }, half: { publicKey: offCurve((await newHalf()).publicKey) } }))));
+    box.slots.clear();
+    await box.put(bad.lookup, bad.envelope);
+    expect(await business.check()).toEqual([]);
+    expect(business.thread.items).toEqual([]);
+    expect(business.thread.ring).toBeUndefined();
+    expect(business.thread.nextIn).toBe(1);
+    // Nothing waits to be answered, so the next check makes no key from it and goes on.
+    expect(await makeHalves(business.thread.ring)).not.toBeNull(); // only this side's own start
+    await business.prepare();
+    expect(business.thread.ring?.pairs.every((p) => !p.theirs)).toBe(true);
+  });
+
   it("refuses a sealed message that doesn't carry the half it answers with", async () => {
     const { validateMessage } = await import("../books/thread");
     const base = { version: 1, id: "1".repeat(32), from: "worker", sentAt: "2026-10-23T12:00:00.000Z", body: { type: "sealed", inner: "AAAA" } };
@@ -304,9 +327,55 @@ describe("what a key half can and can't do", () => {
     expect(other.thread.ring).toBeUndefined();
   });
 
+  it("seeds from an agreement record's halves only those that are points on the curve", async () => {
+    const { usableHalves } = await import("./agreement_programs");
+    const employerHalf = (await newHalf()).publicKey;
+    const workerHalf = offCurve((await newHalf()).publicKey);
+    expect(await usableHalves({ agreementId: "x", employerHalf, workerHalf })).toEqual({ agreementId: "x", employerHalf });
+    expect(await usableHalves({ workerHalf: employerHalf })).toEqual({ workerHalf: employerHalf });
+  });
+
   it("keeps a ring honest: writing under a pair needs both halves", async () => {
     const ring = addHalves(undefined, (await makeHalves(undefined))!, "2026-10-23T12:00:00.000Z");
     expect(() => validateKeyRing({ ...ring, out: pairId(ring.pairs[0]!) })).toThrow();
     expect(() => validateKeyRing({ pairs: [{ ...ring.pairs[0]!, mine: { publicKey: "04", privateKey: {} } }] })).toThrow();
+  });
+});
+
+describe("the pair keys this tab has made", () => {
+  it("leave memory when the books close, and are made again from the vault's halves after", async () => {
+    const mine = await newHalf();
+    const theirs = await newHalf();
+    const pair: Pair = { mine, theirs: theirs.publicKey, sent: true, nextIn: 0, nextOut: 0, createdAt: "2026-10-23T12:00:00.000Z" };
+    const derive = vi.spyOn(globalThis.crypto.subtle, "deriveBits");
+    try {
+      const key = await pairKeyHex(KEY, pair);
+      const made = derive.mock.calls.length;
+      expect(made).toBeGreaterThan(0);
+      // Kept for this tab while the books are open: no exchange the second time.
+      expect(await pairKeyHex(KEY, pair)).toBe(key);
+      expect(derive.mock.calls.length).toBe(made);
+      announceBooksClosed();
+      // Gone: the next read does the exchange again, and comes to the same key.
+      expect(await pairKeyHex(KEY, pair)).toBe(key);
+      expect(derive.mock.calls.length).toBe(2 * made);
+    } finally {
+      derive.mockRestore();
+    }
+  });
+
+  it("aren't kept when the books close while one is being made", async () => {
+    const pair: Pair = { mine: await newHalf(), theirs: (await newHalf()).publicKey, sent: true, nextIn: 0, nextOut: 0, createdAt: "2026-10-23T12:00:00.000Z" };
+    const derive = vi.spyOn(globalThis.crypto.subtle, "deriveBits");
+    try {
+      const making = pairKeyHex(KEY, pair);
+      announceBooksClosed();
+      const key = await making;
+      const made = derive.mock.calls.length;
+      expect(await pairKeyHex(KEY, pair)).toBe(key);
+      expect(derive.mock.calls.length).toBe(2 * made);
+    } finally {
+      derive.mockRestore();
+    }
   });
 });

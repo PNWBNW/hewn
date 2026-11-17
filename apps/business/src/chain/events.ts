@@ -237,7 +237,13 @@ export async function workListening(work: Work): Promise<Listening[]> {
     const identity = work.identities?.[thread.businessKey];
     const address = coworkersFrom(workThread(work, thread.businessKey)).find((c) => c.publicKey === publicKey)?.address;
     if (keys.length === 0 || !identity || !address) continue;
-    const me = eventWho(await pairKey(identity, publicKey));
+    // One coworker whose key can't make a pair is left out; the rest are still listened to.
+    let me: string;
+    try {
+      me = eventWho(await pairKey(identity, publicKey));
+    } catch {
+      continue;
+    }
     for (const held of keys) out.push({ held, organizer: address, me });
   }
   return out;

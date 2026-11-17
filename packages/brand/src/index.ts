@@ -58,6 +58,17 @@ export const BRAND = {
   /** Where the marketing site lives. */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://hewnaccounting.com",
   /**
+   * The installable desktop app (apps/desktop).
+   * - `id` names the app to each operating system, and the system keeps the app's storage, the
+   *   books included, under it: once a version is released it never changes, or the books stay
+   *   behind under the old one. A fork picks its own before its first release.
+   * - `updateKey` is the public half of the operator's update key (a minisign key, made with
+   *   `cargo tauri signer generate` on the operator's own machine). The app installs an update
+   *   only when it is signed with this key. Empty until the operator adds it; a tagged release
+   *   refuses to build while it is empty (.github/workflows/desktop.yml).
+   */
+  desktop: { id: "com.hewnaccounting.desktop", updateKey: "" },
+  /**
    * The source code. Hewn is AGPL-3.0: anyone who runs a changed copy for others
    * must offer them its source, so every copy links to where its code lives.
    * A fork changes this to its own repository.
@@ -85,3 +96,21 @@ export const CREDIT = {
   url: "https://github.com/PNWBNW/hewn",
   copyright: "© 2025-2026 Joshua Daniel Day",
 } as const;
+
+/** A release public key: its id (the first 16 hex of the SHA-256 of the raw key) and the raw 32-byte Ed25519 key in base64. */
+export type ReleaseKey = { readonly id: string; readonly publicKey: string };
+
+/**
+ * The keys a release of this app must be signed with (scripts/release/README.md). A release is
+ * the static bundle with its release.json; its digest is signed with one of these keys, offline,
+ * by whoever runs this copy. verify.mjs, and later the desktop app and the website's worker,
+ * accept a release only under one of them. Empty until the operator adds the public half of
+ * their key (and of the spare kept apart for recovery); a fork lists its own.
+ */
+export const releaseKeys: readonly ReleaseKey[] = [];
+
+/**
+ * For tests only, never trusted: the public key that signed scripts/release/fixture. Its private
+ * half was made in memory for the fixture and never kept.
+ */
+export const RELEASE_KEY_FIXTURE: ReleaseKey = { id: "e8605ea7f54dad93", publicKey: "QHzyXDv61fB8w9nNyyvTIWLiPOZlm67NAWcLJHynbJQ=" };

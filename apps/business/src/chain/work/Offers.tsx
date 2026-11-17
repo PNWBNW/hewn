@@ -33,6 +33,7 @@ import { expiryLabel, hasLetter, isExpired } from "@/books/offer_letter";
 import { readThread } from "../thread";
 import { type AgreementRecord, acceptCall, readAgreementRecords } from "./agreements";
 import { carriesHalves } from "../agreement_programs";
+import { checkEach, couldntCheck } from "../check_each";
 import { newHalf } from "../key_ring";
 import { executeAndWait } from "./execute";
 import { type EmployerName, NAME_NOT_THEIRS, NAME_UNCONFIRMED, employerNameFor } from "./employer_name";
@@ -110,9 +111,10 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
     (async () => {
       try {
         const records = await readAgreementRecords(wallet.requestRecords, address);
-        // Each employer's side of the conversation first, so a revised offer knows what it replaced.
-        for (const [partiesKey, employer] of new Map(records.map((r) => [r.partiesKey, r.employerAddress]))) {
-          await readThread({
+        // Each employer's side of the conversation first, so a revised offer knows what it replaced. Each on its
+        // own: one that can't be read is passed over, and the offers are still listed.
+        const threads = await checkEach(new Map(records.map((r) => [r.partiesKey, r.employerAddress])), async ([partiesKey, employer]) => {
+          return readThread({
             client: letterThread(wallet, employer, { letters: letters.current }).reader,
             partiesKey,
             reader: "worker",
@@ -125,7 +127,7 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
               await updateWork((w) => updateWorkThread(w, partiesKey, (t) => skipIncoming(t, seq, via)));
             },
           });
-        }
+        });
         const found: Row[] = [];
         for (const record of records) {
           const previous = agreementFor(work, record.agreementId);
@@ -172,6 +174,7 @@ function OffersFlow({ address, onClose }: { address: string; onClose: () => void
           }, w),
         );
         setRows(found);
+        setNote(couldntCheck(threads));
       } catch (e) {
         setError(errorMessage(e));
         setRows([]);
