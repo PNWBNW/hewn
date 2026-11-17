@@ -16,22 +16,32 @@
 // days as they were keeps their confirmation. Weeks published to one person
 // before the team calendar existed (a `schedule` message in their thread)
 // still count.
+//
+// Order is this device's (as in a conversation, books/thread_order.ts): a
+// post counts from when it came in here (`receivedAt`; the business's own,
+// from when it sent them), not from the time written on it, and the first
+// copy of a part that came in under a publish is the one that stands, so the
+// days a person confirmed are the days they saw.
 // ---------------------------------------------------------------------------
 
 import { lookupId, partiesKeyFromHex } from "@pnw/mailbox";
 import { type PublishedWeek, type ScheduleDay, type ScheduleWeek, ScheduleError, addDays, sameWeek, scheduleWeekOf, validateScheduleWeek } from "./schedule";
 import type { Thread, ThreadItem } from "./thread";
+import { inOrder, placedAt } from "./thread_order";
 
 export type TeamPerson = { who: string; name: string; days: ScheduleDay[] };
 
 /** One post's share of a published week. */
 export type TeamPart = { weekStart: string; publishId: string; part: number; parts: number; people: TeamPerson[] };
 
-/** A published week, all its parts together. */
-export type TeamWeek = { weekStart: string; publishId: string; sentAt: string; people: TeamPerson[] };
+/** A published week, all its parts together; `placedAt` is when its last part came in on this device (ms). */
+export type TeamWeek = { weekStart: string; publishId: string; sentAt: string; placedAt: number; people: TeamPerson[] };
 
-/** A post as either side keeps it, for what the calendar needs. */
-export type TeamPost = { sentAt: string; schedule?: TeamPart };
+/** A post as either side keeps it, for what the calendar needs; `receivedAt` is when it came in on this device. */
+export type TeamPost = { sentAt: string; receivedAt?: string | undefined; schedule?: TeamPart | undefined };
+
+/** When a post took its place on this device: when it came in, or for one the business sent itself, when it sent it. */
+const postPlacedAt = (p: TeamPost): number => Date.parse(p.receivedAt ?? p.sentAt);
 
 /** Someone going on a publish, as the business knows them: who, their name, the key they share, their days. */
 export type TeamEntry = { workerId: string; name: string; partiesKey: string; days: ScheduleDay[] };
@@ -68,25 +78,28 @@ export function validateTeamPart(raw: unknown): TeamPart {
   return { weekStart: t.weekStart as string, publishId: t.publishId, part: t.part!, parts: t.parts!, people };
 }
 
-/** Every complete published week in these posts, oldest first. */
+/** Every complete published week in these posts, in the order they came in on this device. */
 export function teamWeeks(posts: readonly TeamPost[]): TeamWeek[] {
-  const byPublish = new Map<string, { weekStart: string; sentAt: string; parts: number; got: Map<number, TeamPerson[]> }>();
-  for (const p of posts) {
+  const byPublish = new Map<string, { weekStart: string; sentAt: string; placedAt: number; parts: number; got: Map<number, TeamPerson[]> }>();
+  // In the order they came in (a stable sort: posts that came in together keep the order given).
+  for (const p of [...posts].sort((a, b) => postPlacedAt(a) - postPlacedAt(b))) {
     const s = p.schedule;
     if (!s) continue;
-    const entry = byPublish.get(s.publishId) ?? { weekStart: s.weekStart, sentAt: p.sentAt, parts: s.parts, got: new Map() };
+    const entry = byPublish.get(s.publishId) ?? { weekStart: s.weekStart, sentAt: p.sentAt, placedAt: postPlacedAt(p), parts: s.parts, got: new Map() };
     if (entry.weekStart !== s.weekStart || entry.parts !== s.parts) continue; // a part that doesn't match its publish is ignored
+    if (entry.got.has(s.part)) continue; // the first copy of a part stands
     entry.got.set(s.part, s.people);
     if (p.sentAt > entry.sentAt) entry.sentAt = p.sentAt;
+    entry.placedAt = Math.max(entry.placedAt, postPlacedAt(p));
     byPublish.set(s.publishId, entry);
   }
   const weeks: TeamWeek[] = [];
   for (const [publishId, e] of byPublish) {
     if (e.got.size !== e.parts) continue; // still waiting for a part
     const people = [...e.got.entries()].sort((a, b) => a[0] - b[0]).flatMap(([, ps]) => ps);
-    weeks.push({ weekStart: e.weekStart, publishId, sentAt: e.sentAt, people });
+    weeks.push({ weekStart: e.weekStart, publishId, sentAt: e.sentAt, placedAt: e.placedAt, people });
   }
-  return weeks.sort((a, b) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.publishId < b.publishId ? -1 : 1));
+  return weeks.sort((a, b) => a.placedAt - b.placedAt || (a.publishId < b.publishId ? -1 : a.publishId > b.publishId ? 1 : 0));
 }
 
 /** The latest complete publish of a week. */
@@ -96,32 +109,30 @@ export const latestTeamWeek = (posts: readonly TeamPost[], weekStart: string): T
 export type ScheduleSources = { thread?: Thread | undefined; team?: readonly TeamPost[]; who?: string | undefined };
 
 type AnswerItem = ThreadItem & { body: { type: "schedule_answer"; scheduleId: string; weekStart: string; answer: "confirmed" | "change"; note: string } };
-type Candidate = { id: string; week: ScheduleWeek; note: string; sentAt: string; mine: boolean };
+type Candidate = { id: string; week: ScheduleWeek; note: string; sentAt: string; placedAt: number; mine: boolean };
 
 /**
  * One person's latest published week, from either source, and their answer: the latest answer they
  * gave for the week, when it was to a publish with the same days as now (a republish that changed
- * other people only keeps it).
+ * other people only keeps it). Latest is by when each came in on this device.
  */
 export function personWeek(src: ScheduleSources, weekStart: string): PublishedWeek | undefined {
   const candidates: Candidate[] = [];
   for (const i of src.thread?.items ?? []) {
-    if (i.body.type === "schedule" && i.body.week.weekStart === weekStart) candidates.push({ id: i.id, week: i.body.week, note: i.body.note, sentAt: i.sentAt, mine: i.mine });
+    if (i.body.type === "schedule" && i.body.week.weekStart === weekStart) candidates.push({ id: i.id, week: i.body.week, note: i.body.note, sentAt: i.sentAt, placedAt: placedAt(i), mine: i.mine });
   }
   if (src.who && src.team) {
     for (const w of teamWeeks(src.team)) {
       if (w.weekStart !== weekStart) continue;
       const me = w.people.find((p) => p.who === src.who);
       // Left off a later publish: they have nothing that week.
-      candidates.push({ id: w.publishId, week: { weekStart, days: me?.days ?? [] }, note: "", sentAt: w.sentAt, mine: true });
+      candidates.push({ id: w.publishId, week: { weekStart, days: me?.days ?? [] }, note: "", sentAt: w.sentAt, placedAt: w.placedAt, mine: true });
     }
   }
-  candidates.sort((a, b) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : 0));
+  candidates.sort((a, b) => a.placedAt - b.placedAt);
   const current = candidates.at(-1);
   if (!current) return undefined;
-  const answers = (src.thread?.items ?? [])
-    .filter((i): i is AnswerItem => i.body.type === "schedule_answer" && i.body.weekStart === weekStart)
-    .sort((a, b) => (a.sentAt < b.sentAt ? -1 : a.sentAt > b.sentAt ? 1 : a.seq - b.seq));
+  const answers = (src.thread?.items ?? []).filter((i): i is AnswerItem => i.body.type === "schedule_answer" && i.body.weekStart === weekStart).sort(inOrder);
   const last = answers.at(-1);
   const answeredWeek = last ? candidates.find((c) => c.id === last.body.scheduleId)?.week : undefined;
   const stands = !!last && !!answeredWeek && sameWeek(answeredWeek, current.week);

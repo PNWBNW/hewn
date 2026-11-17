@@ -17,7 +17,7 @@ const DAY_SHIFT: ScheduleDay = { date: "2026-10-26", shifts: [{ start: "07:00", 
 const ON_CALL: ScheduleDay = { date: "2026-10-27", shifts: [], onCall: true };
 
 const part = (publishId: string, people: TeamPart["people"], n = 0, parts = 1): TeamPart => ({ weekStart: SUN, publishId, part: n, parts, people });
-const post = (sentAt: string, schedule: TeamPart): TeamPost => ({ sentAt, schedule });
+const post = (sentAt: string, schedule: TeamPart, receivedAt?: string): TeamPost => ({ sentAt, schedule, ...(receivedAt ? { receivedAt } : {}) });
 
 function answer(t: Thread, n: number, scheduleId: string, a: "confirmed" | "change"): Thread {
   const body = { type: "schedule_answer", scheduleId, weekStart: SUN, answer: a, note: a === "change" ? "Can't do Monday." : "" };
@@ -64,6 +64,21 @@ describe("team weeks", () => {
     expect(latestTeamWeek([second, first], SUN)!.publishId).toBe(id(2));
     expect(latestTeamWeek([first], "2026-11-01")).toBeUndefined();
   });
+
+  it("keeps the first copy of a part that came in, whatever comes later under the same publish", () => {
+    const first = post("2026-10-20T10:00:00.000Z", part(id(1), [{ who: ANA, name: "Ana", days: [DAY_SHIFT] }]), "2026-10-20T10:05:00.000Z");
+    const again = post("2026-10-20T10:00:00.000Z", part(id(1), [{ who: ANA, name: "Ana", days: [DAY_SHIFT, ON_CALL] }]), "2026-10-21T10:05:00.000Z");
+    expect(teamWeeks([first, again])[0]!.people[0]!.days).toEqual([DAY_SHIFT]);
+    // Whatever order they're handed over in, the one that came in first stands.
+    expect(teamWeeks([again, first])[0]!.people[0]!.days).toEqual([DAY_SHIFT]);
+  });
+
+  it("puts a publish where it came in on this device, not at the time written on it", () => {
+    const first = post("2026-10-20T10:00:00.000Z", part(id(1), [{ who: ANA, name: "Ana", days: [DAY_SHIFT] }]), "2026-10-20T10:05:00.000Z");
+    const later = post("2026-10-19T10:00:00.000Z", part(id(2), [{ who: ANA, name: "Ana", days: [ON_CALL] }]), "2026-10-21T10:05:00.000Z");
+    expect(teamWeeks([later, first]).map((w) => w.publishId)).toEqual([id(1), id(2)]);
+    expect(latestTeamWeek([first, later], SUN)!.publishId).toBe(id(2));
+  });
 });
 
 describe("one person's week from the team calendar", () => {
@@ -89,6 +104,27 @@ describe("one person's week from the team calendar", () => {
     expect(personWeek({ thread, team: [p1, changed], who: ANA }, SUN)!.answer).toBeUndefined();
     const without = post("2026-10-22T10:00:00.000Z", part(id(3), [{ who: BO, name: "Bo", days: [ON_CALL] }]));
     expect(personWeek({ thread, team: [p1, without], who: ANA }, SUN)!.week.days).toEqual([]);
+  });
+
+  it("keeps a confirmation to the days they saw, not to days posted later under the same publish", () => {
+    const seen = post("2026-10-20T10:00:00.000Z", part(id(1), [{ who: ANA, name: "Ana", days: [DAY_SHIFT] }]), "2026-10-20T10:05:00.000Z");
+    const thread = answer(emptyThread(), 1, id(1), "confirmed");
+    const more = post("2026-10-20T10:00:00.000Z", part(id(1), [{ who: ANA, name: "Ana", days: [DAY_SHIFT, ON_CALL] }]), "2026-10-22T10:05:00.000Z");
+    const src = { thread, team: [seen, more], who: ANA };
+    expect(personWeek(src, SUN)).toMatchObject({ id: id(1), week: { days: [DAY_SHIFT] }, answer: { answer: "confirmed" } });
+    expect(confirmedOnCallDates(src, SUN, "2026-10-31")).toEqual([]);
+  });
+
+  it("takes a publish that came in later as the latest, whatever time is written on it", () => {
+    const thread = answer(emptyThread(), 1, id(1), "confirmed");
+    const later = post("2026-10-19T10:00:00.000Z", part(id(2), [{ who: ANA, name: "Ana", days: [DAY_SHIFT, ON_CALL] }]), "2026-10-22T10:05:00.000Z");
+    const src = { thread, team: [p1, later], who: ANA };
+    expect(personWeek(src, SUN)).toMatchObject({ id: id(2), week: { days: [DAY_SHIFT, ON_CALL] } });
+    expect(personWeek(src, SUN)!.answer).toBeUndefined();
+    // A week sent in their conversation that came in after the team publish is the latest too.
+    const body = { type: "schedule", week: { weekStart: SUN, days: [ON_CALL] }, note: "" };
+    const sent = { ...validateMessage({ version: 1, id: id(9), from: "business", sentAt: "2026-10-01T10:00:00.000Z", body }, "business"), mine: false, seq: 9, receivedAt: "2026-10-23T10:00:00.000Z" };
+    expect(personWeek({ ...src, thread: addToThread(thread, sent) }, SUN)).toMatchObject({ id: id(9), week: { days: [ON_CALL] } });
   });
 
   it("pays on call only on days of a week they confirmed", () => {
