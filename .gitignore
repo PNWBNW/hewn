@@ -15,12 +15,17 @@ desktop.ini
 # The consolidation snapshot a session writes before its context is compacted (docs/SLEEP.md)
 .claude/sleep/
 
-# Secrets — never commit
+# Secrets — never commit (the secrets scan, scripts/check_secrets.py, reads what isn't ignored)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
 *.key
+# Vercel's local link and pulled settings (`vercel link`, `vercel env pull`)
+.vercel/
+# A saved copy of the books (books/save_file.ts): encrypted, but a business's own, never the repository's
+*.hewn
+*.hewn.txt
 
 # Logs
 *.log

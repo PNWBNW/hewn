@@ -1,6 +1,6 @@
 ---
 status: built
-updated: 2026-11-12
+updated: 2026-11-14
 summary: The sleep cycle for the agents that build Hewn, after Google's sleep framework for continual learning: consolidate before the fast store is wiped, at three rhythms (every compaction, nightly, weekly), and a monthly REM pass that practises and keeps only what finds something; as hooks and skills a plugin can carry to any repository. Extends docs/MEMORY.md. Built except the plugin (step 5), and the first REM run by hand.
 ---
 
@@ -82,9 +82,11 @@ the snapshot names commits by short id and the log by path and count, and shows 
 note name only when it has no spaces: no commit title, entry heading or sentence-shaped name,
 which anyone with a branch can write, reaches the model that way. The hook commands themselves
 live in the checked-out `.claude/settings.json`, so an outside branch is read as a diff and never
-checked out in the project folder. And the light sleep and the dream recognise their own
-pull request by who opened it and where its branch lives, never by its title, and read no other
-pull request's title or body (`.claude/skills/README.md`).
+checked out in the project folder. And the light sleep and the dream find their own pull
+request from their own branches (`git ls-remote` for `light-sleep/*` and `dreaming/*`, which only
+an account with push access can make), then ask only for a pull request open from one of them,
+with its number and author; they never list other pull requests, and read no pull request's
+title or body (since 2026-11-14; `.claude/skills/README.md`).
 
 Two limits, from the same documentation. Hooks checked into the repository apply in a cloud
 session **with one repository attached** (and in local sessions); a cloud session with several
@@ -147,8 +149,8 @@ The rule for all of them: a pass that changes a file opens a pull request Joshua
 never prints a key, and never carries a `https://claude.ai/…` link; its progress entry, when it
 writes one, ends with its bare session id (`docs/MEMORY.md`).
 
-One sleep pull request is open at a time (2026-11-09). A pass starts by listing the open pull
-requests: with a light sleep or a dream still waiting for Joshua, it works on that branch
+One sleep pull request is open at a time (2026-11-09). A pass starts by looking for one, from
+the sleep branches as above: with a light sleep or a dream still waiting for Joshua, it works on that branch
 (merged up to `main`) and updates that pull request rather than opening another, so what the
 earlier pass filed is verified, not filed twice; with two open, it stops and says so. The first
 dream that ran from `main` while the night's light sleep waited repeated four of its decisions,
