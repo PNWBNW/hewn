@@ -28,6 +28,7 @@ import { formatMinutes } from "@/books/hours";
 import { hoursChanges, openShifts, within } from "@/books/hours_change";
 import { emptyMailbox, threadFor } from "@/books/mailbox";
 import { linkFor, payableLinks } from "@/books/rail";
+import { defaultPeriod, unpaidBeforePeriod, unpaidBeforeText } from "@/books/run_period";
 import { emptySchedule, markOnCallPaid } from "@/books/schedule";
 import { unpaidOnCallDates } from "@/books/team_schedule";
 import { businessSources } from "@/books/team_sources";
@@ -37,11 +38,6 @@ import { dollarsText, rateText } from "@/books/work_week";
 import { PageHeader } from "@/shell/SectionView";
 import { FiguresNote } from "@/legal/LegalNotes";
 import { dayLabel } from "../../work/shared";
-
-function daysBefore(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d - days)).toISOString().slice(0, 10);
-}
 
 /**
  * One optional project per paycheck: its wages and employer taxes count as that job's labour.
@@ -64,8 +60,10 @@ export default function RunPayrollPage() {
   const offered = useMemo(() => new Set(rail?.links.filter((l) => l.status === "offered").map((l) => l.workerId) ?? []), [rail]);
   const today = todayIso();
   const [payDate, setPayDate] = useState(today);
-  const [periodEnd, setPeriodEnd] = useState(today);
-  const [periodStart, setPeriodStart] = useState(daysBefore(today, 13));
+  // The period follows on from the last run's (books/run_period.ts), so the next run doesn't reach back into days already paid.
+  const [suggested] = useState(() => defaultPeriod(payroll.runs, today));
+  const [periodEnd, setPeriodEnd] = useState(suggested.periodEnd);
+  const [periodStart, setPeriodStart] = useState(suggested.periodStart);
   // With an account on the rail, paying from it is the first choice; otherwise the first bank account.
   const [bank, setBank] = useState(rail ? RAIL : (books.accounts.find((a) => a.type === "bank" && a.active)?.id ?? ""));
   const onRail = rail !== null && bank === RAIL;
@@ -100,11 +98,21 @@ export default function RunPayrollPage() {
         // Callouts from the timecards (always, typed hours or not): at least the agreed minimum each, at the overtime rate.
         const callout = timecard && timecard.calloutPaidMinutes > 0 ? { hours: Number(hoursText(timecard.calloutPaidMinutes)), rate: rules.overtimeRate } : undefined;
         // On-call days they confirmed in the period, not yet paid, at the agreed amount a day.
-        const onCallDates =
-          rules.onCallPayCents > 0n && partiesKey ? unpaidOnCallDates(businessSources(mailbox, schedule, partiesKey), schedule?.onCallPaid, w.id, periodStart, periodEnd) : [];
+        const onCallSources = rules.onCallPayCents > 0n && partiesKey ? businessSources(mailbox, schedule, partiesKey) : null;
+        const onCallDates = onCallSources ? unpaidOnCallDates(onCallSources, schedule?.onCallPaid, w.id, periodStart, periodEnd) : [];
         const onCall = onCallDates.length > 0 ? { days: onCallDates.length, perDay: rules.onCallPayCents } : undefined;
         const more = { ...(callout ? { callout } : {}), ...(onCall ? { onCall } : {}) };
-        const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules, callout, onCall, onCallDates, more, questioned };
+        // Their unpaid work dated before the period (a held shift, a late card, a run they were left out of), named on the row.
+        const before = unpaidBeforePeriod({
+          mailbox,
+          workerId: w.id,
+          hourly: w.payType === "hourly",
+          rules,
+          ...(onCallSources ? { onCall: { src: onCallSources, paid: schedule?.onCallPaid } } : {}),
+          periodStart,
+          periodEnd,
+        });
+        const base = { worker: w, timecard, fromCards, hoursValue, overtimeValue, overtime, rules, callout, onCall, onCallDates, more, questioned, before };
         // Paying on the rail needs an account for everyone included; a row without one stays out.
         if (onRail && !linked.has(w.id)) return { ...base, row: { ...row, include: false }, paycheck: null, problem: offered.has(w.id) ? NOT_ACCEPTED : LINK_FIRST };
         if (!row.include) return { ...base, row, paycheck: null, problem: null };
@@ -120,7 +128,7 @@ export default function RunPayrollPage() {
           return { ...base, row, paycheck: null, problem: errorMessage(e) };
         }
       }),
-    [team, rows, payroll, payDate, onRail, linked, offered, mailbox, periodStart, periodEnd, rail],
+    [team, rows, payroll, payDate, onRail, linked, offered, mailbox, schedule, periodStart, periodEnd, rail],
   );
 
   const included = preview.filter((p) => p.row.include);
@@ -261,7 +269,7 @@ export default function RunPayrollPage() {
         </div>
 
         <ul className="flex flex-col gap-3">
-          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue, overtimeValue, rules, callout, onCall, questioned }) => (
+          {preview.map(({ worker, row, paycheck, problem, timecard, fromCards, hoursValue, overtimeValue, rules, callout, onCall, questioned, before }) => (
             <li key={worker.id} className={cn("rounded-lg border bg-card p-4", !row.include && "opacity-60")}>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex min-h-11 flex-1 items-center gap-3">
@@ -346,6 +354,9 @@ export default function RunPayrollPage() {
               )}
               {worker.payType === "hourly" && row.include && timecard && timecard.minutes === 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">No unpaid hours on their timecards in this period; type the hours.</p>
+              )}
+              {row.include && before && (
+                <p className="mt-1 text-xs text-warning">{unpaidBeforeText(before, dayLabel)}</p>
               )}
               {row.include && callout && timecard && (
                 <p className="mt-1 text-xs text-muted-foreground">
