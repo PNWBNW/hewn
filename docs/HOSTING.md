@@ -1,7 +1,7 @@
 ---
 status: plan
 updated: 2026-11-17
-summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing, signed and anchored releases, an installable signed desktop app (the priority, waiting on a way to reach Shield from a computer app), and the website on GitHub Pages with a service worker that checks updates.
+summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing, signed and anchored releases, an installable signed desktop app (the priority, waiting on a way to reach Shield from a computer app), the website on GitHub Pages with a service worker that checks updates, and later a hardened native client on GPUI with snarkVM.
 ---
 
 # Hosting and verifiable releases
@@ -161,6 +161,28 @@ protects people who keep using the website on a computer with the Shield extensi
 the desktop app, weaker than it (the person has to install it, and the store signs it), and a good
 answer if Shield's pairing code takes long.
 
+### Later: a hardened native client (Joshua, 2026-11-17)
+
+A second desktop client with no web engine at all, written in Rust on GPUI (the UI framework Zed is
+built on), for the accounts with the most at stake: accountants, large payrolls. Planned, not
+scheduled.
+
+- **What it closes:** with no browser engine there is no script injection, no third-party script and
+  no hostile page code; the whole class T3 guards against is gone, and Rust adds memory safety.
+- **snarkVM natively:** the client can use snarkVM, Aleo's own Rust library, directly instead of the
+  WebAssembly SDK: decrypting the business's records with its view key, computing commitments and
+  hashes, checking period proofs and release anchors, and reading chain state, faster and with fewer
+  layers. Signing stays in Shield: the client asks, Shield shows what is signed and signs (INV-11);
+  no key moves into the client.
+- **What it needs first:** a native way to reach Shield (the JavaScript adapter can't run there): a
+  documented relay protocol, or a Rust library from Provable for pairing and requests. The ask to
+  Provable covers this along with the pairing code for step 3.
+- **What it costs:** every screen written again in Rust, and two interfaces kept from then on (the
+  website stays). GPUI is before its 1.0 and shaped around Zed's needs; its Windows support is newer
+  and it has no phones.
+- **When:** once the Tauri app has shipped, Shield offers a native path, and GPUI is stable enough;
+  the first piece could be a native verifier (releases, anchors, period proofs) before any screen.
+
 ## Order
 
 1. Step 1, the guard: small, independent, worth having now.
@@ -182,7 +204,8 @@ answer if Shield's pairing code takes long.
 
 ## Open questions for Joshua
 
-- Ask Provable for a pairing code the Shield phone app can scan, or a desktop way in?
+- Ask Provable for a pairing code the Shield phone app can scan, or a desktop way in, and a native
+  (Rust) way to reach Shield for the hardened client?
 - Where the release key lives (a hardware key, or an offline machine), and who holds the second.
 - Which systems first for the desktop app: macOS and Windows, Linux later?
 - The traction counter on its own service, or ended at the move?
