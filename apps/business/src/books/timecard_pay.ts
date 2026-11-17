@@ -5,6 +5,10 @@
 // cards that falls in the period and hasn't been paid; the run pays that
 // many hours, and `markPaid` writes the run's id and date on each stretch,
 // so it is never paid twice and the card says which paycheck covered it.
+// A stretch pays the time between its start and end, never the minutes
+// written beside them; one that shares any moment with a paid stretch (on
+// any of the person's cards) isn't paid, and of two unpaid ones that share a
+// moment only the first (by card, then start) is.
 // Pure; the vault is the only store.
 // ---------------------------------------------------------------------------
 
@@ -55,15 +59,54 @@ export function payRulesFor(rail: Rail | null | undefined, workerId: string): Pa
   return payRulesOf(terms?.version === 2 ? terms.workWeek : undefined);
 }
 
+const MINUTES_IN_DAY = 24 * 60;
+const at = (iso: string): number => Date.parse(iso);
+
+/** A stretch's minutes from its own start and end (whole minutes, none if it ends first, a day at most). */
+function clockMinutes(e: { in: string; out: string }): number {
+  const m = Math.floor((at(e.out) - at(e.in)) / 60_000);
+  return Number.isFinite(m) ? Math.min(Math.max(m, 0), MINUTES_IN_DAY) : 0;
+}
+
+/** Two stretches that share a moment, or are the same stretch (two zero-length ones at one instant), compared as instants. */
+function clash(a: { in: string; out: string }, b: { in: string; out: string }): boolean {
+  const [ai, ao, bi, bo] = [at(a.in), at(a.out), at(b.in), at(b.out)];
+  return (ai < bo && bi < ao) || (ai === bi && ao === bo);
+}
+
 /**
- * Each stretch of a week's card with its regular and overtime minutes, laid against the whole week
- * (paid stretches included). A callout is neither (Joshua, 2026-10-20: always overtime, on its own
- * line), and its time doesn't count toward the week's thresholds.
+ * Each stretch of a week's card with its regular and overtime minutes, laid against the stretches of
+ * that week that count (`counted`, paid ones included), its minutes taken from its clock times. A
+ * callout is neither (Joshua, 2026-10-20: always overtime, on its own line), and its time doesn't count
+ * toward the week's thresholds.
  */
-function labelled(card: ReceivedHours, rules: PayRules): (ReceivedEntry & { regular: number; overtime: number })[] {
-  const worked = card.entries.filter((e) => !e.callout);
+function labelled(entries: readonly ReceivedEntry[], rules: PayRules): (ReceivedEntry & { regular: number; overtime: number })[] {
+  const timed = entries.map((e) => ({ ...e, minutes: clockMinutes(e) }));
+  const worked = timed.filter((e) => !e.callout);
   const labels = labelOvertime(worked, rules);
-  return card.entries.map((e) => (e.callout ? { ...e, regular: 0, overtime: 0 } : { ...e, ...labels[worked.indexOf(e)]! }));
+  return timed.map((e) => (e.callout ? { ...e, regular: 0, overtime: 0 } : { ...e, ...labels[worked.indexOf(e)]! }));
+}
+
+type Labelled = { card: ReceivedHours; e: ReceivedEntry & { regular: number; overtime: number } };
+
+/**
+ * The stretches of one person's cards that count, each labelled against its own card's: every paid
+ * one, and of the unpaid ones only those that share no moment with a paid one or with an earlier
+ * unpaid one (by card, then start). A stretch on the cards twice is counted, and paid, once.
+ */
+function counted(cards: readonly ReceivedHours[], rules: PayRules): Labelled[] {
+  const mine = [...cards].sort((a, b) => a.seq - b.seq);
+  const paid = mine.flatMap((card) => card.entries.filter((e) => e.paid));
+  const unpaid = mine.flatMap((card) => card.entries.filter((e) => !e.paid).map((e) => ({ card, e })));
+  unpaid.sort((a, b) => a.card.seq - b.card.seq || at(a.e.in) - at(b.e.in));
+  const first = new Set<ReceivedEntry>();
+  const kept: ReceivedEntry[] = [];
+  for (const { e } of unpaid) {
+    if (paid.some((p) => clash(p, e)) || kept.some((k) => clash(k, e))) continue;
+    first.add(e);
+    kept.push(e);
+  }
+  return mine.flatMap((card) => labelled(card.entries.filter((e) => e.paid || first.has(e)), rules).map((e) => ({ card, e })));
 }
 
 /** Callout stretches grouped into callouts (one ending where the next begins is the same callout, split at midnight). */
@@ -101,7 +144,9 @@ const inPeriod = (date: string, start: string, end: string) => start <= date && 
  * that no pay run has paid, oldest first, each with its share of overtime
  * under `rules` (the whole week counts toward the thresholds, paid or not).
  * Stretches in a `held` shift (one with a change to its hours still waiting
- * for an answer, books/hours_change.ts) wait for the next run.
+ * for an answer, books/hours_change.ts) wait for the next run. A stretch that
+ * shares a moment with one already paid, on any card, is never paid; of two
+ * unpaid ones that share a moment, only the first (by card, then start) is.
  */
 export function unpaidHours(
   mailbox: Mailbox | null | undefined,
@@ -111,14 +156,10 @@ export function unpaidHours(
   rules: PayRules = payRulesOf(undefined),
   held: readonly Stretch[] = [],
 ): UnpaidHours {
-  const shifts: PayableShift[] = [];
-  for (const card of mailbox?.hours ?? []) {
-    if (card.workerId !== workerId) continue;
-    for (const e of labelled(card, rules)) {
-      if (e.paid || !inPeriod(e.date, periodStart, periodEnd) || within(e, held)) continue;
-      shifts.push(shiftOf(card, e));
-    }
-  }
+  const cards = (mailbox?.hours ?? []).filter((card) => card.workerId === workerId);
+  const shifts: PayableShift[] = counted(cards, rules)
+    .filter(({ e }) => !e.paid && inPeriod(e.date, periodStart, periodEnd) && !within(e, held))
+    .map(({ card, e }) => shiftOf(card, e));
   shifts.sort((a, b) => (a.in < b.in ? -1 : a.in > b.in ? 1 : 0));
   const sum = (f: (s: PayableShift) => number) => shifts.reduce((t, s) => t + f(s), 0);
   const callouts = calloutsOf(shifts, rules.calloutMinimumMinutes);
@@ -143,13 +184,19 @@ export function hoursText(minutes: number): string {
 const sameStretch = (a: { agreementId: string; seq: number; in: string; out: string }, b: { agreementId: string; seq: number; in: string; out: string }) =>
   a.agreementId === b.agreementId && a.seq === b.seq && a.in === b.in && a.out === b.out;
 
-/** Writes the pay run on each stretch it paid. A stretch already paid, or not found, is left as it is. */
+/** Writes the pay run on each stretch it paid, once each. A stretch already paid, or not found, is left as it is. */
 export function markPaid(mailbox: Mailbox, shifts: readonly PayableShift[], runId: string, payDate: string): Mailbox {
   if (!runId) throw new Error("A pay run needs an id");
   const hours: ReceivedHours[] = mailbox.hours.map((card) => {
     const mine = shifts.filter((s) => s.agreementId === card.agreementId && s.seq === card.seq);
     if (mine.length === 0) return card;
-    const entries: ReceivedEntry[] = card.entries.map((e) => (!e.paid && mine.some((s) => sameStretch(s, { ...e, agreementId: card.agreementId, seq: card.seq })) ? { ...e, paid: { runId, payDate } } : e));
+    // Each stretch paid marks one entry: a copy of it on the same card stays as it was, and isn't counted.
+    const entries: ReceivedEntry[] = card.entries.map((e) => {
+      const i = e.paid ? -1 : mine.findIndex((s) => sameStretch(s, { ...e, agreementId: card.agreementId, seq: card.seq }));
+      if (i < 0) return e;
+      mine.splice(i, 1);
+      return { ...e, paid: { runId, payDate } };
+    });
     return { ...card, entries };
   });
   return validateMailbox({ ...mailbox, hours });
@@ -158,13 +205,11 @@ export function markPaid(mailbox: Mailbox, shifts: readonly PayableShift[], runI
 /** The stretches a pay run paid, per team member: what a paycheck's hours were made of. */
 export function paidByRun(mailbox: Mailbox | null | undefined, runId: string, rules: PayRules = payRulesOf(undefined)): Map<string, PayableShift[]> {
   const by = new Map<string, PayableShift[]>();
-  for (const card of mailbox?.hours ?? []) {
-    for (const e of labelled(card, rules)) {
-      if (e.paid?.runId !== runId) continue;
-      const list = by.get(card.workerId) ?? [];
-      list.push(shiftOf(card, e));
-      by.set(card.workerId, list);
-    }
+  const workers = new Set((mailbox?.hours ?? []).map((card) => card.workerId));
+  for (const workerId of workers) {
+    const cards = (mailbox?.hours ?? []).filter((card) => card.workerId === workerId);
+    const list = counted(cards, rules).filter(({ e }) => e.paid?.runId === runId).map(({ card, e }) => shiftOf(card, e));
+    if (list.length > 0) by.set(workerId, list);
   }
   for (const list of by.values()) list.sort((a, b) => (a.in < b.in ? -1 : a.in > b.in ? 1 : 0));
   return by;
