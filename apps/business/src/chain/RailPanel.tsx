@@ -38,7 +38,7 @@ import { type Rail, type RailLink, addLink, setRegistered, shortAddress, validat
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
 import { assertKindFree } from "./account_kind";
-import { AGREEMENT_PROGRAMS } from "./agreement_programs";
+import { AGREEMENT_PROGRAMS, acceptedHalves } from "./agreement_programs";
 import { finalAgreements } from "./offer";
 import { partiesKeysOf } from "./parties_key";
 import { RegisterFlow } from "./RegisterBusiness";
@@ -175,7 +175,7 @@ function ImportFlow({ onClose }: { onClose: () => void }) {
         const finals = new Set(accepted.keys());
         // Accepted offers become linked; anyone an offer was hiring joins the team (books/hiring.ts).
         if (finals.size > 0) {
-          const halves = new Map([...accepted].flatMap(([id, f]) => (f.workerHalf ? [[id, f.workerHalf] as const] : [])));
+          const halves = await acceptedHalves(accepted);
           await updateCompany((c) => acceptOffers(c, finals, new Date().toISOString(), halves));
         }
         setRows(found);

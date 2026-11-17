@@ -57,3 +57,17 @@ export async function usableHalves<T extends { employerHalf?: string; workerHalf
   if (out.workerHalf !== undefined && !(await isP256Point(out.workerHalf))) delete out.workerHalf;
   return out;
 }
+
+/**
+ * The worker's half of each accepted offer (chain/offer.ts `finalAgreements`), kept only when it is
+ * a point on the curve: what an acceptance seeds the conversation's keys with. Every place that
+ * links accepted offers takes its halves from here.
+ */
+export async function acceptedHalves(accepted: ReadonlyMap<string, { workerHalf?: string }>): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (const [id, f] of accepted) {
+    const { workerHalf } = await usableHalves(f);
+    if (workerHalf) out.set(id, workerHalf);
+  }
+  return out;
+}
