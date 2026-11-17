@@ -127,6 +127,37 @@ describe("one person's week from the team calendar", () => {
     expect(personWeek({ ...src, thread: addToThread(thread, sent) }, SUN)).toMatchObject({ id: id(9), week: { days: [ON_CALL] } });
   });
 
+  it("shows one week under an id: a later week under an id already here is left out", () => {
+    // A week sent in their conversation, then a team publish that came in after it under the same id.
+    const body = { type: "schedule", week: { weekStart: SUN, days: [DAY_SHIFT, ON_CALL] }, note: "" };
+    const sent = { ...validateMessage({ version: 1, id: id(5), from: "business", sentAt: "2026-10-20T09:00:00.000Z", body }, "business"), mine: false, seq: 7, receivedAt: "2026-10-20T10:00:00.000Z" };
+    const team = [post("2026-10-20T09:00:00.000Z", part(id(5), [{ who: ANA, name: "Ana", days: [DAY_SHIFT] }]), "2026-10-20T10:00:01.000Z")];
+    const before = { thread: addToThread(emptyThread(), sent), team, who: ANA };
+    expect(personWeek(before, SUN)).toMatchObject({ id: id(5), week: { days: [DAY_SHIFT, ON_CALL] } });
+    // Confirming what they were shown stands as what they were shown…
+    const after = { ...before, thread: answer(before.thread, 1, id(5), "confirmed") };
+    expect(personWeek(after, SUN)).toMatchObject({ id: id(5), week: { days: [DAY_SHIFT, ON_CALL] }, answer: { answer: "confirmed" } });
+    expect(confirmedOnCallDates(after, SUN, "2026-10-31")).toEqual(["2026-10-27"]);
+    // …and a later publish of the other days asks again.
+    const other = post("2026-10-22T09:00:00.000Z", part(id(6), [{ who: ANA, name: "Ana", days: [DAY_SHIFT] }]), "2026-10-22T10:00:00.000Z");
+    expect(personWeek({ ...after, team: [...team, other] }, SUN)).toMatchObject({ id: id(6), week: { days: [DAY_SHIFT] } });
+    expect(personWeek({ ...after, team: [...team, other] }, SUN)!.answer).toBeUndefined();
+  });
+
+  it("keeps a confirmation to the week shown when a second week under its id came in at once", () => {
+    // Both came in in one check, the team publish last: they are shown one week, and confirm it.
+    const body = { type: "schedule", week: { weekStart: SUN, days: [DAY_SHIFT, ON_CALL] }, note: "" };
+    const sent = { ...validateMessage({ version: 1, id: id(5), from: "business", sentAt: "2026-10-20T09:00:00.000Z", body }, "business"), mine: false, seq: 7, receivedAt: "2026-10-20T10:00:00.000Z" };
+    const team = [post("2026-10-20T09:00:00.000Z", part(id(5), [{ who: ANA, name: "Ana", days: [DAY_SHIFT] }]), "2026-10-20T10:00:01.000Z")];
+    const shown = personWeek({ thread: addToThread(emptyThread(), sent), team, who: ANA }, SUN)!;
+    const thread = answer(addToThread(emptyThread(), sent), 1, id(5), "confirmed");
+    // A later publish whose days for them are not the ones shown is not confirmed.
+    const days = shown.week.days.length === 1 ? [DAY_SHIFT, ON_CALL] : [DAY_SHIFT];
+    const later = post("2026-10-22T09:00:00.000Z", part(id(6), [{ who: ANA, name: "Ana", days }]), "2026-10-22T10:00:00.000Z");
+    expect(personWeek({ thread, team: [...team, later], who: ANA }, SUN)!.answer).toBeUndefined();
+    expect(confirmedOnCallDates({ thread, team: [...team, later], who: ANA }, SUN, "2026-10-31")).toEqual([]);
+  });
+
   it("pays on call only on days of a week they confirmed", () => {
     const team = [p1];
     expect(confirmedOnCallDates({ team, who: BO }, SUN, "2026-10-31")).toEqual([]);

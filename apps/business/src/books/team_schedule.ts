@@ -130,11 +130,15 @@ export function personWeek(src: ScheduleSources, weekStart: string): PublishedWe
     }
   }
   candidates.sort((a, b) => a.placedAt - b.placedAt);
-  const current = candidates.at(-1);
+  // An id names one week, from either source: the first that came in under it stands, and a later
+  // one under the same id is left out, so an answer to an id is always to the week shown under it.
+  const ids = new Set<string>();
+  const weeks = candidates.filter((c) => !ids.has(c.id) && !!ids.add(c.id));
+  const current = weeks.at(-1);
   if (!current) return undefined;
   const answers = (src.thread?.items ?? []).filter((i): i is AnswerItem => i.body.type === "schedule_answer" && i.body.weekStart === weekStart).sort(inOrder);
   const last = answers.at(-1);
-  const answeredWeek = last ? candidates.find((c) => c.id === last.body.scheduleId)?.week : undefined;
+  const answeredWeek = last ? weeks.find((c) => c.id === last.body.scheduleId)?.week : undefined;
   const stands = !!last && !!answeredWeek && sameWeek(answeredWeek, current.week);
   return {
     id: current.id,
