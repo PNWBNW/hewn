@@ -9,7 +9,7 @@ transition names come from `@pnw/pnw-adapter` and `@pnw/config`, never typed her
 
 | Area | Files |
 |---|---|
-| Shield | `shield.ts`, `shield_route.ts`, `ShieldStatus.tsx`, `FeeChoice.tsx`, `balances.ts`, `AccountBalances.tsx` — the three ways in (extension, Shield's browser, the relay from a phone), fee mode, balances; inside the desktop app there is no way in yet, and `ShieldMissing` says so wherever Shield is needed (`apps/desktop/README.md`) |
+| Shield | `shield.ts`, `shield_route.ts`, `ShieldStatus.tsx`, `FeeChoice.tsx`, `balances.ts`, `AccountBalances.tsx` — the three ways in (extension, Shield's browser, the relay from a phone), fee mode, balances; inside the desktop app there is no way in yet, and `ShieldMissing` says so wherever Shield is needed (`ShieldMissing.test.ts`, `apps/desktop/README.md`) |
 | Letters | `letters.ts` (records read through `generated/`, step 2 of `docs/VEIL.md`), `letter_reader.ts`, `letter_check.ts`, `compress.ts`, `decrypt.ts`, `parties_key.ts`, `thread.ts`, `thread_letters.test.ts` — sealing, sending and reading letters; the key two people share; posting to a conversation |
 | Channels and people | `channels.ts`, `Channel.tsx`, `directory.ts`, `SendDirectory.tsx`, `groups.ts`, `coworkers.ts` — announcements, the coworker directory, group chats |
 | Offers and agreements | `agreement_programs.ts` (v5 for new offers since 2026-10-25, v4 still read; the packed inputs and the halves), `agreement_records.ts` (their records, read through `generated/`), `offer.ts`, `offer_files.ts`, `agreement_draft.ts`, `terms.ts`, `terms_contract.test.ts`, `acceptance.ts`, `OfferPanel.tsx`, `ReviseOffer.tsx`, `KeepOffer.tsx`, `WithdrawOffer.tsx` — the offer on chain and its terms in a letter |

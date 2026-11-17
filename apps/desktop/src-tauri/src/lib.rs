@@ -13,7 +13,7 @@ pub mod links;
 pub mod update;
 
 use tauri::webview::{DownloadEvent, NewWindowResponse};
-use tauri::{AppHandle, RunEvent, Runtime, Url, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, Runtime, Url, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 use links::Link;
@@ -31,6 +31,23 @@ fn follow<R: Runtime>(app: &AppHandle<R>, url: &Url) -> bool {
         }
         Link::Blocked => false,
     }
+}
+
+/// Whether a download would be saved directly in the Downloads folder. On macOS and Linux the web
+/// view puts the page's suggested name there itself, and a name from someone else (an offer's
+/// attachment) must not reach another folder; on Windows the engine picks and cleans the path.
+fn in_downloads<R: Runtime>(webview: &tauri::Webview<R>, destination: &std::path::Path) -> bool {
+    if cfg!(windows) {
+        return true;
+    }
+    // The folder the web view chose from (wry: the Downloads folder, or the working folder on a
+    // system that names none).
+    let folder = webview.path().download_dir().ok().or_else(|| std::env::current_dir().ok());
+    let ok = folder.is_some_and(|folder| links::saves_into(&folder, destination));
+    if !ok {
+        eprintln!("links: a download outside the Downloads folder was refused");
+    }
+    ok
 }
 
 pub fn run() {
@@ -53,9 +70,9 @@ pub fn run() {
                     NewWindowResponse::Deny
                 })
                 // Downloads (a backup file, a report) go to the Downloads folder under the name the
-                // page gave them; only what the app's own pages made.
-                .on_download(|_webview, event| match event {
-                    DownloadEvent::Requested { url, .. } => links::may_download(&url),
+                // page gave them; only what the app's own pages made, and only into that folder.
+                .on_download(|webview, event| match event {
+                    DownloadEvent::Requested { url, destination } => links::may_download(&url) && in_downloads(&webview, destination),
                     _ => true,
                 })
                 .build()?;

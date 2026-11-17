@@ -35,10 +35,16 @@ so plainly (below) instead of offering a connect that would wait for nothing.
 - **No bridge from the pages to the app.** No capability is granted to any window, there is no
   `window.__TAURI__`, and the policy itself refuses the bridge's address. The two plugins (the
   updater, and the opener that hands web links to the browser) are called from Rust only.
-- **The window shows only the app.** A web link (`https:`, `mailto:`) opens in the person's own
-  browser; `http:`, `file:`, other apps' links (`shield:`) and anything else go nowhere; no link gets
-  a new window. A download is saved to the Downloads folder only when one of the app's own pages
-  made it (a backup file, a report).
+- **The window shows only the app.** Only this system's own origin (below) counts as the app; the
+  other systems' origin and `http://tauri.localhost` are addresses on the computer itself, where any
+  program could answer, and are not the app. A web link (`https:`, `mailto:`) opens in the person's
+  own browser; `http:`, `file:`, `data:` pages, other apps' links (`shield:`) and anything else go
+  nowhere; no link gets a new window. A download is saved only when one of the app's own pages
+  made it (a backup file, a report, an offer's attachment), and only directly in the Downloads
+  folder, whatever name the page suggested.
+- **The one request the app makes of its own:** the update check, once per start, to the release
+  address in `tauri.conf.json` (GitHub). It sends what any download does (the address it comes from,
+  the app's version and system), nothing from the books; with no update key configured it isn't made.
 - **No service worker.** The bundle asks `mayRegisterServiceWorker()`
   (`apps/business/src/desktop.ts`) before registering one, which is never inside the desktop app:
   the updater is the app's way of taking new files.
@@ -54,7 +60,7 @@ so plainly (below) instead of offering a connect that would wait for nothing.
 
 Windows would use `http://tauri.localhost` by default; the app asks for the `https` form
 (`useHttpsScheme`), so the policy's `upgrade-insecure-requests` can't turn the app's own requests
-into ones that fail. **Neither the origin nor the identifier may change after the first release**:
+into ones that fail, and the window refuses the `http` form (`src-tauri/src/links.rs`). **Neither the origin nor the identifier may change after the first release**:
 the browser engine keeps IndexedDB (the books) under them, and a change would leave the books
 behind. Both come from `BRAND.desktop.id` and this configuration.
 
@@ -161,8 +167,14 @@ release builds; the `.deb`, `.rpm` and AppImage bundles; the release app opening
 page, moving between screens, and saying on "Find your books" that it can't reach Shield yet; a
 probe page under the bundle's exact policy (the storage and WebCrypto results above, WebAssembly
 compiled and `eval` refused, the explorer reachable, an outside host refused by the policy, the
-bridge to the app refused); the shell's tests; and `update_manifest` checking a signature made by
+bridge to the app refused); a second probe page in the app, whose downloads (one plain name, one
+climbing out with `../`, one an absolute path) all landed as plain files in the Downloads folder and
+whose moves to a `data:` page, `http://tauri.localhost` and `https://tauri.localhost` all left it
+where it was; the shell's tests; and `update_manifest` checking a signature made by
 `cargo tauri signer` itself. Not verified here: macOS and Windows (the workflow builds them; they
 need a run and a person to open them), Shield's relay over WebSocket (this sandbox's network refuses
 that host; the policy allows it), an update installed end to end from a real release, and
 operating-system signing.
+
+The shell's Rust tests and the crate-age check run in `desktop.yml` only (a `v*` tag or by hand),
+not on every pull request: run them by hand (above) after changing `src-tauri/`.
