@@ -154,16 +154,18 @@ The highest risk for a browser app.
   (2026-11-17, `docs/HOSTING.md` step 1; `packages/security/src/frame_guard.ts` and
   `frame_guard.css`): the stylesheet hides the whole page (`html:not([data-top-page])`), and the
   first of the app's own code to run (`src/instrumentation-client.ts`, before hydration) shows it
-  only when `window.top === window.self`. A frame that runs scripts, sandboxed or not, stays
-  hidden; a frame sandboxed without scripts shows only the no-JavaScript note; the guard never
-  tries to move the top window. The rule is in a stylesheet file and the check in a script file,
+  only when the page is the top window (`window.top` is the window itself). A frame that runs
+  scripts, sandboxed or not, stays hidden; a frame sandboxed without scripts shows only the
+  no-JavaScript note; the guard never tries to move the top window. The rule is in a stylesheet file and the check in a script file,
   so the policy is unchanged (no inline script or style). Tested in Chromium against the static
   bundle served with no headers, as the top page and framed from another origin with no sandbox,
   `sandbox` and `sandbox="allow-scripts"` (`apps/business/test/frames`, outside CI, which has no
-  browser). Cost: nothing is drawn until the app's scripts have loaded; on a first visit the first
-  paint comes about 20 ms later on a fast computer and about 1.7 s later on a slow phone network
-  (measured there), and people with JavaScript off see only the note (the app never worked
-  without it). The marketing site (`apps/site`) carries the same guard. ✅
+  browser); Firefox and Safari not yet run. Cost: nothing is drawn until the app's scripts have
+  loaded; on a first visit the first paint comes about 20 ms later on a fast computer and about
+  1.7 s later with a processor slowed four times on an emulated slow 4G network (measured there),
+  and people with JavaScript off see only the note (the app never worked without it; a browser
+  from before late 2023 shows them a blank page instead). The marketing site (`apps/site`) carries the
+  same guard. ✅
 - `nosniff`; `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
 - React escapes all rendered text; `dangerouslySetInnerHTML` is not used. ✅ (add a lint rule 🔜)
 - Dependencies pinned exactly, lockfile enforced in CI (`--frozen-lockfile`). ✅

@@ -44,10 +44,13 @@ export type GuardElement = {
 /**
  * True only when the page is not inside any frame. Reading `top` is allowed across origins; if a
  * browser ever refused it, the answer is "framed", so the page stays hidden rather than shown.
+ * `top` is compared with the window itself as well as with `self`: a page's own script can't
+ * redefine `top`, but it can overwrite `self`, so `self` alone is not trusted to say which
+ * window this is.
  */
 export function isTopPage(win: Pick<GuardWindow, "top" | "self">): boolean {
   try {
-    return win.top != null && win.top === win.self;
+    return win.top != null && win.top === win && win.self === win;
   } catch {
     return false;
   }

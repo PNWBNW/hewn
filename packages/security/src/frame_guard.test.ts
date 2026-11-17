@@ -61,6 +61,13 @@ describe("isTopPage", () => {
     expect(isTopPage(win)).toBe(false);
   });
 
+  it("is false inside a frame whose self was overwritten to look like the top", () => {
+    // `self` can be reassigned by a script in the page; `top` can't.
+    const win = framedWindow() as { top: unknown; self: unknown };
+    win.self = win.top;
+    expect(isTopPage(win)).toBe(false);
+  });
+
   it("is false with no top window at all (a detached document)", () => {
     const win = { top: null, self: null };
     expect(isTopPage(win)).toBe(false);

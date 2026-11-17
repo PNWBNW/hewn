@@ -34,7 +34,9 @@ app's own code can run without a script tag in the markup or an inline script. A
 scripts, sandboxed or not, stays hidden; a frame sandboxed without scripts, or a browser with
 JavaScript off, shows only the note at the top of `src/app/layout.tsx`. The guard never moves the
 top window. `<html>` carries `suppressHydrationWarning` because the guard's mark is added before
-hydration on purpose.
+hydration on purpose. Run so far in Chromium only (Firefox and Safari not yet); the note relies on
+the `scripting` media feature (Chrome 120, Firefox 113, Safari 17), so an older browser with
+JavaScript off shows a blank page instead.
 
 What it costs: nothing is drawn until the scripts have loaded. First paint of `/` in the static
 bundle, median of five loads in Chromium, with and without the guard's rule
