@@ -93,7 +93,7 @@ export default function SettingsPage() {
               : `You can add a ${worker ? "customer" : "worker"} account under the same username from the front page: New here? → choose it.`}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
-            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={lock}>
+            <Button variant="outline" className="min-h-11 sm:min-h-9" onClick={() => void lock({ everyTab: true })}>
               <LogOut aria-hidden />
               Log out
             </Button>

@@ -14,6 +14,7 @@ import { BRAND } from "@/brand";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { confirmAgainDue } from "@/books/directory";
 import { isRailAddress } from "@/books/rail";
+import { onBooksClosed } from "@/books/lock_signal";
 import { keepConfirmedName } from "@/books/work";
 import { type NameCheck, checkAccountName } from "./coworker_names";
 
@@ -27,8 +28,17 @@ export type ShownName =
   | { status: "checking" }
   | { status: "unconfirmed" };
 
-/** This tab's answers, so an account that couldn't be confirmed isn't asked about on every visit. */
+/**
+ * This tab's answers, so an account that couldn't be confirmed isn't asked about on every visit.
+ * Only while the books are open: they leave memory when the books close, and an answer still on its
+ * way then isn't kept (books/lock_signal.ts).
+ */
 const answered = new Map<string, { check: NameCheck; at: number }>();
+let opened = 0;
+onBooksClosed(() => {
+  answered.clear();
+  opened += 1;
+});
 /** Accounts being looked up now, so two screens don't ask about the same one at once. */
 const asking = new Set<string>();
 const ASK_AGAIN_MS = 5 * 60 * 1000;
@@ -49,8 +59,10 @@ export function useConfirmedNames(accounts: readonly (string | undefined)[], exp
         if (!confirmAgainDue(kept?.[address], now) || (last && now - last.at < ASK_AGAIN_MS) || asking.has(address)) continue;
         if (!live) return;
         asking.add(address);
+        const since = opened;
         try {
           const check = await checkAccountName(address);
+          if (since !== opened) continue; // the books closed meanwhile
           answered.set(address, { check, at: Date.now() });
           // A person's vault keeps what the chain confirmed; a failed look-up keeps what was there.
           if (check.status !== "unconfirmed" && check.name) {
