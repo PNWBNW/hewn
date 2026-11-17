@@ -171,6 +171,28 @@ describe("overtime from timecards", () => {
     expect(second).toMatchObject({ regularMinutes: 240, overtimeMinutes: 540 });
   });
 
+  it("counts a stretch on the card more than once toward the week only once", () => {
+    // Monday's 9 hours four times over on the week's card, and the same Monday written another way.
+    const again = [week[0]!, week[0]!, week[0]!, { ...week[0]!, in: "2026-10-19T10:00:00+02:00", out: "2026-10-19T19:00:00+02:00" }];
+    const m2 = addHours(emptyMailbox(), card(0, [...again, ...week, sat]));
+    const u = unpaidHours(m2, "wkr-1", "2026-10-18", "2026-10-24", rules);
+    expect(u).toMatchObject({ minutes: 2940, regularMinutes: 2400, overtimeMinutes: 540 });
+    const daily = unpaidHours(m2, "wkr-1", "2026-10-18", "2026-10-24", { ...rules, dailyOvertimeAfterHours: 8 });
+    expect(daily).toMatchObject({ regularMinutes: 2400, overtimeMinutes: 540 });
+    // A copy of a paid stretch on another week's card doesn't count toward that week either.
+    const thu = day("2026-10-22", 9);
+    const p = addHours(emptyMailbox(), card(0, [thu]));
+    const paid = markPaid(p, unpaidHours(p, "wkr-1", "2026-10-18", "2026-10-24", rules).shifts, "run-1", "2026-10-24");
+    const next = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29"].map((d) => day(d, 9));
+    const back = addHours(paid, card(1, [thu, thu, thu, thu, ...next], { weekStart: "2026-10-25" }));
+    expect(unpaidHours(back, "wkr-1", "2026-10-25", "2026-10-31", rules)).toMatchObject({ minutes: 2160, regularMinutes: 2160, overtimeMinutes: 0 });
+    // And what the run paid reads the same split it was paid at.
+    const run = unpaidHours(m2, "wkr-1", "2026-10-18", "2026-10-24", rules);
+    const done = markPaid(m2, run.shifts, "run-2", "2026-10-24");
+    const read = paidByRun(done, "run-2", rules).get("wkr-1") ?? [];
+    expect([read.reduce((t, s) => t + s.regular, 0), read.reduce((t, s) => t + s.overtime, 0)]).toEqual([2400, 540]);
+  });
+
   it("labels stretches in time order whatever order they're given, and the labels add up to the split", () => {
     const shuffled = [sat, ...week].reverse();
     const labels = labelOvertime(shuffled, rules);
