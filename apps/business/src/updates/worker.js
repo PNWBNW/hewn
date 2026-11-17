@@ -11,7 +11,11 @@
 // - Keeps the last good release on the device and serves the app's files from it.
 // - Takes a new release only when its release.json is signed (release.sig) by one of `keys`, is no
 //   older than the one it holds and isn't retired, and every file it lists downloads with its
-//   listed SHA-256. Until then it keeps serving the release it has.
+//   listed SHA-256. Until then it keeps serving the release it has. The date (`created`) is outside
+//   the signature, so it guards against going back by mistake, not on purpose (a bad old release is
+//   retired), and a date later than today counts as today.
+// - Checks again what it finds kept on the device (each release's signature, each retirement's)
+//   before trusting it: storage a worker the host swapped in could have written.
 // - Serves a file only when its bytes match the SHA-256 the release lists; one that doesn't is
 //   refused, never served.
 // - Retires a release when release-retired.json carries a signature of its digest by one of
@@ -97,18 +101,39 @@ function trustedKeys() {
   return trusted;
 }
 
-/** Whether `sig` ({key, sig}) signs `message` under one of the trusted keys. */
+const goodSignatures = new Set();
+/** Whether `sig` ({key, sig}) signs `message` under one of the trusted keys (each good one remembered while this worker runs). */
 async function signedBy(message, sig) {
   if (!sig || !KEY_ID.test(sig.key ?? "") || typeof sig.sig !== "string") return false;
+  const seen = `${sig.key}:${sig.sig}:${hex(message)}`;
+  if (goodSignatures.has(seen)) return true;
   const key = (await trustedKeys()).get(sig.key);
   if (!key) return false;
   try {
     const bytes = fromBase64(sig.sig);
-    return bytes.length === 64 && (await crypto.subtle.verify({ name: "Ed25519" }, key, bytes, message));
+    const good = bytes.length === 64 && (await crypto.subtle.verify({ name: "Ed25519" }, key, bytes, message));
+    if (good) goodSignatures.add(seen);
+    return good;
   } catch {
     return false;
   }
 }
+
+/** Today on this device, as release.json writes a date. */
+const today = () => new Date().toISOString().slice(0, 10);
+/** A release's date as the worker compares it: release.json's, but never later than today (the date isn't signed). */
+const dated = (created) => (created > today() ? today() : created);
+
+/** Whether a release as kept on the device still checks: its digest is its list's, and a release key signed it. */
+async function stillSigned(r) {
+  if (!r || typeof r !== "object" || !HEX64.test(r.digest ?? "") || !DAY.test(r.created ?? "")) return false;
+  if (!r.files || typeof r.files !== "object" || Array.isArray(r.files)) return false;
+  if ((await sha256(utf8(canonicalFiles(r.files)))) !== r.digest) return false;
+  return signedBy(fromHex(r.digest), r.sig);
+}
+
+/** Whether a retirement ({digest, key, sig}) is a release key's. */
+const signedRetirement = async (r) => HEX64.test(r?.digest ?? "") && (await signedBy(utf8(RETIRE_TAG + r.digest), r));
 
 // ---------------------------------------------------------------------------
 // The device's state, in the worker's own caches.
@@ -125,9 +150,27 @@ async function writeState(name, value) {
   await (await caches.open(STATE)).put(scoped(`__release/${name}`), new Response(JSON.stringify(value)));
 }
 
-const current = () => readState("current", null);
-const previous = () => readState("previous", null);
-const retiredSet = async () => new Set(await readState("retired", []));
+/** A release the device keeps ("current" or "previous"), only when it still checks; one that doesn't is forgotten. */
+async function kept(name) {
+  const r = await readState(name, null);
+  if (!r) return null;
+  if (!(await stillSigned(r))) {
+    await writeState(name, null);
+    return null;
+  }
+  return { ...r, created: dated(r.created) };
+}
+
+const current = () => kept("current");
+const previous = () => kept("previous");
+
+/** The retirements the device has seen, by digest: only those a release key signed. */
+async function retiredSet() {
+  const list = await readState("retired", []);
+  const out = new Map();
+  for (const r of Array.isArray(list) ? list : []) if (await signedRetirement(r)) out.set(r.digest, { digest: r.digest, key: r.key, sig: r.sig });
+  return out;
+}
 /** Why the host's release wasn't taken the last time, for the page to read (null when it was). */
 const note = (problem) => writeState("problem", problem);
 
@@ -163,10 +206,11 @@ async function signedRelease() {
   if (paths.length === 0 || !paths.every((p) => safePath(p) && p !== MANIFEST && p !== SIGNATURE && HEX64.test(m.files[p]))) return { problem: "the host's release.json lists a file it can't" };
   if ((await sha256(utf8(canonicalFiles(m.files)))) !== m.digest) return { problem: "the host's release.json doesn't match its own digest" };
   if (!(await signedBy(fromHex(m.digest), sig))) return { problem: "the host's release isn't signed by a release key" };
-  return { release: { version: m.version, commit: m.commit, created: m.created, digest: m.digest, files: m.files } };
+  const signature = { key: sig.key, sig: sig.sig };
+  return { release: { version: m.version, commit: m.commit, created: dated(m.created), digest: m.digest, files: m.files, sig: signature } };
 }
 
-/** Reads release-retired.json and adds each digest it validly retires to the device's list, which never shrinks. */
+/** Reads release-retired.json and adds each retirement a release key signed to the device's list, which never shrinks while that key is trusted. */
 async function learnRetirements() {
   const retired = await retiredSet();
   const res = await fresh(RETIRED).catch(() => null);
@@ -174,13 +218,13 @@ async function learnRetirements() {
   try {
     const list = (await res.json())?.retired;
     for (const r of Array.isArray(list) ? list : []) {
-      if (!HEX64.test(r?.digest ?? "") || retired.has(r.digest)) continue;
-      if (await signedBy(utf8(RETIRE_TAG + r.digest), r)) retired.add(r.digest);
+      if (retired.has(r?.digest)) continue;
+      if (await signedRetirement(r)) retired.set(r.digest, { digest: r.digest, key: r.key, sig: r.sig });
     }
   } catch {
     // an unreadable list retires nothing
   }
-  await writeState("retired", [...retired].sort());
+  await writeState("retired", [...retired.keys()].sort().map((d) => retired.get(d)));
   return retired;
 }
 

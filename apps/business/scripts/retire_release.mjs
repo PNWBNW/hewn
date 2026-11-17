@@ -6,11 +6,13 @@
 // passphrase is asked on the terminal when the file is encrypted. Adds the signed entry to the
 // list (a new file when there is none), checks the signature against the key's own public half,
 // and prints the digest and the key id only: never the key or the passphrase. Publish the list at
-// the bundle's root on every host, beside release.json. Node's own modules only.
+// the bundle's root on every host, beside release.json. Node's own modules only, plus @pnw/brand
+// (to warn when the key isn't one of this copy's release keys).
 
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { releaseKeys } from "@pnw/brand";
 import { addRetirement, parseRetired, retireMessage, RETIRED_FILE } from "../src/updates/retire.ts";
 
 function fail(message) {
@@ -83,6 +85,9 @@ async function main() {
   const sig = sign(null, message, privateKey);
   if (!verify(null, message, publicKey, sig)) fail("The signature didn't check against its own key; nothing was written");
 
+  if (!releaseKeys.some((k) => k.id === key)) {
+    console.error(`Warning: key ${key} isn't in releaseKeys (@pnw/brand) in this copy; a worker built from it won't honour this retirement`);
+  }
   const listPath = resolve(a.list ?? RETIRED_FILE);
   const existing = existsSync(listPath) ? parseRetired(readFileSync(listPath, "utf8")) : [];
   writeFileSync(listPath, addRetirement(existing, { digest, key, sig: sig.toString("base64") }));

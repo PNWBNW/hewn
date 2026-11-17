@@ -26,6 +26,14 @@ The same worker in Chromium, against the real bundle: `test/worker/` (`pnpm --fi
   and every file it lists downloads with its listed SHA-256. Until all of that holds it keeps
   serving the release it has. It looks when it installs, when a page opens (at most every five
   minutes), and when a page asks (`{type: "check"}`).
+- **The date is release.json's word, outside the signature** (only the file list is signed), so
+  "not older" stops a host going back by mistake, not on purpose: a host can relabel an old signed
+  release. A bad old release is withdrawn by retiring it (below). A date later than today counts as
+  today, so a release dated far ahead can't make the device refuse the next real one.
+- **Checks again what it finds on the device.** Its record of the release it holds (and the one
+  before) is kept with the release's signature and checked again before it is trusted, and so is
+  each retirement it remembers: a worker the host swapped in can write the same storage, and the
+  honest worker that replaces it trusts nothing that worker left unsigned.
 - **Serves only matching bytes.** Every file it serves is checked against the release's SHA-256,
   from the device or, if the device lost it, from the host; a file that doesn't match is refused
   (502), never served. A path the release doesn't list is answered 404 (the release's `404.html`
@@ -62,11 +70,13 @@ what already matched for the next try.
   release first (`scripts/release/README.md`). Every release that changes `sw.js` shows it too:
   the notice is honest rather than rare.
 - **The first visit trusts the host.** Nothing on the device yet to compare with.
-- **A copy framed by another site** isn't served by this worker (browsers partition storage and
-  workers by the top site), so the headers it adds don't reach it; the top-page guard (step 1)
-  covers frames.
+- **A copy framed by another site** gets a worker and storage of its own (browsers partition both
+  by the top site), so at least its first load comes straight from the host, without the headers
+  this worker adds; the top-page guard (step 1) covers frames.
 - It sees only the app's own address: the explorer, the relay and the website's counter are other
-  origins, governed by the policy, not by the worker.
+  origins, governed by the policy, not by the worker. Once it holds a release it answers anything
+  at the app's own address that the release doesn't list with a 404, so a server piece must keep
+  an address of its own (step 4 moves the counter to its own service).
 
 ## Open: the Cache API and INV-10
 
@@ -87,7 +97,8 @@ node apps/business/scripts/retire_release.mjs <digest> --key /Volumes/ReleaseKey
 
 It asks for the key's passphrase when the file is encrypted, signs, checks the signature against
 the key's own public half, adds the entry to the list (one per digest and key) and prints only the
-digest and the key id. Publish `release-retired.json` at the bundle's root on every host, beside
+digest and the key id, with a warning when that key isn't in this copy's `releaseKeys` (a worker
+built from it wouldn't honour the retirement). Publish `release-retired.json` at the bundle's root on every host, beside
 `release.json`, and publish a fixed release: devices that held the retired one serve nothing until
 then. `release-retired.json` is self-checking, so it may change after a release is signed; the
 worker never serves it from a release.

@@ -2,7 +2,7 @@
 // API, and the install, activate, fetch and message events. Each test makes its own release key;
 // none is kept. The same worker in a real browser: test/worker (`test:worker`).
 
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -309,6 +309,19 @@ describe("a new release", () => {
     expect(await d.status()).toMatchObject({ digest: r1.digest, problem: "the host serves an older release" });
   });
 
+  it("dated ahead by the host: the date isn't signed, so it can't hold the device back from the next real release", async () => {
+    const { key, d, publish } = await onV1();
+    // An older signed release the host relabels far ahead: its signature still holds (the date is outside it).
+    const relabelled = release({ ...BUNDLE, "index.html": page("home v0") }, { key, version: "v0.9", created: "2999-01-01" });
+    publish(relabelled.files);
+    await d.check();
+    expect(await d.status()).toMatchObject({ digest: relabelled.digest });
+    const r2 = release(V2, { key, version: "v1.1", created: "2026-11-18" });
+    publish(r2.files);
+    await d.check();
+    expect(await d.status()).toMatchObject({ digest: r2.digest, problem: null });
+  });
+
   it("listing the release's own files or a path outside the bundle: not taken", async () => {
     const { key, r1, d, publish } = await onV1();
     publish(release({ ...V2, "release.sig": "x" }, { key, created: "2026-11-18" }).files);
@@ -380,10 +393,14 @@ describe("retiring a release", () => {
       writeFileSync(keyFile, key.privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
       const list = join(dir, RETIRED_FILE);
       const script = new URL("../../scripts/retire_release.mjs", import.meta.url).pathname;
-      const printed = execFileSync(process.execPath, [script, r1.digest, "--key", keyFile, "--list", list], { encoding: "utf8" });
-      execFileSync(process.execPath, [script, r1.digest, "--key", keyFile, "--list", list]); // twice: still one entry
-      expect(printed).toContain(key.entry.id);
-      expect(printed).not.toMatch(/PRIVATE KEY|MC4CAQ/);
+      const run = () => spawnSync(process.execPath, [script, r1.digest, "--key", keyFile, "--list", list], { encoding: "utf8" });
+      const first = run();
+      expect(first.status).toBe(0);
+      expect(run().status).toBe(0); // twice: still one entry
+      expect(first.stdout).toContain(key.entry.id);
+      // This copy's releaseKeys doesn't hold the test's key, so the script warns that this copy won't honour it.
+      expect(first.stderr).toContain(`key ${key.entry.id} isn't in releaseKeys`);
+      expect(first.stdout + first.stderr).not.toMatch(/PRIVATE KEY|MC4CAQ/);
       const written = readFileSync(list, "utf8");
       expect(parseRetired(written)).toHaveLength(1);
 
@@ -401,6 +418,44 @@ describe("retiring a release", () => {
   it("a retirement signs other bytes than any release", () => {
     expect(retireMessage("a".repeat(64))).toHaveLength(82);
     expect(() => retireMessage("not a digest")).toThrow();
+  });
+});
+
+describe("what another worker left on the device", () => {
+  /** Writes the worker's record of `name` as a worker the host swapped in could. */
+  async function plant(caches: FakeCaches, name: string, value: unknown) {
+    await (await caches.open("release-state")).put(`${ORIGIN}/__release/${name}`, new Response(JSON.stringify(value)));
+  }
+
+  it("a release nobody signed, planted with its files, is never served by the next worker", async () => {
+    const key = releaseKey();
+    const r1 = release(BUNDLE, { key });
+    const d = device([key.entry], { ...r1.files });
+    await d.install();
+    const evil = page("someone else's code");
+    const files = { ...JSON.parse(r1.files["release.json"]!).files, "index.html": sha(evil) };
+    const digest = sha(canonical(files));
+    (await d.caches.open(`release-files-${digest}`)).entries.set(`${ORIGIN}/index.html`, new TextEncoder().encode(evil).buffer);
+    for (const sig of [undefined, JSON.parse(r1.files["release.sig"]!)]) {
+      await plant(d.caches, "current", { version: "v9", commit: "b".repeat(40), created: "2999-01-01", digest, files, sig });
+      const next = device([key.entry], { ...r1.files }, d.caches);
+      expect(await text(await next.open("/"))).not.toContain("someone else");
+      await next.check();
+      expect(await next.status()).toMatchObject({ digest: r1.digest, problem: null });
+    }
+  });
+
+  it("a retirement nobody signed, planted in its list, retires nothing", async () => {
+    const key = releaseKey();
+    const r1 = release(BUNDLE, { key });
+    const d = device([key.entry], { ...r1.files });
+    await d.install();
+    const releaseSig = JSON.parse(r1.files["release.sig"]!);
+    await plant(d.caches, "retired", [r1.digest, { digest: r1.digest, key: key.entry.id, sig: releaseSig.sig }]);
+    const next = device([key.entry], { ...r1.files }, d.caches);
+    await next.check();
+    expect(await next.status()).toMatchObject({ digest: r1.digest, withdrawn: false, problem: null });
+    expect(await text(await next.open("/"))).toBe(BUNDLE["index.html"]);
   });
 });
 

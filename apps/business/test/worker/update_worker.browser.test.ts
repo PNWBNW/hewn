@@ -202,6 +202,24 @@ describe("the update worker in Chromium", () => {
     }, `${base}/${chunk}`);
     expect(answer.status).toBe(502);
     expect(answer.body).not.toContain("__stolen");
+
+    // A copy on the device whose bytes were changed is refused the same way.
+    const other = bundleFiles(site).find((p) => p.startsWith("_next/static/chunks/") && p.endsWith(".js") && p !== chunk)!;
+    appendFileSync(join(site, ...other.split("/")), "\n;window.__stolen = true;");
+    const changed = await page.evaluate(
+      async ([digest, url]) => {
+        const cache = await caches.open(`release-files-${digest}`);
+        const kept = await cache.match(url);
+        if (!kept) return null;
+        await cache.put(url, new Response((await kept.text()) + "\n;window.__stolen = true;"));
+        const r = await fetch(url);
+        return { status: r.status, body: await r.text() };
+      },
+      [firstDigest, `${base}/${other}`] as const,
+    );
+    expect(changed).not.toBeNull();
+    expect(changed!.status).toBe(502);
+    expect(changed!.body).not.toContain("__stolen");
   });
 
   it("doesn't take a new release that isn't signed, and takes one that is", async () => {
@@ -212,6 +230,12 @@ describe("the update worker in Chromium", () => {
     expect(await (await page.goto(`${base}/`))!.text()).not.toContain("release two");
 
     writeRelease(site, { version: "v-test.2", created: "2026-11-18", key: releaseKey() }); // someone else's key
+    await check();
+    expect(await status()).toMatchObject({ digest: firstDigest, problem: "the host's release isn't signed by a release key" });
+
+    // Someone else's signature under the release key's id.
+    const forger = releaseKey();
+    writeRelease(site, { version: "v-test.2", created: "2026-11-18", key: { entry: key.entry, signs: forger.signs } });
     await check();
     expect(await status()).toMatchObject({ digest: firstDigest, problem: "the host's release isn't signed by a release key" });
 

@@ -151,11 +151,14 @@ The highest risk for a browser app.
   `docs/HOSTING.md` step 4; never on the website build or in the desktop app). It keeps the last
   good release on the device, takes a new one only when its `release.json` is signed with a key in
   `releaseKeys` (`@pnw/brand`) and every file matches its SHA-256, refuses a file that doesn't,
-  never goes back to an older release, honours a retirement only when signed with a release key,
+  checks again the signatures of what it keeps on the device before trusting it, refuses a release
+  dated before the one it holds (a guard against mistakes only: the date isn't signed, so a bad old
+  release is withdrawn by a retirement), honours a retirement only when signed with a release key,
   and adds `frame-ancestors`, `X-Frame-Options` and `Permissions-Policy` to what it serves. The
   browser still updates the worker itself from the host, so it can't block a hijacked host: the page
   says plainly when a new worker starts installing, and the first visit trusts the host. A copy
-  framed by another site isn't served by it (storage is partitioned); the top-page guard
+  framed by another site gets a worker and storage of its own (both partitioned by the top site),
+  so its first load comes from the host without these headers; the top-page guard
   (`docs/HOSTING.md` step 1) covers that. Until a release key is published it takes nothing and passes the host's files through.
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY` (no clickjacking); `nosniff`;
   `Referrer-Policy: no-referrer`; device APIs disabled by `Permissions-Policy`. ✅
