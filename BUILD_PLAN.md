@@ -18,7 +18,9 @@ whenever the work moves.
   next); the manual tests (issues #150–#164); the Audit-Ready Plan's Steps 8 to 14
   (`docs/COMPLIANCE_MAP.md`: the control list and the data-flow diagram are done, the policies,
   risk register and inventory next, then the Fable deep review); payroll compliance
-  (`docs/PAYROLL_COMPLIANCE.md`: the federal engine first). Memory is built and the weekly
+  (`docs/PAYROLL_COMPLIANCE.md`: the federal engine first); the fixes from the security review of
+  2026-11-11 (`docs/THREAT_MODEL.md` T2, T16, T21; its findings stay in the private record until
+  each is fixed). Memory is built and the weekly
   dream runs on Sundays; the sleep cycle (`docs/SLEEP.md`) is built through its REM pass, the nightly
   Routine running nightly; Veil step 2 (`docs/VEIL.md`) has letters and agreements on generated
   bindings; licensing is AGPL plus an attribution term, a commercial licence and a CLA. Phase 2's
