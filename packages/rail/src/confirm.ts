@@ -130,7 +130,7 @@ export async function confirmTransaction(network: RailNetwork, transactionId: st
 }
 
 /** `find/blockHash/<id>` then `block/<hash>`: the height, when the transaction itself doesn't say. Best effort. */
-async function lookupHeight(network: RailNetwork, transactionId: string): Promise<number | undefined> {
+export async function lookupHeight(network: RailNetwork, transactionId: string): Promise<number | undefined> {
   try {
     const hash = await network.fetchJson(`find/blockHash/${transactionId}`);
     if (typeof hash !== "string" || !hash) return undefined;

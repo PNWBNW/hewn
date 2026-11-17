@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { EDITIONS, EXTERNAL_EDITIONS, PROGRAMS } from "@pnw/config/programs";
+import { stoppedBeforeWallet } from "@pnw/rail";
 import { EditionError, checkEditions } from "./editions";
 
 const A = "one_program.aleo";
@@ -75,6 +76,15 @@ describe("the editions check before signing", () => {
       expect(refused).toBeInstanceOf(EditionError);
       expect((refused as Error).message).toMatch(/Couldn't check/);
     }
+  });
+
+  it("marks every refusal as stopped before the wallet was asked, so the pay queue calls that payment failed, not unconfirmed", async () => {
+    for (const chain of [{ [A]: 2, [B]: 0 }, { [A]: "down" as const, [B]: 0 }]) {
+      const refused = await checkEditions({ endpoint: "e", fetchImpl: explorer(chain).fetchImpl, editions: PINNED }).catch((e: unknown) => e);
+      expect(refused).toBeInstanceOf(EditionError);
+      expect(stoppedBeforeWallet(refused)).toBe(true);
+    }
+    expect(stoppedBeforeWallet(new Error("Nothing was sent"))).toBe(false);
   });
 
   it("pins something: the app's own list is not empty, and it includes the stablecoin", () => {
