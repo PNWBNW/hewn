@@ -66,6 +66,28 @@ describe("the page's fragment", () => {
     expect(seen).toEqual(["#channel=c1", "", ""]);
   });
 
+  it("hears the router change the address itself (the menu's link to the same page)", async () => {
+    win.location.hash = "#client=aleo1xyz";
+    const seen: string[] = [];
+    const stop = subscribeHash(() => seen.push(readHash()));
+    // The router writes history directly: no hashchange, no popstate.
+    win.history.pushState({ __NA: true }, "", "/messages");
+    await Promise.resolve();
+    expect(seen).toEqual([""]);
+    win.history.replaceState(null, "", "/messages#with=w1");
+    await Promise.resolve();
+    expect(seen).toEqual(["", "#with=w1"]);
+    stop();
+    // Watching history wraps it once, however many pages subscribe.
+    subscribeHash(() => {})();
+    let told = 0;
+    win.addEventListener(HASH_EVENT, () => told++);
+    win.history.pushState(null, "", "/messages");
+    await Promise.resolve();
+    expect(told).toBe(1);
+    expect(seen).toHaveLength(2);
+  });
+
   it("moves an old link's selection out of the query, in place", () => {
     win.location.search = "?with=w1&tab=x";
     win.entries = ["/messages?with=w1&tab=x"];

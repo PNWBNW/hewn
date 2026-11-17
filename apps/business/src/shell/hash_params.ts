@@ -31,7 +31,28 @@ export function hashFor(values: HashValues): string {
   return text ? `#${text}` : "";
 }
 
+// The router's own links (the menu's "Messages" while a conversation is open)
+// change the address with history.pushState, which fires no event, and may not
+// draw the page again. So the first subscriber wraps pushState and replaceState,
+// once, to announce every change of address after it is made (a microtask
+// later, never in the middle of the router's own update).
+const WATCHED = Symbol.for("hewn.hash.watched");
+function watchHistory(): void {
+  const history = window.history as History & { [WATCHED]?: true };
+  if (history[WATCHED]) return;
+  history[WATCHED] = true;
+  const tell = () => queueMicrotask(() => window.dispatchEvent(new Event(HASH_EVENT)));
+  for (const name of ["pushState", "replaceState"] as const) {
+    const original = history[name];
+    history[name] = function (this: History, ...args: Parameters<History["pushState"]>) {
+      original.apply(this, args);
+      tell();
+    };
+  }
+}
+
 export function subscribeHash(onChange: () => void): () => void {
+  watchHistory();
   window.addEventListener("hashchange", onChange);
   window.addEventListener("popstate", onChange);
   window.addEventListener(HASH_EVENT, onChange);
@@ -81,9 +102,10 @@ export function moveQueryToHash(keys: readonly string[]): boolean {
 }
 
 /**
- * The page's fragment as search params, kept current on back, forward and
- * `setHashParams`. `oldQueryKeys`: keys an older link may still carry in the
- * query, moved into the fragment when the page opens.
+ * The page's fragment as search params, kept current on back, forward,
+ * `setHashParams` and the router's own links to the page. `oldQueryKeys`: keys
+ * an older link may still carry in the query, moved into the fragment when the
+ * page opens.
  */
 export function useHashParams(oldQueryKeys: readonly string[] = []): URLSearchParams {
   const hash = useSyncExternalStore(subscribeHash, readHash, serverHash);
