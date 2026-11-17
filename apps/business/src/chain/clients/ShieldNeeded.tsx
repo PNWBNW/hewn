@@ -4,6 +4,7 @@
 
 import { Button } from "@pnw/ui/button";
 import { shortAddress } from "@/books/rail";
+import { ShieldMissing } from "../ShieldStatus";
 
 export function ShieldNeeded({
   state,
@@ -27,7 +28,7 @@ export function ShieldNeeded({
       </p>
     );
   }
-  if (state.kind === "missing") return <p className="text-sm text-muted-foreground">Open this page in the Shield app, or with the Shield extension, to {what}.</p>;
+  if (state.kind === "missing") return <ShieldMissing className="text-sm text-muted-foreground">Open this page in the Shield app, or with the Shield extension, to {what}.</ShieldMissing>;
   return (
     <Button variant="outline" className="min-h-11 self-start sm:min-h-9" disabled={state.kind === "connecting"} onClick={connect}>
       {state.kind === "connecting" ? "Connecting…" : `Connect Shield to ${what}`}

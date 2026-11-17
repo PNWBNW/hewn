@@ -10,11 +10,22 @@ Plain web storage holds five flags and nothing else, each written by one file:
   hewn.fee-mode          localStorage    packages/wallet/src/fee_mode.ts            "private" or absent: this device's fee switch
   hewn.drawing-step      localStorage    apps/business/src/books/drawing_step.ts    a step's name from a fixed list, or absent: where drawing the books stuck
 
+One key that isn't ours may be removed, and is never written:
+
+  walletName             localStorage    apps/business/src/books/BooksProvider.tsx   Shield's wallet adapter's remembered wallet: Log out removes it
+
 Outside tests and comments, this fails when:
   - a file not listed above touches localStorage or sessionStorage;
   - a listed file stores under a key that isn't its own (the key's constant must still hold the
     literal above, and every setItem must use it);
-  - a file outside packages/vault opens IndexedDB, or anything uses document.cookie or the Cache API.
+  - a listed file removes a key that is neither its own nor the one it may remove above;
+  - a file outside packages/vault opens IndexedDB, or anything uses document.cookie;
+  - anything but the update worker uses the Cache API.
+
+One file may use the Cache API, and nothing else of this list: the static bundle's update worker
+(apps/business/src/updates/worker.js, docs/HOSTING.md step 4, Joshua 2026-11-17). It keeps the app's
+own release files and their signed list there, never the books or anything a person typed; it can't
+reach the vault, which a worker has no key to open.
 
 A new flag means a new row here and in docs/INVARIANTS.md, reviewed like any change to the rules.
 
@@ -32,9 +43,16 @@ ALLOWED = {
     "packages/wallet/src/fee_mode.ts": {"FEE_MODE_KEY": "hewn.fee-mode"},
     "apps/business/src/books/drawing_step.ts": {"DRAWING_STEP_KEY": "hewn.drawing-step"},
 }
+# file -> {constant name: key literal}: keys the file may remove but never store under
+REMOVE_ONLY = {
+    "apps/business/src/books/BooksProvider.tsx": {"SHIELD_WALLET_NAME": "walletName"},
+}
 WEB_STORAGE = re.compile(r"\b(?:localStorage|sessionStorage)\b")
-OTHER = re.compile(r"\bindexedDB\b|\bdocument\.cookie\b|\bcaches\.(?:open|match|keys|delete|has)\b")
+OTHER = re.compile(r"\bindexedDB\b|\bdocument\.cookie\b")
+CACHE_API = re.compile(r"\bcaches\.(?:open|match|keys|delete|has)\b")
+CACHE_API_ALLOWED = {"apps/business/src/updates/worker.js"}
 SET_ITEM = re.compile(r"\.setItem\(\s*([^,)]+)\s*,")
+REMOVE_ITEM = re.compile(r"\.removeItem\(\s*([^,)]+)\s*\)")
 
 
 def sources():
@@ -73,8 +91,18 @@ def main() -> int:
                     arg = arg.strip()
                     if arg not in keys and arg.strip("\"'") not in keys.values():
                         problems.append(f"{rel}: stores under {arg}, which isn't one of its flags")
+                removable = {**keys, **REMOVE_ONLY.get(rel, {})}
+                for name, literal in REMOVE_ONLY.get(rel, {}).items():
+                    if not re.search(rf"\b{name}\s*=\s*[\"']{re.escape(literal)}[\"']", code):
+                        problems.append(f"{rel}: {name} no longer holds \"{literal}\"")
+                for arg in REMOVE_ITEM.findall(code):
+                    arg = arg.strip()
+                    if arg not in removable and arg.strip("\"'") not in removable.values():
+                        problems.append(f"{rel}: removes {arg}, which isn't one of its flags or the key it may remove")
         if OTHER.search(code) and not rel.startswith("packages/vault/"):
-            problems.append(f"{rel}: opens IndexedDB, a cookie or the Cache API outside the vault")
+            problems.append(f"{rel}: opens IndexedDB or a cookie outside the vault")
+        if CACHE_API.search(code) and rel not in CACHE_API_ALLOWED:
+            problems.append(f"{rel}: uses the Cache API, which only the update worker may (its release files)")
     if count == 0:
         problems.append("no source files found: run it from the repository's scripts/ folder")
     if problems:

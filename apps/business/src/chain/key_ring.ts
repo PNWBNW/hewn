@@ -12,6 +12,7 @@
 
 import { lookupId, partiesKeyFromHex } from "@pnw/mailbox";
 import { type Half, type HalvesMade, type KeyRing, type Pair, addHalves, establishedPairs, halvesNeeded, pairId } from "../books/key_ring";
+import { onBooksClosed } from "../books/lock_signal";
 
 const subtle = () => globalThis.crypto.subtle;
 const ECDH = { name: "ECDH", namedCurve: "P-256" } as const;
@@ -27,8 +28,17 @@ export async function newHalf(): Promise<Half> {
   return { publicKey, privateKey: { kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y, d: jwk.d } };
 }
 
-/** Keys already made in this tab, by the conversation and the two halves, so a read doesn't redo the exchange. */
+/**
+ * Keys already made in this tab, by the conversation and the two halves, so a read doesn't redo the
+ * exchange. Only while the books are open: they leave memory when the books close, and a key still
+ * being made then isn't kept (books/lock_signal.ts).
+ */
 const made = new Map<string, string>();
+let opened = 0;
+onBooksClosed(() => {
+  made.clear();
+  opened += 1;
+});
 
 /** The pair's key, 64 hex characters, for a pair holding both halves. */
 export async function pairKeyHex(partiesKey: string, pair: Pair): Promise<string> {
@@ -36,6 +46,7 @@ export async function pairKeyHex(partiesKey: string, pair: Pair): Promise<string
   const memo = `${partiesKey}:${pair.mine.publicKey}:${pair.theirs}`;
   const known = made.get(memo);
   if (known) return known;
+  const since = opened;
   const priv = await subtle().importKey("jwk", { ...pair.mine.privateKey, ext: true }, ECDH, false, ["deriveBits"]);
   const pub = await subtle().importKey("raw", hexToBytes(pair.theirs), ECDH, false, []);
   const shared = await subtle().deriveBits({ name: "ECDH", public: pub }, priv, 256);
@@ -44,7 +55,7 @@ export async function pairKeyHex(partiesKey: string, pair: Pair): Promise<string
   const info = new Uint8Array([...INFO, ...hexToBytes(lo!), ...hexToBytes(hi!)]);
   const bits = await subtle().deriveBits({ name: "HKDF", hash: "SHA-256", salt: hexToBytes(partiesKey), info }, material, 256);
   const key = hex(bits);
-  made.set(memo, key);
+  if (since === opened) made.set(memo, key);
   return key;
 }
 

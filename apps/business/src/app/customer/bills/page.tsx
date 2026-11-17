@@ -8,7 +8,6 @@
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { formatCents } from "@pnw/ledger";
 import { lineAmount } from "@pnw/sales";
@@ -18,11 +17,15 @@ import { useCustomer } from "@/books/BooksProvider";
 import { type BillView, billsIn } from "@/books/bill";
 import { todayIso } from "@/books/display";
 import { BRAND } from "@/brand";
+import { HashLink, hashFor, useHashParams } from "@/shell/hash_params";
 import { PageHeader } from "@/shell/SectionView";
 
 const BillsCheck = dynamic(() => import("@/chain/customer/BillsCheck"), { ssr: false });
 const PayBusiness = dynamic(() => import("@/chain/customer/PayBusiness"), { ssr: false });
 const PayBill = dynamic(() => import("@/chain/customer/PayBill"), { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Loading…</p> });
+
+// What a link from before may still name in the query (moved to the fragment on opening).
+const SELECTION = ["bill", "pay"] as const;
 
 export default function BillsPage() {
   return (
@@ -39,7 +42,8 @@ const billKey = (b: BillView) => `${b.address}:${b.bill.id}`;
 
 function Bills() {
   const { customer } = useCustomer();
-  const params = useSearchParams();
+  // The bill open, or the business to pay, is named in the fragment, so no request carries it (shell/hash_params.ts).
+  const params = useHashParams(SELECTION);
   const selected = params.get("bill");
   const bills = billsIn(customer.businesses, customer.payments);
   const open = bills.find((b) => billKey(b) === selected);
@@ -52,7 +56,7 @@ function Bills() {
     <div className="flex flex-col gap-6">
       <PageHeader title="Bills" summary={bills.length === 0 ? "Invoices from the businesses you're connected with." : openLine(owed, bills.filter((b) => b.status === "open").length)} />
       <BillsCheck />
-      <PayBusiness preset={params.get("pay") ?? undefined} />
+      <PayBusiness key={params.get("pay") ?? ""} preset={params.get("pay") ?? undefined} />
       <Card>
         <CardContent className="pt-6">
           {bills.length === 0 ? (
@@ -69,7 +73,7 @@ function Bills() {
                 const late = b.status === "open" && b.bill.dueDate < today;
                 return (
                   <li key={billKey(b)}>
-                    <Link href={`/customer/bills?bill=${encodeURIComponent(billKey(b))}`} className="flex min-h-14 items-center gap-3 py-3">
+                    <HashLink path="/customer/bills" values={{ bill: billKey(b) }} className="flex min-h-14 items-center gap-3 py-3">
                       <span className="min-w-0 flex-1">
                         <span className={cn("block truncate text-sm font-medium", b.status === "void" && "text-muted-foreground line-through")}>
                           {b.business}.{BRAND.nameSuffix} · {b.bill.number}
@@ -80,7 +84,7 @@ function Bills() {
                         </span>
                       </span>
                       <span className="text-sm font-medium tabular-nums">{dollars(b.bill.total)}</span>
-                    </Link>
+                    </HashLink>
                   </li>
                 );
               })}
@@ -96,9 +100,9 @@ function BillDetail({ view }: { view: BillView }) {
   const { bill } = view;
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/customer/bills" className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
+      <HashLink path="/customer/bills" values={{}} className="inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium sm:min-h-9">
         <ChevronLeft aria-hidden className="size-4" /> All bills
-      </Link>
+      </HashLink>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
@@ -140,7 +144,7 @@ function BillDetail({ view }: { view: BillView }) {
           </dl>
           {bill.memo && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{bill.memo}</p>}
           {view.status !== "void" && <PayBill view={view} />}
-          <Link href={`/customer/messages?with=${encodeURIComponent(view.address)}`} className="text-sm underline underline-offset-4">
+          <Link href={`/customer/messages${hashFor({ with: view.address })}`} prefetch={false} className="text-sm underline underline-offset-4">
             Message {view.business}
           </Link>
         </CardContent>
