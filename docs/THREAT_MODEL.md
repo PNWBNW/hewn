@@ -182,7 +182,10 @@ The highest risk for a browser app.
 - React escapes all rendered text. Raw HTML goes into a page in four places only, each HTML the app
   built itself: the three card drawings (every word escaped by `@pnw/art`, tested with a `<script>`
   name) and the paper's fixed text (`out-of-the-basement`). A fifth fails the test above. ✅
-- Dependencies pinned exactly, lockfile enforced in CI (`--frozen-lockfile`). ✅
+- Dependencies pinned exactly, lockfile enforced and checked in CI: installed with
+  `--frozen-lockfile`, every entry from the npm registry alone (no tarball URL, git or folder
+  source), and every version a pull request adds published at least 7 days before
+  (`scripts/check_lockfile.py`). ✅
 - `pnpm audit --audit-level=moderate` blocks merges. ✅ Baseline 2026-10-13: 47 → 0 advisories.
   An advisory with no fixed version may be skipped by its id in `pnpm-workspace.yaml`
   (`auditConfig.ignoreGhsas`), each with its reason, only when nothing the app ships includes the
@@ -190,7 +193,8 @@ The highest risk for a browser app.
   soon as the npm registry lists a version outside the advisory's range that is old enough to
   install, or the advisory no longer applies (`scripts/check_audit_skips.py`). ✅ Today: one,
   picomatch through the test runner (2026-11-17).
-- `minimumReleaseAge` 7 days: freshly published (possibly hijacked) versions are never pulled. ✅
+- `minimumReleaseAge` 7 days covers resolution: a version added on a machine, or by Dependabot's
+  weekly bumps (which wait the same 7 days, `cooldown`), is never one published that week. ✅
 - Install scripts allowed only for an explicit list (`onlyBuiltDependencies`). ✅
 - Unused wallet adaptors removed (Shield only): fewer packages, smaller attack surface. ✅
 - Dependabot for npm and Actions. ✅

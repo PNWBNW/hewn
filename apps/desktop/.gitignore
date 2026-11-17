@@ -1,0 +1,6 @@
+# Rust build output
+/src-tauri/target/
+# Made by `pnpm --filter @pnw/desktop icons` from brand/source/hewn-icon.png
+/src-tauri/icons/
+# Written by tauri-build on every build (the capability schemas)
+/src-tauri/gen/

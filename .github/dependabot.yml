@@ -5,12 +5,19 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-    # Security fixes still open immediately; this only batches routine bumps.
+    # Routine bumps wait 7 days after a release, so their versions pass CI's age check
+    # (scripts/check_lockfile.py) and match minimumReleaseAge. Security updates are on in the
+    # repository's settings and don't wait; a fix released under a week ago fails that check
+    # until it is a week old.
+    cooldown:
+      default-days: 7
+    # Minor and patch bumps come together in one pull request.
     groups:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
       # Pinned exactly on purpose (CLAUDE.md): alpha wallet adaptors break between releases.
+      # Ignored for every update type, security updates included: moved by hand.
       - dependency-name: "@provablehq/*"
       # Node's types follow the Node that runs the code (CI and Vercel, 22): newer types would let
       # code call functions that don't exist at run time. Move it by hand when the runtime moves.

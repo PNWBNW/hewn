@@ -12,7 +12,7 @@
 import { tlvEncode } from "@pnw/commitments/canonical_encoder";
 import { DOMAIN_TAGS, domainHash } from "@pnw/commitments/hash";
 import { packedWords } from "@pnw/records/packed";
-import { AGREEMENT_PROGRAMS, AGREEMENT_V4, carriesHalves, halfFromRecord, halfToInput } from "../agreement_programs";
+import { AGREEMENT_PROGRAMS, AGREEMENT_V4, carriesHalves, halfFromRecord, halfToInput, usableHalves } from "../agreement_programs";
 import { decodeAgreementRecord } from "../agreement_records";
 
 export type AgreementRecord = {
@@ -83,7 +83,7 @@ export async function readAgreementRecords(
   const byId = new Map<string, AgreementRecord>();
   for (const program of programs) {
     const records = await requestRecords(program, true);
-    for (const r of parseAgreementRecords(Array.isArray(records) ? records : [], workerAddress, program)) if (!byId.has(r.agreementId)) byId.set(r.agreementId, r);
+    for (const r of parseAgreementRecords(Array.isArray(records) ? records : [], workerAddress, program)) if (!byId.has(r.agreementId)) byId.set(r.agreementId, await usableHalves(r));
   }
   return [...byId.values()];
 }

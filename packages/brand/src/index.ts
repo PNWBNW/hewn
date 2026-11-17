@@ -58,6 +58,17 @@ export const BRAND = {
   /** Where the marketing site lives. */
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? "https://hewnaccounting.com",
   /**
+   * The installable desktop app (apps/desktop).
+   * - `id` names the app to each operating system, and the system keeps the app's storage, the
+   *   books included, under it: once a version is released it never changes, or the books stay
+   *   behind under the old one. A fork picks its own before its first release.
+   * - `updateKey` is the public half of the operator's update key (a minisign key, made with
+   *   `cargo tauri signer generate` on the operator's own machine). The app installs an update
+   *   only when it is signed with this key. Empty until the operator adds it; a tagged release
+   *   refuses to build while it is empty (.github/workflows/desktop.yml).
+   */
+  desktop: { id: "com.hewnaccounting.desktop", updateKey: "" },
+  /**
    * The source code. Hewn is AGPL-3.0: anyone who runs a changed copy for others
    * must offer them its source, so every copy links to where its code lives.
    * A fork changes this to its own repository.
