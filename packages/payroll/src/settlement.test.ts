@@ -85,6 +85,19 @@ describe("settlement fee and in-flight reference", () => {
     expect(payrollFromJson(payrollToJson(unknown))).toEqual(unknown);
     expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: "nope" })).toThrow(/32 hex/);
   });
+
+  it("a pending paycheck keeps the height it was first asked at and when its last try ended, and they survive the vault", () => {
+    const s = setup();
+    const r = postPayRun(s.books, s.payroll, { ...s.input, mode: "rail" }, clock);
+    const tag = "ab".repeat(16);
+    const trying = markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, since: 4_210_000 });
+    const unknown = markPaycheckSettlement(trying, r.run.id, s.ana.id, { status: "pending", attempt: tag, since: 4_210_000, failure: "Check Shield's activity before paying again", endedAt: "2026-11-14T12:00:00.000Z" });
+    expect(unknown.runs[0]!.paychecks[0]!.settlement).toEqual({ status: "pending", attempt: tag, since: 4_210_000, failure: "Check Shield's activity before paying again", endedAt: "2026-11-14T12:00:00.000Z" });
+    expect(payrollFromJson(payrollToJson(unknown))).toEqual(unknown);
+    expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, since: -1 })).toThrow(/whole number/);
+    expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, since: 1.5 })).toThrow(/whole number/);
+    expect(() => markPaycheckSettlement(r.payroll, r.run.id, s.ana.id, { status: "pending", attempt: tag, endedAt: "soon" })).toThrow(/must be a time/);
+  });
 });
 
 describe("checkDoublePay", () => {

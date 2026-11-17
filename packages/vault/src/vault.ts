@@ -267,6 +267,10 @@ export class VaultSession {
    * whoever can use this device, or copy its browser profile, can open the books with it, and the
    * bytes can outlast forgetSession on disk until the browser tidies its files (checked in
    * Chromium, 2026-11-11). The passphrase protects a device only while nothing is remembered.
+   *
+   * This is the only place a key is written to the store. The last time the session was used is
+   * kept beside it in a row of its own (resumeSession and noteSeen move it), so the key is written
+   * once per login and a later write of the time can't put back a session that Log out deleted.
    */
   async remember(store: VaultStore, expiresAt: Date, now: Date = new Date()): Promise<void> {
     const key = this.#requireKey();
@@ -290,10 +294,12 @@ const seenTime = (r: { seenAt?: string }) => (r.seenAt === undefined ? Number.Na
 
 /**
  * Reopens the remembered session, if there is one and it hasn't expired. Anything wrong with it
- * (expired, an expiry further out than REMEMBER_MS, a clock that reads earlier than the last time
- * the session was used, an extractable key, a missing or damaged record) clears it and returns
- * null. Nothing here runs while the app is closed, so an expired key waits in the browser's
- * storage until the app is next opened; the time limit is this device's clock and no more.
+ * (expired, an expiry further out than REMEMBER_MS, no record of when it was last used, a clock
+ * that reads earlier than that time, an extractable key, a missing or damaged record) clears it
+ * and returns null. A session deleted while this was reopening it (Log out in another tab) stays
+ * deleted, and null is returned for it too. Nothing here runs while the app is closed, so an
+ * expired key waits in the browser's storage until the app is next opened; the time limit is this
+ * device's clock and no more.
  */
 export async function resumeSession(store: VaultStore, now: Date = new Date()): Promise<{ session: VaultSession; expiresAt: Date } | null> {
   const r = await store.loadRemembered();
@@ -304,7 +310,8 @@ export async function resumeSession(store: VaultStore, now: Date = new Date()): 
     Number.isFinite(expires) &&
     expires > now.getTime() &&
     expires - now.getTime() <= REMEMBER_MS &&
-    (r.seenAt === undefined || (Number.isFinite(seen) && now.getTime() >= seen - CLOCK_SLACK_MS)) &&
+    Number.isFinite(seen) &&
+    now.getTime() >= seen - CLOCK_SLACK_MS &&
     typeof r.key === "object" &&
     r.key !== null &&
     r.key.extractable === false;
@@ -313,8 +320,11 @@ export async function resumeSession(store: VaultStore, now: Date = new Date()): 
     try {
       const session = new VaultSession(r.key, record);
       await session.read();
-      if (!(seen >= now.getTime())) await store.saveRemembered({ ...r, seenAt: now.toISOString() });
-      return { session, expiresAt: new Date(expires) };
+      // Only the time is written. No session to write it to: it was deleted since the read above,
+      // so there is nothing left to clear either.
+      if (await store.markRememberedSeen(now.toISOString())) return { session, expiresAt: new Date(expires) };
+      session.lock();
+      return null;
     } catch {
       // the key doesn't open this record: forget it below
     }
@@ -326,17 +336,29 @@ export async function resumeSession(store: VaultStore, now: Date = new Date()): 
 /**
  * Notes that the remembered session is in use now, so a clock set back to before this moment
  * won't reopen it. Called as the app goes to the background. Does nothing when nothing is
- * remembered, and never moves the time back.
+ * remembered, and never moves the time back. The key isn't read or written: the time has its
+ * own row.
  */
 export async function noteSeen(store: VaultStore, now: Date = new Date()): Promise<void> {
-  const r = await store.loadRemembered();
-  if (!r || seenTime(r) >= now.getTime()) return;
-  await store.saveRemembered({ ...r, seenAt: now.toISOString() });
+  await store.markRememberedSeen(now.toISOString());
 }
 
-/** Forgets the remembered session on this device (Log out). */
-export async function forgetSession(store: VaultStore): Promise<void> {
-  await store.clearRemembered();
+/**
+ * Forgets the remembered session on this device (Log out), then looks that it went: if it is
+ * still there, or the store refused, the delete is tried once more. Resolves true once nothing is
+ * remembered, and false when the session is still kept or the store can't say, so the caller
+ * can tell the person instead of leaving them to think they are logged out. Never rejects.
+ */
+export async function forgetSession(store: VaultStore): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await store.clearRemembered();
+      if ((await store.loadRemembered()) === null) return true;
+    } catch {
+      // tried once more, then reported
+    }
+  }
+  return false;
 }
 
 // ---- create / unlock -------------------------------------------------------

@@ -16,8 +16,9 @@
 // remember / resumeSession), so switching apps on a phone, or a reload, opens
 // the books again without the passphrase. For that time the books are as good
 // as unlocked here: the browser stores the key where anyone with the device or
-// a copy of its browser data can use it. Log out forgets it. Without it, the
-// books lock after 15 idle minutes and on any reload.
+// a copy of its browser data can use it. Log out forgets it, and looks that it
+// went: if the device still remembers the login, the front page says so.
+// Without it, the books lock after 15 idle minutes and on any reload.
 //
 // Receipt files are sealed one by one with the same vault key and kept in
 // their own IndexedDB store; a bill holds only a reference and the file's
@@ -48,7 +49,7 @@ import {
   usernameConflict,
   vaultIdFor,
 } from "./account";
-import { saveOver } from "./vault_write";
+import { replaceOver, saveOver } from "./vault_write";
 import { type Company, companyFromJson, companyToJson, emptyCompany, roleOf } from "./company";
 import type { PersonalEvent } from "./events";
 import type { SharedCalendar } from "./shared_events";
@@ -187,8 +188,13 @@ type BooksContextValue = {
   cancelChoice: () => void;
   /** Open books created before accounts, with the passphrase alone. */
   unlockLegacy: (passphrase: string, stay?: boolean) => Promise<void>;
-  /** Log out: drops the key and plaintext from memory, and forgets "stay logged in" on this device. */
-  lock: () => void;
+  /**
+   * Log out: drops the key and plaintext from memory at once, and forgets "stay logged in" on this
+   * device. Resolves once the device has forgotten it, or `stillRemembered` says it hasn't.
+   */
+  lock: () => Promise<void>;
+  /** Set when the last Log out couldn't forget "stay logged in" on this device: the books may reopen here by themselves. */
+  stillRemembered: boolean;
   /** When "stay logged in" ends, or null when the books aren't kept open. */
   stayUntil: Date | null;
   /** Apply a ledger operation; resolves once the result is safely stored. */
@@ -355,6 +361,9 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const [stayUntil, setStayUntil] = useState<Date | null>(null);
   const [recoveryMadeAt, setRecoveryMadeAt] = useState<string | null>(null);
   const stayChoice = useRef(false);
+  // The last Log out's forgetting of the remembered session: true once it went. It never rejects.
+  const forgetting = useRef<Promise<boolean>>(Promise.resolve(true));
+  const [stillRemembered, setStillRemembered] = useState(false);
 
   const show = useCallback(async (s: VaultSession) => {
     setOpening("reading your books");
@@ -377,6 +386,10 @@ export function BooksProvider({ children }: { children: ReactNode }) {
   const open = useCallback(
     async (s: VaultSession, stay: boolean) => {
       await show(s);
+      // A Log out still under way ends first, so its delete can't take this login's remembered
+      // session. One that gave up after 8 seconds may still take it: then this login just isn't remembered.
+      await forgetting.current;
+      setStillRemembered(false);
       if (stay) {
         const until = new Date(Date.now() + REMEMBER_MS);
         // A browser that can't keep the key (storage blocked, say) just doesn't stay logged in.
@@ -505,8 +518,11 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     [store, open],
   );
 
-  const lock = useCallback(() => {
-    void forgetSession(store).catch(() => {});
+  const lock = useCallback(async () => {
+    // Started first and awaited last: the key and the books leave this tab's memory without
+    // waiting for the device's storage. A store that doesn't answer in time counts as not forgotten.
+    const gone = withinTime(forgetSession(store), STARTUP_WAIT_MS).catch(() => false);
+    forgetting.current = gone;
     setStayUntil(null);
     session.current?.lock();
     session.current = null;
@@ -518,6 +534,9 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     setRecoveryMadeAt(null);
     setCompany(null);
     setStatus((s) => (s === "open" ? "locked" : s));
+    const forgotten = await gone;
+    // Only the latest Log out speaks: an earlier one that ends later says nothing.
+    if (forgetting.current === gone) setStillRemembered(!forgotten);
   }, [store]);
 
   // Updates run one at a time, each on the result of the last, so two quick
@@ -628,9 +647,13 @@ export function BooksProvider({ children }: { children: ReactNode }) {
         throw e instanceof VaultError && e.code === "WRONG_RECOVERY_KEY" ? new AccountError("That recovery key doesn't open this backup") : e;
       });
       const s = await unlockVault(record, secret);
-      companyFromJson(await s.read()); // the books inside are intact
+      const json = await s.read();
+      companyFromJson(json); // the books inside are intact
       for (const a of backup.attachments) await s.openAttachment(a); // and every file
-      await store.replace(s.record, backup.attachments);
+      // The same books in a new write, as `recoverAccounts` saves them: a tab still open on these
+      // books sees a change and stops, instead of saving the old passphrase's record back. Under the
+      // tabs' lock, so a save that tab has already checked lands before this, not over it.
+      await replaceOver(store, s, json, backup.attachments);
       writeAccountFlag();
       await open(s, stay);
     },
@@ -749,7 +772,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     if (status !== "open" || !stayUntil) return;
     const timer = setTimeout(lock, Math.max(0, stayUntil.getTime() - Date.now()));
     const check = () => {
-      if (Date.now() >= stayUntil.getTime()) lock();
+      if (Date.now() >= stayUntil.getTime()) void lock();
       else if (document.visibilityState === "hidden") void noteSeen(store).catch(() => {});
     };
     document.addEventListener("visibilitychange", check);
@@ -811,6 +834,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       cancelChoice,
       unlockLegacy,
       lock,
+      stillRemembered,
       stayUntil,
       update,
       updateCompany,
@@ -843,6 +867,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
       cancelChoice,
       unlockLegacy,
       lock,
+      stillRemembered,
       stayUntil,
       update,
       updateCompany,

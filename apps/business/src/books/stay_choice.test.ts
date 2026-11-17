@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { STAY_NOTE, StayChoice } from "./StayChoice";
+import { FormError } from "./AuthCard";
+import { STAY_NOTE, STILL_REMEMBERED_NOTE, StayChoice } from "./StayChoice";
 
 const SRC = join(__dirname, "..");
 const read = (file: string) => readFileSync(join(SRC, file), "utf8");
@@ -34,5 +35,35 @@ describe("stay logged in", () => {
     expect(text).not.toMatch(/stay = true/);
     expect(text.match(/stay = false/g)?.length).toBe(7);
     expect(text).toContain("const stayChoice = useRef(false);");
+  });
+
+  it("Log out waits for the device to forget the login, and the front page says when it couldn't", () => {
+    const provider = read("books/BooksProvider.tsx");
+    const lock = provider.slice(provider.indexOf("const lock = useCallback("), provider.indexOf("// Updates run one at a time"));
+    // The delete is started, its outcome awaited and kept: never fired and left.
+    expect(lock).toContain("const gone = withinTime(forgetSession(store), STARTUP_WAIT_MS).catch(() => false);");
+    expect(lock).toContain("const forgotten = await gone;");
+    // Only the latest Log out sets what the front page says.
+    expect(lock).toContain("if (forgetting.current === gone) setStillRemembered(!forgotten);");
+    expect(provider).not.toMatch(/void forgetSession/);
+    // The key and the books leave memory before the wait, not after it.
+    expect(lock.indexOf("session.current?.lock();")).toBeGreaterThan(0);
+    expect(lock.indexOf("session.current?.lock();")).toBeLessThan(lock.indexOf("await gone"));
+    // A new login waits for a Log out still under way, and clears what it said.
+    const open = provider.slice(provider.indexOf("const open = useCallback("), provider.indexOf("// On load: reopen books kept open"));
+    expect(open.indexOf("await forgetting.current;")).toBeGreaterThan(0);
+    expect(open.indexOf("await forgetting.current;")).toBeLessThan(open.indexOf("s.remember(store, until)"));
+    expect(open.indexOf("setStillRemembered(false);")).toBeGreaterThan(open.indexOf("await forgetting.current;"));
+
+    expect(read("books/BooksGate.tsx")).toContain("stillRemembered={stillRemembered}");
+    expect(read("books/FrontPage.tsx")).toContain("{stillRemembered && (");
+    expect(read("books/FrontPage.tsx")).toContain("<FormError message={STILL_REMEMBERED_NOTE} />");
+    const html = renderToStaticMarkup(createElement(FormError, { message: STILL_REMEMBERED_NOTE }));
+    expect(html).toContain('role="alert"');
+    expect(STILL_REMEMBERED_NOTE).toMatch(/couldn't make this device forget your login/);
+    expect(STILL_REMEMBERED_NOTE).toMatch(/without your passphrase/);
+    expect(STILL_REMEMBERED_NOTE).toMatch(/close this site's other tabs/);
+    // Clearing the site's data would delete the books on the device as well: never suggested.
+    expect(STILL_REMEMBERED_NOTE).not.toMatch(/clear|delete|uninstall/i);
   });
 });

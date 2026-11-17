@@ -1,6 +1,6 @@
 ---
 status: review
-updated: 2026-11-09
+updated: 2026-11-14
 summary: The technical paper, v1.0 draft for hewnaccounting.com/paper: private payroll and provable books on Aleo, the twin-curve math behind every conversation, what is public, the honest limits, and what is live.
 ---
 
@@ -352,7 +352,10 @@ their own device and never uploads it. It checks that:
 1. every entry hashes to its recorded hash, so none was altered;
 2. every entry is dated in the range and in journal order;
 3. everything recomputes to the period's root, so nothing was added or removed;
-4. the root is recorded in `payroll_audit_log`, so the business really did anchor it;
+4. the root is recorded in `payroll_audit_log`, so it was anchored on chain. Which account anchored
+   it isn't checked: `anchor_event` records no caller, and the business name in the file isn't part
+   of the root, so the page shows it as the file's own claim (until a close program that records
+   who anchored);
 5. the block it landed in came after the range ended;
 6. every payment's transaction exists on chain.
 
