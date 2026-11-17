@@ -15,7 +15,8 @@ import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, formatCredits } from "@/books/display";
 import { payLines } from "@/books/paystub_document";
 import { runPlace } from "@/books/paystub_rings";
-import { partyLinkFor, shortAddress } from "@/books/rail";
+import { partyLinkFor } from "@/books/rail";
+import { paidLine, paidOnRail } from "@/books/run_status";
 import PaystubCardArt from "@/cards/PaystubCardArt";
 import { FiguresNote } from "@/legal/LegalNotes";
 
@@ -24,16 +25,6 @@ const PaystubDelivery = dynamic(() => import("@/chain/PaystubDelivery"), {
   ssr: false,
   loading: () => <span>Paystub delivery…</span>,
 });
-
-function paidLine(run: PayRun, p: Paycheck): string {
-  const s = p.settlement;
-  if (s.status === "settled") {
-    if (run.mode === "rail") return s.reference ? `On the rail · ${shortAddress(s.reference)}` : "On the rail";
-    return s.reference ? `${s.reference}` : "by bank";
-  }
-  if (s.status === "failed") return s.failure ? `Payment failed: ${s.failure}` : "Payment failed";
-  return "Not yet paid";
-}
 
 export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Paycheck; onClose: () => void }) {
   const { books, payroll, rail } = useOpenBooks();
@@ -48,7 +39,8 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
   const doc = paystubDocument(run, paycheck, worker, books.settings, yearToDate(payroll, worker.id, run.payDate, run.id));
   const fee = paycheck.settlement.feeMicrocredits;
   const registered = rail ? partyLinkFor(rail, "worker", worker.id)?.name : undefined;
-  const settledOnRail = run.mode === "rail" && paycheck.settlement.status === "settled";
+  // A paycheck with nothing to pay sent nothing: no mark of a payment, and no paystub delivery, which carries the payment's id.
+  const settledOnRail = paidOnRail(run, paycheck);
 
   return (
     <section aria-label={`Paystub for ${doc.workerName}`} className="rounded-lg border bg-card">
@@ -100,7 +92,7 @@ export function Paystub({ run, paycheck, onClose }: { run: PayRun; paycheck: Pay
         {paycheck.paystubHash && <> Paystub reference: {paycheck.paystubHash.slice(0, 8)}</>}
       </p>
       <FiguresNote className="border-t px-4 py-2" />
-      {run.mode === "rail" && paycheck.settlement.status === "settled" && (
+      {settledOnRail && (
         <div className="border-t px-4 py-2 text-xs text-muted-foreground">
           <PaystubDelivery runId={run.id} paycheck={paycheck} />
         </div>

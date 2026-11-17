@@ -12,6 +12,7 @@ import {
   type PayRun,
   type Worker,
   addWorker,
+  awaitsPayment,
   employerTaxes,
   liabilitiesByQuarter,
   recordTaxPayment,
@@ -33,6 +34,7 @@ import { type Registered, linkFor, linkStatus, registeredFor, setRegistered } fr
 import { expiryLabel, isExpired } from "@/books/offer_letter";
 import { threadFor } from "@/books/mailbox";
 import { openCounter } from "@/books/thread";
+import { nextStep, paymentStatus } from "@/books/run_status";
 import { paidByRun, shiftCount } from "@/books/timecard_pay";
 import { tagNameMap } from "@/books/tags";
 import { PageHeader } from "@/shell/SectionView";
@@ -139,29 +141,11 @@ function PayRuns({ payRunId }: { payRunId: string | null }) {
   );
 }
 
-/** "Paid", or how far along a run paid on the rail is. */
-function paymentStatus(run: PayRun): string {
-  const settled = run.paychecks.filter((p) => p.settlement.status === "settled").length;
-  const failed = run.paychecks.filter((p) => p.settlement.status === "failed").length;
-  if (settled === run.paychecks.length) return "Paid";
-  const parts = [`Settling… ${settled} of ${run.paychecks.length}`];
-  if (failed > 0) parts.push(`${failed} failed`);
-  return parts.join(" · ");
-}
-
 /** The one reference every paycheck in an external run shares (a bank batch number), if there is one. Rail ids live on the paystub. */
 function sharedReference(run: PayRun): string | undefined {
   if (run.mode === "rail") return undefined;
   const refs = new Set(run.paychecks.map((p) => p.settlement.reference ?? ""));
   return refs.size === 1 ? [...refs][0] || undefined : undefined;
-}
-
-/** A rail run with people still to pay offers Continue (some sent or not yet tried) or Retry (only failures left). */
-function nextStep(run: PayRun): "Continue" | "Retry" | null {
-  if (run.mode !== "rail") return null;
-  const open = run.paychecks.filter((p) => p.settlement.status !== "settled" && p.net > 0n);
-  if (open.length === 0) return null;
-  return open.every((p) => p.settlement.status === "failed") ? "Retry" : "Continue";
 }
 
 function RunCard({ run, payNow }: { run: PayRun; payNow: boolean }) {
@@ -252,7 +236,7 @@ function RunCard({ run, payNow }: { run: PayRun; payNow: boolean }) {
                       </span>
                     )}
                     {p.tags?.project && <span className="block text-xs text-muted-foreground">{projects.get(p.tags.project) ?? p.tags.project}</span>}
-                    {p.settlement.status !== "settled" && (
+                    {awaitsPayment(p) && (
                       <span className="block text-xs text-muted-foreground">
                         {p.settlement.status === "failed" ? "Payment failed" : p.settlement.reference ? "Sent…" : "Settling…"}
                       </span>
