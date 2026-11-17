@@ -5,9 +5,10 @@ import Link from "next/link";
 import { BadgeDollarSign, HardDrive, LogIn, UserCheck } from "lucide-react";
 import { Button } from "@pnw/ui/button";
 import { BRAND } from "@/brand";
-import { AuthFooter, AuthHero, AuthTopBar } from "./AuthCard";
+import { AuthFooter, AuthHero, AuthTopBar, FormError } from "./AuthCard";
 import { LoginDialog } from "./LoginDialog";
 import type { RestoreStart } from "./RestoreScreen";
+import { STILL_REMEMBERED_NOTE } from "./StayChoice";
 
 const VALUES = [
   { icon: HardDrive, text: "Your books stay on your device" },
@@ -17,9 +18,20 @@ const VALUES = [
 
 /**
  * What a visitor sees first: the whole hero, a few plain words, and two ways in. Nothing opens by
- * itself. On a device with no books Get started leads; on one with books Log in does.
+ * itself. On a device with no books Get started leads; on one with books Log in does. After a Log
+ * out that couldn't forget "stay logged in" here (`stillRemembered`), it says so above the ways in.
  */
-export function FrontPage({ locked, onNewHere, onRestore }: { locked: boolean; onNewHere: () => void; onRestore: (start?: RestoreStart) => void }) {
+export function FrontPage({
+  locked,
+  stillRemembered = false,
+  onNewHere,
+  onRestore,
+}: {
+  locked: boolean;
+  stillRemembered?: boolean;
+  onNewHere: () => void;
+  onRestore: (start?: RestoreStart) => void;
+}) {
   const [loginOpen, setLoginOpen] = useState(false);
 
   const getStarted = (
@@ -58,6 +70,12 @@ export function FrontPage({ locked, onNewHere, onRestore }: { locked: boolean; o
           {BRAND.name} is bookkeeping and payroll for a small business, and it runs entirely in your browser. Your books are encrypted on your
           own computer or phone, nothing is uploaded, and nobody but you can read them.
         </p>
+
+        {stillRemembered && (
+          <div className="mx-auto mt-6 max-w-xl text-left">
+            <FormError message={STILL_REMEMBERED_NOTE} />
+          </div>
+        )}
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">{locked ? [logIn, getStarted] : [getStarted, logIn]}</div>
 
