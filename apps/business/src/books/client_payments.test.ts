@@ -18,7 +18,7 @@ import {
   validateCustomer,
 } from "./customer";
 import type { Half } from "./key_ring";
-import { addReviewItems } from "./review";
+import { type ReviewItem, addReviewItems } from "./review";
 import { type ThreadItem, validateMessage } from "./thread";
 
 const CUST = "aleo1" + "a".repeat(58);
@@ -236,5 +236,84 @@ describe("a customer's payments without a bill", () => {
     expect(dropDirectPayment(failed, p.id).direct).toEqual({});
     const settled = setDirectPayment(sent, p.id, { status: "settled", reference: TX });
     expect(() => dropDirectPayment(settled, p.id)).toThrow(/stays as your receipt/);
+  });
+});
+
+describe("a transfer is recorded for a customer only when it came from that customer", () => {
+  const OTHER = "aleo1" + "e".repeat(58);
+  const CUST_B = "aleo1" + "b".repeat(58);
+  const forReview = (company: Company, extra: Partial<ReviewItem>) =>
+    addReviewItems(company, [{ id: TX, date: "2026-10-26", direction: "in", minor: "300000000", kind: "transfer_private", status: "new", ...extra }]);
+
+  it("refuses the business's own move from public to private", () => {
+    const { company, invoice, customerId } = business();
+    const c = forReview(withPayment(company, customerId, paid(invoice.id, invoice.number, "30000")), { within: true, kind: "transfer_public_to_private" });
+    const p = paymentsToRecord(c)[0]!;
+    expect(p.seen).toBeUndefined();
+    expect(p.problem).toMatch(/your own account/);
+    expect(() => recordClientPayment(c, TX)).toThrow(/your own account/);
+    expect(c.sales.payments).toEqual([]);
+  });
+
+  it("refuses a transfer For review shows from another account", () => {
+    const { company, invoice, customerId } = business();
+    const c = forReview(withPayment(company, customerId, paid(invoice.id, invoice.number, "30000")), { counterparty: OTHER });
+    const p = paymentsToRecord(c)[0]!;
+    expect(p.seen).toBeUndefined();
+    expect(p.problem).toMatch(/came from another account/);
+    expect(() => recordClientPayment(c, TX)).toThrow(/another account/);
+  });
+
+  it("refuses a transfer the account's own records show from another account, or from the business itself", () => {
+    const { company, invoice, customerId } = business();
+    const c = withPayment(company, customerId, paid(invoice.id, invoice.number, "30000"));
+    const fromOther = new Map([[TX, { id: TX, date: "2026-10-25", minor: "300000000", from: OTHER }]]);
+    expect(paymentsToRecord(c, fromOther)[0]).toMatchObject({ problem: expect.stringMatching(/came from another account/) });
+    expect(paymentsToRecord(c, fromOther)[0]!.seen).toBeUndefined();
+    expect(() => recordClientPayment(c, TX, fromOther)).toThrow(/another account/);
+    const fromSelf = new Map([[TX, { id: TX, date: "2026-10-25", minor: "300000000", from: BIZ }]]);
+    expect(paymentsToRecord(c, fromSelf)[0]).toMatchObject({ problem: expect.stringMatching(/your own account/) });
+    expect(paymentsToRecord(c, fromSelf)[0]!.seen).toBeUndefined();
+    expect(() => recordClientPayment(c, TX, fromSelf)).toThrow(/your own account/);
+  });
+
+  it("lists every customer who named one transfer, none of them recordable", () => {
+    const { company, invoice, customerId } = business();
+    const b = addCustomer(company.sales, { name: "Birch" });
+    const conn = (address: string, cust: string, items: ThreadItem[], c: string) => ({ address, name: "x", nameHash: "42", mine: half(c), theirs: key(c), customerId: cust, thread: { items, nextIn: items.length, nextOut: 0 } });
+    const c = forReview(
+      {
+        ...company,
+        sales: b.sales,
+        clients: {
+          [CUST]: conn(CUST, customerId, [paid(invoice.id, invoice.number, "30000")], "1"),
+          [CUST_B]: conn(CUST_B, b.customer.id, [item({ type: "payment", amount: "30000", transactionId: TX, note: "Deposit" }, false, "worker")], "3"),
+        } as Connections,
+      },
+      { counterparty: CUST },
+    );
+    const listed = paymentsToRecord(c);
+    expect(listed.map((p) => p.address).sort()).toEqual([CUST, CUST_B].sort());
+    for (const p of listed) {
+      expect(p.seen).toBeUndefined();
+      expect(p.problem).toMatch(/More than one customer named this transfer/);
+    }
+    expect(() => recordClientPayment(c, TX)).toThrow(/More than one customer/);
+  });
+
+  it("still records a payment that came from the customer, saying who sent it and the invoice's own number", () => {
+    const { company, invoice, customerId } = business();
+    const c = forReview(withPayment(company, customerId, paid(invoice.id, "INV-9999", "15490")), { counterparty: CUST, minor: "154900000" });
+    const p = paymentsToRecord(c)[0]!;
+    expect(p).toMatchObject({ seen: { txId: TX, inReview: true }, sender: CUST, number: invoice.number });
+    expect(p.problem).toBeUndefined();
+    expect(recordClientPayment(c, TX).sales.payments[0]).toMatchObject({ amount: 15490n, reference: TX });
+    const records = new Map([[TX, { id: TX, date: "2026-10-25", minor: "154900000", from: CUST }]]);
+    const byRecord = paymentsToRecord(withPayment(company, customerId, paid(invoice.id, invoice.number, "15490")), records)[0]!;
+    expect(byRecord).toMatchObject({ seen: { txId: TX, inReview: false }, sender: CUST });
+    // A sender Shield doesn't name is taken as today, and said so.
+    const unnamed = paymentsToRecord(withPayment(company, customerId, paid(invoice.id, invoice.number, "15490")), new Map([[TX, { id: TX, date: "2026-10-25", minor: "154900000", from: null }]]))[0]!;
+    expect(unnamed.seen).toBeDefined();
+    expect(unnamed.sender).toBeUndefined();
   });
 });

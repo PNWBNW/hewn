@@ -21,6 +21,7 @@ import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { type Arrived, type ClientPayment, paymentsToRecord, recordClientPayment } from "@/books/client_payments";
 import { updateConnectionThread } from "@/books/connections";
+import { shortAddress } from "@/books/rail";
 import { addToThread, emptyThread, skipIncoming } from "@/books/thread";
 import { BRAND } from "@/brand";
 import { USDCX_PROGRAM } from "../balances";
@@ -35,6 +36,12 @@ function recordLabel(p: ClientPayment): string {
   if (p.number) return `Record payment for ${p.number}`;
   if (p.applies?.length) return `Record against ${p.applies.map((a) => a.number).join(", ")}`;
   return "Record as their credit";
+}
+
+/** Who sent the transfer, as this account shows it, so the business sees whose money it is before recording it. */
+function senderLabel(p: ClientPayment): string {
+  if (!p.sender) return "Sender not shown by Shield";
+  return p.sender === p.address ? `Sent from this customer's account, ${shortAddress(p.sender)}` : `Sent from ${shortAddress(p.sender)}, not this customer's account`;
 }
 
 export default function ClientPayments() {
@@ -123,10 +130,11 @@ function Payments() {
       ) : (
         <ul className="divide-y rounded-md border">
           {waiting.map((p) => (
-            <li key={p.transactionId} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center">
+            <li key={`${p.address}:${p.messageId}`} className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center">
               <span className="min-w-0 flex-1 text-sm">
                 {names.get(p.customerId) ?? "A customer"} paid {p.number ?? "you, without an invoice"} · ${formatCents(p.cents)}
                 {p.note && <span className="block text-muted-foreground">For: {p.note}</span>}
+                <span className="block text-xs text-muted-foreground">{senderLabel(p)}</span>
                 <TxLink id={p.transactionId} network={rail.network} className="block" />
                 {p.problem && <span className="block text-xs text-muted-foreground">{p.problem}</span>}
               </span>

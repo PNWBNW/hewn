@@ -6,7 +6,10 @@
 // Shield account shows that transfer coming in for that amount: in its For
 // review list, or, when For review hasn't listed it (the books weren't
 // started from Shield, say), in the account's own stablecoin records, read on the
-// spot (`arrived`). The customer's word alone moves nothing. Recording it
+// spot (`arrived`), and, when it names who sent it, from that customer's own
+// account (not another account's, not the business's own, not a move within
+// it). A transfer two customers both name is left to For review. The
+// customer's word alone moves nothing. Recording it
 // posts a payment against the invoice (receivable to the Shield account); one
 // without an invoice goes to the customer's open invoices, oldest due first,
 // the rest kept as their credit, as a payment received by hand would; and
@@ -18,9 +21,12 @@ import type { IsoDate } from "@pnw/ledger";
 import { ensureRailAccount } from "@pnw/payroll";
 import { type Sales, invoiceBalance, receivePayment, suggestApplications } from "@pnw/sales";
 import type { Company } from "./company";
-import { itemsOf } from "./connections";
+import { type Connection, itemsOf } from "./connections";
 import { minorToCents } from "./opening";
 import { type ReviewItem, emptyReview, validateReview } from "./review";
+import type { ThreadBody } from "./thread";
+
+type PaymentBody = Extract<ThreadBody, { type: "payment" }>;
 
 export type ClientPayment = {
   /** The customer's account. */
@@ -39,6 +45,8 @@ export type ClientPayment = {
   applies?: { invoiceId: string; number: string; amount: bigint }[];
   /** The transfer as the business's own account shows it, when it does and the amount matches: its id there, day and six-decimal amount. */
   seen?: { txId: string; date: string; minor: string; inReview: boolean };
+  /** Who sent the transfer, as the business's own account shows it; none when Shield doesn't say. */
+  sender?: string;
   /** Why it can't be recorded yet, or at all. */
   problem?: string;
 };
@@ -59,35 +67,66 @@ function applyToOpen(sales: Sales, customerId: string, cents: bigint): { invoice
   });
 }
 
+/** Why a transfer shown with this sender can't be this customer's payment; null when it can, or when the sender isn't named. */
+function senderProblem(sender: string | null | undefined, customer: string, own: string | undefined): string | null {
+  if (!sender) return null;
+  if (sender === own) return "Your Shield account shows that transfer came from your own account, not from this customer. Look at it under For review.";
+  if (sender !== customer) return "Your Shield account shows that transfer came from another account, not from this customer. Look at it under For review.";
+  return null;
+}
+
 /** Payments customers told the business about that aren't in its books yet, each with what its own account shows. */
 export function paymentsToRecord(company: Pick<Company, "clients" | "sales" | "review" | "rail">, arrived?: ReadonlyMap<string, Arrived>): ClientPayment[] {
-  const recorded = new Set(company.sales.payments.flatMap((p) => (p.reference ? [p.reference] : [])));
+  // A voided payment no longer holds its transfer: it can be recorded again.
+  const recorded = new Set(company.sales.payments.flatMap((p) => (p.reference && !p.voidEntryId ? [p.reference] : [])));
   // Transfers already in the books: never matched to a second payment.
   const claimed = new Set([...recorded, ...(company.review?.items ?? []).filter((i) => i.status !== "new").map((i) => i.id)]);
-  const out: ClientPayment[] = [];
+  const own = company.rail?.address;
+  // Each customer's word, by the transfer it names: a customer's first message for it, and every customer naming it.
+  const claims = new Map<string, { c: Connection; id: string; b: PaymentBody }[]>();
   for (const c of Object.values(company.clients ?? {})) {
     if (!c.customerId) continue;
     for (const item of itemsOf(c)) {
       if (item.mine || item.body.type !== "payment") continue;
       const b = item.body;
-      if (recorded.has(b.transactionId) || out.some((o) => o.transactionId === b.transactionId)) continue;
+      if (recorded.has(b.transactionId)) continue;
+      const named = claims.get(b.transactionId) ?? [];
+      if (named.some((n) => n.c.address === c.address)) continue;
+      claims.set(b.transactionId, [...named, { c, id: item.id, b }]);
+    }
+  }
+  const out: ClientPayment[] = [];
+  for (const named of claims.values()) {
+    for (const { c, id, b } of named) {
+      const customerId = c.customerId!;
+      const inv = b.invoiceId ? company.sales.invoices.find((i) => i.id === b.invoiceId) : undefined;
+      const theirs = inv && inv.customerId === customerId ? inv : undefined;
+      // The invoice's number as the books have it; the customer's words only when the books don't have that invoice for them.
+      const number = theirs?.number ?? b.number;
       const p: ClientPayment = {
         address: c.address,
-        customerId: c.customerId,
-        messageId: item.id,
-        ...(b.invoiceId && b.number ? { invoiceId: b.invoiceId, number: b.number } : {}),
+        customerId,
+        messageId: id,
+        ...(b.invoiceId ? { invoiceId: b.invoiceId, ...(number ? { number } : {}) } : {}),
         ...(b.note ? { note: b.note } : {}),
         cents: BigInt(b.amount),
         transactionId: b.transactionId,
       };
-      const inv = b.invoiceId ? company.sales.invoices.find((i) => i.id === b.invoiceId) : undefined;
       // The transfer by its id; or, should Shield file the record under another id, the one transfer from this customer for exactly this amount.
       const byId = arrived?.get(b.transactionId);
       const bySender = [...(arrived?.values() ?? [])].filter((a) => a.from === c.address && minorToCents(BigInt(a.minor)) === p.cents && !claimed.has(a.id) && !out.some((o) => o.seen?.txId === a.id));
       const found = byId ?? (bySender.length === 1 ? bySender[0] : undefined);
       const listed = company.review?.items.find((r) => r.id === b.transactionId || r.id === found?.id);
+      // Who sent it, as this account shows it: recorded for a customer only when it was that customer.
+      const sender = listed?.counterparty ?? found?.from ?? undefined;
+      if (sender) p.sender = sender;
+      const notFrom = listed?.within
+        ? "Your Shield account shows that transfer as a move within your own account, not a payment from this customer. Look at it under For review."
+        : (senderProblem(listed?.counterparty, c.address, own) ?? senderProblem(found?.from, c.address, own));
       const start = company.rail?.start?.date;
-      if (b.invoiceId && (!inv || inv.customerId !== c.customerId)) p.problem = `${b.number} isn't one of this customer's invoices`;
+      if (b.invoiceId && !theirs) p.problem = `${b.number ?? "That invoice"} isn't one of this customer's invoices`;
+      else if (named.length > 1) p.problem = "More than one customer named this transfer; record it by hand under For review.";
+      else if (notFrom) p.problem = notFrom;
       else if (listed) {
         if (listed.direction !== "in" || minorToCents(BigInt(listed.minor)) !== p.cents) p.problem = "Your Shield account shows that transfer with a different amount. Look at it under For review.";
         else if (listed.status !== "new") p.problem = "That transfer was already handled under For review. Undo it there to record it here.";
@@ -96,7 +135,7 @@ export function paymentsToRecord(company: Pick<Company, "clients" | "sales" | "r
       else if (minorToCents(BigInt(found.minor)) !== p.cents) p.problem = "Your Shield account shows that transfer with a different amount.";
       else if (start && found.date < start) p.problem = `That transfer came in before your books started from Shield (${start}), so it's already in your opening balance. Record it by hand if you need to.`;
       else p.seen = { txId: found.id, date: found.date, minor: found.minor, inReview: false };
-      if (!b.invoiceId) p.applies = applyToOpen(company.sales, c.customerId, p.cents);
+      if (!b.invoiceId) p.applies = applyToOpen(company.sales, customerId, p.cents);
       out.push(p);
     }
   }
