@@ -95,9 +95,10 @@
 // to the vault as the events arrive; the queue itself keeps no state.
 // ---------------------------------------------------------------------------
 
+import { isProgramAddress } from "@pnw/config/programs";
 import type { PayRun, Paycheck } from "@pnw/payroll";
 import { TransactionRejected, confirmTransaction, type ConfirmedTransaction } from "./confirm";
-import { type MerkleTreeApi, exclusionProofFor } from "./exclusion";
+import { type MerkleTreeApi, ZERO_ADDRESS, exclusionProofFor } from "./exclusion";
 import { pickRecord, planTransfers } from "./plan";
 import { USDCX_PROGRAM, type TokenRecord, centsToMinor, fetchTokenRecords } from "./records";
 import { type Clock, RailError, type RailNetwork, type RailWallet, type Sleep, stoppedBeforeWallet, systemClock, systemSleep } from "./types";
@@ -316,6 +317,9 @@ const APPROVAL_EXPIRED = /approval expired/i;
 /** Shield's two answers that mean nothing moved: a rejection that says why, and an approval left until it expired. */
 const isDefinite = (status: string, reason: string): boolean => APPROVAL_EXPIRED.test(reason) || (status === "rejected" && reason !== "");
 
+/** An account no payment may go to: the zero address, or the address of a program the app knows (`@pnw/config`). */
+export const isUnpayable = (address: string): boolean => address === ZERO_ADDRESS || isProgramAddress(address);
+
 export const isOnChainId = (id: string | undefined): id is string => typeof id === "string" && id.startsWith("at1");
 
 /** The paychecks a run still owes: pending (sent or not) and failed, with something to pay. */
@@ -389,6 +393,8 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
   const due = outstanding(run);
   if (due.length === 0) return result;
   for (const p of due) if (!links.get(p.workerId)) throw new RailError("Someone in this run has no account on the rail yet");
+  // Nobody holds a key for the zero address or for a program's, so a payment to one could never be spent: stop before records are read or anything is signed.
+  for (const p of due) if (isUnpayable(links.get(p.workerId)!)) throw new RailError("Someone in this run has an account that can't be paid; nothing was sent");
 
   // Every transaction this run has settled a payment with: one transfer settles one payment.
   const used = new Set<string>();
