@@ -2,10 +2,11 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { inlineScriptHashes, stampStaticCsp } from "./static_csp";
 import { EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN, buildStaticCsp } from "./headers";
+import { BRAND } from "@/brand";
 
 const page = (head: string, body: string) => `<!DOCTYPE html><html lang="en"><head>${head}</head><body>${body}</body></html>`;
 const b64 = (s: string) => createHash("sha256").update(s).digest("base64");
-const policy = (scriptHashes: string[]) => buildStaticCsp({ scriptHashes, apiOrigin: "https://app.example" });
+const policy = (scriptHashes: string[]) => buildStaticCsp({ scriptHashes, apiOrigin: "https://count.example" });
 const policyOf = (html: string) => /content="([^"]+)"/.exec(html)![1]!;
 
 describe("the static bundle's policy", () => {
@@ -27,10 +28,21 @@ describe("the static bundle's policy", () => {
     expect(csp).toContain("style-src 'self';");
   });
 
-  it("lets the bundle reach the website's server pieces, the explorer and the Shield relay, nothing else", async () => {
+  it("lets the bundle reach the traction counter, the explorer and the Shield relay, nothing else", async () => {
     const csp = policyOf(await stampStaticCsp(html, policy));
-    expect(csp).toContain(`connect-src 'self' https://app.example ${EXPLORER_ORIGIN} ${SHIELD_RELAY_ORIGIN};`);
-    expect(csp.match(/(?:https?|wss?):\/\/[^\s;']+/g)).toEqual(["https://app.example", EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN]);
+    expect(csp).toContain(`connect-src 'self' https://count.example ${EXPLORER_ORIGIN} ${SHIELD_RELAY_ORIGIN};`);
+    expect(csp.match(/(?:https?|wss?):\/\/[^\s;']+/g)).toEqual(["https://count.example", EXPLORER_ORIGIN, SHIELD_RELAY_ORIGIN]);
+  });
+
+  it("names the counter as an https origin only: no path, no plain http, no wildcard", () => {
+    for (const bad of ["http://count.example", "https://count.example/api", "https://*.example", "count.example", "'self' https://evil.example"]) {
+      expect(() => buildStaticCsp({ scriptHashes: [], apiOrigin: bad })).toThrow(/https origin/);
+    }
+  });
+
+  it("takes the counter's origin from the brand, which is the app's own address until the counter has one", () => {
+    expect(new URL(BRAND.counterUrl).origin).toMatch(/^https:\/\/[a-z0-9.-]+$/);
+    if (!process.env.NEXT_PUBLIC_COUNTER_URL) expect(BRAND.counterUrl).toBe(BRAND.appUrl);
   });
 
   it("leaves out what a meta tag cannot carry, and keeps the rest", async () => {

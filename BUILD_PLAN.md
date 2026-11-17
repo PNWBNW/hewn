@@ -22,7 +22,7 @@ whenever the work moves.
   bindings; licensing is AGPL plus an attribution term, a commercial licence and a CLA. Phase 2's
   three-worker run is rehearsed end to end on a local Aleo node in CI
   (`apps/business/test/devnode/payroll.devnode.test.ts`, 2026-11-08); the testnet run itself
-  waits on the phones. The map of the whole tree is live (`docs/map/`, pnwbnw.github.io/hewn).
+  waits on the phones. The map of the whole tree is live (`docs/map/`, pnwbnw.github.io/hewn-map).
 - **Next criterion:** Phase 1, a month fed, categorized, reconciled and sealed on testnet (its root
   anchored through `payroll_audit_log`). Reconciliation (2026-10-26), Close period (2026-11-02,
   `docs/CLOSE_PERIOD.md`) and the period proof with its public check (`/verify`, 2026-11-05) are

@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BUILD, SKIP, changedFiles, decide } from "./vercel_ignore.mjs";
+import { BUILD, SKIP, changedFiles, decide, isRelease } from "./vercel_ignore.mjs";
 
 const APP = ["apps/business", "packages", "pnpm-lock.yaml", "package.json", "pnpm-workspace.yaml"];
 const SITE = ["apps/site", "packages/brand", "packages/security", "packages/ui", "pnpm-lock.yaml", "package.json", "pnpm-workspace.yaml"];
@@ -68,4 +68,12 @@ test("changedFiles reads the diff since the last deployment, or gives up", () =>
   assert.equal(changedFiles(dir, undefined), null, "no previous deployment");
   assert.equal(changedFiles(dir, "0000000000000000000000000000000000000000"), null, "previous deployment not in the clone");
   assert.equal(changedFiles(tmpdir(), deployed), null, "not a repository");
+});
+
+test("a release is a title with [deploy], in any case; the body doesn't count (GitHub Pages asks the same, .github/workflows/pages.yml)", () => {
+  assert.equal(isRelease(RELEASE), true);
+  assert.equal(isRelease("pay: the run screen [DEPLOY] (#311)"), true);
+  assert.equal(isRelease("pay: the run screen (#312)\n\n[deploy] mentioned in the body"), false);
+  assert.equal(isRelease(""), false);
+  assert.equal(isRelease(), false);
 });

@@ -19,6 +19,7 @@
 // The country comes from the header Vercel sets on every request; the request's
 // address is never read. Pure apart from the injected store.
 // ---------------------------------------------------------------------------
+import { BRAND } from "@/brand";
 
 export const MIN_VISITORS = 1;
 export const VISITS_KEY = "hewn:traction:visits";
@@ -43,38 +44,105 @@ export type TractionStore = {
   read(): Promise<{ visits: Record<string, number>; visitors: Record<string, number> }>;
 };
 
+// ---------------------------------------------------------------------------
+// Who may ask (docs/HOSTING.md, step 4). The website asks its own server, the
+// same origin. The static bundle asks from elsewhere: from the app's address
+// once that is served as plain files (GitHub Pages), and from the desktop
+// app's own origins. Those, and only those, get cross-site permission; any
+// other page's request is refused by its own browser, and a count it sends
+// anyway is dropped here. Nothing about the asker is kept: the origin only
+// decides whether to count, as before.
+// ---------------------------------------------------------------------------
+
+/** The desktop app's page origins: Tauri serves its files as tauri://localhost (macOS, Linux) or http://tauri.localhost (Windows). */
+export const DESKTOP_ORIGINS = ["tauri://localhost", "http://tauri.localhost"] as const;
+
+/** Every origin the app's pages run at, besides the counter's own. */
+export const APP_ORIGINS: readonly string[] = [new URL(BRAND.appUrl).origin, ...DESKTOP_ORIGINS];
+
+/** The request's origin when it is one of the app's own (or the counter's, asking itself); otherwise null. */
+export function allowedOrigin(request: Request, origins: readonly string[] = APP_ORIGINS): string | null {
+  const origin = request.headers.get("origin");
+  if (!origin) return null;
+  if (origins.includes(origin)) return origin;
+  const host = request.headers.get("host");
+  try {
+    return host && new URL(origin).host === host ? origin : null;
+  } catch {
+    return null; // "null" (a sandboxed frame, a file) or anything unparseable
+  }
+}
+
+/** The answer's cross-site permission: the asker's own origin when allowed, never a wildcard, never credentials. */
+function corsHeaders(origin: string | null): Record<string, string> {
+  return origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : { Vary: "Origin" };
+}
+
 const NO_STORE = { "Cache-Control": "no-store" };
-const done = () => new Response(null, { status: 204, headers: NO_STORE });
+const done = (origin: string | null = null) => new Response(null, { status: 204, headers: { ...NO_STORE, ...corsHeaders(origin) } });
+
+/** The one header the count may carry beyond the safe ones: its JSON body's type. */
+const COUNT_HEADERS = new Set(["content-type"]);
 
 /**
- * POST /api/count: `{"first": true|false}` from the page, same origin only.
+ * OPTIONS /api/count: the browser's preflight before a cross-site count (the count is JSON, so the
+ * browser asks first). Permission for POST with a Content-Type header, from the app's own origins
+ * only, remembered for a day; anything else gets an answer without permission, so the browser
+ * never sends the count.
+ */
+export function countPreflightHandler(origins: readonly string[] = APP_ORIGINS) {
+  return (request: Request): Response => {
+    const origin = allowedOrigin(request, origins);
+    const method = request.headers.get("access-control-request-method");
+    const asked = (request.headers.get("access-control-request-headers") ?? "")
+      .split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean);
+    if (!origin || method !== "POST" || !asked.every((h) => COUNT_HEADERS.has(h))) return done();
+    return new Response(null, {
+      status: 204,
+      headers: {
+        ...NO_STORE,
+        ...corsHeaders(origin),
+        "Access-Control-Allow-Methods": "POST",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  };
+}
+
+/**
+ * POST /api/count: `{"first": true|false}` from one of the app's pages (allowedOrigin).
  * Always answers 204, so a page never waits on it or learns anything from it.
  */
-export function countHandler(store: TractionStore | null) {
+export function countHandler(store: TractionStore | null, origins: readonly string[] = APP_ORIGINS) {
   return async (request: Request): Promise<Response> => {
-    if (!store) return done();
-    const origin = request.headers.get("origin");
-    const host = request.headers.get("host");
-    if (!origin || !host || new URL(origin).host !== host) return done();
-    const declared = Number(request.headers.get("content-length") ?? "0");
-    if (!Number.isFinite(declared) || declared > 64) return done();
-    let first = false;
-    try {
-      const body = (await request.json()) as unknown;
-      if (!body || typeof body !== "object" || typeof (body as { first?: unknown }).first !== "boolean") return done();
-      first = (body as { first: boolean }).first;
-    } catch {
-      return done();
-    }
-    const country = countryOf(request);
-    if (!country) return done();
-    try {
-      await store.add(country, first);
-    } catch {
-      // the count is best effort; the page never hears about it
-    }
-    return done();
+    const origin = allowedOrigin(request, origins);
+    if (store && origin) await count(store, request);
+    return done(origin);
   };
+}
+
+/** Adds the visit when the request is a well-formed count from a real place; never throws. */
+async function count(store: TractionStore, request: Request): Promise<void> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (!Number.isFinite(declared) || declared > 64) return;
+  let first = false;
+  try {
+    const body = (await request.json()) as unknown;
+    if (!body || typeof body !== "object" || typeof (body as { first?: unknown }).first !== "boolean") return;
+    first = (body as { first: boolean }).first;
+  } catch {
+    return;
+  }
+  const country = countryOf(request);
+  if (!country) return;
+  try {
+    await store.add(country, first);
+  } catch {
+    // the count is best effort; the page never hears about it
+  }
 }
 
 export type Published = {
@@ -114,13 +182,18 @@ export function publish(
   };
 }
 
-/** GET /api/traction: the published numbers, cached for a day at the edge once they are real. */
-export function tractionHandler(store: TractionStore | null) {
-  return async (): Promise<Response> => {
+/**
+ * GET /api/traction: the published numbers, cached for a day at the edge once they are real.
+ * Readable cross-site by the app's own origins only (a plain GET, so no preflight); the edge keeps
+ * one copy per asking origin (`Vary: Origin`), each cached for the day.
+ */
+export function tractionHandler(store: TractionStore | null, origins: readonly string[] = APP_ORIGINS) {
+  return async (request?: Request): Promise<Response> => {
     const raw = store ? await store.read().catch(() => null) : null;
     const status: Published["status"] = !store ? "off" : raw ? "counting" : "unavailable";
     const body = publish(raw ?? { visits: {}, visitors: {} }, MIN_VISITORS, status);
     const cache = status === "counting" ? `public, max-age=0, s-maxage=${PUBLISH_CACHE_S}, stale-while-revalidate=3600` : "no-store";
-    return Response.json(body, { headers: { "Cache-Control": cache } });
+    const origin = request ? allowedOrigin(request, origins) : null;
+    return Response.json(body, { headers: { "Cache-Control": cache, ...corsHeaders(origin) } });
   };
 }

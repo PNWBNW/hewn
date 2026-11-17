@@ -1,4 +1,4 @@
-<p align="center"><a href="https://pnwbnw.github.io/hewn/"><img src="https://pnwbnw.github.io/hewn/still.svg" alt="The map of Hewn: every file, rule and program, and how they connect" width="100%"></a><br><sub><strong>The map of Hewn</strong>, redrawn from this tree on every push: every file in this repository and in the Leo programs', every rule and threat, every dependency, and how they connect. <a href="https://pnwbnw.github.io/hewn/">Open it in 3D</a> · <a href="https://pnwbnw.github.io/hewn/#data-flow">where the data lives</a> · <a href="docs/map/README.md">how it's made</a></sub></p>
+<p align="center"><a href="https://pnwbnw.github.io/hewn-map/"><img src="https://pnwbnw.github.io/hewn-map/still.svg" alt="The map of Hewn: every file, rule and program, and how they connect" width="100%"></a><br><sub><strong>The map of Hewn</strong>, redrawn from this tree every day: every file in this repository and in the Leo programs', every rule and threat, every dependency, and how they connect. <a href="https://pnwbnw.github.io/hewn-map/">Open it in 3D</a> · <a href="https://pnwbnw.github.io/hewn-map/#data-flow">where the data lives</a> · <a href="docs/map/README.md">how it's made</a></sub></p>
 
 <p align="center"><img src="apps/business/public/brand/hewn-hero-1536.jpg" alt="Hewn: honest books, grounded and true." width="100%"></p>
 
@@ -198,7 +198,7 @@ and a shared team calendar. By late October 2026 that came to about 81,000 lines
 | [`brand/`](brand) | Logo source art and the script that builds the brand assets. The name and colours live in [`packages/brand`](packages/brand) |
 | [`docs/`](docs/README.md) | Design documents with their status: the [threat model](docs/THREAT_MODEL.md), [letters](docs/LETTERS.md), the [job board](docs/JOB_BOARD.md), the [audit design](docs/AUDIT_DESIGN.md), and the grant proposal |
 | [`memory/`](memory/README.md) | What has been decided and what has been learned, one line each, consolidated across the documents (`docs/MEMORY.md`) |
-| [`docs/map/`](docs/map/README.md) | The map of Hewn, drawn in 3D on GitHub Pages: [pnwbnw.github.io/hewn](https://pnwbnw.github.io/hewn). Where the data lives and what crosses between places, each flow with its rule; the whole tree next |
+| [`docs/map/`](docs/map/README.md) | The map of Hewn, drawn in 3D on GitHub Pages: [pnwbnw.github.io/hewn-map](https://pnwbnw.github.io/hewn-map). Where the data lives and what crosses between places, each flow with its rule; the whole tree next |
 | [`archive/`](archive/README.md) | Retired code, kept as it was: the Julia tax engine, the salvage script, four salvaged packages nothing uses |
 | [`BUILD_PLAN.md`](BUILD_PLAN.md) | The spec: phases, deliverables and exit criteria |
 | [`PROGRESS.md`](PROGRESS.md), [`progress/`](progress/) | A dated log of every change, with test counts: one file per day in a folder per month, and the index |

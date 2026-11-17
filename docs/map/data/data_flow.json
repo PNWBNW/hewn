@@ -51,7 +51,7 @@
 
     { "id": "g.source", "region": "github", "label": "The source", "kind": "artifact", "class": "public", "holds": "AGPL-3.0. Every change is one pull request, merged after Joshua approves it in session.", "rules": ["OPS-01", "OPS-08"] },
     { "id": "g.ci", "region": "github", "label": "The CI gate", "kind": "process", "class": "control", "holds": "Tests, the rule checks, the build, the dependency audit, on every pull request. Read-only, no secrets.", "rules": ["OPS-04", "OPS-05"] },
-    { "id": "g.pages", "region": "github", "label": "This map", "kind": "artifact", "class": "public", "holds": "Built from the tree on every push to main and published on GitHub Pages.", "rules": ["OPS-05"] },
+    { "id": "g.pages", "region": "github", "label": "This map", "kind": "artifact", "class": "public", "holds": "Built from the tree every day and published on GitHub Pages from a repository of its own, apart from the app's address.", "rules": ["OPS-05"] },
     { "id": "g.secret", "region": "github", "label": "The admin key", "kind": "key", "class": "private", "holds": "The key that deploys and upgrades the programs, only in the chain repository's environment secret, read by manual workflows that print a redacted form.", "rules": ["OPS-03", "T18"] },
 
     { "id": "o.anyone", "region": "observers", "label": "Anyone reading the chain", "kind": "service", "class": "public", "holds": "Sees every public mapping and the shape of every transaction: which program, when, the fee. Not who, not how much.", "rules": ["INV-03", "T6"] },
@@ -84,7 +84,7 @@
     { "from": "v.traction", "to": "u.counts", "what": "adds one to two counts", "class": "public", "rules": ["INV-05"] },
     { "from": "g.source", "to": "g.ci", "what": "every pull request", "class": "control", "rules": ["OPS-08"] },
     { "from": "g.source", "to": "v.static", "what": "a deploy on every merge", "class": "control", "rules": ["OPS-01"] },
-    { "from": "g.source", "to": "g.pages", "what": "this map, rebuilt on every push to main", "class": "control", "rules": ["OPS-05"] },
+    { "from": "g.source", "to": "g.pages", "what": "this map, rebuilt every day", "class": "control", "rules": ["OPS-05"] },
     { "from": "g.secret", "to": "a.programs", "what": "a deploy or an upgrade, run by hand", "class": "control", "rules": ["OPS-03", "INV-20"] },
     { "from": "a.programs", "to": "a.mappings", "what": "the only writer of public state", "class": "public", "rules": ["INV-03"] },
     { "from": "a.mappings", "to": "o.anyone", "what": "hashes, commitments, heights; the shape of each transaction", "class": "public", "rules": ["INV-03"] },

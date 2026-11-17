@@ -1,6 +1,6 @@
 ---
 status: review
-updated: 2026-11-14
+updated: 2026-11-17
 summary: The technical paper, v1.0 draft for hewnaccounting.com/paper: private payroll and provable books on Aleo, the twin-curve math behind every conversation, what is public, the honest limits, and what is live.
 ---
 
@@ -455,7 +455,7 @@ one wage.
 Hewn is free and open source under the AGPL-3.0, in two repositories: the app
 ([github.com/PNWBNW/hewn](https://github.com/PNWBNW/hewn)) and the Leo programs
 ([github.com/PNWBNW/pnw_mvp_v2](https://github.com/PNWBNW/pnw_mvp_v2)). There is no token. A map of
-every file and how it connects is at [pnwbnw.github.io/hewn](https://pnwbnw.github.io/hewn).
+every file and how it connects is at [pnwbnw.github.io/hewn-map](https://pnwbnw.github.io/hewn-map).
 
 We're looking for small businesses and teams to run payroll on testnet with us, for developers who
 want to work on private, provable software, and for review of everything in this paper: the
