@@ -7,10 +7,12 @@ on any other path (`scripts/check_signing_path.py`).
 
 | File | What |
 |---|---|
-| `wallet-provider.tsx` | The provider the app mounts: Shield's adapter, connected one of three ways (below) |
+| `wallet-provider.tsx` | The provider the app mounts: Shield's adapter, connected one of four ways (below) |
 | `wallet-executor.ts` | Submitting a transaction through the adapter and following it to confirmation |
 | `fee_mode.ts` | The per-device fee switch (public or private fee) and `withFeeMode`, applied to every call |
 | `credential-signer.ts` | Proving who holds an account by a signed challenge (`signMessage`), never a pasted key |
+| `desktop_pairing.ts` | A computer without the extension: the pairing link to show as a QR code for the phone, checked and shortened (`DESKTOP_PAIRING.md`) |
+| `qr.ts` | A small QR code encoder (no dependency), drawn as one SVG path |
 
 ## Shield only, pinned exactly
 
@@ -23,7 +25,7 @@ on any other path (`scripts/check_signing_path.py`).
 is used elsewhere for what Shield doesn't do (the stablecoin's exclusion proof, in `rail`), never
 to execute.
 
-## Three ways in, one adapter (Joshua, 2026-10-19)
+## Four ways in, one adapter (Joshua, 2026-10-19; the fourth 2026-11-17)
 
 - **The extension on a computer** and **Shield's own browser on a phone** both inject Shield into
   the page.
@@ -31,10 +33,17 @@ to execute.
   with a `shield://` link, every approval opens it again, and answers come back sealed end to end
   through `wss://relay.shield.app`, the one host besides the explorer in the app's security policy
   (pinned there, `apps/business/src/security/headers.ts`, and here).
+- **A computer without the extension** (2026-11-17, waiting on a test on real phones) pairs with
+  the Shield app on a phone over the same relay: the adapter hands the page the pairing link instead
+  of opening it, the page shows it as a QR code (`desktop_pairing.ts`, `qr.ts`; the screen is
+  `apps/business/src/chain/ShieldPairing.tsx`), the phone's camera opens it in Shield, and the
+  person opens Shield on the phone for every approval (nothing on a computer can). Shield's own
+  scanner can't read the code yet, so this works only where the phone's camera offers to open a
+  `shield://` link; the extension stays on offer. `DESKTOP_PAIRING.md` has the evidence from the
+  adapter's source, what isn't verified, and what to ask Provable.
 
-A computer without the extension has no way in yet: Shield's app can't scan a pairing code. Over
-the relay the app answers reads only while it is open, and the adapter opens it (the `shield://`
-link) for approvals only: a read sent while the app is in the background waits on the channel, and
+Over the relay the app answers reads only while it is open, and the adapter opens it (the
+`shield://` link, on a phone) for approvals only: a read sent while the app is in the background waits on the channel, and
 nothing happens on screen. A remembered pairing reconnects without asking Shield anything, so
 reads made on it wait while Shield sleeps; a fresh connect makes the adapter open Shield with the
 request in its link, and Shield asks for an approval and then says "Return to your browser"
