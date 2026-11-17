@@ -29,6 +29,11 @@ reach the vault, which a worker has no key to open.
 
 A new flag means a new row here and in docs/INVARIANTS.md, reviewed like any change to the rules.
 
+One file may hand web storage on without storing anything: apps/business/src/chain/ShieldProvider.tsx
+passes localStorage to @pnw/wallet's forgetUnfinishedPairing, which only reads and removes the
+Shield adapter's own record of a pairing an earlier visit left unfinished (docs/THREAT_MODEL.md T3).
+It fails here if it ever calls setItem or clear.
+
 Standard library only. Run from the repository root: python3 -I scripts/check_browser_storage.py
 """
 import re
@@ -47,6 +52,11 @@ ALLOWED = {
 REMOVE_ONLY = {
     "apps/business/src/books/BooksProvider.tsx": {"SHIELD_WALLET_NAME": "walletName"},
 }
+# Files that may pass web storage on to be forgotten, never written: path -> why.
+FORGET_ONLY = {
+    "apps/business/src/chain/ShieldProvider.tsx": "forgets the Shield adapter's unfinished pairing (T3)",
+}
+WRITE = re.compile(r"\.(?:setItem|clear)\(")
 WEB_STORAGE = re.compile(r"\b(?:localStorage|sessionStorage)\b")
 OTHER = re.compile(r"\bindexedDB\b|\bdocument\.cookie\b")
 CACHE_API = re.compile(r"\bcaches\.(?:open|match|keys|delete|has)\b")
@@ -81,7 +91,10 @@ def main() -> int:
         code = code_only(text)
         if WEB_STORAGE.search(code):
             keys = ALLOWED.get(rel)
-            if keys is None:
+            if keys is None and rel in FORGET_ONLY:
+                if WRITE.search(code):
+                    problems.append(f"{rel}: may only forget the Shield adapter's pairing, but writes to web storage")
+            elif keys is None:
                 problems.append(f"{rel}: uses web storage; durable data goes in the vault (only the five flags may live there)")
             else:
                 for name, literal in keys.items():

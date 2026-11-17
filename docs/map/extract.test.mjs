@@ -33,7 +33,8 @@ test("no edge dangles, none repeats, none points at itself", () => {
 test("TypeScript imports resolve: relative, @/ alias, workspace exports, dynamic loads, declared dependencies", () => {
   assert.ok(has("apps/business/src/chain/CloseShield.tsx", "apps/business/src/chain/close_anchor.ts", "imports"));
   assert.ok(has("apps/business/src/chain/CloseShield.tsx", "apps/business/src/books/ClosePanel.tsx", "imports"));
-  assert.ok(has("apps/business/src/chain/CloseShield.tsx", "packages/wallet/src/wallet-provider.tsx", "imports"));
+  assert.ok(has("apps/business/src/chain/CloseShield.tsx", "apps/business/src/chain/ShieldProvider.tsx", "imports"));
+  assert.ok(has("apps/business/src/chain/ShieldProvider.tsx", "packages/wallet/src/wallet-provider.tsx", "imports"));
   assert.ok(has("apps/business/src/chain/CloseShield.tsx", "packages/ui/src/button.tsx", "imports"));
   assert.ok(has("apps/business/src/chain/CloseShield.tsx", "dep:react", "imports"));
   assert.ok(has("apps/business/src/app/settings/page.tsx", "apps/business/src/chain/ChainBackup.tsx", "loads"));

@@ -28,7 +28,7 @@ import { Button } from "@pnw/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@pnw/ui/card";
 import { cn } from "@pnw/ui/utils";
 import { type FeeMode, readFeeMode, writeFeeMode } from "@pnw/wallet/fee-mode";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money, todayIso } from "@/books/display";

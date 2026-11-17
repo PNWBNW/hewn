@@ -111,7 +111,7 @@ export function shieldWakeUrl(adapter: unknown): string {
 }
 
 /**
- * Three ways in, one adapter (Joshua, 2026-10-19):
+ * Four ways in, one adapter (Joshua, 2026-10-19; the fourth 2026-11-17):
  *
  * 1. The browser extension on a computer: Shield is injected into the page
  *    and wins (`preferExtension`, the default).
@@ -122,6 +122,10 @@ export function shieldWakeUrl(adapter: unknown): string {
  *    answer comes back over the relay, sealed end to end (the relay forwards
  *    ciphertext between the page and the app; the pairing secret travels only
  *    in the link). Sessions last 12 hours, then one tap pairs again.
+ * 4. A computer without the extension: the same relay, but the adapter hands
+ *    the page the link instead of opening it (the provider's `pairingUrl`);
+ *    the app shows it as a QR code for the phone's camera (./desktop_pairing.ts,
+ *    DESKTOP_PAIRING.md), and the person opens Shield on the phone to approve.
  *
  * Reads over the relay are answered only while the Shield app is open: it
  * leaves the relay whenever it is in the background. `src/chain/shield.ts`
@@ -147,8 +151,9 @@ export function shieldAdapterConfig(): ShieldWalletAdapterConfig {
  * there is no picker modal: the official react-ui package (and its stylesheet,
  * which pulls a Google font and so trips a strict CSP) is not used. On a phone
  * the adapter fires the Shield link itself, so no pairing screen is needed
- * either; a computer without the extension is told to install it
- * (`src/chain/shield.ts`), since Shield's app cannot scan a pairing code yet.
+ * there; a computer without the extension gets the app's own pairing screen
+ * (`src/chain/ShieldPairing.tsx`, a QR code drawn by ./qr.ts), with the
+ * extension still on offer, since Shield's app cannot scan a pairing code yet.
  */
 export function AleoWalletProviderWrapper({
   children,

@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import type { Connection } from "@/books/connections";
 import type { Side, Thread } from "@/books/thread";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { CLIENT_KINDS, clientAccepts, connectionKey } from "../clients";
 import Conversation from "../Conversation";
 import { Agreements } from "./Agreements";

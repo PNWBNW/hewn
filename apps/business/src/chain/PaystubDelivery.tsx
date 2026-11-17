@@ -8,7 +8,7 @@
 import { useState } from "react";
 import type { Paycheck } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { errorMessage } from "@/books/AuthCard";
 import { useLetters } from "./letter_reader";
 import { usePaystubDelivery } from "./usePaystubDelivery";

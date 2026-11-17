@@ -6,7 +6,7 @@
 
 import type { ReactNode } from "react";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { shortAddress } from "@/books/rail";
 import { ShieldStatus } from "../ShieldStatus";

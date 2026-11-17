@@ -18,7 +18,7 @@ import { formatCents, parseCents } from "@pnw/ledger";
 import type { Settlement } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { readFeeMode } from "@pnw/wallet/fee-mode";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useCustomer } from "@/books/BooksProvider";
 import { connectedIn, connectionState, updateConnectionThread } from "@/books/connections";

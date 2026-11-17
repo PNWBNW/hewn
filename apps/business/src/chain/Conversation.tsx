@@ -21,7 +21,7 @@ import { Archive, Flag, KeyRound, Lock, RefreshCw, Send, TriangleAlert } from "l
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { formatCents } from "@pnw/ledger";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { shortAddress } from "@/books/rail";

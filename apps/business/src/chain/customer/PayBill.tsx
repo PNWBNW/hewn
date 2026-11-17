@@ -16,7 +16,7 @@ import { formatCents } from "@pnw/ledger";
 import type { Settlement } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { readFeeMode } from "@pnw/wallet/fee-mode";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useCustomer } from "@/books/BooksProvider";
 import type { BillView } from "@/books/bill";

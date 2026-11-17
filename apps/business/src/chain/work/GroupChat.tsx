@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { Send, Users } from "lucide-react";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
