@@ -1,13 +1,18 @@
 ---
 status: plan
-updated: 2026-11-17
+updated: 2026-11-18
 summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing, signed and anchored releases, an installable signed desktop app (the priority, waiting on a way to reach Shield from a computer app), the website on GitHub Pages with a service worker that checks updates, and later a hardened native client on GPUI with snarkVM.
 ---
 
 # Hosting and verifiable releases
 
 Joshua, 2026-11-17: make the code people run checkable, and make an installable, signed desktop
-app the priority. This note is the plan; nothing in it is built yet. Each step is its own pull
+app the priority. This note is the plan. Built on 2026-11-17: step 1's top-page guard
+(#370, `packages/security/src/frame_guard.ts`); of step 2, the reproducible build, the file list
+and the check anyone can run (#371, `scripts/release`), with no release key published yet, so
+nothing is signed or anchored; of step 3, the Tauri shell (#372, `apps/desktop`: built and tested
+on Linux, unsigned, not usable until there is a way to Shield); of step 4, the update worker
+(#374, `apps/business/src/updates`), which takes nothing until a release key is published. Each step is its own pull
 request with its own exit criterion, and the steps that change where or how the app is delivered
 wait for Joshua's go-ahead.
 
