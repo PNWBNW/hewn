@@ -488,9 +488,15 @@ describe("findSentPayment keeps to Shield's history and the explorer", () => {
     expect(imports.sort()).toEqual(["./balances", "./history_probe", "./review_feed", "@pnw/rail"]);
     // (Shield's transition view keys, one per transaction it sent, are the only keys it handles.)
     expect(code).not.toMatch(/view_key|(?<!transition)viewkey|openOwnRecord|openRecord|@provablehq\/sdk|@pnw\/records|scanner|register|fetch\(/i);
-    // And the pay panel hands it Shield and the explorer, never the books' view key.
+    // And the release that calls it, and the pay panel that starts the release, hand it Shield and the explorer,
+    // never the books' view key.
+    const release = readFileSync(new URL("./release.ts", import.meta.url), "utf8");
+    expect(release).toMatch(/findSentPayment\(/);
     const panel = readFileSync(new URL("./PayPanel.tsx", import.meta.url), "utf8");
-    expect(panel).toMatch(/findSentPayment\(\{\s*\.\.\.lookQuery\(/);
-    expect(panel).not.toMatch(/view_key|(?<!transition)viewkey|openOwnRecord|scanner/i);
+    expect(release).toMatch(/findSentPayment\(\{\s*\.\.\.lookQuery\(/);
+    // It is told the account Shield is signed in to, the one paying.
+    expect(release).toMatch(/findSentPayment\(\{[^}]*account: ctx\.wallet\.address/);
+    expect(panel).toMatch(/releaseRun\(/);
+    for (const file of [release, panel]) expect(file).not.toMatch(/view_key|(?<!transition)viewkey|openOwnRecord|scanner/i);
   });
 });

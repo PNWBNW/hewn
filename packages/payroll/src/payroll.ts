@@ -137,6 +137,19 @@ export type Settlement = {
    * the line says while the record it set aside is still unspent.
    */
   endedAt?: string;
+  /**
+   * Rail only: the tag of a record an earlier try had set aside, once that record is known to have
+   * gone into something that didn't pay this person and the payment is to be made again from
+   * another. Kept until the paycheck settles: the run's next marker names it (rail/marker.ts), so
+   * no device goes on waiting for the old record.
+   */
+  replaces?: string;
+  /**
+   * Rail only: the id of the run marker this device sent that names this payment (rail/marker.ts),
+   * kept before the marker is sent and until the paycheck settles. It is how a device knows a
+   * run in progress as its own.
+   */
+  marker?: string;
 };
 
 export type Paycheck = {
@@ -596,7 +609,8 @@ const SETTLEMENT_STATUSES: Settlement["status"][] = ["pending", "settled", "fail
 /**
  * Records where one paycheck's payment stands, for the pay queue. Allowed
  * moves: pending → settled, pending → failed, failed → pending (a retry), and
- * pending → pending with a reference (the transfer was sent; here's its id).
+ * pending → pending with something to note (the transfer was sent and here's
+ * its id; the record it will spend; the marker sent for it).
  * A settled paycheck never changes. Pure: returns new payroll.
  */
 export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId: string, settlement: Settlement): Payroll {
@@ -621,10 +635,18 @@ export function markPaycheckSettlement(payroll: Payroll, runId: string, workerId
   if (settlement.endedAt !== undefined && (typeof settlement.endedAt !== "string" || Number.isNaN(Date.parse(settlement.endedAt)))) {
     throw new PayrollError("When a payment's last try ended must be a time");
   }
+  for (const [name, tag] of [
+    ["record a payment stopped waiting on", settlement.replaces],
+    ["marker", settlement.marker],
+  ] as const) {
+    if (tag !== undefined && (typeof tag !== "string" || !/^[0-9a-f]{32}$/.test(tag))) throw new PayrollError(`A ${name} is named by 32 hex characters`);
+  }
+  if (settlement.replaces !== undefined && settlement.replaces === settlement.attempt) throw new PayrollError("A record can't take its own place");
   const from = paycheck.settlement.status;
   const to = settlement.status;
-  // pending → pending only to note what's known about the payment: the record it's about to spend, its id once sent, or why its outcome isn't known.
-  const noting = !!settlement.reference || !!settlement.attempt || !!settlement.failure;
+  // pending → pending only to note what's known about the payment: the record it's about to spend, its id once sent, why its
+  // outcome isn't known, the marker sent for it, or the record it stopped waiting on.
+  const noting = !!settlement.reference || !!settlement.attempt || !!settlement.failure || !!settlement.marker || !!settlement.replaces;
   const allowed = (from === "pending" && to !== "pending") || (from === "failed" && to === "pending") || (from === "pending" && to === "pending" && noting);
   if (!allowed) throw new PayrollError(`A ${from} paycheck can't become ${to}`);
   const paychecks = run.paychecks.map((p) => (p.workerId === workerId ? { ...p, settlement: { ...settlement } } : p));

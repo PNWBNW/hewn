@@ -1,6 +1,6 @@
 ---
 status: living
-updated: 2026-10-26
+updated: 2026-11-15
 summary: How everything between two people travels as sealed records on chain: the envelope, the keys, the lookups, channels, what it costs.
 ---
 
@@ -166,6 +166,39 @@ Primary sources: snarkVM `console/network/src/lib.rs`, `synthesizer/process/src/
    dates, the Pinata (IPFS) dependency for messages.
 4. **Shield setup:** the program joins `WALLET_PROGRAMS`; people disconnect and reconnect Hewn in
    Shield once, as with the history permission.
+
+## Notes an account keeps for itself
+
+Two things travel as letters from an account to itself. Both are sealed with the books' own data
+key (the way a receipt file is), not with a key shared with anyone, so every device the books are
+restored to reads them and nothing else does:
+
+- **The books' backup** (`docs/CHAIN_BACKUP.md`, `chain/books_backup.ts`).
+- **A pay run's marker** (2026-11-14; `chain/run_marker.ts`, with the format and the rules in
+  `packages/rail/src/marker.ts`). Before the first payment of a run on the rail, one letter says
+  what the run is about to pay: for each payment the payee's account and the amount, the run's pay
+  period, and the tag of the record set aside for the first payment. It names no person and no
+  run. Markers sit in numbered slots, 0, 1, 2, …; a slot's lookup is
+  `sha256("<finder key>:pay-marker:<n>")`, with the backup's finder key (the username and the
+  account, never the passphrase), so books restored with the recovery key find them too. A marker
+  of up to 12 lines is one letter (`send`), a longer one is one page (`send_page`): one approval
+  either way, and the first payment waits until the account lists it.
+
+  Every release reads the markers first, which asks nothing of the person (`chain/release.ts`). A
+  payment a marker already covers is paid only by spending the record that marker names, or is
+  looked for in the account's own transfers and left to the device that marked it; a payment no
+  marker covers is marked before Shield is asked for it, once it comes before every payment of the
+  run still to be paid from that device, so a marker's first payment always names its record.
+  Markers count in the order of the block each was accepted in, then by transaction id, and the
+  earliest decides. When the books on two devices put one person's pay for one period at two
+  amounts, the first marker's amount is paid, by the device that sent it (2026-11-15); on any
+  other device that person's line stands down and says another device is paying them, and to open
+  the run there or restore the newest backup. A marker names a record for a run's first payment
+  only, so a later one that a device holds no record for goes out only from what the payment before
+  it left, on every device, whichever marked the run. A marker names at most 64 payments: in a
+  larger run the rest are marked, and paid, on a later press, once the payments before them are
+  paid. A marker of another pay run whose period shares days with this run's holds that payment on
+  every device: nothing is sent for it from this run.
 
 ## Reports
 
