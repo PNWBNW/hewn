@@ -9,7 +9,8 @@
 # "// Modified for gpui-pre (snapshot of zed@…)".
 #
 # Reviewed 2026-11-25 for gpui-pre 0.3.12 (zed@d2a4fb6ded7c), with the native verifier's pull
-# request, for Joshua's approval there.
+# request, and approved by Joshua in session on 2026-11-25. A new or changed entry needs his
+# approval again.
 
 # gpui-pre-apple's build script reads GPUI's own sources; the snapshot carries the five it needs.
 # Each is compared byte for byte with Zed's crates/gpui at the same path.

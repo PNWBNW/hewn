@@ -18,7 +18,7 @@ that change where or how the app is delivered wait for Joshua's go-ahead.
 | 2. Signed, anchored releases | The tools and the twice-built CI check, #371 (`scripts/release/README.md`) | Joshua makes the release key offline, signs the first release and anchors it on testnet; then the check from a clean machine |
 | 3. The desktop app | The Tauri shell, its locked-down window and its signed updater, #372 (`apps/desktop/README.md`); the pairing screen with a QR code, draft #373 | Shield's adapter 1.6.0 (published 2026-11-20) can pair through a code a phone's camera opens (below); #373 moves to it once it is seven days old (2026-11-27, OPS-04), then the test on real phones and computers, then signed installers |
 | 4. The website on GitHub Pages | The update worker, #374 (`apps/business/src/updates/README.md`); the Pages build and the counter's own address, draft #375 | Joshua's decisions: GitHub Pages' terms, the DNS change, the counter's address |
-| Later: the hardened native client | Its first piece, the native verifier (`apps/native/README.md`), built for Windows in CI | Joshua's run on a real Windows machine and his review of `apps/native/gpui_patches.toml`; screens wait on a native way to reach Shield |
+| Later: the hardened native client | Its first piece, the native verifier (`apps/native/README.md`), built for Windows in CI | Joshua's run on a real Windows machine; screens wait on a native way to reach Shield |
 
 
 ## Why

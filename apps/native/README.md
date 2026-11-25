@@ -129,7 +129,7 @@ own `gpui` (0.2.2) dates from October 2025 (Joshua, 2026-11-25). One maintainer 
   `Cargo.lock` (cargo writes them), and on Zed's side nested crates and files the manifest
   excludes. Anything else that differs, is extra or is missing fails.
 - **What the snapshots change**, found by that check and reviewed on 2026-11-25
-  (`gpui_patches.toml`, for Joshua's approval in the pull request): sixteen of the twenty crates are
+  (`gpui_patches.toml`, approved by Joshua on 2026-11-25): sixteen of the twenty crates are
   Zed's files exactly. Seven files in four crates are changed, each marked "Modified for gpui-pre":
   `actions!` derives `$crate::Action` (gpui-pre); the macros pass their output through an added
   module that rewrites `gpui::` paths to the gpui-kit facade (gpui-pre-macros, two files: token
