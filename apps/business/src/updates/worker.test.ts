@@ -316,7 +316,9 @@ describe("a new release", () => {
     publish(relabelled.files);
     await d.check();
     expect(await d.status()).toMatchObject({ digest: relabelled.digest });
-    const r2 = release(V2, { key, version: "v1.1", created: "2026-11-18" });
+    // The next real release is made today: the relabelled date counts as today too, never later.
+    // (A fixed date here started failing once it was in the past, 2026-11-19.)
+    const r2 = release(V2, { key, version: "v1.1", created: new Date().toISOString().slice(0, 10) });
     publish(r2.files);
     await d.check();
     expect(await d.status()).toMatchObject({ digest: r2.digest, problem: null });
