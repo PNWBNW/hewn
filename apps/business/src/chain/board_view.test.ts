@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PostingFacts } from "../books/jobs";
-import { type BoardEntry, type BoardReads, filterBoard, loadBoard } from "./board";
+import { type BoardEntry, type BoardReads, filterBoard, loadBoard } from "./board_view";
 import { BLOCKS_PER_DAY, packBody } from "./jobs";
 
 const facts: PostingFacts = { payType: "hourly", payMinCents: 2000, payMaxCents: 2500, employmentType: "full_time", hoursPerWeekTenths: 375, place: "remote" };
