@@ -19,6 +19,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [The desktop workflow builds the web bundle once, on Linux, and the other systems only package it](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-workflow-builds-the-web-bundle-once-on-linux-and-the-other-systems-only-package-it)
 - [Hosting and verifiable releases: where each step stands, and Shield's way into the desktop app](progress/2026-11/2026-11-25.md#2026-11-25--hosting-and-verifiable-releases-where-each-step-stands-and-shields-way-into-the-desktop-app)
 - [The native verifier: a release and a closed period, checked in Rust on GPUI and snarkVM](progress/2026-11/2026-11-25.md#2026-11-25--the-native-verifier-a-release-and-a-closed-period-checked-in-rust-on-gpui-and-snarkvm)
+- [A design for the desktop app's own way to Shield: a Rust client for Shield's relay](progress/2026-11/2026-11-25.md#2026-11-25--a-design-for-the-desktop-apps-own-way-to-shield-a-rust-client-for-shields-relay)
 
 ### [2026-11-18](progress/2026-11/2026-11-18.md)
 
