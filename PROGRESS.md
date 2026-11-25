@@ -18,6 +18,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 - [The desktop app's build workflow runs its checks on a Python that has tomllib](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-apps-build-workflow-runs-its-checks-on-a-python-that-has-tomllib)
 - [The native verifier: a release and a closed period, checked in Rust on GPUI and snarkVM](progress/2026-11/2026-11-25.md#2026-11-25--the-native-verifier-a-release-and-a-closed-period-checked-in-rust-on-gpui-and-snarkvm)
 
+### [2026-11-18](progress/2026-11/2026-11-18.md)
+
+- [Light sleep: 2026-11-18](progress/2026-11/2026-11-18.md#2026-11-18--light-sleep-2026-11-18)
+
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
 
 - [Light sleep: 2026-11-17](progress/2026-11/2026-11-17.md#2026-11-17--light-sleep-2026-11-17)
