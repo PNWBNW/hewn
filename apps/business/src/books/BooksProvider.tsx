@@ -18,7 +18,9 @@
 // as unlocked here: the browser stores the key where anyone with the device or
 // a copy of its browser data can use it. Log out forgets it, and looks that it
 // went: if the device still remembers the login, the front page says so.
-// Without it, the books lock after 15 idle minutes and on any reload.
+// Without it, the books lock after 15 idle minutes and on any reload; a
+// completed step of a long send counts as activity, and the time is checked
+// whenever the page wakes (idle_lock.ts).
 //
 // Receipt files are sealed one by one with the same vault key and kept in
 // their own IndexedDB store; a bill holds only a reference and the file's
@@ -88,8 +90,7 @@ import {
   unlockVault,
 } from "@pnw/vault";
 import { saveFile } from "./save_file";
-
-const IDLE_LOCK_MS = 15 * 60 * 1000;
+import { watchIdle } from "./idle_lock";
 
 export type BooksStatus = "loading" | "new" | "locked" | "open";
 
@@ -570,7 +571,11 @@ export function BooksProvider({ children }: { children: ReactNode }) {
         if (!s || !current) throw new Error("Books are locked");
         const next = op(current); // throws on any broken rule; nothing is saved
         // Only over what this tab last saw: two tabs on the same books can't undo each other's writes (books/vault_write.ts).
-        savedIv.current = await saveOver(store, s, companyToJson(next), savedIv.current);
+        const iv = await saveOver(store, s, companyToJson(next), savedIv.current);
+        // The books locked while this saved (the idle lock, say): the save stands on the device, but the books
+        // don't come back into memory, and the caller stops as if the lock had come first.
+        if (session.current !== s) throw new Error("Books are locked");
+        savedIv.current = iv;
         companyRef.current = next;
         setCompany(next);
         return next;
@@ -819,19 +824,10 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     };
   }, [status, stayUntil, lock, store]);
 
+  // Page input and each completed step of a long send are activity; checked on a timer and on wake.
   useEffect(() => {
     if (status !== "open" || stayUntil) return;
-    let timer = setTimeout(lock, IDLE_LOCK_MS);
-    const bump = () => {
-      clearTimeout(timer);
-      timer = setTimeout(lock, IDLE_LOCK_MS);
-    };
-    const events = ["pointerdown", "keydown", "scroll"] as const;
-    events.forEach((e) => window.addEventListener(e, bump, { passive: true }));
-    return () => {
-      clearTimeout(timer);
-      events.forEach((e) => window.removeEventListener(e, bump));
-    };
+    return watchIdle({ lock });
   }, [status, stayUntil, lock]);
 
   const value = useMemo(

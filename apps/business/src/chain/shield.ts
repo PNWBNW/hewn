@@ -31,29 +31,35 @@ export type { ShieldRoute };
 
 export type ShieldState = { kind: "missing" } | { kind: "ready" } | { kind: "connecting" } | { kind: "connected"; address: string };
 
+type Sender = Pick<ReturnType<typeof useWallet>, "executeTransaction">;
+
+/**
+ * The adapter's send, behind the edition check and with the fee mode applied. Every transaction
+ * the app sends goes through this (scripts/check_signing_path.py keeps it so).
+ */
+export function checkedSend(adaptor: Sender) {
+  // No `fee` in what a caller may pass: the app never names an amount, so Shield charges its own estimate.
+  return async (opts: Omit<Parameters<Sender["executeTransaction"]>[0], "fee"> & { feeMode?: FeeMode }) => {
+    const { feeMode, ...call } = opts;
+    // Before Shield is asked to sign anything: the upgradable programs are still the editions
+    // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
+    await checkEditions();
+    // Counted while Shield is asked (./phone_approval.ts): on a computer paired with the phone
+    // nothing can bring Shield to the front, and ShieldPairing says so while one is waiting. A
+    // connection made before a program joined the list Shield is asked for: say what to do.
+    return awaitingPhone(() => adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()))).catch(rethrowSendError);
+  };
+}
+
 export function useShield() {
   const adaptor = useWallet();
-  const shield = adaptor.wallets[0]; // Shield is the only adapter registered
-  // Inside the desktop app Shield can't be reached yet (apps/desktop/README.md): the route is
-  // `none`, so the state is `missing` and the screens say why instead of offering a connect.
+  const wallet = { ...adaptor, executeTransaction: checkedSend(adaptor) };
+  const shield = wallet.wallets[0]; // Shield is the only adapter registered
   const desktop = useDesktopApp();
   const route = shieldRoute(shield?.readyState, isPhone(), desktop);
-  // On a computer paired with the phone, nothing can bring Shield to the front: every approval
-  // waits until the person opens it on the phone, and ShieldPairing says so while one is waiting.
-  const onPhone = <T,>(work: () => Promise<T>) => (route === "pair" ? awaitingPhone(work) : work());
-  const wallet = {
-    ...adaptor,
-    // No `fee` in what a caller may pass: the app never names an amount, so Shield charges its own estimate.
-    executeTransaction: async (opts: Omit<Parameters<typeof adaptor.executeTransaction>[0], "fee"> & { feeMode?: FeeMode }) => {
-      const { feeMode, ...call } = opts;
-      // Before Shield is asked to sign anything: the upgradable programs are still the editions
-      // this version of the app was made for (./editions.ts). It throws, and nothing is sent.
-      await checkEditions();
-      // A connection made before a program joined the list Shield is asked for: say what to do.
-      return onPhone(() => adaptor.executeTransaction(withFeeMode(call, feeMode ?? readFeeMode()))).catch(rethrowSendError);
-    },
-    signMessage: (message: Parameters<typeof adaptor.signMessage>[0]) => onPhone(() => adaptor.signMessage(message)),
-  };
+  // Signatures are counted like sends (checkedSend): on a computer paired with the phone nothing can
+  // bring Shield to the front, and ShieldPairing says so while one is waiting.
+  const signing = { ...wallet, signMessage: (message: Parameters<typeof wallet.signMessage>[0]) => awaitingPhone(() => wallet.signMessage(message)) };
   const [asked, setAsked] = useState(false);
   const [reconnect, setReconnect] = useState(false); // restart: a fresh connect waits for the old pairing to go
   const [error, setError] = useState<string | null>(null);
@@ -174,8 +180,8 @@ export function useShield() {
    */
   const pairing =
     route === "pair" && !wallet.connected && typeof location !== "undefined"
-      ? desktopPairingLink(adaptor.pairingUrl, adaptor.pairingSameDevice, location.origin)
+      ? desktopPairingLink(wallet.pairingUrl, wallet.pairingSameDevice, location.origin)
       : null;
 
-  return { state, route, desktop, away, connect, restart, cancel, wakeUrl, pairing, error, wallet };
+  return { state, route, desktop, away, connect, restart, cancel, wakeUrl, pairing, error, wallet: signing };
 }

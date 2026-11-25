@@ -50,6 +50,7 @@ import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvi
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money } from "@/books/display";
+import { afterStep, noteProgress } from "@/books/idle_lock";
 import { payableLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
@@ -185,6 +186,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     setDeliveries((all) => ({ ...all, [workerId]: { kind: "sending" } }));
     try {
       await sendPaystub(runId, workerId);
+      noteProgress();
       setDeliveries((all) => ({ ...all, [workerId]: { kind: "sent" } }));
     } catch (e) {
       setDeliveries((all) => ({ ...all, [workerId]: { kind: "failed", message: errorMessage(e) } }));
@@ -274,13 +276,18 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     setNote(null);
     const railWallet = toRailWallet(wallet, current);
     const setStage = (workerId: string, s: Stage) => setStages((all) => ({ ...all, [workerId]: s }));
-    const write = (workerId: string, target: Settlement) => updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) }));
+    // Each step of the run counts as activity for the idle lock, so books left open while the person approves in Shield
+    // don't lock mid-run: "planned" at once, and every write of the run (the record kept before each approval, then
+    // the payment's outcome) once it has settled, so a step that lands after the 15 minutes keeps its result before
+    // the books lock. A wait for an approval ("approving"), "broadcast" and "stalled" (the run has stopped) don't count.
+    const write = (workerId: string, target: Settlement) => afterStep(updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) })));
     const settled: Promise<string | null>[] = [];
     let stalledWhy: string | null = null;
     let refused = false;
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
+          noteProgress();
           for (const p of due) setStage(p.workerId, { kind: "waiting" });
           break;
         case "approving":
