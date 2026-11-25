@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-25](progress/2026-11/2026-11-25.md)
+
+- [Hosting and verifiable releases: where each step stands, and Shield's way into the desktop app](progress/2026-11/2026-11-25.md#2026-11-25--hosting-and-verifiable-releases-where-each-step-stands-and-shields-way-into-the-desktop-app)
+
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
 
 - [Light sleep: 2026-11-17](progress/2026-11/2026-11-17.md#2026-11-17--light-sleep-2026-11-17)
