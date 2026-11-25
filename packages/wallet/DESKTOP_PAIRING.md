@@ -1,8 +1,9 @@
 # Pairing a computer with Shield on a phone
 
-How a computer without the extension, the desktop app included, reaches Shield on a phone
-(`docs/HOSTING.md` step 3): what we found on 2026-11-17 with adapter 1.5.0, what 1.6.0 changed
-(2026-11-25), what this package and the app do, and what is still unknown.
+How the website, on a computer without the extension, reaches Shield on a phone: what we found on
+2026-11-17 with adapter 1.5.0, what 1.6.0 changed (2026-11-25), what this package and the app do,
+and what is still unknown. This is the website's pairing only: the desktop apps get their own
+(Joshua, 2026-11-25), the GPUI app's written in Rust against Shield's relay protocol (`docs/HOSTING.md`).
 
 ## Short answer (adapter 1.6.0)
 
@@ -18,12 +19,10 @@ older Shield app that doesn't claim the link opens a web page instead; the pairi
 update Shield. On a phone the page keeps `shield://connect` (it opens the app itself; the adapter
 still defaults to it for older installs).
 
-The desktop app's pages have no web origin (`tauri://localhost`, or `https://tauri.localhost` on
-Windows), so it declares the website's, `DECLARED_ORIGIN`, through `remote.origin`; the adapter
-uses it only where the page isn't a hosted web page (`relayOriginOverride`, `remoteDefaults.ts:66`)
-and keeps that origin's pairing under its own key, `shield:remote-session:<origin>`
-(`relayStorage`, `remoteSession.ts:154`). Shield Mobile shows the name and origin the app declares;
-over the relay both are self-reported (Provable, 2026-11-23).
+The page declares no origin of its own (`remote.origin` unset): Shield Mobile shows the page's real
+origin beside the name the app declares, the name self-reported over the relay (Provable,
+2026-11-23). `remote.origin` exists for apps with no web origin, such as a desktop app; the
+website doesn't use it.
 
 The evidence below was gathered on 1.5.0 (line numbers in its `src/`); the protocol is unchanged
 in 1.6.0 except where noted.
@@ -104,12 +103,12 @@ in 1.6.0 except where noted.
 - `src/desktop_pairing.ts`: `desktopPairingLink` turns the adapter's link into the one shown,
   without `req`, and refuses anything but a well-formed Shield verified pairing link (https,
   `connect.shield.app/connect`, the parameters in the fragment and none in a query) on Shield's
-  relay for this page's origin, or the declared one in the desktop app. Its test runs the adapter's own transport against a simulated Shield app:
+  relay for this page's origin. Its test runs the adapter's own transport against a simulated Shield app:
   pairing through the shown link, the connect going over the sealed channel, a second handshake
   (a photo of the code) refused after Shield pairs, and the race before it.
   `forgetUnfinishedPairing` drops a pairing an earlier visit left unfinished, and the choice of
   Shield that would start another by itself, so an old code pairs with nothing; a finished pairing
-  is kept, under either key (the page's own, or the declared origin's). The app calls it once per visit on a computer, before any panel connects
+  is kept. The app calls it once per visit on a computer, before any panel connects
   (`ShieldProvider.tsx`); never on a phone, which comes back from Shield by reloading.
 - In the app (`apps/business/src/chain`): the `pair` route (a computer, no extension, the adapter
   able to pair), `ShieldPairing.tsx` (the code after a tap, the steps, the warning, Cancel, and
@@ -124,8 +123,8 @@ in 1.6.0 except where noted.
   to hear how it goes on Windows and macOS).
 - That Shield, opened by hand, shows an approval that has waited on the channel for minutes, and
   how long the relay keeps channel history.
-- That Shield's release build pairs with the origin the desktop app declares (Provable wrote that
-  Shield Mobile shows it; untested by us).
+- That Shield's release build pairs with an origin a desktop app declares (for the desktop apps'
+  own pairing, later).
 
 ## The ask for Provable
 

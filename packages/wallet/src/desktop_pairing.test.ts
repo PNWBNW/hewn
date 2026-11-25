@@ -13,9 +13,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import jsQR from "jsqr";
 import { BRAND } from "@pnw/brand";
 import { SHIELD_VERIFIED_DEEPLINK_BASE } from "@provablehq/aleo-wallet-adapter-shield";
-import { DECLARED_SESSION_KEY, PAIRING_WAIT_MS, SELECTED_WALLET_KEY, SHIELD_SESSION_KEY, desktopPairingLink, forgetUnfinishedPairing } from "./desktop_pairing";
+import { PAIRING_WAIT_MS, SELECTED_WALLET_KEY, SHIELD_SESSION_KEY, desktopPairingLink, forgetUnfinishedPairing } from "./desktop_pairing";
 import { encodeQr } from "./qr";
-import { DECLARED_ORIGIN, SHIELD_RELAY_ORIGIN, WALLET_PROGRAMS, shieldAdapterConfig } from "./wallet-provider";
+import { SHIELD_RELAY_ORIGIN, WALLET_PROGRAMS, shieldAdapterConfig } from "./wallet-provider";
 
 const require = createRequire(import.meta.url);
 const ADAPTER_MAIN = require.resolve("@provablehq/aleo-wallet-adapter-shield");
@@ -32,7 +32,7 @@ const { secp256k1 } = fromAdapter("@noble/curves/secp256k1") as {
 };
 const { sha256 } = fromAdapter("@noble/hashes/sha256") as { sha256(data: Uint8Array): Uint8Array };
 
-const ORIGIN = DECLARED_ORIGIN;
+const ORIGIN = new URL(BRAND.appUrl).origin;
 
 /** Where the installed adapter lazy-loads one of its chunks from (any of its own files may). */
 function lazyChunk(prefix: string): string | null {
@@ -139,7 +139,7 @@ describe("desktopPairingLink", () => {
     expect(url.startsWith(`${SHIELD_VERIFIED_DEEPLINK_BASE}#`)).toBe(true);
     expect(link.startsWith(`${SHIELD_VERIFIED_DEEPLINK_BASE}#`)).toBe(true);
     expect(new URL(link).search).toBe("");
-    expect(after.get("origin")).toBe(DECLARED_ORIGIN);
+    expect(after.get("origin")).toBe(ORIGIN);
     transport.disconnect();
   });
 
@@ -353,17 +353,6 @@ describe("an unfinished pairing left by an earlier page (forgetUnfinishedPairing
     transport.disconnect();
   });
 
-  it("forgets the desktop app's unfinished pairing too, kept under its declared origin, and keeps its finished one", () => {
-    const unfinished = JSON.stringify({ channelId: "c", secret: "s" });
-    const finished = JSON.stringify({ channelId: "c", secret: "s", walletPublicKey: "02aa" });
-    const memory = new Map([[DECLARED_SESSION_KEY, unfinished], [SELECTED_WALLET_KEY, '"Shield Wallet"']]);
-    expect(forgetUnfinishedPairing(storageOf(memory))).toBe(true);
-    expect(memory.size).toBe(0);
-    const kept = new Map([[DECLARED_SESSION_KEY, finished], [SELECTED_WALLET_KEY, '"Shield Wallet"']]);
-    expect(forgetUnfinishedPairing(storageOf(kept))).toBe(false);
-    expect(kept.size).toBe(2);
-  });
-
   it("does nothing without storage or with nothing stored, and survives blocked or unreadable storage", () => {
     expect(forgetUnfinishedPairing(undefined)).toBe(false);
     expect(forgetUnfinishedPairing(storageOf(new Map()))).toBe(false);
@@ -387,23 +376,16 @@ describe("what the adapter does on a computer (pinned to the installed source)",
     expect(readFileSync(join(ADAPTER_DIST, lazyChunk("transport")!), "utf8")).toContain(`var STORAGE_KEY = "${SHIELD_SESSION_KEY}";`);
   });
 
-  it("keeps a declared origin's pairing under its own key, the second one the app forgets", () => {
-    expect(DECLARED_SESSION_KEY).toBe(`${SHIELD_SESSION_KEY}:${DECLARED_ORIGIN}`);
-    const source = remote();
-    expect(source).toContain("const scopedKey = (key) => origin === void 0 ? key : `${key}:${origin}`;");
-    expect(source).toContain("this.origin = relayOriginOverride(config.origin);");
-    expect(source).toContain("this.storage = relayStorage(this.origin);");
-  });
-
-  it("is asked for the verified link on a computer and the app's own scheme on a phone, with the declared origin", () => {
-    const computer = shieldAdapterConfig(false).remote as { deeplinkBase: string; origin: string; relayUrl: string };
-    const phone = shieldAdapterConfig(true).remote as { deeplinkBase: string; origin: string };
+  it("is asked for the verified link on a computer and the app's own scheme on a phone, and declares no origin", () => {
+    const computer = shieldAdapterConfig(false).remote as { deeplinkBase: string; origin?: string; relayUrl: string };
+    const phone = shieldAdapterConfig(true).remote as { deeplinkBase: string; origin?: string };
     expect(computer.deeplinkBase).toBe(SHIELD_VERIFIED_DEEPLINK_BASE);
     expect(SHIELD_VERIFIED_DEEPLINK_BASE).toBe("https://connect.shield.app/connect");
     expect(phone.deeplinkBase).toBe("shield://connect");
-    expect(computer.origin).toBe(DECLARED_ORIGIN);
+    // The page's own origin is what Shield shows; the website never declares another.
+    expect(computer.origin).toBeUndefined();
+    expect(phone.origin).toBeUndefined();
     expect(computer.relayUrl).toBe(SHIELD_RELAY_ORIGIN);
-    expect(DECLARED_ORIGIN).toBe(new URL(BRAND.appUrl).origin);
   });
 
   it("remembers the chosen wallet under the key the app forgets with an unfinished pairing", () => {

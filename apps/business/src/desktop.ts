@@ -11,8 +11,8 @@
 // - No service worker inside the desktop app (`mayRegisterServiceWorker`). The app's own updater
 //   checks every update against the operator's update key; a worker there would only add a second,
 //   weaker copy of the files, kept by the web engine.
-// - Shield is reached from the desktop app only by pairing with the phone (the `pair` route,
-//   apps/desktop/README.md), with the website's origin declared for Shield to show.
+// - Shield can't be reached from the desktop app yet (apps/desktop/README.md), so the chain
+//   screens say so plainly instead of offering a connect that can't finish.
 
 import { useSyncExternalStore } from "react";
 

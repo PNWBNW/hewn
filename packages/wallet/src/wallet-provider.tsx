@@ -142,9 +142,8 @@ export function shieldWakeUrl(adapter: unknown): string {
  * pairing secret included, after the `#`, which no browser sends to a server.
  * On a phone it stays `shield://connect?…`: the page opens it itself, and an
  * older Shield app that doesn't claim the verified link would open a web page
- * instead. The desktop app's pages have no web origin of their own
- * (`tauri://localhost`), so they declare the website's, DECLARED_ORIGIN; the
- * adapter ignores it on a hosted page, which keeps its real origin.
+ * instead. This is the website's pairing only; the desktop apps pair their own
+ * way (Joshua, 2026-11-25).
  */
 export function shieldAdapterConfig(phone = isPhoneBrowser()): ShieldWalletAdapterConfig {
   return {
@@ -153,16 +152,9 @@ export function shieldAdapterConfig(phone = isPhoneBrowser()): ShieldWalletAdapt
     remote: {
       relayUrl: SHIELD_RELAY_ORIGIN,
       deeplinkBase: phone ? DEFAULT_SHIELD_DEEPLINK_BASE : SHIELD_VERIFIED_DEEPLINK_BASE,
-      origin: DECLARED_ORIGIN,
     },
   };
 }
-
-/**
- * The origin the app declares to Shield where its pages have none of their own (the desktop app):
- * the website's. Shield shows it beside the name; over the relay it is self-reported, like the name.
- */
-export const DECLARED_ORIGIN = new URL(BRAND.appUrl).origin;
 
 /** The same check the adapter makes before it opens the Shield link itself (`isMobileUserAgent`). */
 export function isPhoneBrowser(): boolean {

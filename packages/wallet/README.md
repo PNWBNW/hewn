@@ -35,15 +35,15 @@ to execute.
   with a `shield://` link, every approval opens it again, and answers come back sealed end to end
   through `wss://relay.shield.app`, the one host besides the explorer in the app's security policy
   (pinned there, `apps/business/src/security/headers.ts`, and here).
-- **A computer without the extension**, the desktop app included (2026-11-17; Shield's verified
-  link since 2026-11-25; waiting on a test on real phones) pairs with the Shield app on a phone
+- **A computer without the extension**, in a browser (2026-11-17; Shield's verified link since
+  2026-11-25; waiting on a test on real phones) pairs with the Shield app on a phone
   over the same relay: the adapter hands the page the pairing link instead of opening it, the page
   shows it as a QR code (`desktop_pairing.ts`, `qr.ts`; the screen is
   `apps/business/src/chain/ShieldPairing.tsx`), the phone's camera opens it in Shield, and the
   person opens Shield on the phone for every approval (nothing on a computer can). On a computer
   the link is `https://connect.shield.app/connect#…`, which the phone hands only to the signed
-  Shield app, the secret after the `#` where no server sees it; the desktop app declares the
-  website's origin (`DECLARED_ORIGIN`). In a browser the extension stays on offer.
+  Shield app, the secret after the `#` where no server sees it. The extension stays on offer. The
+  desktop apps pair their own way (Joshua, 2026-11-25), not through this code.
   `DESKTOP_PAIRING.md` has the evidence from the adapter's source, what isn't verified, and what is
   still asked of Provable.
 

@@ -161,9 +161,8 @@ The highest risk for a browser app.
   account is linked, there is nothing to compare with: the person has to see their own Shield
   approve the connection and name their own account. On a computer the code holds Shield's
   verified link, which the phone hands only to the signed Shield app (adapter 1.6.0; an older app
-  opens a web page, which sees nothing after the `#`). Inside the desktop app the origin Shield
-  shows is the website's, declared by the app (`DECLARED_ORIGIN`), self-reported over the relay like
-  the name. Waiting on Joshua's review and a test on real phones.
+  opens a web page, which sees nothing after the `#`). Waiting on Joshua's review and a test on real
+  phones.
 - ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
   so the explorer's operator can tie the user's IP to that address. The address is already public
   (it owns a registered name). Private balances come from Shield's own records and touch no server

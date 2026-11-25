@@ -9,7 +9,8 @@
 // app, with every parameter after the `#` so no server ever receives the secret. This module
 // turns that link into the one the page shows as a QR code, and refuses anything that isn't a
 // well-formed Shield pairing link of that form on Shield's relay, so the code on screen can only
-// ever pair with this page through that relay.
+// ever pair with this page through that relay. The website's pairing only: the desktop apps pair
+// their own way (Joshua, 2026-11-25).
 //
 // The link is a secret while it waits: it carries the pairing secret, and whoever opens it first
 // pairs (docs/THREAT_MODEL.md T3). It is shown only on the pairing screen, never logged, stored or
@@ -17,7 +18,7 @@
 // unfinished pairing is forgotten when the app next opens (`forgetUnfinishedPairing`).
 
 import { SHIELD_VERIFIED_DEEPLINK_BASE } from "@provablehq/aleo-wallet-adapter-shield";
-import { DECLARED_ORIGIN, SHIELD_RELAY_ORIGIN } from "./wallet-provider";
+import { SHIELD_RELAY_ORIGIN } from "./wallet-provider";
 
 /**
  * How long a pairing link waits for Shield before the connect gives up: the adapter's
@@ -34,12 +35,6 @@ export const PAIRING_WAIT_MS = 5 * 60 * 1000;
  */
 export const SHIELD_SESSION_KEY = "shield:remote-session";
 
-/**
- * The same, where the page declares an origin of its own choosing (the desktop app, DECLARED_ORIGIN):
- * the adapter keeps each declared origin's pairing under its own key (`relayStorage` in its
- * `remoteSession.ts`; a test pins it), so a pairing made for one origin is never resumed for another.
- */
-export const DECLARED_SESSION_KEY = `${SHIELD_SESSION_KEY}:${DECLARED_ORIGIN}`;
 
 /**
  * Where the wallet provider remembers that Shield was chosen (`@provablehq/aleo-wallet-adapter-react`'s
@@ -61,33 +56,23 @@ export const SELECTED_WALLET_KEY = "walletName";
  */
 export function forgetUnfinishedPairing(storage: Pick<Storage, "getItem" | "removeItem"> | undefined): boolean {
   if (!storage) return false;
-  let forgot = false;
-  for (const key of [SHIELD_SESSION_KEY, DECLARED_SESSION_KEY]) {
+  try {
+    const raw = storage.getItem(SHIELD_SESSION_KEY);
+    if (raw === null) return false;
+    let paired = false;
     try {
-      const raw = storage.getItem(key);
-      if (raw === null) continue;
-      let paired = false;
-      try {
-        const session = JSON.parse(raw) as { walletPublicKey?: unknown } | null;
-        paired = typeof session?.walletPublicKey === "string" && session.walletPublicKey !== "";
-      } catch {
-        // Unreadable: the adapter would ignore it too.
-      }
-      if (paired) continue;
-      storage.removeItem(key);
-      forgot = true;
+      const session = JSON.parse(raw) as { walletPublicKey?: unknown } | null;
+      paired = typeof session?.walletPublicKey === "string" && session.walletPublicKey !== "";
     } catch {
-      // storage blocked: nothing was kept to forget
+      // Unreadable: the adapter would ignore it too.
     }
+    if (paired) return false;
+    storage.removeItem(SHIELD_SESSION_KEY);
+    storage.removeItem(SELECTED_WALLET_KEY);
+    return true;
+  } catch {
+    return false; // storage blocked: nothing was kept to forget
   }
-  if (forgot) {
-    try {
-      storage.removeItem(SELECTED_WALLET_KEY);
-    } catch {
-      // as above
-    }
-  }
-  return forgot;
 }
 
 /** The parameters a v1 Shield pairing link carries, in the adapter's order. `req` is dropped. */
@@ -97,9 +82,7 @@ const SHAPES: Record<(typeof PARAMS)[number], RegExp> = {
   channelId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   pubkey: /^0[23][0-9a-f]{64}$/i, // compressed secp256k1
   relay: /^wss:\/\/relay\.shield\.app$/,
-  // An https origin, no path: the website's own, or the one the desktop app declares (the
-  // website's, DECLARED_ORIGIN). The adapter accepts no other for the desktop app, and Shield's
-  // release build refuses plain http.
+  // An https origin, no path: the website's own (Shield's release build refuses plain http).
   origin: /^https:\/\/[^/?#\s]+$/i,
   secret: /^[0-9a-f]{64}$/i, // 32 bytes
   v: /^1$/,

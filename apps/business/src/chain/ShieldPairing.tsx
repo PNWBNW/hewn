@@ -14,7 +14,7 @@ import { useState, useSyncExternalStore } from "react";
 import { Button } from "@pnw/ui/button";
 import { PAIRING_WAIT_MS } from "@pnw/wallet/desktop-pairing";
 import { encodeQr, qrSvgPath } from "@pnw/wallet/qr";
-import { DECLARED_ORIGIN, SHIELD_APP_URL } from "@pnw/wallet/wallet-provider";
+import { SHIELD_APP_URL } from "@pnw/wallet/wallet-provider";
 import { BRAND } from "@/brand";
 import { approvalsWaiting, subscribeApprovals } from "./phone_approval";
 import { useShield } from "./shield";
@@ -49,7 +49,7 @@ export function pairingSteps(site: string): string[] {
 }
 
 export function ShieldPairing() {
-  const { route, state, pairing, cancel, desktop } = useShield();
+  const { route, state, pairing, cancel } = useShield();
   const [shown, setShown] = useState(false);
   const waiting = useSyncExternalStore(subscribeApprovals, approvalsWaiting, () => 0);
   if (route !== "pair") return null;
@@ -59,8 +59,7 @@ export function ShieldPairing() {
       pairing={pairing}
       waiting={waiting}
       shown={shown}
-      desktop={desktop}
-      site={desktop ? new URL(DECLARED_ORIGIN).host : typeof location === "undefined" ? "" : location.host}
+      site={typeof location === "undefined" ? undefined : location.host}
       onShow={() => setShown(true)}
       onCancel={() => {
         setShown(false);
@@ -76,7 +75,6 @@ export function ShieldPairingView({
   pairing,
   waiting,
   shown,
-  desktop = false,
   site = "this site's address",
   onShow,
   onCancel,
@@ -85,7 +83,6 @@ export function ShieldPairingView({
   pairing: string | null;
   waiting: number;
   shown: boolean;
-  desktop?: boolean;
   site?: string;
   onShow: () => void;
   onCancel: () => void;
@@ -121,9 +118,8 @@ export function ShieldPairingView({
       ) : (
         <>
           <p className="text-sm">
-            {desktop
-              ? "Connect the Shield app on your phone. This app shows a code for your phone's camera."
-              : "Without the Shield extension on this computer, connect the Shield app on your phone instead. This page shows a code for your phone's camera."}
+            Without the Shield extension on this computer, connect the Shield app on your phone instead. This page shows a code for your
+            phone&apos;s camera.
           </p>
           <Button className="min-h-11 self-start sm:min-h-9" onClick={onShow}>
             Show the code
@@ -131,17 +127,11 @@ export function ShieldPairingView({
         </>
       )}
       <p className="text-xs text-muted-foreground">
-        If the code opens a web page instead of Shield, update the Shield app on your phone, then show a new code.
-        {desktop ? null : (
-          <>
-            {" "}
-            Or install the{" "}
-            <a href={SHIELD_APP_URL} target="_blank" rel="noreferrer" className={link}>
-              Shield browser extension
-            </a>{" "}
-            on this computer.
-          </>
-        )}
+        If the code opens a web page instead of Shield, update the Shield app on your phone, then show a new code. Or install the{" "}
+        <a href={SHIELD_APP_URL} target="_blank" rel="noreferrer" className={link}>
+          Shield browser extension
+        </a>{" "}
+        on this computer.
       </p>
       <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onCancel}>
         Cancel

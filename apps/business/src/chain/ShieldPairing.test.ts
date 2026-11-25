@@ -42,13 +42,6 @@ describe("the pairing screen on a computer without the extension", () => {
     expect(html).toContain("If the code opens a web page instead of Shield, update the Shield app");
   });
 
-  it("inside the desktop app offers no extension, which can't run there", () => {
-    const html = view({ shown: false, desktop: true });
-    expect(text(html)).toContain("This app shows a code");
-    expect(html).not.toContain("www.shield.app");
-    expect(text(html)).not.toContain("extension");
-  });
-
   it("says to open Shield on the phone while an approval is waiting, once paired", () => {
     const html = view({ connected: true, waiting: 1, pairing: null });
     expect(html).toContain('role="status"');
