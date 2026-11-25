@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ThreadMessage } from "../books/thread";
 import { addApplicant, applicantWorkerId, emptyJobs, jobsFromJson, jobsToJson, putPosting, setApplicantStatus } from "../books/jobs";
 import { applicantKey, newHiringKey, packApplication } from "./applications";
-import { applicantLabel, applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
+import { applicantLabel, applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicant_letters";
 import type { LetterRecord } from "./letters";
 import { computeNameHash } from "@pnw/records/registry/name_registry";
 

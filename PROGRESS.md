@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-25](progress/2026-11/2026-11-25.md)
+
+- [The app's bundle builds on Windows and macOS: no two files differ only by case, and pnpm's own shell runs the build script](progress/2026-11/2026-11-25.md#2026-11-25--the-apps-bundle-builds-on-windows-and-macos-no-two-files-differ-only-by-case-and-pnpms-own-shell-runs-the-build-script)
+
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
 
 - [Light sleep: 2026-11-17](progress/2026-11/2026-11-17.md#2026-11-17--light-sleep-2026-11-17)

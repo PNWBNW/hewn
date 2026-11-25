@@ -37,6 +37,8 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
           python3 -I scripts/check_lockfile.py --age --base "origin/$BASE_REF"
+      - name: No two files differ only by capital letters (macOS and Windows ignore case)
+        run: python3 -I scripts/check_case_collisions.py && python3 -I scripts/check_case_collisions_test.py
       - name: No keys or tokens in the tree (docs/INVARIANTS.md, INV-06)
         run: python3 -I scripts/check_secrets.py
       - name: The secrets scan reads new files and knows the key forms (scripts/check_secrets_test.py)

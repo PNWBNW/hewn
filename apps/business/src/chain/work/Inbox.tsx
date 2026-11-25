@@ -12,7 +12,7 @@ import { useWork } from "@/books/BooksProvider";
 import { addPaystub, bumpWorkSeq } from "@/books/work";
 import { LetterBox, letterReader } from "../letters";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
-import { type ScanResult, scanPaystubs } from "./inbox";
+import { type ScanResult, scanPaystubs } from "./collect_paystubs";
 
 export type InboxPanelProps = { onClose: () => void };
 
