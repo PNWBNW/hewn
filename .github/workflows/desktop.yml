@@ -63,9 +63,41 @@ jobs:
           fi
       - name: Every crate was at least seven days old when pinned
         run: python3 -I apps/desktop/scripts/check_crate_age.py
+  bundle:
+    # The web bundle every installer carries, built once, on Linux (Joshua, 2026-11-25: the desktop
+    # builds have their own rails and the web code isn't reshaped for them). The Windows and macOS
+    # jobs only package these files, so every installer carries the same bytes, and the bundle's
+    # build never runs on a system whose shell or file names it wasn't written for.
+    name: The web bundle (built once)
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (lockfile must match exactly)
+        run: pnpm install --frozen-lockfile
+      - name: The static bundle the app carries
+        run: pnpm --filter @pnw/business build:static
+      - name: SHA-256 of every file in it
+        run: (cd apps/business/out && find . -type f -print0 | sort -z | xargs -0 sha256sum) > static-bundle.sha256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: static-bundle
+          path: |
+            apps/business/out
+            static-bundle.sha256
+          if-no-files-found: error
+          retention-days: 7
   build:
     name: Installers (${{ matrix.name }})
-    needs: check
+    needs: [check, bundle]
     strategy:
       fail-fast: false
       matrix:
@@ -99,8 +131,31 @@ jobs:
           cache: pnpm
       - name: Install (lockfile must match exactly)
         run: pnpm install --frozen-lockfile
-      - name: The static bundle the app carries
-        run: pnpm --filter @pnw/business build:static
+      - name: The web bundle, as built once on Linux
+        uses: actions/download-artifact@v8
+        with:
+          name: static-bundle
+          path: bundle
+      - name: Put the bundle where the app reads it, and check every file against its SHA-256
+        shell: bash
+        run: |
+          mkdir -p apps/business
+          rm -rf apps/business/out
+          mv bundle/apps/business/out apps/business/out
+          node -e '
+            const { createHash } = require("node:crypto");
+            const { readFileSync, readdirSync } = require("node:fs");
+            const { join, relative } = require("node:path");
+            const root = "apps/business/out";
+            const listed = new Map(readFileSync("bundle/static-bundle.sha256", "utf8").trim().split("\n")
+              .map((line) => { const [hash, ...rest] = line.split("  "); return [rest.join("  ").replace(/^\.\//, ""), hash]; }));
+            const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)]);
+            const found = files(root).map((f) => relative(root, f).split("\\").join("/"));
+            const bad = found.filter((f) => listed.get(f) !== createHash("sha256").update(readFileSync(join(root, f))).digest("hex"));
+            const missing = [...listed.keys()].filter((f) => !found.includes(f));
+            if (bad.length || missing.length || listed.size === 0) { console.error("bundle differs from its list:", { bad, missing }); process.exit(1); }
+            console.log(`bundle: ${found.length} files, each matching its SHA-256`);
+          '
       - name: Rust
         shell: bash
         run: |
