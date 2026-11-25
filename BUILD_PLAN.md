@@ -14,7 +14,8 @@ whenever the work moves.
 - **In flight:** **the priority (Joshua, 2026-11-17): code people can check, and an installable,
   signed desktop app** (`docs/HOSTING.md`: the framing guard and signed releases anchored on Aleo
   first; Shield's adapter 1.6.0 gives the desktop app its way in, pairing with a phone through a
-  code its camera opens, which #373 takes up once it is seven days old on 2026-11-27); each person's own
+  code its camera opens, which #373 takes up once it is seven days old on 2026-11-27; the hardened native
+  client's first piece, a verifier on GPUI and snarkVM, is built: `apps/native`, 2026-11-25); each person's own
   pay period (`docs/PAY_PERIODS.md`: the period rules built; a failed paycheck paid only by its own Retry, the catch-up runs and the Run payroll screen
   next); the manual tests (issues #150–#164); the Audit-Ready Plan's Steps 8 to 14
   (`docs/COMPLIANCE_MAP.md`: the control list and the data-flow diagram are done, the policies,

@@ -1,7 +1,7 @@
 ---
 status: plan
 updated: 2026-11-25
-summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing (live), signed and anchored releases (built; the first release waits on Joshua's key), an installable signed desktop app (the priority; built, and Shield's adapter 1.6.0 gives it a way in by pairing with a phone), the website on GitHub Pages with a service worker that checks updates (built, the move waits on decisions), and later a hardened native client on GPUI with snarkVM.
+summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing (live), signed and anchored releases (built; the first release waits on Joshua's key), an installable signed desktop app (the priority; built, and Shield's adapter 1.6.0 gives it a way in by pairing with a phone), the website on GitHub Pages with a service worker that checks updates (built, the move waits on decisions), and later a hardened native client on GPUI with snarkVM, whose first piece, a native verifier, is built.
 ---
 
 # Hosting and verifiable releases
@@ -18,6 +18,7 @@ that change where or how the app is delivered wait for Joshua's go-ahead.
 | 2. Signed, anchored releases | The tools and the twice-built CI check, #371 (`scripts/release/README.md`) | Joshua makes the release key offline, signs the first release and anchors it on testnet; then the check from a clean machine |
 | 3. The desktop app | The Tauri shell, its locked-down window and its signed updater, #372 (`apps/desktop/README.md`); the pairing screen with a QR code, draft #373 | Shield's adapter 1.6.0 (published 2026-11-20) can pair through a code a phone's camera opens (below); #373 moves to it once it is seven days old (2026-11-27, OPS-04), then the test on real phones and computers, then signed installers |
 | 4. The website on GitHub Pages | The update worker, #374 (`apps/business/src/updates/README.md`); the Pages build and the counter's own address, draft #375 | Joshua's decisions: GitHub Pages' terms, the DNS change, the counter's address |
+| Later: the hardened native client | Its first piece, the native verifier (`apps/native/README.md`), built for Windows in CI | Joshua's run on a real Windows machine; screens wait on a native way to reach Shield |
 
 
 ## Why
@@ -216,8 +217,16 @@ scheduled.
 - **What it costs:** every screen written again in Rust, and two interfaces kept from then on (the
   website stays). GPUI is before its 1.0 and shaped around Zed's needs; its Windows support is newer
   and it has no phones.
-- **When:** once the Tauri app has shipped, Shield offers a native path, and GPUI is stable enough;
-  the first piece could be a native verifier (releases, anchors, period proofs) before any screen.
+- **When:** once the Tauri app has shipped, Shield offers a native path, and GPUI is stable enough.
+  Its first piece needs none of that and is built (Joshua, 2026-11-25): the native verifier below.
+
+**Where it stands** (2026-11-25):
+
+| Piece | State |
+| --- | --- |
+| The native verifier ([`apps/native`](../apps/native/README.md)) | Built: a Rust library and a one-window GPUI app that check a release folder as `verify.mjs` does and a period proof and its anchor as `/verify` does, with snarkVM's console crates recomputing the anchoring transaction's ids. It confirms the release fixture and October's anchor; no keys, no wallet, no signing. Built for Windows in CI (`.github/workflows/native.yml`); a run on a real Windows machine is Joshua's to do |
+| GPUI | Through gpui-kit's `gpui-pre` snapshots of Zed's GPUI, held to the seven-day rule and checked file by file against Zed's repository at the commit each names, with the snapshots' few changes reviewed (`apps/native/gpui_patches.toml`) |
+| Screens, books, Shield | Not started: they wait on a native way to reach Shield |
 
 ## Order
 
