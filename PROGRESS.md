@@ -13,6 +13,8 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ### [2026-11-25](progress/2026-11/2026-11-25.md)
 
+- [The update worker's test no longer fails with the calendar](progress/2026-11/2026-11-25.md#2026-11-25--the-update-workers-test-no-longer-fails-with-the-calendar)
+- [The audit's one skip comes off: the picomatch advisory no longer applies](progress/2026-11/2026-11-25.md#2026-11-25--the-audits-one-skip-comes-off-the-picomatch-advisory-no-longer-applies)
 - [The desktop workflow builds the web bundle once, on Linux, and the other systems only package it](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-workflow-builds-the-web-bundle-once-on-linux-and-the-other-systems-only-package-it)
 
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
