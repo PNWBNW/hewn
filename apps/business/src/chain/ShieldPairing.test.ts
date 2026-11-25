@@ -2,9 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { encodeQr } from "@pnw/wallet/qr";
-import { PAIRING_STEPS, PairingCode, ShieldPairingView } from "./ShieldPairing";
+import { BRAND } from "@/brand";
+import { PairingCode, ShieldPairingView, pairingSteps } from "./ShieldPairing";
 
-const LINK = `shield://connect?channelId=6f1c2a3b-0000-4000-8000-000000000001&pubkey=02${"a".repeat(64)}&relay=wss%3A%2F%2Frelay.shield.app&origin=https%3A%2F%2Fwww.hewnaccounting.com&secret=${"b".repeat(64)}&v=1`;
+const LINK = `https://connect.shield.app/connect#channelId=6f1c2a3b-0000-4000-8000-000000000001&pubkey=02${"a".repeat(64)}&relay=wss%3A%2F%2Frelay.shield.app&origin=https%3A%2F%2Fwww.hewnaccounting.com&secret=${"b".repeat(64)}&v=1`;
 const text = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/&#x27;|&apos;/g, "'").replace(/\s+/g, " ");
 const view = (props: Partial<Parameters<typeof ShieldPairingView>[0]>) =>
   renderToStaticMarkup(createElement(ShieldPairingView, { connected: false, pairing: LINK, waiting: 0, shown: false, onShow: () => undefined, onCancel: () => undefined, ...props }));
@@ -27,12 +28,25 @@ describe("the pairing screen on a computer without the extension", () => {
   it("draws the code after the tap, with the steps and the warning, and nowhere puts the link as text", () => {
     const html = view({ shown: true });
     expect(html).toContain("<svg");
-    for (const step of PAIRING_STEPS) expect(text(html)).toContain(step.replace(/'/g, "'"));
+    for (const step of pairingSteps("this site's address")) expect(text(html)).toContain(step);
     expect(text(html)).toContain("connects whoever opens it first");
     expect(text(html)).toContain("for 5 minutes");
     // The secret is only in the drawing: not as text, not in a link, not in an attribute.
     expect(html).not.toContain("b".repeat(64));
-    expect(html).not.toContain("shield://");
+    expect(html).not.toContain("connect.shield.app");
+  });
+
+  it("names the address Shield will show, and says what an out-of-date Shield does", () => {
+    const html = text(view({ shown: true, site: "www.hewnaccounting.com" }));
+    expect(html).toContain(`names ${BRAND.name} and www.hewnaccounting.com`);
+    expect(html).toContain("If the code opens a web page instead of Shield, update the Shield app");
+  });
+
+  it("inside the desktop app offers no extension, which can't run there", () => {
+    const html = view({ shown: false, desktop: true });
+    expect(text(html)).toContain("This app shows a code");
+    expect(html).not.toContain("www.shield.app");
+    expect(text(html)).not.toContain("extension");
   });
 
   it("says to open Shield on the phone while an approval is waiting, once paired", () => {

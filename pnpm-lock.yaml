@@ -356,14 +356,14 @@ importers:
         specifier: 1.3.0
         version: 1.3.0
       '@provablehq/aleo-wallet-adapter-core':
-        specifier: 1.3.0
-        version: 1.3.0
+        specifier: 1.3.1
+        version: 1.3.1
       '@provablehq/aleo-wallet-adapter-react':
         specifier: 1.5.0
         version: 1.5.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@provablehq/aleo-wallet-adapter-shield':
-        specifier: 1.5.0
-        version: 1.5.0
+        specifier: 1.6.0
+        version: 1.6.0
       '@provablehq/aleo-wallet-standard':
         specifier: 1.6.0
         version: 1.6.0
@@ -723,14 +723,17 @@ packages:
   '@provablehq/aleo-wallet-adapter-core@1.3.0':
     resolution: {integrity: sha512-azqbGpZjuelRAGcknz21XwL5SMBu4DwupvM1tT5TcaG6Eswq380K0Fw/HTT0fxPSIMDC2mFToYwvLGhAElo+zA==}
 
+  '@provablehq/aleo-wallet-adapter-core@1.3.1':
+    resolution: {integrity: sha512-SR1jhzTAdKLxT9JO4z4WFaiRuWzza/Y0Nl3DESNG88vKHxyrFtOhGihPph26QvDGV85YZucAKgWzo3iaJQ6J+Q==}
+
   '@provablehq/aleo-wallet-adapter-react@1.5.0':
     resolution: {integrity: sha512-hDTvnRhhkWw/7VTvP3Bpkp/kw9EQBLLWh8HestYL5J1COuH5fvxH+LnYgIktUkERnzelDz0XLoz6wjKvGCQ6EA==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@provablehq/aleo-wallet-adapter-shield@1.5.0':
-    resolution: {integrity: sha512-UFDRq4mjB4+26fbGb4Tiw7asXvDc4Nizqwd1NYn/3BBwISYq8v98qfaexndKuBVXg6WXq67eZsuRiw1BQcIpOw==}
+  '@provablehq/aleo-wallet-adapter-shield@1.6.0':
+    resolution: {integrity: sha512-uJPKVfMvgtq/1rwwOoWO2bxNDT0AlZ5jGMGeNnJAVIrMaJgnKQjpWxNT7gFCbc5sBzwfmTz+KO5HL9qpNxPdSw==}
 
   '@provablehq/aleo-wallet-standard@1.6.0':
     resolution: {integrity: sha512-ejazjV43FsNo+1v3357q8qMyLzMdUNeC1abjNUQJQ52kklbrPEMizsrK4DgZM6Ia8ZqfMxdIbC3PGvcjaJkPLA==}
@@ -1831,6 +1834,11 @@ snapshots:
       '@provablehq/aleo-types': 1.3.0
       '@provablehq/aleo-wallet-standard': 1.6.0
 
+  '@provablehq/aleo-wallet-adapter-core@1.3.1':
+    dependencies:
+      '@provablehq/aleo-types': 1.3.0
+      '@provablehq/aleo-wallet-standard': 1.6.0
+
   '@provablehq/aleo-wallet-adapter-react@1.5.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@provablehq/aleo-types': 1.3.0
@@ -1839,12 +1847,12 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@provablehq/aleo-wallet-adapter-shield@1.5.0':
+  '@provablehq/aleo-wallet-adapter-shield@1.6.0':
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.7.2
       '@provablehq/aleo-types': 1.3.0
-      '@provablehq/aleo-wallet-adapter-core': 1.3.0
+      '@provablehq/aleo-wallet-adapter-core': 1.3.1
       '@provablehq/aleo-wallet-standard': 1.6.0
       centrifuge: 5.7.4
       eciesjs: 0.4.18

@@ -1,20 +1,21 @@
 // The desktop pairing path, against the adapter's own relay transport (vendored from
-// ProvableHQ/shield-relay into @provablehq/aleo-wallet-adapter-shield 1.5.0) with the relay socket
+// ProvableHQ/shield-relay into @provablehq/aleo-wallet-adapter-shield 1.6.0) with the relay socket
 // stood in for and the Shield app simulated by the protocol's own rules: a key handshake MACed with
 // the pairing secret, then sealed, signed messages. Nothing here touches the network, and no
 // account key is involved: the only keys are the throwaway relay keys the protocol mints per pairing.
 
 import { createHmac } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import jsQR from "jsqr";
 import { BRAND } from "@pnw/brand";
-import { PAIRING_WAIT_MS, SELECTED_WALLET_KEY, SHIELD_SESSION_KEY, desktopPairingLink, forgetUnfinishedPairing } from "./desktop_pairing";
+import { SHIELD_VERIFIED_DEEPLINK_BASE } from "@provablehq/aleo-wallet-adapter-shield";
+import { DECLARED_SESSION_KEY, PAIRING_WAIT_MS, SELECTED_WALLET_KEY, SHIELD_SESSION_KEY, desktopPairingLink, forgetUnfinishedPairing } from "./desktop_pairing";
 import { encodeQr } from "./qr";
-import { SHIELD_RELAY_ORIGIN, WALLET_PROGRAMS } from "./wallet-provider";
+import { DECLARED_ORIGIN, SHIELD_RELAY_ORIGIN, WALLET_PROGRAMS, shieldAdapterConfig } from "./wallet-provider";
 
 const require = createRequire(import.meta.url);
 const ADAPTER_MAIN = require.resolve("@provablehq/aleo-wallet-adapter-shield");
@@ -31,7 +32,22 @@ const { secp256k1 } = fromAdapter("@noble/curves/secp256k1") as {
 };
 const { sha256 } = fromAdapter("@noble/hashes/sha256") as { sha256(data: Uint8Array): Uint8Array };
 
-const ORIGIN = BRAND.appUrl;
+const ORIGIN = DECLARED_ORIGIN;
+
+/** Where the installed adapter lazy-loads one of its chunks from (any of its own files may). */
+function lazyChunk(prefix: string): string | null {
+  for (const file of readdirSync(ADAPTER_DIST).filter((f) => f.endsWith(".mjs"))) {
+    const m = readFileSync(join(ADAPTER_DIST, file), "utf8").match(new RegExp(`import\\("\\./(${prefix}-[A-Z0-9]+\\.mjs)"\\)`));
+    if (m) return m[1]!;
+  }
+  return null;
+}
+
+/** A pairing link's parameters: after the `#` on the verified https form, in the query otherwise. */
+function linkParams(link: string): URLSearchParams {
+  const url = new URL(link);
+  return new URLSearchParams(url.protocol === "https:" ? url.hash.slice(1) : url.search);
+}
 
 type Envelope = { from: "dapp" | "wallet"; payload: { type: string; data?: string; publicKey?: string; mac?: string; version?: number } };
 type Transport = {
@@ -47,13 +63,13 @@ type Transport = {
 async function relayTransport(memory = new Map<string, string>()): Promise<{ transport: Transport; published: Envelope[]; deliver(payload: Envelope["payload"]): void }> {
   // The transport chunk isn't in the package's exports; the version is pinned exactly, and the
   // file name is checked below so a bump that renames it fails here, not quietly.
-  const chunk = readFileSync(join(ADAPTER_DIST, "index.mjs"), "utf8").match(/import\("\.\/(transport-[A-Z0-9]+\.mjs)"\)/);
+  const chunk = lazyChunk("transport");
   expect(chunk, "the adapter still lazy-loads its relay transport chunk").not.toBeNull();
-  const { RemoteShieldTransport } = (await import(pathToFileURL(join(ADAPTER_DIST, chunk![1])).href)) as { RemoteShieldTransport: new (o: object) => Transport };
+  const { RemoteShieldTransport } = (await import(pathToFileURL(join(ADAPTER_DIST, chunk!)).href)) as { RemoteShieldTransport: new (o: object) => Transport };
   const published: Envelope[] = [];
   const transport = new RemoteShieldTransport({
     relayUrl: SHIELD_RELAY_ORIGIN,
-    deeplinkBase: "shield://connect",
+    deeplinkBase: SHIELD_VERIFIED_DEEPLINK_BASE, // what shieldAdapterConfig asks for on a computer (pinned below)
     origin: ORIGIN,
     storage: { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v), removeItem: (k: string) => void memory.delete(k) },
   });
@@ -78,7 +94,7 @@ async function relayTransport(memory = new Map<string, string>()): Promise<{ tra
 
 /** What the Shield app does with a pairing link: a fresh relay key, and the handshake MACed with the secret. */
 function walletJoins(link: string, key = new ecies.PrivateKey()) {
-  const params = new URL(link).searchParams;
+  const params = linkParams(link);
   const publicKey = key.publicKey.toHex(true);
   const transcript = JSON.stringify([
     "shield-relay-key-handshake-v1",
@@ -115,11 +131,15 @@ describe("desktopPairingLink", () => {
     const link = desktopPairingLink(url, false, ORIGIN)!;
     expect(link).not.toBeNull();
     expect(link.length).toBeLessThan(400);
-    const before = new URL(url).searchParams;
-    const after = new URL(link).searchParams;
+    const before = linkParams(url);
+    const after = linkParams(link);
     expect([...after.keys()]).toEqual(["channelId", "pubkey", "relay", "origin", "secret", "v"]);
     for (const key of after.keys()) expect(after.get(key)).toBe(before.get(key));
-    expect(link.startsWith("shield://connect?")).toBe(true);
+    // Shield's verified link: everything after the `#`, which no browser sends to a server.
+    expect(url.startsWith(`${SHIELD_VERIFIED_DEEPLINK_BASE}#`)).toBe(true);
+    expect(link.startsWith(`${SHIELD_VERIFIED_DEEPLINK_BASE}#`)).toBe(true);
+    expect(new URL(link).search).toBe("");
+    expect(after.get("origin")).toBe(DECLARED_ORIGIN);
     transport.disconnect();
   });
 
@@ -145,7 +165,7 @@ describe("desktopPairingLink", () => {
     expect(desktopPairingLink(null, false)).toBeNull();
     expect(desktopPairingLink(undefined, false)).toBeNull();
     expect(desktopPairingLink("", false)).toBeNull();
-    const ok = `shield://connect?channelId=6f1c2a3b-0000-4000-8000-000000000001&pubkey=02${"a".repeat(64)}&relay=${encodeURIComponent(SHIELD_RELAY_ORIGIN)}&origin=${encodeURIComponent(ORIGIN)}&secret=${"b".repeat(64)}&v=1`;
+    const ok = `${SHIELD_VERIFIED_DEEPLINK_BASE}#channelId=6f1c2a3b-0000-4000-8000-000000000001&pubkey=02${"a".repeat(64)}&relay=${encodeURIComponent(SHIELD_RELAY_ORIGIN)}&origin=${encodeURIComponent(ORIGIN)}&secret=${"b".repeat(64)}&v=1`;
     expect(desktopPairingLink(ok, false, ORIGIN)).toBe(ok);
     expect(desktopPairingLink(ok, true, ORIGIN)).toBeNull();
   });
@@ -159,9 +179,12 @@ describe("desktopPairingLink", () => {
       secret: "b".repeat(64),
       v: "1",
     };
-    const build = (over: Record<string, string | null>, base = "shield://connect") => {
+    const build = (over: Record<string, string | null>, base = SHIELD_VERIFIED_DEEPLINK_BASE, inQuery = false) => {
       const url = new URL(base);
-      for (const [k, v] of Object.entries({ ...parts, ...over })) if (v !== null) url.searchParams.set(k, v);
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries({ ...parts, ...over })) if (v !== null) params.set(k, v);
+      if (inQuery) url.search = params.toString();
+      else url.hash = params.toString();
       return url.toString();
     };
     expect(desktopPairingLink(build({}), false, ORIGIN)).not.toBeNull();
@@ -170,8 +193,19 @@ describe("desktopPairingLink", () => {
     // Another site's origin, or another scheme or route.
     expect(desktopPairingLink(build({ origin: "https://evil.example" }), false, ORIGIN)).toBeNull();
     expect(desktopPairingLink(build({}, "https://app.shield.app/connect"), false, ORIGIN)).toBeNull();
-    expect(desktopPairingLink(build({}, "shield://wake"), false, ORIGIN)).toBeNull();
-    expect(desktopPairingLink(build({}, "evil://connect"), false, ORIGIN)).toBeNull();
+    expect(desktopPairingLink(build({}, "https://connect.shield.app/wake"), false, ORIGIN)).toBeNull();
+    expect(desktopPairingLink(build({}, "https://connect.shield.app.evil.example/connect"), false, ORIGIN)).toBeNull();
+    expect(desktopPairingLink(build({}, "http://connect.shield.app/connect"), false, ORIGIN)).toBeNull();
+    expect(desktopPairingLink(build({}, "https://user@connect.shield.app/connect"), false, ORIGIN)).toBeNull();
+    // A custom scheme any installed app could claim, which a computer never shows.
+    expect(desktopPairingLink(build({}, "shield://connect", true), false, ORIGIN)).toBeNull();
+    expect(desktopPairingLink(build({}, "evil://connect", true), false, ORIGIN)).toBeNull();
+    // The secret in a query string would reach Shield's link host: refused, alone or with a fragment.
+    expect(desktopPairingLink(build({}, SHIELD_VERIFIED_DEEPLINK_BASE, true), false, ORIGIN)).toBeNull();
+    expect(desktopPairingLink(`${SHIELD_VERIFIED_DEEPLINK_BASE}?x=1#${new URL(build({})).hash.slice(1)}`, false, ORIGIN)).toBeNull();
+    // An origin that isn't https: no page of this app has one, and Shield refuses plain http.
+    expect(desktopPairingLink(build({ origin: "tauri://localhost" }), false)).toBeNull();
+    expect(desktopPairingLink(build({ origin: "http://www.hewnaccounting.com" }), false)).toBeNull();
     // A missing or malformed field, an unknown one, a duplicate, another protocol version.
     for (const key of Object.keys(parts)) expect(desktopPairingLink(build({ [key]: null }), false, ORIGIN), key).toBeNull();
     expect(desktopPairingLink(build({ secret: "b".repeat(63) }), false, ORIGIN)).toBeNull();
@@ -179,7 +213,7 @@ describe("desktopPairingLink", () => {
     expect(desktopPairingLink(build({ v: "2" }), false, ORIGIN)).toBeNull();
     expect(desktopPairingLink(build({ extra: "1" }), false, ORIGIN)).toBeNull();
     expect(desktopPairingLink(`${build({})}&secret=${"c".repeat(64)}`, false, ORIGIN)).toBeNull();
-    expect(desktopPairingLink(`${build({})}#x`, false, ORIGIN)).toBeNull();
+    expect(desktopPairingLink(`${build({})}&x`, false, ORIGIN)).toBeNull();
     expect(desktopPairingLink("not a url", false, ORIGIN)).toBeNull();
   });
 
@@ -187,7 +221,7 @@ describe("desktopPairingLink", () => {
     const spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => undefined));
     const { transport } = await relayTransport();
     const link = desktopPairingLink((await transport.connect(GRANT)).url, false, ORIGIN);
-    desktopPairingLink("shield://connect?secret=1", false, ORIGIN);
+    desktopPairingLink(`${SHIELD_VERIFIED_DEEPLINK_BASE}#secret=1`, false, ORIGIN);
     expect(link).not.toBeNull();
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     transport.disconnect();
@@ -264,7 +298,9 @@ describe("pairing a computer through the shown link (the adapter's transport, a 
     const { url } = await transport.connect(GRANT);
     const shown = desktopPairingLink(url, false, ORIGIN)!;
     const wrong = new URL(shown);
-    wrong.searchParams.set("secret", "0".repeat(64));
+    const params = linkParams(shown);
+    params.set("secret", "0".repeat(64));
+    wrong.hash = params.toString();
     const rejected: unknown[] = [];
     transport.on("handshakeRejected", () => rejected.push(true));
     deliver(walletJoins(wrong.toString()).handshake);
@@ -281,13 +317,13 @@ describe("an unfinished pairing left by an earlier page (forgetUnfinishedPairing
     const memory = new Map<string, string>();
     // A page shows a code and is closed or reloaded before Shield pairs.
     const first = await relayTransport(memory);
-    const earlier = new URL(desktopPairingLink((await first.transport.connect(GRANT)).url, false, ORIGIN)!).searchParams;
+    const earlier = linkParams(desktopPairingLink((await first.transport.connect(GRANT)).url, false, ORIGIN)!);
     expect(memory.has(SHIELD_SESSION_KEY)).toBe(true);
     // Left alone, the next page's connect would wait for that same code again.
     const resumed = await relayTransport(new Map(memory));
     const again = await resumed.transport.connect(GRANT);
     expect(again.resumed).toBe(true);
-    expect(new URL(again.url).searchParams.get("secret")).toBe(earlier.get("secret"));
+    expect(linkParams(again.url).get("secret")).toBe(earlier.get("secret"));
     // Forgotten first, with the choice of Shield that would reconnect every panel by itself, the
     // next connect mints a new channel and secret: the earlier code pairs with nothing.
     memory.set(SELECTED_WALLET_KEY, JSON.stringify("Shield Wallet"));
@@ -296,7 +332,7 @@ describe("an unfinished pairing left by an earlier page (forgetUnfinishedPairing
     const next = await relayTransport(memory);
     const fresh = await next.transport.connect(GRANT);
     expect(fresh.resumed).toBe(false);
-    const now = new URL(desktopPairingLink(fresh.url, false, ORIGIN)!).searchParams;
+    const now = linkParams(desktopPairingLink(fresh.url, false, ORIGIN)!);
     expect(now.get("secret")).not.toBe(earlier.get("secret"));
     expect(now.get("channelId")).not.toBe(earlier.get("channelId"));
     for (const t of [first, resumed, next]) t.transport.disconnect();
@@ -317,6 +353,17 @@ describe("an unfinished pairing left by an earlier page (forgetUnfinishedPairing
     transport.disconnect();
   });
 
+  it("forgets the desktop app's unfinished pairing too, kept under its declared origin, and keeps its finished one", () => {
+    const unfinished = JSON.stringify({ channelId: "c", secret: "s" });
+    const finished = JSON.stringify({ channelId: "c", secret: "s", walletPublicKey: "02aa" });
+    const memory = new Map([[DECLARED_SESSION_KEY, unfinished], [SELECTED_WALLET_KEY, '"Shield Wallet"']]);
+    expect(forgetUnfinishedPairing(storageOf(memory))).toBe(true);
+    expect(memory.size).toBe(0);
+    const kept = new Map([[DECLARED_SESSION_KEY, finished], [SELECTED_WALLET_KEY, '"Shield Wallet"']]);
+    expect(forgetUnfinishedPairing(storageOf(kept))).toBe(false);
+    expect(kept.size).toBe(2);
+  });
+
   it("does nothing without storage or with nothing stored, and survives blocked or unreadable storage", () => {
     expect(forgetUnfinishedPairing(undefined)).toBe(false);
     expect(forgetUnfinishedPairing(storageOf(new Map()))).toBe(false);
@@ -334,14 +381,29 @@ describe("an unfinished pairing left by an earlier page (forgetUnfinishedPairing
 });
 
 describe("what the adapter does on a computer (pinned to the installed source)", () => {
-  const remote = () => {
-    const name = readFileSync(join(ADAPTER_DIST, "index.mjs"), "utf8").match(/import\("\.\/(remote-[A-Z0-9]+\.mjs)"\)/)![1];
-    return readFileSync(join(ADAPTER_DIST, name), "utf8");
-  };
+  const remote = () => readFileSync(join(ADAPTER_DIST, lazyChunk("remote")!), "utf8");
 
   it("keeps its pairing under the key the app forgets an unfinished one by", () => {
-    const name = readFileSync(join(ADAPTER_DIST, "index.mjs"), "utf8").match(/import\("\.\/(transport-[A-Z0-9]+\.mjs)"\)/)![1];
-    expect(readFileSync(join(ADAPTER_DIST, name), "utf8")).toContain(`var STORAGE_KEY = "${SHIELD_SESSION_KEY}";`);
+    expect(readFileSync(join(ADAPTER_DIST, lazyChunk("transport")!), "utf8")).toContain(`var STORAGE_KEY = "${SHIELD_SESSION_KEY}";`);
+  });
+
+  it("keeps a declared origin's pairing under its own key, the second one the app forgets", () => {
+    expect(DECLARED_SESSION_KEY).toBe(`${SHIELD_SESSION_KEY}:${DECLARED_ORIGIN}`);
+    const source = remote();
+    expect(source).toContain("const scopedKey = (key) => origin === void 0 ? key : `${key}:${origin}`;");
+    expect(source).toContain("this.origin = relayOriginOverride(config.origin);");
+    expect(source).toContain("this.storage = relayStorage(this.origin);");
+  });
+
+  it("is asked for the verified link on a computer and the app's own scheme on a phone, with the declared origin", () => {
+    const computer = shieldAdapterConfig(false).remote as { deeplinkBase: string; origin: string; relayUrl: string };
+    const phone = shieldAdapterConfig(true).remote as { deeplinkBase: string; origin: string };
+    expect(computer.deeplinkBase).toBe(SHIELD_VERIFIED_DEEPLINK_BASE);
+    expect(SHIELD_VERIFIED_DEEPLINK_BASE).toBe("https://connect.shield.app/connect");
+    expect(phone.deeplinkBase).toBe("shield://connect");
+    expect(computer.origin).toBe(DECLARED_ORIGIN);
+    expect(computer.relayUrl).toBe(SHIELD_RELAY_ORIGIN);
+    expect(DECLARED_ORIGIN).toBe(new URL(BRAND.appUrl).origin);
   });
 
   it("remembers the chosen wallet under the key the app forgets with an unfinished pairing", () => {

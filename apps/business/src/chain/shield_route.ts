@@ -6,20 +6,18 @@ import { WalletReadyState } from "@pnw/wallet/wallet-provider";
 /**
  * - `injected`: the extension, or Shield's own browser; always reachable.
  * - `relay`: a plain phone browser; the Shield app is opened by a link and answers over the relay.
- * - `pair`: a computer without the extension. The same relay, but nothing on the computer can open
- *   the app on a phone: the page shows the pairing link as a QR code for the phone's camera to open
- *   in Shield (`ShieldPairing.tsx`), and the person opens Shield on the phone for every approval.
- *   Whether a phone's camera opens a `shield://` link is up to the phone (Shield's app has no
- *   scanner for it yet; packages/wallet/DESKTOP_PAIRING.md), so the extension stays on offer.
- * - `none`: the adapter can't pair at all (no relay, an unsupported browser). The desktop app
- *   (`desktop`) is always here: no extension runs inside it, and it can't reach Shield yet
- *   (apps/desktop/README.md), so it never offers a connect that can't finish.
+ * - `pair`: a computer without the extension, the desktop app included. The same relay, but nothing
+ *   on the computer can open the app on a phone: the page shows Shield's verified pairing link as a
+ *   QR code for the phone's camera, which hands it to the Shield app (`ShieldPairing.tsx`;
+ *   packages/wallet/DESKTOP_PAIRING.md), and the person opens Shield on the phone for every approval.
+ * - `none`: the adapter can't pair at all (no relay, an unsupported browser or web view).
  */
 export type ShieldRoute = "injected" | "relay" | "pair" | "none";
 
 /** The adapter reports LOADABLE wherever the relay could pair: a phone opens the link itself, a computer shows it. */
 export function shieldRoute(readyState: WalletReadyState | undefined, phone: boolean, desktop = false): ShieldRoute {
-  if (desktop) return "none";
+  // No extension runs inside the desktop app, and it is never a phone: its one way in is the code.
+  if (desktop) return readyState === WalletReadyState.LOADABLE ? "pair" : "none";
   if (readyState === WalletReadyState.INSTALLED) return "injected";
   if (readyState === WalletReadyState.LOADABLE) return phone ? "relay" : "pair";
   return "none";

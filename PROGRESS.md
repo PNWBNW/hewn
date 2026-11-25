@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-25](progress/2026-11/2026-11-25.md)
+
+- [Pairing with Shield on a phone moves to Shield's verified link, and the desktop app takes it](progress/2026-11/2026-11-25.md#2026-11-25--pairing-with-shield-on-a-phone-moves-to-shields-verified-link-and-the-desktop-app-takes-it)
+
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
 
 - [Light sleep: 2026-11-17](progress/2026-11/2026-11-17.md#2026-11-17--light-sleep-2026-11-17)

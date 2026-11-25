@@ -20,7 +20,7 @@
 import { useEffect, useState } from "react";
 import { type FeeMode, readFeeMode, withFeeMode } from "@pnw/wallet/fee-mode";
 import { desktopPairingLink } from "@pnw/wallet/desktop-pairing";
-import { Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
+import { DECLARED_ORIGIN, Network, WalletReadyState, shieldWakeUrl, useWallet } from "@pnw/wallet/wallet-provider";
 import { errorMessage } from "@/books/AuthCard";
 import { useDesktopApp } from "@/desktop";
 import { checkEditions } from "./editions";
@@ -102,7 +102,7 @@ export function useShield() {
   }, [shield?.adapter, route, wallet.connected]);
 
   const connect = () => {
-    if (!shield || desktop) return; // nothing to connect to from the desktop app yet
+    if (!shield || (desktop && route === "none")) return; // the desktop app can't reach the relay
     setError(null);
     setAsked(true);
     wallet.selectWallet(shield.adapter.name);
@@ -115,7 +115,7 @@ export function useShield() {
    * Tearing the pairing down ends that wait; the connect that follows runs from the tap.
    */
   const restart = async () => {
-    if (!shield || desktop) return;
+    if (!shield || (desktop && route === "none")) return;
     setError(null);
     setReconnect(true);
     try {
@@ -180,7 +180,7 @@ export function useShield() {
    */
   const pairing =
     route === "pair" && !wallet.connected && typeof location !== "undefined"
-      ? desktopPairingLink(wallet.pairingUrl, wallet.pairingSameDevice, location.origin)
+      ? desktopPairingLink(wallet.pairingUrl, wallet.pairingSameDevice, desktop ? DECLARED_ORIGIN : location.origin)
       : null;
 
   return { state, route, desktop, away, connect, restart, cancel, wakeUrl, pairing, error, wallet: signing };

@@ -1,21 +1,32 @@
 # Pairing a computer with Shield on a phone
 
-What we found on 2026-11-17 about reaching Shield from a computer without the extension (the
-desktop app's blocker, `docs/HOSTING.md` step 3), what this package and the app now do about it,
-what is still unknown, and what to ask Provable. Line numbers are in the installed
-`@provablehq/aleo-wallet-adapter-shield` 1.5.0 (`src/`, the newest on npm, published 2026-10-27)
-unless another file is named.
+How a computer without the extension, the desktop app included, reaches Shield on a phone
+(`docs/HOSTING.md` step 3): what we found on 2026-11-17 with adapter 1.5.0, what 1.6.0 changed
+(2026-11-25), what this package and the app do, and what is still unknown.
 
-## Short answer
+## Short answer (adapter 1.6.0)
 
-The adapter and the relay protocol were built for this: a computer shows the pairing link as a QR
-code, the phone pairs over the relay, and every later request goes over the sealed channel. What is
-missing is on the phone: **Shield's app has no scanner for the pairing link, and the link is a
-`shield://` custom-scheme link, not a universal link**, so it depends on the phone's own camera
-offering to open Shield. Provable says so in the adapter's README. iPhones' camera is reported to
-open custom-scheme links for an installed app; Android's cameras vary. So the path is **feasible
-but not reliable on every phone**, and it is built behind detection with the extension kept on
-offer, waiting on a test on real phones and on Provable.
+A computer shows the pairing link as a QR code, the phone pairs over the relay, and every later
+request goes over the sealed channel. Since `@provablehq/aleo-wallet-adapter-shield` 1.6.0
+(published 2026-11-20; installed 2026-11-25 ahead of the seven-day rule, Joshua's exception, OPS-04)
+the link a computer shows is **Shield's verified link**, `https://connect.shield.app/connect#…`
+(`SHIELD_VERIFIED_DEEPLINK_BASE`, `remoteDefaults.ts:26`): the phone's camera opens an ordinary
+https link, and the phone hands it only to the signed Shield app (a universal link on iOS, an App
+Link on Android). Every parameter, the pairing secret included, is in the fragment after `#`
+(`relay/linkForm.ts`), which no browser sends to a server, so Shield's link host never sees it. An
+older Shield app that doesn't claim the link opens a web page instead; the pairing screen says to
+update Shield. On a phone the page keeps `shield://connect` (it opens the app itself; the adapter
+still defaults to it for older installs).
+
+The desktop app's pages have no web origin (`tauri://localhost`, or `https://tauri.localhost` on
+Windows), so it declares the website's, `DECLARED_ORIGIN`, through `remote.origin`; the adapter
+uses it only where the page isn't a hosted web page (`relayOriginOverride`, `remoteDefaults.ts:66`)
+and keeps that origin's pairing under its own key, `shield:remote-session:<origin>`
+(`relayStorage`, `remoteSession.ts:154`). Shield Mobile shows the name and origin the app declares;
+over the relay both are self-reported (Provable, 2026-11-23).
+
+The evidence below was gathered on 1.5.0 (line numbers in its `src/`); the protocol is unchanged
+in 1.6.0 except where noted.
 
 ## How pairing works (the evidence)
 
@@ -91,13 +102,14 @@ offer, waiting on a test on real phones and on Provable.
   no new third-party code. Its test decodes every version and level with an independent reader
   (jsQR, a dev dependency only).
 - `src/desktop_pairing.ts`: `desktopPairingLink` turns the adapter's link into the one shown,
-  without `req`, and refuses anything but a well-formed Shield pairing link on Shield's relay for
-  this page's origin. Its test runs the adapter's own transport against a simulated Shield app:
+  without `req`, and refuses anything but a well-formed Shield verified pairing link (https,
+  `connect.shield.app/connect`, the parameters in the fragment and none in a query) on Shield's
+  relay for this page's origin, or the declared one in the desktop app. Its test runs the adapter's own transport against a simulated Shield app:
   pairing through the shown link, the connect going over the sealed channel, a second handshake
   (a photo of the code) refused after Shield pairs, and the race before it.
   `forgetUnfinishedPairing` drops a pairing an earlier visit left unfinished, and the choice of
   Shield that would start another by itself, so an old code pairs with nothing; a finished pairing
-  is kept. The app calls it once per visit on a computer, before any panel connects
+  is kept, under either key (the page's own, or the declared origin's). The app calls it once per visit on a computer, before any panel connects
   (`ShieldProvider.tsx`); never on a phone, which comes back from Shield by reloading.
 - In the app (`apps/business/src/chain`): the `pair` route (a computer, no extension, the adapter
   able to pair), `ShieldPairing.tsx` (the code after a tap, the steps, the warning, Cancel, and
@@ -107,22 +119,20 @@ offer, waiting on a test on real phones and on Provable.
 
 ## Not verified
 
-- That Shield's release app pairs from a link opened by a phone's camera, with `sameDevice: false`
-  and no `req` (the protocol's cross-device path; never run on a device by us).
-- That the iPhone camera and Android cameras (Lens, Samsung) offer to open `shield://` links.
+- That Shield's release app pairs from the verified link opened by a phone's camera, with
+  `sameDevice: false` and no `req`, on iPhone and Android (the test on real phones; Provable asked
+  to hear how it goes on Windows and macOS).
 - That Shield, opened by hand, shows an approval that has waited on the channel for minutes, and
   how long the relay keeps channel history.
-- That Shield's release build accepts the desktop app's origin (Tauri serves `tauri://localhost`
-  on macOS and Linux and `http://tauri.localhost` on Windows unless set to https; the adapter's
-  README says a release build refuses an `http://` origin).
+- That Shield's release build pairs with the origin the desktop app declares (Provable wrote that
+  Shield Mobile shows it; untested by us).
 
 ## The ask for Provable
 
-1. **Let Shield's scanner read a pairing link.** The app's scanner reads addresses only; reading a
-   `shield://connect?…` code would make this work on every phone, whatever its camera does.
-2. **Universal links and App Links** for the https form with the parameters in the fragment
-   (shield-relay#12), so a phone's camera opens Shield, and lift the custom-scheme check in the
-   adapter once the app parses the fragment.
+Asks 1 and 2 of 2026-11-17 (a scanner, or universal links for the https form with the parameters
+in the fragment) are answered by 1.6.0's verified link, and ask 6 (the desktop app's origin) by
+`remote.origin`. Still open:
+
 3. **Confirm the cross-device path in the release app:** a link without `req`, `sameDevice:
    false`, the connect sent over the channel after the handshake.
 4. **A way to reach the phone for approvals from a computer:** a notification when a request
@@ -131,5 +141,6 @@ offer, waiting on a test on real phones and on Provable.
 5. **A short check both screens show after the handshake** (a few words or digits derived from
    both keys), so a person can see that the Shield that paired is theirs; it closes the window a
    photographed code leaves open.
-6. **Which page origins the release build pairs with**, so an installed desktop app's origin is
-   accepted (above).
+6. **Verifying the requesting app** rather than trusting the name and origin it declares
+   (Provable wants to explore this): `docs/HOSTING.md` step 3 has an idea built on signed,
+   anchored releases.

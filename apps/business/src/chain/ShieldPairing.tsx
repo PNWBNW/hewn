@@ -14,7 +14,7 @@ import { useState, useSyncExternalStore } from "react";
 import { Button } from "@pnw/ui/button";
 import { PAIRING_WAIT_MS } from "@pnw/wallet/desktop-pairing";
 import { encodeQr, qrSvgPath } from "@pnw/wallet/qr";
-import { SHIELD_APP_URL } from "@pnw/wallet/wallet-provider";
+import { DECLARED_ORIGIN, SHIELD_APP_URL } from "@pnw/wallet/wallet-provider";
 import { BRAND } from "@/brand";
 import { approvalsWaiting, subscribeApprovals } from "./phone_approval";
 import { useShield } from "./shield";
@@ -39,15 +39,17 @@ export function PairingCode({ value }: { value: string }) {
   );
 }
 
-/** The steps, in the person's words. */
-export const PAIRING_STEPS = [
-  "On your phone, open the camera and point it at the code.",
-  "Tap the Shield link the camera shows. Shield opens and asks to connect.",
-  `Check that Shield names ${BRAND.name} and this site's address, then approve. This page connects by itself.`,
-];
+/** The steps, in the person's words. `site` is the address Shield will show beside the name. */
+export function pairingSteps(site: string): string[] {
+  return [
+    "On your phone, open the camera and point it at the code.",
+    "Tap the Shield link the camera shows. Shield opens and asks to connect.",
+    `Check that Shield names ${BRAND.name} and ${site}, then approve. This page connects by itself.`,
+  ];
+}
 
 export function ShieldPairing() {
-  const { route, state, pairing, cancel } = useShield();
+  const { route, state, pairing, cancel, desktop } = useShield();
   const [shown, setShown] = useState(false);
   const waiting = useSyncExternalStore(subscribeApprovals, approvalsWaiting, () => 0);
   if (route !== "pair") return null;
@@ -57,6 +59,8 @@ export function ShieldPairing() {
       pairing={pairing}
       waiting={waiting}
       shown={shown}
+      desktop={desktop}
+      site={desktop ? new URL(DECLARED_ORIGIN).host : typeof location === "undefined" ? "" : location.host}
       onShow={() => setShown(true)}
       onCancel={() => {
         setShown(false);
@@ -72,6 +76,8 @@ export function ShieldPairingView({
   pairing,
   waiting,
   shown,
+  desktop = false,
+  site = "this site's address",
   onShow,
   onCancel,
 }: {
@@ -79,6 +85,8 @@ export function ShieldPairingView({
   pairing: string | null;
   waiting: number;
   shown: boolean;
+  desktop?: boolean;
+  site?: string;
   onShow: () => void;
   onCancel: () => void;
 }) {
@@ -101,7 +109,7 @@ export function ShieldPairingView({
         <>
           <PairingCode value={pairing} />
           <ol className="list-decimal pl-5 text-sm">
-            {PAIRING_STEPS.map((step) => (
+            {pairingSteps(site).map((step) => (
               <li key={step}>{step}</li>
             ))}
           </ol>
@@ -113,8 +121,9 @@ export function ShieldPairingView({
       ) : (
         <>
           <p className="text-sm">
-            Without the Shield extension on this computer, connect the Shield app on your phone instead. This page shows a code for your
-            phone&apos;s camera.
+            {desktop
+              ? "Connect the Shield app on your phone. This app shows a code for your phone's camera."
+              : "Without the Shield extension on this computer, connect the Shield app on your phone instead. This page shows a code for your phone's camera."}
           </p>
           <Button className="min-h-11 self-start sm:min-h-9" onClick={onShow}>
             Show the code
@@ -122,11 +131,17 @@ export function ShieldPairingView({
         </>
       )}
       <p className="text-xs text-muted-foreground">
-        If your phone&apos;s camera doesn&apos;t offer to open Shield, this way in doesn&apos;t work on that phone yet. Install the{" "}
-        <a href={SHIELD_APP_URL} target="_blank" rel="noreferrer" className={link}>
-          Shield browser extension
-        </a>{" "}
-        on this computer instead.
+        If the code opens a web page instead of Shield, update the Shield app on your phone, then show a new code.
+        {desktop ? null : (
+          <>
+            {" "}
+            Or install the{" "}
+            <a href={SHIELD_APP_URL} target="_blank" rel="noreferrer" className={link}>
+              Shield browser extension
+            </a>{" "}
+            on this computer.
+          </>
+        )}
       </p>
       <Button variant="outline" className="min-h-11 self-start sm:min-h-9" onClick={onCancel}>
         Cancel

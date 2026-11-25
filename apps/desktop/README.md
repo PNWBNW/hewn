@@ -6,10 +6,10 @@ it and runs it from the app's own origin. Updates are installed only when they a
 operator's update key, so no host, domain or DNS change can alter the code it runs
 (`docs/HOSTING.md`, step 3).
 
-**Status (2026-11-17): built and tested on Linux, not yet usable.** Every account needs Shield
-(INV-13), and the desktop app can't reach Shield yet: no extension runs inside it, and Shield's
-phone app can't scan a pairing code. Until there is a way in, every screen that needs Shield says
-so plainly (below) instead of offering a connect that would wait for nothing.
+**Status (2026-11-25): built and tested on Linux; reaches Shield by pairing with a phone, not yet
+tested on a device.** Every account needs Shield (INV-13), and no extension runs inside the app. It
+shows Shield's verified pairing link as a QR code; the phone's camera opens it in Shield Mobile, and
+every approval happens on the phone (below, and `packages/wallet/DESKTOP_PAIRING.md`).
 
 ## What's here
 
@@ -80,14 +80,16 @@ behind. Both come from `BRAND.desktop.id` and this configuration.
 ## Shield inside the desktop app
 
 `useShield()` (`apps/business/src/chain/shield.ts`) knows when it runs in the desktop app
-(`useDesktopApp()`): the route is `none`, `connect` and `restart` do nothing, and the state is
-`missing`, so no screen ever shows "Connecting…". Every screen that would say "install the Shield
-extension" says instead that the desktop app can't reach Shield yet and to use the website for
-now (`ShieldMissing` and `SHIELD_NOT_IN_DESKTOP` in `chain/ShieldStatus.tsx`), with a link to the
-website where an account starts (setup, finding your books), which opens in the browser.
+(`useDesktopApp()`): the route is `pair`, the same as a computer without the extension, and the
+pairing screen (`chain/ShieldPairing.tsx`) shows the code, with no extension on offer. The link is
+Shield's verified link (`https://connect.shield.app/connect#…`, adapter 1.6.0), and the app
+declares the website's origin (`https://www.hewnaccounting.com`, `DECLARED_ORIGIN` in
+`@pnw/wallet`) because its own pages have none Shield could show. The relay it reaches is the one
+its security policy already allows; the link itself is only drawn, never opened by the app.
 
-When Shield's phone app can scan a pairing code, the desktop app will show the pairing link as a QR
-code and the relay it already allows carries the rest (`docs/HOSTING.md`, step 3).
+Where the adapter can't pair at all (the route is `none`), every screen that would offer Shield says
+the desktop app can't reach Shield right now (`ShieldMissing` and `SHIELD_NOT_IN_DESKTOP` in
+`chain/ShieldStatus.tsx`), with a link to the website where an account starts.
 
 ## Building
 

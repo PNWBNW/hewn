@@ -62,7 +62,8 @@ describe("Shield adapter configuration", () => {
     // default ever moves, this fails rather than the policy silently blocking the relay.
     expect(SHIELD_RELAY_ORIGIN).toBe("wss://relay.shield.app");
     expect(SHIELD_RELAY_DEFAULT).toBe(SHIELD_RELAY_ORIGIN);
-    expect(shieldAdapterConfig().remote).toEqual({ relayUrl: SHIELD_RELAY_ORIGIN });
+    expect(shieldAdapterConfig(false).remote).toMatchObject({ relayUrl: SHIELD_RELAY_ORIGIN });
+    expect(shieldAdapterConfig(true).remote).toMatchObject({ relayUrl: SHIELD_RELAY_ORIGIN });
   });
 
   it("tells Shield's approval screen who is asking, with an https icon", () => {
@@ -97,6 +98,8 @@ describe("shieldWakeUrl", () => {
     const source = readFileSync(createRequire(import.meta.url).resolve("@provablehq/aleo-wallet-adapter-shield"), "utf8");
     expect(source).toContain("this._shieldWallet = wallet;");
     expect(source).toContain("this.channelId = channelIdOf(url);");
-    expect(source).toContain("return `${base.protocol}//wake?channelId=${encodeURIComponent(channelId)}`;");
+    // A custom-scheme wake link is `<scheme>://wake` with the channel in the query (linkForm.ts).
+    expect(source).toContain("url = new URL(`${url.protocol}//wake`);");
+    expect(source).toContain("setLinkParams(url, new URLSearchParams({ channelId }));");
   });
 });

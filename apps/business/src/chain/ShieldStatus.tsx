@@ -102,12 +102,12 @@ export function ShieldAway({ what, href }: { what: string; href: string }) {
 }
 
 /**
- * The desktop app can't reach Shield yet: no extension runs inside it, and Shield's phone app
- * can't scan a pairing code (apps/desktop/README.md). Every screen that needs Shield says this
- * there, instead of a connect button that would wait for nothing.
+ * The desktop app reaches Shield only by pairing with the phone (the `pair` route), which needs the
+ * adapter's relay. Where that can't run (the route is `none`), every screen that needs Shield says
+ * this there, instead of a connect button that would wait for nothing.
  */
 export const SHIELD_NOT_IN_DESKTOP =
-  "This desktop app can't reach Shield yet, so anything that needs Shield isn't available here for now. Use the website in a browser with the Shield extension, or in the Shield app on a phone.";
+  "This desktop app can't reach Shield right now, so anything that needs Shield isn't available here. Check this computer's internet connection and open the app again, or use the website in a browser with the Shield extension.";
 
 /**
  * What a screen says when Shield isn't found: its own words (`children`) in a browser, and

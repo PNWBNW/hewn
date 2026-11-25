@@ -8,6 +8,7 @@ import { DecryptPermission } from "@provablehq/aleo-wallet-adapter-core";
 import {
   DEFAULT_SHIELD_DEEPLINK_BASE,
   DEFAULT_SHIELD_RELAY_URL,
+  SHIELD_VERIFIED_DEEPLINK_BASE,
   ShieldWalletAdapter,
   type ShieldWalletAdapterConfig,
 } from "@provablehq/aleo-wallet-adapter-shield";
@@ -134,13 +135,38 @@ export function shieldWakeUrl(adapter: unknown): string {
  * The approval screen in Shield shows the name and icon declared here beside
  * the page's origin (it has no page to read over the relay). Display only: the
  * origin stays primary.
+ *
+ * The pairing link (adapter 1.6.0, Provable 2026-11-23): on a computer it is
+ * Shield's verified link, `https://connect.shield.app/connect#…`, which a
+ * phone's camera hands only to the signed Shield app, with every parameter, the
+ * pairing secret included, after the `#`, which no browser sends to a server.
+ * On a phone it stays `shield://connect?…`: the page opens it itself, and an
+ * older Shield app that doesn't claim the verified link would open a web page
+ * instead. The desktop app's pages have no web origin of their own
+ * (`tauri://localhost`), so they declare the website's, DECLARED_ORIGIN; the
+ * adapter ignores it on a hosted page, which keeps its real origin.
  */
-export function shieldAdapterConfig(): ShieldWalletAdapterConfig {
+export function shieldAdapterConfig(phone = isPhoneBrowser()): ShieldWalletAdapterConfig {
   return {
     appName: BRAND.name,
     appIconUrl: `${BRAND.appUrl}${BRAND.assets.icon512}`,
-    remote: { relayUrl: SHIELD_RELAY_ORIGIN },
+    remote: {
+      relayUrl: SHIELD_RELAY_ORIGIN,
+      deeplinkBase: phone ? DEFAULT_SHIELD_DEEPLINK_BASE : SHIELD_VERIFIED_DEEPLINK_BASE,
+      origin: DECLARED_ORIGIN,
+    },
   };
+}
+
+/**
+ * The origin the app declares to Shield where its pages have none of their own (the desktop app):
+ * the website's. Shield shows it beside the name; over the relay it is self-reported, like the name.
+ */
+export const DECLARED_ORIGIN = new URL(BRAND.appUrl).origin;
+
+/** The same check the adapter makes before it opens the Shield link itself (`isMobileUserAgent`). */
+export function isPhoneBrowser(): boolean {
+  return typeof navigator !== "undefined" && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
 /**

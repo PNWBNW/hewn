@@ -119,10 +119,11 @@ The highest risk for a browser app.
   and a channel that forwards sealed messages to the Shield app. Verified in a browser: third-party
   fetch, framing and inline handlers are all refused. ✅
 - ⚠️ A plain phone browser reaches the Shield app over Provable's relay
-  (`@provablehq/aleo-wallet-adapter-shield` 1.5.0, the third way in beside the extension and
+  (`@provablehq/aleo-wallet-adapter-shield` 1.6.0, the third way in beside the extension and
   Shield's own browser). The page and the app exchange messages sealed end to end (ECIES, signed,
-  sequence-numbered; the relay forwards them unread). The pairing secret rides only in the
-  `shield://` link that opens the app, never over the relay, and authenticates the app's key
+  sequence-numbered; the relay forwards them unread). The pairing secret rides only in the link
+  that opens the app (`shield://` on a phone; on a computer Shield's verified https link, the
+  secret after the `#`, which no browser sends to Shield's link host), never over the relay, and authenticates the app's key
   handshake, so a relay cannot sit in the middle. What Provable's relay learns: the page's origin,
   when it is used and how much; the Shield app already talks to Provable. The pairing (an ephemeral
   key and the secret) lives in `localStorage` for up to 12 hours, so code injected into the page
@@ -158,9 +159,11 @@ The highest risk for a browser app.
   account is compared with the one setup linked: the chain panels stop with "Shield is signed in to
   …" when they differ (the mismatch notes in `apps/business/src/chain`). In setup, before any
   account is linked, there is nothing to compare with: the person has to see their own Shield
-  approve the connection and name their own account. Whether a
-  phone camera opens a `shield://` link at all is up to the phone; Shield's app has no scanner for
-  it yet. Waiting on Joshua's review and a test on real phones.
+  approve the connection and name their own account. On a computer the code holds Shield's
+  verified link, which the phone hands only to the signed Shield app (adapter 1.6.0; an older app
+  opens a web page, which sees nothing after the `#`). Inside the desktop app the origin Shield
+  shows is the website's, declared by the app (`DECLARED_ORIGIN`), self-reported over the relay like
+  the name. Waiting on Joshua's review and a test on real phones.
 - ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
   so the explorer's operator can tie the user's IP to that address. The address is already public
   (it owns a registered name). Private balances come from Shield's own records and touch no server

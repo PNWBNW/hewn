@@ -24,10 +24,14 @@ describe("shieldRoute", () => {
     expect(overRelay("none")).toBe(false);
   });
 
-  it("has no way in from the desktop app, whatever the adapter reports, so it never waits on a connect", () => {
-    expect(shieldRoute(WalletReadyState.LOADABLE, false, true)).toBe("none");
+  it("pairs the desktop app with the phone, its one way in, and offers nothing where the relay can't run", () => {
+    expect(shieldRoute(WalletReadyState.LOADABLE, false, true)).toBe("pair");
+    // Never a phone's relay route, whatever the web view's user agent says.
+    expect(shieldRoute(WalletReadyState.LOADABLE, true, true)).toBe("pair");
+    // No extension runs inside it, so nothing it reports as installed is taken at its word.
     expect(shieldRoute(WalletReadyState.INSTALLED, false, true)).toBe("none");
-    expect(shieldRoute(WalletReadyState.LOADABLE, true, true)).toBe("none");
+    expect(shieldRoute(WalletReadyState.NOT_DETECTED, false, true)).toBe("none");
+    expect(shieldRoute(undefined, false, true)).toBe("none");
   });
 
   it("has no way in when the adapter found nothing", () => {
