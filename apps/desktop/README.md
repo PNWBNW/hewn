@@ -24,7 +24,7 @@ so plainly (below) instead of offering a connect that would wait for nothing.
 | `src/update_manifest.ts`, `scripts/update_manifest.mjs` | Making `latest.json` for a release, checking every package's signature against the update key first |
 | `scripts/sums.mjs` | SHA-256 of each installer, for the release page |
 | `src-tauri/icons/` | Not committed: made from `brand/source/hewn-icon.png` by `pnpm --filter @pnw/desktop icons` |
-| `.github/workflows/desktop.yml` | Unsigned installers for macOS, Windows and Linux, on a `v*` tag or by hand |
+| `.github/workflows/desktop.yml` | Unsigned installers for macOS, Windows and Linux, on a `v*` tag or by hand. The web bundle is built once, on Linux, and each system's job only packages it, after checking every file against the bundle's SHA-256 list: the desktop builds have their own rails, and the web code isn't reshaped for them (Joshua, 2026-11-25) |
 
 ## How it is locked down
 
