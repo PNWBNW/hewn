@@ -11,6 +11,12 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-25](progress/2026-11/2026-11-25.md)
+
+- [The update worker's test no longer fails with the calendar](progress/2026-11/2026-11-25.md#2026-11-25--the-update-workers-test-no-longer-fails-with-the-calendar)
+- [The audit's one skip comes off: the picomatch advisory no longer applies](progress/2026-11/2026-11-25.md#2026-11-25--the-audits-one-skip-comes-off-the-picomatch-advisory-no-longer-applies)
+- [The desktop app's build workflow runs its checks on a Python that has tomllib](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-apps-build-workflow-runs-its-checks-on-a-python-that-has-tomllib)
+
 ### [2026-11-18](progress/2026-11/2026-11-18.md)
 
 - [Light sleep: 2026-11-18](progress/2026-11/2026-11-18.md#2026-11-18--light-sleep-2026-11-18)

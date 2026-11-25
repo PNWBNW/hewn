@@ -9,8 +9,6 @@ minimumReleaseAge: 10080
 # Advisories the audit may skip, one at a time, each with its reason (docs/THREAT_MODEL.md T3).
 # Remove an entry as soon as a fixed version can be installed.
 auditConfig:
-  ignoreGhsas:
-    # picomatch <= 4.0.7, slow matching on some glob patterns (2026-11-17). No fixed version yet.
-    # Only the test runner (vitest) uses it, on glob patterns written in this repository;
-    # nothing the app ships includes it (pnpm audit --prod is clean).
-    - GHSA-fc5q-39xc-vjpf
+  # None today. picomatch's GHSA-fc5q-39xc-vjpf (2026-11-17) came off on 2026-11-25, when the
+  # advisory no longer matched any installed version (scripts/check_audit_skips.py said so).
+  ignoreGhsas: []

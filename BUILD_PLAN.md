@@ -7,17 +7,15 @@ Oct 13, 2026 · Joshua Day
 
 ## Now
 
-Updated 2026-11-18. Session start reads this block; keep it to these four lines and change it
+Updated 2026-11-17. Session start reads this block; keep it to these four lines and change it
 whenever the work moves.
 
 - **Phase:** Phase 1, Core ledger, redesigned as *feed, reconcile, seal* (Joshua, 2026-10-25).
 - **In flight:** **the priority (Joshua, 2026-11-17): code people can check, and an installable,
-  signed desktop app** (`docs/HOSTING.md`: the top-page guard, reproducible builds with a file
-  list and a check anyone can run, the desktop shell and the update worker are built; signing and
-  anchoring a first release wait on the release key, the desktop app on a way to reach Shield from
-  a computer app); each person's own pay period (`docs/PAY_PERIODS.md`: the period rules, the
-  default period, a paycheck with nothing to pay and a failed paycheck paid only by its own Retry
-  are built; the catch-up runs and the Run payroll screen next); the manual tests (issues #150–#164); the Audit-Ready Plan's Steps 8 to 14
+  signed desktop app** (`docs/HOSTING.md`: the framing guard and signed releases anchored on Aleo
+  first; the desktop app waits on a way to reach Shield from a computer app); each person's own
+  pay period (`docs/PAY_PERIODS.md`: the period rules built; a failed paycheck paid only by its own Retry, the catch-up runs and the Run payroll screen
+  next); the manual tests (issues #150–#164); the Audit-Ready Plan's Steps 8 to 14
   (`docs/COMPLIANCE_MAP.md`: the control list and the data-flow diagram are done, the policies,
   risk register and inventory next, then the Fable deep review); payroll compliance
   (`docs/PAYROLL_COMPLIANCE.md`: the federal engine first); the fixes from the security review of
