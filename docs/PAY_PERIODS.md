@@ -1,13 +1,15 @@
 ---
 status: plan
-updated: 2026-11-16
-summary: Each person is paid for their own pay period, starting the day after the last one they were paid for: the period rules for every frequency, missed periods caught up one paycheck each, new hires, failed paychecks paid by their own Retry, worked examples, and the pull requests that build it; the period rules are built, the screen next.
+updated: 2026-11-18
+summary: Each person is paid for their own pay period, starting the day after the last one they were paid for: the period rules for every frequency, missed periods caught up one paycheck each, new hires, failed paychecks paid by their own Retry, worked examples, and the pull requests that build it; the period rules, the default period, the paycheck with nothing to pay and the failed paycheck paid only by its own Retry are built; the catch-up runs and the screen next.
 ---
 
 # Each person's own pay period
 
 **Status:** decided (Joshua, 2026-11-15) and being built in small pull requests (the plan at the
-end). Built so far: the period rules, `packages/payroll/src/pay_periods.ts`, with their tests. No
+end). Built so far: the period rules, `packages/payroll/src/pay_periods.ts`, with their tests (#363);
+Run payroll's default period (#360); a paycheck with nothing to pay settling as it posts (#361);
+a failed paycheck paid only by its own Retry (#362), the three merged on 2026-11-17. No
 Leo program changes anywhere in this plan.
 
 Until now Run payroll asked for one pay period for the whole run, and suggested the two weeks to
@@ -227,14 +229,14 @@ the rail), Shield turned his transfer down, and the paycheck is failed.
 
 Each has one task and one exit criterion.
 
-- [ ] 1. **Run payroll: the default period starts after the last run** (the screen's default,
+- [x] 1. **Run payroll: the default period starts after the last run** (the screen's default,
       with the next release).
-- [ ] 2. **payroll: a paycheck with nothing to pay doesn't hang** (settles when it posts; no
+- [x] 2. **payroll: a paycheck with nothing to pay doesn't hang** (settles when it posts; no
       longer holds up a close).
 - [x] 3. **payroll: each person's pay periods** (the pure rules above, no screen): for every
       frequency, history shape and edge case in its tests, `duePeriods` returns exactly the
       expected periods.
-- [ ] 4. **payroll: a failed paycheck is paid only by its own Retry** (a new paycheck over its
+- [x] 4. **payroll: a failed paycheck is paid only by its own Retry** (a new paycheck over its
       days is refused; a repost already in the books is asked about before Retry pays).
 - [ ] 5. **payroll: one payday, one run per pay period** (`postPayRuns`: catch-up runs on one pay
       date, all or nothing).
