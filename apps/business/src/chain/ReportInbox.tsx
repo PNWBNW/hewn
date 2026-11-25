@@ -1,7 +1,7 @@
 "use client";
 
 // ---------------------------------------------------------------------------
-// Hewn's report inbox (chain/report_letters.ts): every report sent to Hewn's account,
+// Hewn's report inbox (chain/report.ts): every report sent to Hewn's account,
 // newest first, read from Shield's letters each time it's opened. Settings
 // shows it only when these books are linked to that account, and Shield opens
 // the letters only for it. Nothing is kept in the books and nothing is logged.
@@ -18,7 +18,7 @@ import { REPORT_LABEL, notifiesSender } from "@/books/report";
 import { BRAND } from "@/brand";
 import { ShieldStatus } from "./ShieldStatus";
 import { useLetters } from "./letter_reader";
-import { type ReceivedReport, openReports } from "./report_letters";
+import { type ReceivedReport, openReports } from "./report";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 

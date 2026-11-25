@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type Report, validateReport } from "../books/report";
 import { LETTERS_PROGRAM, LETTER_FIELDS, PAGE_FIELDS, letterCall } from "./letters";
-import { openReports, packReport, reportLookup, unpackReport } from "./report_letters";
+import { openReports, packReport, reportLookup, unpackReport } from "./report";
 
 const ACCOUNT = "aleo1s8t86aza932zah3mv5knclvnn5zy4gedpl5a4wn5h2yrt08mxqzsw5amdd";
 const REPORTER = `aleo1${"q".repeat(58)}`;

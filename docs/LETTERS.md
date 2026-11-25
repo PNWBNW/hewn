@@ -170,7 +170,7 @@ Primary sources: snarkVM `console/network/src/lib.rs`, `synthesizer/process/src/
 ## Reports
 
 A person can report a message they received (Joshua, 2026-10-20; `books/report.ts`,
-`chain/report_letters.ts`, `chain/Report.tsx`). The report is an ordinary letter to Hewn's account
+`chain/report.ts`, `chain/Report.tsx`). The report is an ordinary letter to Hewn's account
 (`BRAND.reportsAccount`), so nothing new is deployed:
 
 - **What it carries:** what's wrong (harassment, not really from them, a scam, spam, a threat,

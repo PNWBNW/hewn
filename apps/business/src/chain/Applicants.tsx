@@ -28,7 +28,7 @@ import { APPLICATION_STATUS_LABEL, type ApplicationStatus, addToThread, skipInco
 import { BRAND } from "@/brand";
 import { FeeChoice } from "./FeeChoice";
 import { ShieldStatus } from "./ShieldStatus";
-import { applicantLabel, applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicant_letters";
+import { applicantLabel, applicantOf, applicationFrom, interviewText, openApplications, statusBody } from "./applicants";
 import { applicationItem, applicationLookup } from "./applications";
 import { useLetters } from "./letter_reader";
 import { LetterBox, letterThread } from "./letters";

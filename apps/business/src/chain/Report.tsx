@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------------
 // Reporting one received message (books/report.ts): pick what's wrong, add a
-// note, and send it to Hewn as a sealed letter (chain/report_letters.ts, one Shield
+// note, and send it to Hewn as a sealed letter (chain/report.ts, one Shield
 // approval). Unless it's about harassment, the sender then gets a notice in
 // the conversation (a second approval), so a person whose account was taken
 // over finds out. Either way the report can be emailed to Hewn's support
@@ -32,7 +32,7 @@ import {
 import { type Side, type ThreadItem, newMessageId } from "@/books/thread";
 import { BRAND } from "@/brand";
 import { LetterBox, type LetterWallet } from "./letters";
-import { packReport, reportLookup } from "./report_letters";
+import { packReport, reportLookup } from "./report";
 import { type PostInput, type ThreadKinds, postToThread } from "./thread";
 
 export type ReportProps = {

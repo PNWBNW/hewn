@@ -3,7 +3,7 @@
 // they think is wrong, or not really from the sender, can report it:
 //
 //   - The report goes to Hewn, sealed so only Hewn's account opens it
-//     (chain/report_letters.ts), and can also be copied or emailed to Hewn's support
+//     (chain/report.ts), and can also be copied or emailed to Hewn's support
 //     address, as text, with the same id.
 //   - A report about harassment tells the sender nothing. Any other kind sends
 //     them a notice in the conversation (`report_notice`, books/thread.ts), so

@@ -92,7 +92,7 @@ In the app, not the marketing site: the site is a brochure with no chain reads a
 policy that names no host, while the app already reads the explorer. `/board` is the one public
 path: `BooksGate` lets it through without open books and `AppShell` shows a bare header (the brand
 and "Open Hewn") instead of the rail; with books open it is an ordinary page, "Find work" in a
-worker's navigation and reachable by a business too (no role redirect). `chain/board_view.ts` reads the
+worker's navigation and reachable by a business too (no role redirect). `chain/board.ts` reads the
 newest 100 postings (`readRecent`), the current height, and each business's name from the
 registry's reverse resolver (once per name; a name that can't be read shows as "A business"),
 orders them featured-first, and filters on words (every word must appear in the title, location,
@@ -135,7 +135,7 @@ The private part. The two have no key in common yet, so the first letter makes o
 
 From Jobs, each posting has **Applicants** (`chain/Applicants.tsx`, Shield-gated on the linked
 account). On open and on Check: every letter under the posting's application lookup
-(`LetterBox.getAll`) is opened with the posting's hiring key (`chain/applicant_letters.ts`
+(`LetterBox.getAll`) is opened with the posting's hiring key (`chain/applicants.ts`
 `openApplications`); each new key becomes an applicant (their account from the registry by their
 name hash; a name with no account yet is counted and left for later) with a conversation in the
 business's mailbox threads, filed under `applicant:<key>` as its team-member id, the application as

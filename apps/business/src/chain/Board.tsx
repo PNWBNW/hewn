@@ -19,7 +19,7 @@ import { inputClass } from "@/books/AuthCard";
 import { useBooks } from "@/books/BooksProvider";
 import { EMPLOYMENT_TYPES, EMPLOYMENT_TYPE_LABEL, PAY_TYPES, PAY_TYPE_LABEL, PLACES, PLACE_LABEL, factsLine, payLine } from "@/books/jobs";
 import { BRAND } from "@/brand";
-import { type BoardEntry, type BoardFilter, boardReads, filterBoard, loadBoard } from "./board_view";
+import { type BoardEntry, type BoardFilter, boardReads, filterBoard, loadBoard } from "./board";
 import { featuredDaysLeft } from "./jobs";
 
 export type BoardProps = { viewer: "visitor" | "worker" | "business" };

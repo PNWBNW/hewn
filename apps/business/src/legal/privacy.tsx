@@ -1,6 +1,6 @@
 // Privacy (Joshua, 2026-10-22): what this app keeps, and where, in plain words. Public. It has to
 // stay true to the code: the vault (packages/vault), the traction counts (app/api/traction), the
-// page views (shell/PageViews.tsx), letters on chain (chain/letters.ts), reports (chain/report_letters.ts).
+// page views (shell/PageViews.tsx), letters on chain (chain/letters.ts), reports (chain/report.ts).
 
 import Link from "next/link";
 import { BRAND } from "@/brand";

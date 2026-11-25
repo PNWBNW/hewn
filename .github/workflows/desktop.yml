@@ -100,9 +100,7 @@ jobs:
       - name: Install (lockfile must match exactly)
         run: pnpm install --frozen-lockfile
       - name: The static bundle the app carries
-        # pnpm's own cross-platform shell, so the script's `HEWN_STATIC=1 next build` also runs on
-        # Windows, whose cmd.exe has no such syntax.
-        run: pnpm --config.shell-emulator=true --filter @pnw/business build:static
+        run: pnpm --filter @pnw/business build:static
       - name: Rust
         shell: bash
         run: |

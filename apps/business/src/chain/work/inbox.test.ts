@@ -2,7 +2,7 @@ import { KINDS, MailboxError, lookupId, openReceipt, partiesKeyFromHex, receiptL
 import { type PaystubDocument, canonicalPaystub, paystubDocument, paystubHash } from "@pnw/payroll";
 import { describe, expect, it } from "vitest";
 import { type ReceivedPaystub, type Work, addPaystub, bumpWorkSeq, emptyWork, updateWorkThread, upsertAgreement } from "../../books/work";
-import { type PaystubEnvelope, parsePaystubEnvelope, scanPaystubs } from "./collect_paystubs";
+import { type PaystubEnvelope, parsePaystubEnvelope, scanPaystubs } from "./inbox";
 
 const AID = "01".repeat(32);
 const KEY_HEX = "ab".repeat(32);

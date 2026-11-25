@@ -22,7 +22,7 @@ import { addApplication, updateWorkThread } from "@/books/work";
 import { BRAND } from "@/brand";
 import { FeeChoice } from "../FeeChoice";
 import { applicantKey, applicationItem, applicationLookup, packApplication } from "../applications";
-import type { BoardEntry } from "../board_view";
+import type { BoardEntry } from "../board";
 import { LetterBox } from "../letters";
 import { ShieldGate, WorkShieldProvider, useWorkShield } from "./WorkShield";
 import { MailboxError } from "@pnw/mailbox";
