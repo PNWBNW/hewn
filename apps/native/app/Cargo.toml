@@ -1,0 +1,19 @@
+[package]
+name = "pnw-verifier-app"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "One window that checks a release or a closed period, natively"
+
+[[bin]]
+name = "pnw-verifier"
+path = "src/main.rs"
+
+[dependencies]
+pnw-verify = { path = "../verify" }
+# GPUI through Longbridge's gpui-kit (Apache-2.0), which pins gpui-pre: weekly crates.io snapshots
+# of Zed's GPUI, each naming the Zed commit it was taken from. Exact pins, each at least seven days
+# old (OPS-04), and gpui-pre is checked file by file against Zed's repository at that commit
+# (scripts/check_gpui_source.py). Only GPUI itself: no component library, no bundled assets.
+gpui-kit = { version = "=0.10.0", default-features = false }

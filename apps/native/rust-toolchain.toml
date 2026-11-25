@@ -1,0 +1,6 @@
+# The Rust the native verifier is built and tested with (released 2026-07-09, older than the
+# seven days OPS-04 asks of every dependency). rustup installs it on first use, in CI too.
+[toolchain]
+channel = "1.97.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

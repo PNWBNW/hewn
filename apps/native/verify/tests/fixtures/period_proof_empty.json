@@ -1,0 +1,15 @@
+{
+  "format": "hewn-period-proof",
+  "version": 1,
+  "business": "Example Woodworks",
+  "madeAt": "2026-11-05T00:00:00.000Z",
+  "start": "2026-12-01",
+  "end": "2026-12-31",
+  "root": "9f88b285fde5e4ac508280470290bc94ad5fe657b843e8a3d9cb4cbd2a90cb8f",
+  "prevRoot": "0000000000000000000000000000000000000000000000000000000000000000",
+  "businessTag": "7a6724d70872c11f8a3ac26ca0ee2d633703c650dea58250e48b649af2d9409a",
+  "entries": [],
+  "settlements": [],
+  "accounts": [],
+  "closes": []
+}

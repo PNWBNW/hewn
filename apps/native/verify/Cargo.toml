@@ -1,0 +1,27 @@
+[package]
+name = "pnw-verify"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Checks a signed release and a closed period's proof and anchor, natively"
+
+[lib]
+name = "pnw_verify"
+
+[[bin]]
+name = "pnw-verify"
+path = "src/bin/cli.rs"
+
+[dependencies]
+base64 = "=0.22.1"
+blake3 = { version = "=1.8.7", default-features = false, features = ["std"] }
+ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["std", "fast"] }
+# preserve_order: objects keep JavaScript's key order (period proofs hash JSON.stringify's text);
+# float_roundtrip: numbers read exactly as JSON.parse reads them.
+serde_json = { version = "=1.0.154", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "=0.10.9"
+# snarkVM's console crates only: Aleo's types and hashes, no proving or verifying keys. 4.13.1 is
+# mainnet's version; testnet ran 4.12.0 when this was pinned (pnw_mvp_v2's toolchain).
+snarkvm-console = { version = "=4.13.1", default-features = false, features = ["network", "program", "types"] }
+ureq = { version = "=3.5.2", default-features = false, features = ["rustls", "platform-verifier"] }

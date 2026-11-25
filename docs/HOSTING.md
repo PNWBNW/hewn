@@ -1,7 +1,7 @@
 ---
 status: plan
-updated: 2026-11-17
-summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing, signed and anchored releases, an installable signed desktop app (the priority, waiting on a way to reach Shield from a computer app), the website on GitHub Pages with a service worker that checks updates, and later a hardened native client on GPUI with snarkVM.
+updated: 2026-11-25
+summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing, signed and anchored releases, an installable signed desktop app (the priority, waiting on a way to reach Shield from a computer app), the website on GitHub Pages with a service worker that checks updates, and later a hardened native client on GPUI with snarkVM, whose first piece, a native verifier, is built.
 ---
 
 # Hosting and verifiable releases
@@ -180,8 +180,16 @@ scheduled.
 - **What it costs:** every screen written again in Rust, and two interfaces kept from then on (the
   website stays). GPUI is before its 1.0 and shaped around Zed's needs; its Windows support is newer
   and it has no phones.
-- **When:** once the Tauri app has shipped, Shield offers a native path, and GPUI is stable enough;
-  the first piece could be a native verifier (releases, anchors, period proofs) before any screen.
+- **When:** once the Tauri app has shipped, Shield offers a native path, and GPUI is stable enough.
+  Its first piece needs none of that and is built (Joshua, 2026-11-25): the native verifier below.
+
+**Where it stands** (2026-11-25):
+
+| Piece | State |
+| --- | --- |
+| The native verifier ([`apps/native`](../apps/native/README.md)) | Built: a Rust library and a one-window GPUI app that check a release folder as `verify.mjs` does and a period proof and its anchor as `/verify` does, with snarkVM's console crates recomputing the anchoring transaction's ids. It confirms the release fixture and October's anchor; no keys, no wallet, no signing. Built for Windows in CI (`.github/workflows/native.yml`); a run on a real Windows machine is Joshua's to do |
+| GPUI | Through gpui-kit's `gpui-pre` snapshots of Zed's GPUI, held to the seven-day rule and checked file by file against Zed's repository at the commit each names, with the snapshots' few changes reviewed (`apps/native/gpui_patches.toml`) |
+| Screens, books, Shield | Not started: they wait on a native way to reach Shield |
 
 ## Order
 

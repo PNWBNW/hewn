@@ -1,0 +1,76 @@
+# What the gpui-pre snapshots change from Zed's source, read in full and accepted in review
+# (apps/native/scripts/check_gpui_source.py; apps/native/README.md, "Where GPUI comes from").
+#
+# Each [[patch]] pins one file by the SHA-256 of Zed's version at the commit the snapshot names
+# (empty when Zed has no such file) and of the snapshot's. A patch that changes in any byte, a new
+# one, or one that no longer applies fails the check: a new gpui-pre version means reading its
+# changes again and writing them here (`check_gpui_source.py --print-patches` prints the entries;
+# the reasons are a person's). Every file changed so far carries the snapshot's own marker line,
+# "// Modified for gpui-pre (snapshot of zed@…)".
+#
+# Reviewed 2026-11-25 for gpui-pre 0.3.12 (zed@d2a4fb6ded7c), with the native verifier's pull
+# request, for Joshua's approval there.
+
+# gpui-pre-apple's build script reads GPUI's own sources; the snapshot carries the five it needs.
+# Each is compared byte for byte with Zed's crates/gpui at the same path.
+[[vendor]]
+crate = "gpui-pre-apple"
+version = "0.3.12"
+folder = "vendor/gpui"
+zed-crate = "gpui"
+
+[[patch]]
+crate = "gpui-pre"
+version = "0.3.12"
+path = "src/action.rs"
+zed = "d2f7236ab0d2085021391b3826f401865218a0e7790f759a7099d22f2ce7a4fa"
+snapshot = "dbbefdc9b05c3937d358c628ca4da8406d28111b142ac4c8ae3dc527800e1313"
+why = "The actions! macro derives $crate::Action instead of gpui::Action, so it resolves when GPUI is used through gpui-kit. Two paths change; nothing else."
+
+[[patch]]
+crate = "gpui-pre-apple"
+version = "0.3.12"
+path = "build.rs"
+zed = "9108ee2c1a7ce6e21e715ecccd1e1e161ad4c64232bdb9afb8a25c423f4e6506"
+snapshot = "64e593cc20e82ce21f644ec674ea3d37840d71a0ccbbce46f26829e971e60509"
+why = "The build script reads GPUI's sources from vendor/gpui (checked above, byte for byte) instead of ../gpui, which a published crate can't reach. One path changes."
+
+[[patch]]
+crate = "gpui-pre-macros"
+version = "0.3.12"
+path = "src/gpui_macros.rs"
+zed = "3fa61f05bb72dfac77efcbbb079923acb3ac9440fe6e42057bf94954f6ac8d3b"
+snapshot = "37ec711fc0018dcb9d8974ec78ff0baba98ace1427092ab56393103fc6c4c6b2"
+why = "Each macro entry point passes its output through gpui_pre_facade_paths::rewrite. The macros themselves are unchanged."
+
+[[patch]]
+crate = "gpui-pre-macros"
+version = "0.3.12"
+path = "src/gpui_pre_facade_paths.rs"
+zed = ""
+snapshot = "b3339bb6e959232e0dff54b2fb03500f1f6fcff3fe4d467b8b536df4e697dce5"
+why = "Added: rewrites gpui:: and gpui_platform:: paths in macro output to the gpui-kit facade, found with proc-macro-crate from the package's own manifest. Token rewriting only: no file, network or process access."
+
+[[patch]]
+crate = "gpui-pre-wgpu"
+version = "0.3.12"
+path = "src/wgpu_atlas.rs"
+zed = "d5906ecffcbb3db5a9e235094965960399f4dadf5db4c0a5dc76233d40f50d0f"
+snapshot = "2d04e05b32471fb49dbf2cfc30e0b1c69574f374ef307ca6a836d1dea86b5800"
+why = "wgpu 30.0.1 from crates.io in place of Zed's pinned wgpu commit: one DeviceDescriptor field it lacks (default_queue) removed."
+
+[[patch]]
+crate = "gpui-pre-wgpu"
+version = "0.3.12"
+path = "src/wgpu_context.rs"
+zed = "a8a9a85509c17168b6d53b919d8d06a0cbe782ffc8ad72f830cb6a14b067cbe5"
+snapshot = "b04e4b26218e1429af7fdadba7d3b733b6e169095fff2cbfc1a16ac4e8f63547"
+why = "wgpu 30.0.1 from crates.io: the same default_queue field removed."
+
+[[patch]]
+crate = "gpui-pre-wgpu"
+version = "0.3.12"
+path = "src/wgpu_renderer.rs"
+zed = "757d9f2a4d270d4787b192937183c51bf286caf33cd0f4f2bd459338fd8cfcd7"
+snapshot = "d06405a295793f7509e3d48ad06decc056260a86c61dcb4b8b5be209783e1105"
+why = "wgpu 30.0.1 from crates.io: TextureFormat::has_srgb_suffix is is_srgb there."
