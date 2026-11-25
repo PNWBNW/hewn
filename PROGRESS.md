@@ -15,6 +15,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 - [The update worker's test no longer fails with the calendar](progress/2026-11/2026-11-25.md#2026-11-25--the-update-workers-test-no-longer-fails-with-the-calendar)
 - [The audit's one skip comes off: the picomatch advisory no longer applies](progress/2026-11/2026-11-25.md#2026-11-25--the-audits-one-skip-comes-off-the-picomatch-advisory-no-longer-applies)
+- [The desktop app's build workflow runs its checks on a Python that has tomllib](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-apps-build-workflow-runs-its-checks-on-a-python-that-has-tomllib)
 - [The native verifier: a release and a closed period, checked in Rust on GPUI and snarkVM](progress/2026-11/2026-11-25.md#2026-11-25--the-native-verifier-a-release-and-a-closed-period-checked-in-rust-on-gpui-and-snarkvm)
 
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
