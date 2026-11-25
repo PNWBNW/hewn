@@ -14,8 +14,8 @@ fails when this index is out of date or a day file sits outside its month's fold
 ### [2026-11-25](progress/2026-11/2026-11-25.md)
 
 - [Pairing with Shield on a phone moves to Shield's verified link, and the desktop app takes it](progress/2026-11/2026-11-25.md#2026-11-25--pairing-with-shield-on-a-phone-moves-to-shields-verified-link-and-the-desktop-app-takes-it)
-- [The app's bundle builds on Windows and macOS: no two files differ only by case, and pnpm's own shell runs the build script](progress/2026-11/2026-11-25.md#2026-11-25--the-apps-bundle-builds-on-windows-and-macos-no-two-files-differ-only-by-case-and-pnpms-own-shell-runs-the-build-script)
 - [#373 is the website's pairing only; the desktop apps get their own](progress/2026-11/2026-11-25.md#2026-11-25--373-is-the-websites-pairing-only-the-desktop-apps-get-their-own)
+- [The desktop workflow builds the web bundle once, on Linux, and the other systems only package it](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-workflow-builds-the-web-bundle-once-on-linux-and-the-other-systems-only-package-it)
 
 ### [2026-11-17](progress/2026-11/2026-11-17.md)
 
