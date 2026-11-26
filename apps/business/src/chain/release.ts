@@ -31,6 +31,11 @@
 // filters): the books would no longer know which record a try spends, and
 // that knowledge is what lets a second try spend the same one.
 //
+// Before any releaser is called, the pay panel checks each person it may ask
+// for against their agreement (payee_check.ts). Anyone who doesn't pass is
+// handed over in `held`: no releaser asks Shield to pay them, and `prompts`
+// leaves them out.
+//
 // Program and function names come from @pnw/config, through the modules that
 // already use them. Nothing here asks Shield, signs or logs anything.
 // ---------------------------------------------------------------------------
@@ -60,8 +65,11 @@ export interface Releaser {
   mode: "sequential" | "batch" | "wrapper";
   /** Whether this way of paying can be used right now. */
   available(): Promise<boolean>;
-  /** What Shield is expected to be asked to approve for this run as it stands, in order (see the header for when it differs). Asks nothing of Shield. */
-  prompts(run: ReleaseRun, links: ReadonlyMap<string, string>): Prompt[];
+  /**
+   * What Shield is expected to be asked to approve for this run as it stands, in order (see the header for when it differs),
+   * leaving out anyone `held` (the pay panel's check of each agreement, payee_check.ts). Asks nothing of Shield.
+   */
+  prompts(run: ReleaseRun, links: ReadonlyMap<string, string>, held?: ReadonlySet<string>): Prompt[];
   /** Pays what the run still owes; every outcome is reported through the context's `onProgress`. */
   release(ctx: PayQueueContext): Promise<PayQueueResult>;
 }
@@ -70,9 +78,9 @@ export interface Releaser {
 export const sequentialReleaser: Releaser = {
   mode: "sequential",
   available: async () => true,
-  prompts(run, links) {
+  prompts(run, links, held) {
     if (run.mode !== "rail") return [];
-    const due = outstanding(run);
+    const due = outstanding(run).filter((p) => !held?.has(p.workerId));
     // One Shield already took is asked about, not sent again: no prompt for its payment, one for its paystub.
     const toAsk = due.filter((p) => !(p.settlement.status === "pending" && p.settlement.reference));
     return [

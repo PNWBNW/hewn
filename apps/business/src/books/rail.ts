@@ -178,8 +178,11 @@ export const isRailAddress = (s: unknown): s is string => isAddressShape(s) && s
  * name lookup, not from an agreement they signed (the security review, 2026-10-22). A link saved
  * with the zero address is left out: nobody could spend what was sent there.
  */
-export const payableLinks = (rail: Rail | null | undefined): Map<string, string> =>
-  new Map((rail?.links ?? []).filter((l) => l.status === "linked" && isRailAddress(l.address)).map((l) => [l.workerId, l.address]));
+export const payableLinks = (rail: Rail | null | undefined): Map<string, string> => new Map([...payableRailLinks(rail)].map(([id, l]) => [id, l.address]));
+
+/** The links `payableLinks` pays, whole, by team member id: what the pay run checks each account against (chain/payee_check.ts). */
+export const payableRailLinks = (rail: Rail | null | undefined): Map<string, RailLink> =>
+  new Map((rail?.links ?? []).filter((l) => l.status === "linked" && isRailAddress(l.address)).map((l) => [l.workerId, l]));
 
 /** `aleo1abcd…wxyz`: enough to recognise an account, short enough for a phone. */
 export function shortAddress(address: string): string {

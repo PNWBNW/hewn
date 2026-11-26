@@ -498,6 +498,36 @@ describe("runPayQueue", () => {
     expect(events.find((e) => e.kind === "unconfirmed")).toMatchObject({ workerId: "w2", attempt: w2Tag });
   });
 
+  it("asks Shield for nobody the caller holds back, pays everyone else in order, and keeps a held person's set-aside record theirs", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n), centsToMinor(20_00n), centsToMinor(30_00n)], (_c, n) => accepted(AT(n)));
+    // w2 is held with a record its earlier try set aside: the exact fit for w3 too, but it stays w2's.
+    const w2Tag = await recordTag(wallet.records[1]!.recordPlaintext);
+    const { events, result } = await settleRun(
+      wallet,
+      fakeNetwork(),
+      [paycheck("w1", 10_00n), paycheck("w2", 20_00n, { status: "failed", failure: "Declined in Shield", attempt: w2Tag }), paycheck("w3", 20_00n)],
+      { held: new Set(["w2"]) },
+    );
+    const transfers = wallet.calls.filter((c) => c.function === TRANSFER_FUNCTION);
+    expect(transfers.map((c) => c.inputs[0])).toEqual([ADDR(1), ADDR(3)]);
+    expect(transfers.some((c) => c.inputs[2] === wallet.records[1]!.recordPlaintext)).toBe(false);
+    expect(result.settled.map((r) => r.workerId)).toEqual(["w1", "w3"]);
+    expect(result.failed).toEqual([]);
+    expect(result.stalled).toBeUndefined();
+    expect(events[0]).toEqual({ kind: "planned", transfers: 2 });
+    expect(events.some((e) => "workerId" in e && e.workerId === "w2")).toBe(false);
+  });
+
+  it("still follows a held person's payment Shield already took, without asking Shield for anything", async () => {
+    const wallet = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
+    wallet.know("shield_old", [{ status: "accepted", transactionId: AT(9) }]);
+    const { result } = await settleRun(wallet, fakeNetwork(), [paycheck("w1", 10_00n, { status: "pending", reference: "shield_old" }), paycheck("w2", 10_00n)], {
+      held: new Set(["w1", "w2"]),
+    });
+    expect(wallet.calls).toEqual([]);
+    expect(result.settled.map((r) => [r.workerId, r.transactionId])).toEqual([["w1", AT(9)]]);
+  });
+
   it("asks Shield again, briefly, about one sent on an earlier run, and leaves it unconfirmed if there's still no answer", async () => {
     const wallet = new FakeWallet([centsToMinor(10_00n)], (_c, n) => accepted(AT(n)));
     wallet.know("shield_lost", [{ status: "pending" }]);

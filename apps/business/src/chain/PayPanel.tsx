@@ -29,6 +29,13 @@
 // mailbox (deliver.ts). That is a courtesy on top of the payment: a send that
 // fails leaves the settlement exactly as it is and offers a Send button.
 //
+// Before Shield is asked for anything, on every press (Pay now, Continue,
+// Retry, the run after Pay again), each person is checked against their
+// agreement: the business's own agreement record must name the account the
+// books pay them at, and the agreement must still be active on chain
+// (payee_check.ts). Anyone who doesn't pass is held: Shield is never asked to
+// pay them, their line says why, and everyone else is paid as usual.
+//
 // No address, record or signature is ever logged from here.
 // ---------------------------------------------------------------------------
 
@@ -51,7 +58,7 @@ import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money } from "@/books/display";
 import { afterStep, noteProgress } from "@/books/idle_lock";
-import { payableLinks, shortAddress } from "@/books/rail";
+import { payableLinks, payableRailLinks, shortAddress } from "@/books/rail";
 import { ShieldStatus } from "./ShieldStatus";
 import { decryptTransition } from "./decrypt";
 import {
@@ -67,6 +74,7 @@ import {
   tagRecords,
   unconfirmedLabel,
 } from "./pay_outcome";
+import { checkPayees, holdMessage, payeesToCheck } from "./payee_check";
 import { pickReleaser, promptSummary } from "./release";
 import { type SentRead, findSentPayment } from "./sent_payment";
 import { useShield } from "./shield";
@@ -124,6 +132,8 @@ type Stage =
   /** `found`: Shield never confirmed it; the queue found it in the account's own transfers. */
   | { kind: "settled"; transactionId: string; feeMicrocredits?: bigint; found?: true }
   | { kind: "failed"; failure: string }
+  /** The check of this person's agreement didn't pass this press, so Shield wasn't asked to pay them: `why` says so, naming them. */
+  | { kind: "held"; why: string }
   /** It may have gone through: it goes again only by spending the same record (Continue), or when the person says so (Pay again). */
   | { kind: "unconfirmed"; failure: string };
 
@@ -150,6 +160,8 @@ function stageLabel(stage: Stage): string {
       return `${stage.transactionId ? `Settled · ${shortAddress(stage.transactionId)}` : "Settled"}${stage.found ? ` · ${FOUND_NOTE}` : ""}`;
     case "failed":
       return `Failed · ${stage.failure}`;
+    case "held":
+      return `Not paid · ${stage.why}`;
     case "unconfirmed":
       return unconfirmedLabel(stage.failure);
   }
@@ -239,6 +251,8 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
   const stage = (p: Paycheck): Stage => stages[p.workerId] ?? stageOf(p);
   // Only people whose agreement both sides approved; an offer not yet accepted can't be paid.
   const links = payableLinks(rail);
+  // The same links, whole: what each person's agreement is checked against before Shield is asked to pay them.
+  const railLinks = payableRailLinks(rail);
   const unlinked = due.filter((p) => !links.has(p.workerId));
 
   /**
@@ -282,13 +296,15 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
     // the books lock. A wait for an approval ("approving"), "broadcast" and "stalled" (the run has stopped) don't count.
     const write = (workerId: string, target: Settlement) => afterStep(updateCompany((c) => ({ ...c, payroll: settleTo(c.payroll, runId, workerId, target) })));
     const settled: Promise<string | null>[] = [];
+    // Who this press holds back, once each agreement has been checked: never asked of Shield.
+    let held: ReadonlySet<string> = new Set();
     let stalledWhy: string | null = null;
     let refused = false;
     const onProgress = (e: PayQueueEvent) => {
       switch (e.kind) {
         case "planned":
           noteProgress();
-          for (const p of due) setStage(p.workerId, { kind: "waiting" });
+          for (const p of due) if (!held.has(p.workerId)) setStage(p.workerId, { kind: "waiting" });
           break;
         case "approving":
           setStage(e.workerId, { kind: "approving", to: e.to, minor: e.minor });
@@ -390,8 +406,19 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
       };
       // How the run is paid: the one-at-a-time queue, the only way there is today. First, about how many times Shield will ask.
       const releaser = await pickReleaser();
-      setNote(promptSummary(releaser.prompts(latest, links)));
-      await releaser.release({ wallet: railWallet, network, run: latest, links, onProgress, beforeSend, findPayment });
+      // Each person Shield may be asked to pay is checked against their agreement first; whoever doesn't pass is held,
+      // with why on their line, and the run pays everyone else. What an earlier press held is checked again.
+      setStages((all) => Object.fromEntries(Object.entries(all).filter(([, s]) => s.kind !== "held")));
+      const holds = await checkPayees({
+        payees: payeesToCheck(latest, railLinks),
+        account: current,
+        requestRecords: (program, all) => wallet.requestRecords(program, all),
+        network,
+      });
+      held = new Set(holds.keys());
+      for (const [workerId, reason] of holds) setStage(workerId, { kind: "held", why: holdMessage(names.get(workerId) ?? "This person", reason) });
+      setNote(promptSummary(releaser.prompts(latest, links, held)));
+      await releaser.release({ wallet: railWallet, network, run: latest, links, held, onProgress, beforeSend, findPayment });
       setStopped(stalledWhy);
       loadedFor.current = null; // re-read the balance
       setRecords(await fetchTokenRecords(railWallet).then(tagRecords).catch(() => records ?? []));
@@ -480,7 +507,7 @@ function PayFlow({ runId, onClose }: PayPanelProps) {
                       "basis-full text-xs sm:basis-auto",
                       s.kind === "settled"
                         ? "text-money-positive"
-                        : s.kind === "failed"
+                        : s.kind === "failed" || s.kind === "held"
                           ? "text-money-negative"
                           : s.kind === "unconfirmed"
                             ? "text-amber-700 dark:text-amber-400"
