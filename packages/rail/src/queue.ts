@@ -212,6 +212,13 @@ export type PayQueueContext = {
   run: Pick<PayRun, "id" | "mode"> & { paychecks: readonly QueuedPayment[] };
   /** workerId → account on the rail. Every payee in the run must be here. */
   links: ReadonlyMap<string, string>;
+  /**
+   * Payees the caller holds back from this run (the pay panel's check of each person's agreement,
+   * apps/business chain/payee_check.ts): none of them is asked of Shield. A payment of theirs Shield
+   * already took is still followed, one whose record has gone is still looked for (neither asks
+   * Shield to sign anything), and a record one of theirs set aside stays theirs.
+   */
+  held?: ReadonlySet<string>;
   onProgress?: (event: PayQueueEvent) => void;
   clock?: Clock;
   sleep?: Sleep;
@@ -543,8 +550,8 @@ export async function runPayQueue(ctx: PayQueueContext): Promise<PayQueueResult>
   // One that got as far as asking Shield goes again only by spending the very record it tried. If that record is
   // gone, it was spent by this payment or by something else: it is looked for, never asked again here.
   const gone = due.filter((p) => !inFlight.includes(p) && p.settlement.attempt && !own(p, records));
-  // The rest are asked of Shield, in the run's order.
-  const chain = due.filter((p) => !inFlight.includes(p) && !gone.includes(p));
+  // The rest are asked of Shield, in the run's order, but for anyone the caller holds back.
+  const chain = due.filter((p) => !inFlight.includes(p) && !gone.includes(p) && !ctx.held?.has(p.workerId));
   emit({ kind: "planned", transfers: chain.length + inFlight.length });
 
   const resumeOne = async (p: QueuedPayment) => {

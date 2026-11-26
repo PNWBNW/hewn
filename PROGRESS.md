@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-26](progress/2026-11/2026-11-26.md)
+
+- [The pay run checks each person's agreement before asking Shield to pay](progress/2026-11/2026-11-26.md#2026-11-26--the-pay-run-checks-each-persons-agreement-before-asking-shield-to-pay)
+
 ### [2026-11-25](progress/2026-11/2026-11-25.md)
 
 - [The update worker's test no longer fails with the calendar](progress/2026-11/2026-11-25.md#2026-11-25--the-update-workers-test-no-longer-fails-with-the-calendar)
