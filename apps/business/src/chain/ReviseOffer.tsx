@@ -18,7 +18,7 @@ import { updateWorker } from "@pnw/payroll";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { emptyMailbox, threadFor, updateThread } from "@/books/mailbox";

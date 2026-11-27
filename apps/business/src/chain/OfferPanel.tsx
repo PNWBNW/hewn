@@ -39,7 +39,7 @@ import { formatCents, parseCents } from "@pnw/ledger";
 import { PAY_FREQUENCIES, type PayFrequency, type Worker, updateWorker } from "@pnw/payroll";
 import { INDUSTRY_SUFFIXES } from "@pnw/records/registry/name_registry";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { Field, FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { todayIso } from "@/books/display";

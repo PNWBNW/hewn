@@ -7,23 +7,27 @@ on any other path (`scripts/check_signing_path.py`).
 
 | File | What |
 |---|---|
-| `wallet-provider.tsx` | The provider the app mounts: Shield's adapter, connected one of three ways (below) |
+| `wallet-provider.tsx` | The provider the app mounts: Shield's adapter, connected one of four ways (below) |
 | `wallet-executor.ts` | Submitting a transaction through the adapter and following it to confirmation |
 | `fee_mode.ts` | The per-device fee switch (public or private fee) and `withFeeMode`, applied to every call |
 | `credential-signer.ts` | Proving who holds an account by a signed challenge (`signMessage`), never a pasted key |
+| `desktop_pairing.ts` | A computer without the extension: the pairing link to show as a QR code for the phone, checked and shortened, and `forgetUnfinishedPairing` for one an earlier visit left waiting (`DESKTOP_PAIRING.md`) |
+| `qr.ts` | A small QR code encoder (no dependency), drawn as one SVG path |
 
 ## Shield only, pinned exactly
 
 **Shield is the only wallet**; don't add other adapters. The adapters were renamed from
 `-adaptor-` to `-adapter-` on 2026-10-19 and are pinned exactly (no ranges):
-`@provablehq/aleo-wallet-adapter-core` 1.3.0, `-react` 1.5.0, `-shield` 1.5.0,
+`@provablehq/aleo-wallet-adapter-core` 1.3.1, `-react` 1.5.0, `-shield` 1.6.0,
 `@provablehq/aleo-wallet-standard` 1.6.0, `@provablehq/aleo-types` 1.3.0 (moved on 2026-11-08 from
-1.1.2, 1.3.1, 1.3.0, 1.4.0 and 1.1.0; `docs/ALEO_CONSTRAINTS.md` §2b says what changed).
+1.1.2, 1.3.1, 1.3.0, 1.4.0 and 1.1.0, `docs/ALEO_CONSTRAINTS.md` §2b says what changed; `-shield`
+1.6.0 and `-core` 1.3.1 on 2026-11-25 for the verified pairing link, installed five days after
+publication by Joshua's exception to the seven-day rule, OPS-04, after a read of the diff).
 `@provablehq/sdk` 0.13.0 (0.10.1 until 2026-11-07)
 is used elsewhere for what Shield doesn't do (the stablecoin's exclusion proof, in `rail`), never
 to execute.
 
-## Three ways in, one adapter (Joshua, 2026-10-19)
+## Four ways in, one adapter (Joshua, 2026-10-19; the fourth 2026-11-17)
 
 - **The extension on a computer** and **Shield's own browser on a phone** both inject Shield into
   the page.
@@ -31,10 +35,20 @@ to execute.
   with a `shield://` link, every approval opens it again, and answers come back sealed end to end
   through `wss://relay.shield.app`, the one host besides the explorer in the app's security policy
   (pinned there, `apps/business/src/security/headers.ts`, and here).
+- **A computer without the extension**, in a browser (2026-11-17; Shield's verified link since
+  2026-11-25; waiting on a test on real phones) pairs with the Shield app on a phone
+  over the same relay: the adapter hands the page the pairing link instead of opening it, the page
+  shows it as a QR code (`desktop_pairing.ts`, `qr.ts`; the screen is
+  `apps/business/src/chain/ShieldPairing.tsx`), the phone's camera opens it in Shield, and the
+  person opens Shield on the phone for every approval (nothing on a computer can). On a computer
+  the link is `https://connect.shield.app/connect#…`, which the phone hands only to the signed
+  Shield app, the secret after the `#` where no server sees it. The extension stays on offer. The
+  desktop apps pair their own way (Joshua, 2026-11-25), not through this code.
+  `DESKTOP_PAIRING.md` has the evidence from the adapter's source, what isn't verified, and what is
+  still asked of Provable.
 
-A computer without the extension has no way in yet: Shield's app can't scan a pairing code. Over
-the relay the app answers reads only while it is open, and the adapter opens it (the `shield://`
-link) for approvals only: a read sent while the app is in the background waits on the channel, and
+Over the relay the app answers reads only while it is open, and the adapter opens it (the
+`shield://` link, on a phone) for approvals only: a read sent while the app is in the background waits on the channel, and
 nothing happens on screen. A remembered pairing reconnects without asking Shield anything, so
 reads made on it wait while Shield sleeps; a fresh connect makes the adapter open Shield with the
 request in its link, and Shield asks for an approval and then says "Return to your browser"

@@ -11,7 +11,7 @@
 // Nothing here logs a key, a lookup or a message.
 
 import { useEffect, useRef } from "react";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { useWork } from "@/books/BooksProvider";
 import { addReceivedPost, skipPost } from "@/books/channels";
 import { addToThread, skipIncoming } from "@/books/thread";

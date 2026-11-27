@@ -8,6 +8,7 @@ import { DecryptPermission } from "@provablehq/aleo-wallet-adapter-core";
 import {
   DEFAULT_SHIELD_DEEPLINK_BASE,
   DEFAULT_SHIELD_RELAY_URL,
+  SHIELD_VERIFIED_DEEPLINK_BASE,
   ShieldWalletAdapter,
   type ShieldWalletAdapterConfig,
 } from "@provablehq/aleo-wallet-adapter-shield";
@@ -111,7 +112,7 @@ export function shieldWakeUrl(adapter: unknown): string {
 }
 
 /**
- * Three ways in, one adapter (Joshua, 2026-10-19):
+ * Four ways in, one adapter (Joshua, 2026-10-19; the fourth 2026-11-17):
  *
  * 1. The browser extension on a computer: Shield is injected into the page
  *    and wins (`preferExtension`, the default).
@@ -122,6 +123,10 @@ export function shieldWakeUrl(adapter: unknown): string {
  *    answer comes back over the relay, sealed end to end (the relay forwards
  *    ciphertext between the page and the app; the pairing secret travels only
  *    in the link). Sessions last 12 hours, then one tap pairs again.
+ * 4. A computer without the extension: the same relay, but the adapter hands
+ *    the page the link instead of opening it (the provider's `pairingUrl`);
+ *    the app shows it as a QR code for the phone's camera (./desktop_pairing.ts,
+ *    DESKTOP_PAIRING.md), and the person opens Shield on the phone to approve.
  *
  * Reads over the relay are answered only while the Shield app is open: it
  * leaves the relay whenever it is in the background. `src/chain/shield.ts`
@@ -130,13 +135,30 @@ export function shieldWakeUrl(adapter: unknown): string {
  * The approval screen in Shield shows the name and icon declared here beside
  * the page's origin (it has no page to read over the relay). Display only: the
  * origin stays primary.
+ *
+ * The pairing link (adapter 1.6.0, Provable 2026-11-23): on a computer it is
+ * Shield's verified link, `https://connect.shield.app/connect#…`, which a
+ * phone's camera hands only to the signed Shield app, with every parameter, the
+ * pairing secret included, after the `#`, which no browser sends to a server.
+ * On a phone it stays `shield://connect?…`: the page opens it itself, and an
+ * older Shield app that doesn't claim the verified link would open a web page
+ * instead. This is the website's pairing only; the desktop apps pair their own
+ * way (Joshua, 2026-11-25).
  */
-export function shieldAdapterConfig(): ShieldWalletAdapterConfig {
+export function shieldAdapterConfig(phone = isPhoneBrowser()): ShieldWalletAdapterConfig {
   return {
     appName: BRAND.name,
     appIconUrl: `${BRAND.appUrl}${BRAND.assets.icon512}`,
-    remote: { relayUrl: SHIELD_RELAY_ORIGIN },
+    remote: {
+      relayUrl: SHIELD_RELAY_ORIGIN,
+      deeplinkBase: phone ? DEFAULT_SHIELD_DEEPLINK_BASE : SHIELD_VERIFIED_DEEPLINK_BASE,
+    },
   };
+}
+
+/** The same check the adapter makes before it opens the Shield link itself (`isMobileUserAgent`). */
+export function isPhoneBrowser(): boolean {
+  return typeof navigator !== "undefined" && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
 }
 
 /**
@@ -147,8 +169,9 @@ export function shieldAdapterConfig(): ShieldWalletAdapterConfig {
  * there is no picker modal: the official react-ui package (and its stylesheet,
  * which pulls a Google font and so trips a strict CSP) is not used. On a phone
  * the adapter fires the Shield link itself, so no pairing screen is needed
- * either; a computer without the extension is told to install it
- * (`src/chain/shield.ts`), since Shield's app cannot scan a pairing code yet.
+ * there; a computer without the extension gets the app's own pairing screen
+ * (`src/chain/ShieldPairing.tsx`, a QR code drawn by ./qr.ts), with the
+ * extension still on offer, since Shield's app cannot scan a pairing code yet.
  */
 export function AleoWalletProviderWrapper({
   children,

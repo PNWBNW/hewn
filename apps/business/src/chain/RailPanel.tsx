@@ -28,7 +28,7 @@ import { scanAgreementRecords } from "@pnw/records/agreement_reader";
 import { queryEmployerName, queryNamePlaintext } from "@pnw/records/registry/name_registry";
 import type { WorkerRecord } from "@pnw/records/types/worker";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { WorkerForm } from "@/app/payroll/WorkerForm";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";

@@ -46,7 +46,7 @@ import {
 } from "@pnw/rail";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { Money } from "@/books/display";

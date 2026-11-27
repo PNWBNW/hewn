@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useCustomer } from "@/books/BooksProvider";
 import { updateConnectionThread } from "@/books/connections";

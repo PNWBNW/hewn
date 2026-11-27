@@ -15,7 +15,9 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 - [The update worker's test no longer fails with the calendar](progress/2026-11/2026-11-25.md#2026-11-25--the-update-workers-test-no-longer-fails-with-the-calendar)
 - [The audit's one skip comes off: the picomatch advisory no longer applies](progress/2026-11/2026-11-25.md#2026-11-25--the-audits-one-skip-comes-off-the-picomatch-advisory-no-longer-applies)
+- [Pairing with Shield on a phone moves to Shield's verified link, and the desktop app takes it](progress/2026-11/2026-11-25.md#2026-11-25--pairing-with-shield-on-a-phone-moves-to-shields-verified-link-and-the-desktop-app-takes-it)
 - [The desktop app's build workflow runs its checks on a Python that has tomllib](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-apps-build-workflow-runs-its-checks-on-a-python-that-has-tomllib)
+- [#373 is the website's pairing only; the desktop apps get their own](progress/2026-11/2026-11-25.md#2026-11-25--373-is-the-websites-pairing-only-the-desktop-apps-get-their-own)
 - [The desktop workflow builds the web bundle once, on Linux, and the other systems only package it](progress/2026-11/2026-11-25.md#2026-11-25--the-desktop-workflow-builds-the-web-bundle-once-on-linux-and-the-other-systems-only-package-it)
 - [Hosting and verifiable releases: where each step stands, and Shield's way into the desktop app](progress/2026-11/2026-11-25.md#2026-11-25--hosting-and-verifiable-releases-where-each-step-stands-and-shields-way-into-the-desktop-app)
 - [The native verifier: a release and a closed period, checked in Rust on GPUI and snarkVM](progress/2026-11/2026-11-25.md#2026-11-25--the-native-verifier-a-release-and-a-closed-period-checked-in-rust-on-gpui-and-snarkvm)

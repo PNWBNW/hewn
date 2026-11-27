@@ -17,7 +17,7 @@
 import { useState } from "react";
 import { Button } from "@pnw/ui/button";
 import { type FeeMode, readFeeMode } from "@pnw/wallet/fee-mode";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { threadOfContact } from "@/books/event_contacts";

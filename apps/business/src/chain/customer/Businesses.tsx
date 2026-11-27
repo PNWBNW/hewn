@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@pnw/ui/button";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage } from "@/books/AuthCard";
 import { useCustomer } from "@/books/BooksProvider";
 import { type Connections, connectedIn, connectionState, ignoreConnection, keepMine, noteHelloReceived, noteHelloSent, requestsIn } from "@/books/connections";

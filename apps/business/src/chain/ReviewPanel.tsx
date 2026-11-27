@@ -18,7 +18,7 @@ import { type Account, type Books, baseOf, formatCents } from "@pnw/ledger";
 import { RAIL_ACCOUNT_NAME, findRailAccount } from "@pnw/payroll";
 import { Button } from "@pnw/ui/button";
 import { cn } from "@pnw/ui/utils";
-import { AleoWalletProviderWrapper } from "@pnw/wallet/wallet-provider";
+import { ShieldProvider as AleoWalletProviderWrapper } from "@/chain/ShieldProvider";
 import { FormError, errorMessage, inputClass } from "@/books/AuthCard";
 import { useOpenBooks } from "@/books/BooksProvider";
 import { AccountSelect, Money, todayIso } from "@/books/display";

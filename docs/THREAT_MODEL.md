@@ -119,16 +119,50 @@ The highest risk for a browser app.
   and a channel that forwards sealed messages to the Shield app. Verified in a browser: third-party
   fetch, framing and inline handlers are all refused. ✅
 - ⚠️ A plain phone browser reaches the Shield app over Provable's relay
-  (`@provablehq/aleo-wallet-adapter-shield` 1.5.0, the third way in beside the extension and
+  (`@provablehq/aleo-wallet-adapter-shield` 1.6.0, the third way in beside the extension and
   Shield's own browser). The page and the app exchange messages sealed end to end (ECIES, signed,
-  sequence-numbered; the relay forwards them unread). The pairing secret rides only in the
-  `shield://` link that opens the app, never over the relay, and authenticates the app's key
+  sequence-numbered; the relay forwards them unread). The pairing secret rides only in the link
+  that opens the app (`shield://` on a phone; on a computer Shield's verified https link, the
+  secret after the `#`, which no browser sends to Shield's link host), never over the relay, and authenticates the app's key
   handshake, so a relay cannot sit in the middle. What Provable's relay learns: the page's origin,
   when it is used and how much; the Shield app already talks to Provable. The pairing (an ephemeral
   key and the secret) lives in `localStorage` for up to 12 hours, so code injected into the page
   could use that session until then; the CSP above is the backstop, and nothing in the session can
   read the vault. The adapter's default relay is pinned in `packages/wallet` and named in the
   policy, so the two cannot drift apart. Accepted (Joshua, 2026-10-19).
+- ⚠️ A computer without the extension pairs with the Shield app on the person's phone over the
+  same relay (2026-11-17, `apps/business/src/chain/ShieldPairing.tsx`,
+  `packages/wallet/DESKTOP_PAIRING.md`): the page shows the pairing link as a QR code for the
+  phone's camera to open in Shield, and the person opens Shield for each approval. The link is the
+  secret here, so it appears only after a tap, only on that screen, drawn on the device (no image
+  service), never logged, stored by the app or sent; the adapter keeps its own copy of the pairing
+  in `localStorage`, as on a phone. The code shown carries only the channel, the page's relay key,
+  the relay, the origin and the 32-byte secret (`desktopPairingLink` refuses any other relay or
+  origin and drops the bundled first request). **Someone who photographs the screen** while the
+  code waits can open it before the person's own Shield does: their app then holds the pairing and
+  the person's Shield is refused. They can't sign anything as the person (their Shield signs with
+  their own account), but they can answer the page as if they were the person's Shield: name an
+  account, refuse requests, and hand back made-up reads (balances, records, history) that would
+  show in the open books, and the page would ask them, not the person, to approve. The window is
+  from the code appearing until the first of: the person's Shield pairing (the first key that
+  proves the secret is pinned for the pairing's life, so a later photo is refused and everything
+  after is sealed to the person's Shield and signed by it), five minutes passing (the adapter stops
+  waiting and forgets the keys), Cancel, or the visit ending. A panel opened later in the same visit
+  picks up the same code and waits up to five minutes more. The adapter keeps an unfinished pairing
+  when the page closes or reloads and would resume it, same secret, at the next connect; the app
+  forgets it, and the choice of Shield that would start another by itself, when it next opens on a
+  computer, before any panel connects (`forgetUnfinishedPairing`,
+  `apps/business/src/chain/ShieldProvider.tsx`), so a code from an earlier visit pairs with nothing.
+  Tests: `packages/wallet/src/desktop_pairing.test.ts`
+  runs the adapter's own transport against a simulated Shield app and shows both sides of that
+  window. The guards are the person's own: Shield shows what it connects to, and the connected
+  account is compared with the one setup linked: the chain panels stop with "Shield is signed in to
+  …" when they differ (the mismatch notes in `apps/business/src/chain`). In setup, before any
+  account is linked, there is nothing to compare with: the person has to see their own Shield
+  approve the connection and name their own account. On a computer the code holds Shield's
+  verified link, which the phone hands only to the signed Shield app (adapter 1.6.0; an older app
+  opens a web page, which sees nothing after the `#`). Waiting on Joshua's review and a test on real
+  phones.
 - ⚠️ The dashboard asks the explorer for the linked account's public balances each time it opens,
   so the explorer's operator can tie the user's IP to that address. The address is already public
   (it owns a registered name). Private balances come from Shield's own records and touch no server
