@@ -1,0 +1,188 @@
+{
+  "format": "hewn-period-proof",
+  "version": 1,
+  "business": "Example Woodworks",
+  "madeAt": "2026-11-05T00:00:00.000Z",
+  "start": "2026-10-25",
+  "end": "2026-10-31",
+  "root": "99fbe4adedb5bbdda67ae58ad4a23dcfdf4eb7c58deff21d44835e8a1a391ab7",
+  "prevRoot": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+  "businessTag": "7a6724d70872c11f8a3ac26ca0ee2d633703c650dea58250e48b649af2d9409a",
+  "entries": [
+    {
+      "id": "e-1",
+      "seq": 2,
+      "date": "2026-10-25",
+      "memo": "Rent — October, \"late\" fee\nsecond line 😀 \u0001",
+      "source": {
+        "kind": "bill",
+        "ref": "bill-7"
+      },
+      "postedAt": "2026-10-25T10:00:00.000Z",
+      "lines": [
+        {
+          "accountId": "acct-rent",
+          "debit": "120000",
+          "credit": "0",
+          "memo": "line memo",
+          "name": {
+            "kind": "vendor",
+            "id": "v-1"
+          },
+          "tags": {
+            "class": "c-1",
+            "location": "l-1",
+            "project": "p-1"
+          }
+        },
+        {
+          "accountId": "acct-checking",
+          "debit": "0",
+          "credit": "120000"
+        }
+      ],
+      "prevHash": "cce5899d9fbe7b8f1ed1a62f0bcfde52a689881339a2d9dcdbe0042715990855",
+      "hash": "e5704ba29989a96c1e8d8ab5d496a6e9f27a395aad97c3ee9174e5e89d4de2de",
+      "salt": "2b7725275d2eb011fdd8163c3be5c64a2242dc901601870eb03eb186ada678dd"
+    },
+    {
+      "id": "e-2",
+      "seq": 4,
+      "date": "2026-10-28",
+      "source": {
+        "kind": "payroll",
+        "ref": "run-1",
+        "doc": "abababababababababababababababababababababababababababababababab"
+      },
+      "postedAt": "2026-10-28T12:00:00.000Z",
+      "lines": [
+        {
+          "accountId": "acct-wages",
+          "debit": "250000",
+          "credit": "0",
+          "name": {
+            "kind": "employee",
+            "id": "w-1"
+          }
+        },
+        {
+          "accountId": "acct-checking",
+          "debit": "0",
+          "credit": "250000"
+        }
+      ],
+      "prevHash": "e5704ba29989a96c1e8d8ab5d496a6e9f27a395aad97c3ee9174e5e89d4de2de",
+      "hash": "5ef1f81fc7f5b18b1689e78a00a5aa3981aad403ee172e4e7a7f7b44f83b6a4e",
+      "salt": "a077ad0ece5fe6ef4aadc9e7b11fdc3de8220aa62ea26f9c154758715fa29a0d"
+    },
+    {
+      "id": "e-3",
+      "seq": 5,
+      "date": "2026-10-30",
+      "memo": "",
+      "source": {
+        "kind": "invoice"
+      },
+      "postedAt": "2026-10-30T08:30:00.000Z",
+      "lines": [
+        {
+          "accountId": "acct-checking",
+          "debit": "5",
+          "credit": "0",
+          "tags": {
+            "project": "p-2"
+          }
+        },
+        {
+          "accountId": "acct-sales",
+          "debit": "0",
+          "credit": "5"
+        }
+      ],
+      "prevHash": "5ef1f81fc7f5b18b1689e78a00a5aa3981aad403ee172e4e7a7f7b44f83b6a4e",
+      "hash": "1dcad7db978f042bbc2d576d90b065221cd270ac3bc7708f3658691f19c2f8fa",
+      "salt": "5d4809599ef1a82a2428cb83d5c2958ea2e369235584e5b4020d86c9537df7a3"
+    },
+    {
+      "id": "e-4",
+      "seq": 9,
+      "date": "2026-10-31",
+      "source": {
+        "kind": "manual"
+      },
+      "postedAt": "2026-11-01T08:00:00.000Z",
+      "reverses": "e-3",
+      "lines": [
+        {
+          "accountId": "acct-sales",
+          "debit": "5",
+          "credit": "0"
+        },
+        {
+          "accountId": "acct-checking",
+          "debit": "0",
+          "credit": "5"
+        }
+      ],
+      "prevHash": "1dcad7db978f042bbc2d576d90b065221cd270ac3bc7708f3658691f19c2f8fa",
+      "hash": "686961dfdafce6cf79c72f3e941775bdbc187b5bc3b2616b952f7941ba9df796",
+      "salt": "fbc34ad11f75afdd4df96b69a988a93f1a4297297f61916d6838a1077587d768"
+    }
+  ],
+  "settlements": [
+    {
+      "entryHash": "5ef1f81fc7f5b18b1689e78a00a5aa3981aad403ee172e4e7a7f7b44f83b6a4e",
+      "txId": "at1qyqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7fymfh",
+      "recipient": "aleo1pppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+      "entrySalt": "a077ad0ece5fe6ef4aadc9e7b11fdc3de8220aa62ea26f9c154758715fa29a0d",
+      "settleSalt": "a493a738a6268d80b3b2cd206face62032df7bc950ba1195b4884166f46fdcda"
+    },
+    {
+      "entryHash": "5ef1f81fc7f5b18b1689e78a00a5aa3981aad403ee172e4e7a7f7b44f83b6a4e",
+      "txId": "at1qgqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq5ragwl",
+      "recipient": "aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      "entrySalt": "a077ad0ece5fe6ef4aadc9e7b11fdc3de8220aa62ea26f9c154758715fa29a0d",
+      "settleSalt": "3e90f15659be2e03a3c1ee8549d1c11a5d5301d36132831ff1fd972abffe4de3"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "acct-checking",
+      "name": "Checking",
+      "type": "bank",
+      "number": "1000"
+    },
+    {
+      "id": "acct-rent",
+      "name": "Rent",
+      "type": "expense"
+    },
+    {
+      "id": "acct-wages",
+      "name": "Wages",
+      "type": "expense"
+    },
+    {
+      "id": "acct-sales",
+      "name": "Sales",
+      "type": "income"
+    }
+  ],
+  "closes": [
+    {
+      "start": "2026-10-25",
+      "end": "2026-10-31",
+      "root": "99fbe4adedb5bbdda67ae58ad4a23dcfdf4eb7c58deff21d44835e8a1a391ab7",
+      "closedAt": "2026-11-03T00:00:00.000Z",
+      "anchorTx": "at1qyqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7fymfh"
+    },
+    {
+      "start": "2026-10-25",
+      "end": "2026-10-31",
+      "root": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+      "closedAt": "2026-11-02T00:00:00.000Z",
+      "anchorTx": "at1qgqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq5ragwl",
+      "reopenedAt": "2026-11-02T12:00:00.000Z"
+    }
+  ]
+}

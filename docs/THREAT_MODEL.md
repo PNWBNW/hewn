@@ -238,8 +238,9 @@ The highest risk for a browser app.
   (`auditConfig.ignoreGhsas`), each with its reason, only when nothing the app ships includes the
   package (`pnpm audit --prod` stays clean), and removed once a fix can be installed: CI fails as
   soon as the npm registry lists a version outside the advisory's range that is old enough to
-  install, or the advisory no longer applies (`scripts/check_audit_skips.py`). ✅ Today: one,
-  picomatch through the test runner (2026-11-17).
+  install, or the advisory no longer applies (`scripts/check_audit_skips.py`). ✅ Today: none.
+  The first, picomatch through the test runner (2026-11-17), came off on 2026-11-25 when the
+  check reported the advisory no longer matched any installed version.
 - `minimumReleaseAge` 7 days covers resolution: a version added on a machine, or by Dependabot's
   weekly bumps (which wait the same 7 days, `cooldown`), is never one published that week. ✅
 - Install scripts allowed only for an explicit list (`onlyBuiltDependencies`). ✅

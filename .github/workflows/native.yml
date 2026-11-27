@@ -1,0 +1,121 @@
+name: Native verifier
+
+# The native verifier (apps/native): a Rust library that checks a signed release and a closed
+# period's proof and anchor, with snarkVM's console crates, and a GPUI window over it, GPUI
+# coming through gpui-kit's gpui-pre snapshots of Zed's. On every pull request that touches it,
+# or what it is generated from or tested against:
+#
+# - the generated files match their sources (@pnw/brand and @pnw/config; @pnw/ledger's period
+#   proofs), every crate is at least seven days old and none comes from git (OPS-04), and every
+#   gpui-pre crate is Zed's own source at the commit it names, but for the reviewed patches;
+# - formatting, lints and every test on Linux, the window included (the live-explorer test is
+#   ignored here: it reads the network);
+# - the window built for Windows, unsigned, kept as the run's artifact with its SHA-256. Running
+#   it on a real Windows machine is a person's to do.
+#
+# No secret, no signing, nothing published.
+
+on:
+  pull_request:
+    paths:
+      - "apps/native/**"
+      - "packages/brand/**"
+      - "packages/config/**"
+      - "packages/ledger/src/**"
+      - "scripts/release/fixture/**"
+      - "apps/desktop/scripts/check_crate_age.py"
+      - ".github/workflows/native.yml"
+  workflow_dispatch:
+
+# Least privilege: the jobs read the repository and nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Generated files, crates and GPUI's source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6 # version comes from package.json "packageManager"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (lockfile must match exactly)
+        run: pnpm install --frozen-lockfile
+      - name: generated.rs matches @pnw/brand and @pnw/config
+        run: node apps/native/scripts/generate.mjs
+      - name: The period fixtures are what @pnw/ledger makes
+        run: pnpm vitest run --project native
+      - name: Every crate was at least seven days old when pinned, and none is from git
+        run: python3 -I apps/desktop/scripts/check_crate_age.py --lock apps/native/Cargo.lock --no-git
+      - name: The source check's own tests
+        run: python3 -I apps/native/scripts/check_gpui_source_test.py
+      - name: Every gpui-pre crate is Zed's source at the commit it names, but for the reviewed patches
+        run: python3 -I apps/native/scripts/check_gpui_source.py
+  test:
+    name: Tests (Linux)
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/native
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: System libraries GPUI builds against on Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libx11-xcb-dev libfontconfig1-dev libfreetype-dev libvulkan-dev libwayland-dev
+      - name: Rust (rust-toolchain.toml)
+        run: rustup toolchain install
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Lints
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --locked
+  windows:
+    name: Window (Windows, unsigned)
+    needs: check
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/native
+        shell: bash
+    steps:
+      # The fixtures are checked by their bytes: no line endings rewritten on checkout.
+      - name: Keep line endings as committed
+        working-directory: .
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Rust (rust-toolchain.toml)
+        run: rustup toolchain install
+      - name: Build
+        run: cargo build --release --locked -p pnw-verifier-app -p pnw-verify
+      - name: The verifier's tests on Windows
+        run: cargo test --locked -p pnw-verify
+      - name: SHA-256 of what was built
+        run: |
+          mkdir -p dist
+          cp target/release/pnw-verifier.exe target/release/pnw-verify.exe dist/
+          (cd dist && sha256sum pnw-verifier.exe pnw-verify.exe > SHA256SUMS-Windows.txt && cat SHA256SUMS-Windows.txt)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: native-verifier-Windows
+          path: apps/native/dist
+          if-no-files-found: error
+          retention-days: 30

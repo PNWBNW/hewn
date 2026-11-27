@@ -1,0 +1,56 @@
+{
+  "_note": "October 2026's anchor (testnet, block 21,235,519), trimmed from the explorer's /transaction/<id>: the ids, types and tcm every recomputation reads, and the anchor's public future. The private input's ciphertext, the proofs and the fee's values (which name the account that paid it) are left out.",
+  "type": "execute",
+  "id": "at1hg2etspa7udc6nj6yja2uc7p9fnf49l9973jvh9467w277mpx5rqp500eq",
+  "execution": {
+    "transitions": [
+      {
+        "id": "au1nspzdw9kram5a7kzerrx0dc6dy5qqjzqes2ljksn04f3l3q02cfqcm4mqe",
+        "program": "payroll_audit_log.aleo",
+        "function": "anchor_event",
+        "inputs": [
+          {
+            "id": "3585848267202140858268780062530365068004027190405122398753991815160902069901field",
+            "type": "private"
+          }
+        ],
+        "outputs": [
+          {
+            "id": "6097434703771395116590504217833666747412301729402262212982507062345379018552field",
+            "type": "future",
+            "value": "{\n  program_id: payroll_audit_log.aleo,\n  function_name: anchor_event,\n  arguments: [\n    [\n  149u8,\n  73u8,\n  102u8,\n  65u8,\n  168u8,\n  234u8,\n  154u8,\n  195u8,\n  249u8,\n  169u8,\n  158u8,\n  203u8,\n  51u8,\n  231u8,\n  209u8,\n  114u8,\n  186u8,\n  109u8,\n  153u8,\n  239u8,\n  205u8,\n  14u8,\n  96u8,\n  109u8,\n  253u8,\n  200u8,\n  194u8,\n  198u8,\n  249u8,\n  4u8,\n  230u8,\n  139u8\n]\n  ]\n}"
+          }
+        ],
+        "tcm": "5933498545873149337460507016366269682810572681941477873281450028732404741386field"
+      }
+    ]
+  },
+  "fee": {
+    "transition": {
+      "id": "au1e929cy0j8lkc5pkhfzz8p9eaqq7xt6vul0tnnvjvr0vv0kk9ay8qshktj8",
+      "program": "credits.aleo",
+      "function": "fee_public",
+      "inputs": [
+        {
+          "id": "234899956866794968053476841855839332932808497819292628376991354557491467823field",
+          "type": "public"
+        },
+        {
+          "id": "7945454452512238247381183465969548402725885830766865659040777350960532489206field",
+          "type": "public"
+        },
+        {
+          "id": "1561286777869606746663235940121983478451440029779947314998656754468733301459field",
+          "type": "public"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "6024226721304893464332935525184584611282462790012263347864620858581193481227field",
+          "type": "future"
+        }
+      ],
+      "tcm": "499042868552126908781925559300292023697266262003370995177158888032177771481field"
+    }
+  }
+}

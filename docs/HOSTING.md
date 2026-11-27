@@ -1,15 +1,25 @@
 ---
 status: plan
-updated: 2026-11-17
-summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing, signed and anchored releases, an installable signed desktop app (the priority, waiting on a way to reach Shield from a computer app), the website on GitHub Pages with a service worker that checks updates, and later a hardened native client on GPUI with snarkVM.
+updated: 2026-11-25
+summary: Who can change the code a person runs, and the plan to make that checkable: a guard against framing (live), signed and anchored releases (built; the first release waits on Joshua's key), an installable signed desktop app (the priority; built, and Shield's adapter 1.6.0 gives it a way in by pairing with a phone), the website on GitHub Pages with a service worker that checks updates (built, the move waits on decisions), and later a hardened native client on GPUI with snarkVM, whose first piece, a native verifier, is built.
 ---
 
 # Hosting and verifiable releases
 
 Joshua, 2026-11-17: make the code people run checkable, and make an installable, signed desktop
-app the priority. This note is the plan; nothing in it is built yet. Each step is its own pull
-request with its own exit criterion, and the steps that change where or how the app is delivered
-wait for Joshua's go-ahead.
+app the priority. Each step is its own pull request with its own exit criterion, and the steps
+that change where or how the app is delivered wait for Joshua's go-ahead.
+
+## Where it stands (2026-11-25)
+
+| Step | Built | What's left for its exit criterion |
+| --- | --- | --- |
+| 1. The top-page guard | Live since #370 (`apps/business/src/security/frame_guard.test.ts`) | Nothing: met |
+| 2. Signed, anchored releases | The tools and the twice-built CI check, #371 (`scripts/release/README.md`) | Joshua makes the release key offline, signs the first release and anchors it on testnet; then the check from a clean machine |
+| 3. The desktop app | The Tauri shell, its locked-down window and its signed updater, #372 (`apps/desktop/README.md`); the pairing screen with a QR code, draft #373 | Shield's adapter 1.6.0 (published 2026-11-20) can pair through a code a phone's camera opens (below); #373 moves to it once it is seven days old (2026-11-27, OPS-04), then the test on real phones and computers, then signed installers |
+| 4. The website on GitHub Pages | The update worker, #374 (`apps/business/src/updates/README.md`); the Pages build and the counter's own address, draft #375 | Joshua's decisions: GitHub Pages' terms, the DNS change, the counter's address |
+| Later: the hardened native client | Its first piece, the native verifier (`apps/native/README.md`), built for Windows in CI | Joshua's run on a real Windows machine; screens wait on a native way to reach Shield |
+
 
 ## Why
 
@@ -88,7 +98,24 @@ The desktop app carries a signed release from step 2 and runs it on the device. 
 accepted only when they carry Joshua's signature, so no host, domain or DNS can change the code it
 runs.
 
-**The blocker: reaching Shield from a desktop app.** A desktop app runs its own copy of a browser
+**Reaching Shield from a desktop app: answered by Shield 1.6.0 (2026-11-20).** Provable published
+`@provablehq/aleo-wallet-adapter-shield` 1.6.0 with what this step needed (Provable, 2026-11-23):
+
+- **A pairing link a phone's camera opens.** `SHIELD_VERIFIED_DEEPLINK_BASE`
+  (`https://connect.shield.app/connect`) is a verified link the phone hands only to the signed Shield
+  app. Every connect parameter, the pairing secret included, travels in the fragment after `#`,
+  which a browser never sends to any server, so Shield's link host never sees it. The desktop app
+  shows the adapter's `connectUrl` as a QR code; the person scans it, confirms in Shield Mobile, and
+  opens Shield on the phone to approve each later request. Signing keys stay in Shield. An older
+  Shield Mobile that doesn't claim the verified link opens a web page instead of the app, so the
+  pairing screen asks for an up-to-date Shield.
+- **An origin for an app with no web address.** The desktop app's pages run at `tauri://localhost`
+  (or `https://tauri.localhost` on Windows); `remote.origin` declares an HTTPS origin we control
+  instead, the website's (`https://www.hewnaccounting.com`), with `appName` "Hewn". Shield Mobile
+  shows both. They are self-reported over the relay; Provable wants to explore how Shield could
+  verify the requesting app (below, "Verifying the app to Shield").
+
+What the problem was, for the record: a desktop app runs its own copy of a browser
 engine, and the Shield extension doesn't run inside it. The relay path is for a phone browser: it
 opens the Shield app with a `shield://` link, and a computer can't open the app on someone's phone.
 `packages/wallet/README.md` already says it: a computer without the extension has no way in yet,
@@ -101,9 +128,15 @@ app can't be used until there is a way in. The options:
 | **Load the Shield extension into an Electron app** | Electron runs only part of the Chrome extension system; a wallet's popups and background worker may not work | Fragile, ties us to the extension's internals; a fallback to test, not to plan on |
 | **Hand signing to the person's browser** | The desktop app opens a page in the browser for each approval | Puts the browser back in the path; defeats the purpose |
 
-Until Shield answers, steps 1, 2 and 4 go ahead: the desktop app needs step 2's releases in any
-case. If the answer takes long, a checking browser extension (below) gives computers with the
-Shield extension most of the same protection.
+The first option is what Shield shipped (as a verified link a phone's camera opens, rather than a
+scanner in the app). The desktop app still needs step 2's releases for its signed updates.
+
+**Verifying the app to Shield (an idea to work out with Provable).** Today the name and origin the
+app declares are self-reported. Step 2 could make them checkable: each release is reproducible,
+signed with the release key, and its digest anchored on Aleo, and the release public keys are
+published. If the declared origin published those keys (for example under `/.well-known/`), Shield
+could check that the connecting app's release is signed by that origin's key and anchored on chain,
+and show the origin as verified rather than declared.
 
 **The shell: Tauri** (recommended over Electron).
 
@@ -174,22 +207,34 @@ scheduled.
   hashes, checking period proofs and release anchors, and reading chain state, faster and with fewer
   layers. Signing stays in Shield: the client asks, Shield shows what is signed and signs (INV-11);
   no key moves into the client.
-- **What it needs first:** a native way to reach Shield (the JavaScript adapter can't run there): a
-  documented relay protocol, or a Rust library from Provable for pairing and requests. The ask to
-  Provable covers this along with the pairing code for step 3.
+- **What it needs first:** a native way to reach Shield (the JavaScript adapter can't run there).
+  Provable's suggestion (2026-11-23): start from a public relay protocol spec with test vectors,
+  then see whether a Rust client from them would help.
+- **snarkVM versions:** pin the crates to the version snarkOS runs on the target network (mainnet:
+  snarkVM 4.13.1, consensus V22, per Provable on 2026-11-23; check again before pinning).
+  `snarkvm-console` is the starting point for records, `snarkvm-synthesizer-process` for verifying
+  execution proofs.
 - **What it costs:** every screen written again in Rust, and two interfaces kept from then on (the
   website stays). GPUI is before its 1.0 and shaped around Zed's needs; its Windows support is newer
   and it has no phones.
-- **When:** once the Tauri app has shipped, Shield offers a native path, and GPUI is stable enough;
-  the first piece could be a native verifier (releases, anchors, period proofs) before any screen.
+- **When:** once the Tauri app has shipped, Shield offers a native path, and GPUI is stable enough.
+  Its first piece needs none of that and is built (Joshua, 2026-11-25): the native verifier below.
+
+**Where it stands** (2026-11-25):
+
+| Piece | State |
+| --- | --- |
+| The native verifier ([`apps/native`](../apps/native/README.md)) | Built: a Rust library and a one-window GPUI app that check a release folder as `verify.mjs` does and a period proof and its anchor as `/verify` does, with snarkVM's console crates recomputing the anchoring transaction's ids. It confirms the release fixture and October's anchor; no keys, no wallet, no signing. Built for Windows in CI (`.github/workflows/native.yml`); a run on a real Windows machine is Joshua's to do |
+| GPUI | Through gpui-kit's `gpui-pre` snapshots of Zed's GPUI, held to the seven-day rule and checked file by file against Zed's repository at the commit each names, with the snapshots' few changes reviewed (`apps/native/gpui_patches.toml`) |
+| Screens, books, Shield | Not started: they wait on a native way to reach Shield |
 
 ## Order
 
-1. Step 1, the guard: small, independent, worth having now.
-2. Ask Provable about a pairing code for Shield's phone app (this week; it gates step 3).
-3. Step 2, signed and anchored releases: everything else builds on them.
-4. Step 3, the desktop app, as soon as there is a way to Shield.
-5. Step 4, GitHub Pages with the worker, once releases exist.
+1. Step 1, the guard: done (#370).
+2. Ask Provable about a way into Shield from a computer: done, answered by adapter 1.6.0.
+3. Step 2: the tools are built (#371); the first signed and anchored release is Joshua's to make.
+4. Step 3: #373 moves to 1.6.0 on 2026-11-27, then the test with phones on Windows and macOS.
+5. Step 4: built (#374, draft #375), waiting on Joshua's decisions.
 
 ## What each step closes
 
@@ -204,8 +249,7 @@ scheduled.
 
 ## Open questions for Joshua
 
-- Ask Provable for a pairing code the Shield phone app can scan, or a desktop way in, and a native
-  (Rust) way to reach Shield for the hardened client?
+- Whether to propose the release-based app verification (above) to Provable.
 - Where the release key lives (a hardware key, or an offline machine), and who holds the second.
 - Which systems first for the desktop app: macOS and Windows, Linux later?
 - The traction counter on its own service, or ended at the move?
