@@ -2,6 +2,7 @@
 // fake chain whose letters stay where they are (books/key_ring.ts has how it
 // goes): who writes where, under which key, and what someone holding only the
 // agreement's key can still open.
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { MailboxError, open, partiesKeyFromHex } from "@pnw/mailbox";
 import { announceBooksClosed } from "../books/lock_signal";
@@ -377,5 +378,16 @@ describe("the pair keys this tab has made", () => {
     } finally {
       derive.mockRestore();
     }
+  });
+});
+
+describe("a version 1 pair key", () => {
+  it("is still made exactly as before, against the fixed answer the version 2 work keeps (packages/pair-keys/fixtures)", async () => {
+    // The P-256-only pair key: what every pair made so far uses. A change here would lose every
+    // conversation sealed under one, so it is pinned to a value made outside this file.
+    const fixture = JSON.parse(readFileSync(new URL("../../../../packages/pair-keys/fixtures/pair_keys_v2.json", import.meta.url), "utf8"));
+    const { partiesKey, mine, theirs, pairKey } = fixture.v1;
+    const pair: Pair = { mine: { publicKey: mine.point, privateKey: { kty: "EC", crv: "P-256", x: mine.x, y: mine.y, d: mine.d } }, theirs, nextIn: 0, nextOut: 0, createdAt: "2026-11-28T00:00:00.000Z" };
+    expect(await pairKeyHex(partiesKey, pair)).toBe(pairKey);
   });
 });

@@ -247,6 +247,18 @@ importers:
         specifier: workspace:*
         version: link:../pnw-adapter
 
+  packages/pair-keys:
+    dependencies:
+      '@noble/hashes':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@noble/post-quantum':
+        specifier: 0.7.1
+        version: 0.7.1
+      '@pnw/vault':
+        specifier: workspace:*
+        version: link:../vault
+
   packages/payroll:
     dependencies:
       '@noble/hashes':
@@ -668,6 +680,10 @@ packages:
 
   '@noble/hashes@2.4.0':
     resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/post-quantum@0.7.1':
+    resolution: {integrity: sha512-+P9981IiAnVh+rmcubozzVwrEy3XsN/tMhTnvsjV9VDaYpOnNCqWqKo2FLWxbu92YHfjGIlE5XnW175UK+ln+Q==}
     engines: {node: '>= 20.19.0'}
 
   '@oxc-project/types@0.156.0':
@@ -1826,6 +1842,12 @@ snapshots:
   '@noble/hashes@1.8.0': {}
 
   '@noble/hashes@2.4.0': {}
+
+  '@noble/post-quantum@0.7.1':
+    dependencies:
+      '@noble/ciphers': 2.4.0
+      '@noble/curves': 2.4.0
+      '@noble/hashes': 2.4.0
 
   '@oxc-project/types@0.156.0': {}
 

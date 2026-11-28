@@ -31,6 +31,7 @@ rows, and only `apps/business/src/chain` may.
 | 1 | `wallet` | The Shield provider and executor: the only way a transaction is signed | chain |
 | 1 | `handshake` | The offer and acceptance engine | chain |
 | 2 | `manifest` | Payroll run compiler, chunk planner, row validation | chain |
+| 2 | `pair-keys` | A conversation's pair key, version 2: P-256, ML-KEM-1024 and an optional out-of-band secret (its words and QR code), in a versioned format with HQC's slot reserved; not used by the app yet (its README). Takes only the word list from `vault` | |
 | 3 | `records` | Record scanners and registry reads | chain |
 | 4 | `rail` | The pay queue: one private stablecoin transfer per payee through the wallet, resumable | chain |
 

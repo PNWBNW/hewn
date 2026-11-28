@@ -5,7 +5,8 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./passphrase-words": "./src/passphrase_words.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
