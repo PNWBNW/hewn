@@ -1,6 +1,6 @@
 ---
 status: design
-updated: 2026-11-25
+updated: 2026-11-28
 summary: How the native desktop client is built to be hard to attack: GPUI without gpui-kit and an in-house trusted path for the three screens that matter, three processes with the keys in the smallest, payments proved against the chain before the phone is asked, one way out to the network, releases that need more than one key, the books under a memory-hard key and a device factor, and a post-quantum plan with its honest limits; a checklist with the test for each item.
 ---
 
@@ -174,13 +174,29 @@ goes. So:
 |---|---|---|
 | The vault, backup files, the recovery code | AES-256, HKDF, a 128-bit code: quantum-safe | Argon2id for its own sake |
 | Period roots, anchors, lookups | Hashes only (BLAKE3, HMAC, SHA-256): safe | — |
-| Letters (paystubs, W-4s, offers) | Elliptic-curve: can be harvested now, read later | Hybrid ML-KEM-768 inner lock before any SSN travels on mainnet |
+| Letters (paystubs, W-4s, offers) | Elliptic-curve: can be harvested now, read later | Three layers (below) before any SSN travels on mainnet |
 | Rust TLS | No post-quantum exchange | X25519MLKEM768 in the network process |
 | Releases and updates | Ed25519, minisign: forgeable later | Release signature v2 (Ed25519 + SLH-DSA) |
 | Shield's relay | secp256k1: harvestable | A request to Provable (below); Hewn can't fix it alone |
 | Aleo records, accounts, proofs; USDCx's compliance records | Elliptic-curve, out of Hewn's control | Put as little on chain as possible; follow Aleo's own plan (none published that we found) |
 
 Every format carries a version, so an algorithm can be swapped without a migration of its own.
+
+**Letters: three layers** (Joshua, 2026-11-28). Each pair's conversation key is made from all of:
+
+1. **P-256**, as today: secure against today's computers.
+2. **ML-KEM-1024** (FIPS 203, its highest level): designed to hold against a quantum computer. Its
+   keys (1,568 bytes) travel as letter pages, once per pair. The key format is versioned with a slot
+   reserved for **HQC**, NIST's code-based backup, once its standard is final, so a break in lattice
+   cryptography alone wouldn't open a letter. Formally verified implementations are preferred where
+   they exist.
+3. **A secret the two parties share out of band** (optional): at least 128 bits, exchanged outside
+   Hewn and the chain (scanned in person as a QR code, or read over another channel), kept in each
+   party's vault and mixed into every message key. With it, nothing on chain alone opens a letter,
+   whatever breaks later.
+
+An attacker has to break every layer the pair uses. Letters sent before a pair upgrades stay as they
+were sealed.
 
 ## 8. What this can't fix
 
@@ -242,4 +258,4 @@ Each item is a pull request of its own; the test is what proves it.
 | 16 | Trusted-path screens | Capture of the window returns nothing; the passphrase buffer is zero after use |
 | 17 | Release signature v2 with expiry and floor | An expired, older-than-floor or single-signature release is refused |
 | 18 | Reproducible build and second-machine compare | Two builds give the same hashes |
-| 19 | Hybrid letters | A letter sealed with both halves opens; with either half altered it doesn't |
+| 19 | Letters in three layers | A letter opens only with every layer the pair uses; altering the P-256 half, the ML-KEM-1024 half or the shared secret makes it fail; a pair without the shared secret still works |
