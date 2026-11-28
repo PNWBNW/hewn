@@ -3,21 +3,23 @@
 export { PairKeyError } from "./bytes";
 export {
   ALG,
+  type AnswerV2,
   KEMS,
+  KIND,
   ML_KEM_1024_CT_BYTES,
   ML_KEM_1024_EK_BYTES,
   P256_POINT_BYTES,
   type PublicHalfV2,
   SUITE,
   VERSION,
-  decodeCiphertexts,
+  decodeAnswer,
   decodePublicHalf,
-  encodeCiphertexts,
+  encodeAnswer,
   encodePublicHalf,
   isMlKem1024Key,
   versionOf,
 } from "./format";
-export { type AnswerInput, type CompleteInput, type HalfV2, type PrivateHalfV2, answerPairV2, completePairV2, newHalfV2, readPublicHalfV2 } from "./pair_key";
+export { type AnswerInput, type CompleteInput, type HalfV2, PendingPairV2, type PendingState, type PrivateHalfV2, answerPairV2, readPublicHalfV2 } from "./pair_key";
 export {
   CODE_PREFIX,
   OUT_OF_BAND_BYTES,
