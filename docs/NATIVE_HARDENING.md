@@ -185,11 +185,12 @@ Every format carries a version, so an algorithm can be swapped without a migrati
 **Letters: three layers** (Joshua, 2026-11-28). Each pair's conversation key is made from all of:
 
 1. **P-256**, as today: secure against today's computers.
-2. **ML-KEM-1024** (FIPS 203, its highest level): designed to hold against a quantum computer. Its
-   keys (1,568 bytes) travel as letter pages, once per pair. The key format is versioned with a slot
-   reserved for **HQC**, NIST's code-based backup, once its standard is final, so a break in lattice
-   cryptography alone wouldn't open a letter. Formally verified implementations are preferred where
-   they exist.
+2. **ML-KEM-1024** (FIPS 203, its highest level) **and HQC-256** (NIST's code-based choice, built
+   now from its current specification, Joshua, 2026-11-28): two post-quantum families, so a break in
+   lattice cryptography alone wouldn't open a letter. Their keys travel as letter pages, once per
+   pair; each key opens one ciphertext only. The key format is versioned: if the final FIPS 207
+   differs from today's HQC, it takes a new id and older pairs keep working. Formally verified
+   implementations are preferred where they exist.
 3. **A secret the two parties share out of band** (optional): at least 128 bits, exchanged outside
    Hewn and the chain (scanned in person as a QR code, or read over another channel), kept in each
    party's vault and mixed into every message key. With it, nothing on chain alone opens a letter,
