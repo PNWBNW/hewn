@@ -196,6 +196,18 @@ Every format carries a version, so an algorithm can be swapped without a migrati
    party's vault and mixed into every message key. With it, nothing on chain alone opens a letter,
    whatever breaks later.
 
+**Which layers, when** (Joshua, 2026-11-28):
+
+| Stage | Layers |
+|---|---|
+| A job post | Its P-256 hiring key, as today: the post's body (about 1.2 KB) holds no post-quantum key |
+| An applicant's hello | Sealed as today (P-256 inside, Aleo's curve outside); only a name and that they apply, and their own P-256 + ML-KEM-1024 half, as letter pages |
+| The application and its replies | P-256 + ML-KEM-1024, after the business's app answers the hello (+ the shared secret if they meet) |
+| The agreement and everything after it (W-4s, paystubs) | P-256 + ML-KEM-1024 + HQC-256 (+ the shared secret) |
+
+HQC-256 is the HQC team's current specification (v5.1), compiled from their own reference code, since
+no package implements it yet.
+
 An attacker has to break every layer the pair uses. Letters sent before a pair upgrades stay as they
 were sealed.
 
