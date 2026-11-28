@@ -11,6 +11,10 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 ## 2026-11
 
+### [2026-11-28](progress/2026-11/2026-11-28.md)
+
+- [HQC-5 from the HQC team's v5.1.0 reference, compiled to WebAssembly, checked on the 100 official vectors](progress/2026-11/2026-11-28.md#2026-11-28--hqc-5-from-the-hqc-teams-v510-reference-compiled-to-webassembly-checked-on-the-100-official-vectors)
+
 ### [2026-11-25](progress/2026-11/2026-11-25.md)
 
 - [The update worker's test no longer fails with the calendar](progress/2026-11/2026-11-25.md#2026-11-25--the-update-workers-test-no-longer-fails-with-the-calendar)

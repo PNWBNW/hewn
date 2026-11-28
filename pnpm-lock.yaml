@@ -222,6 +222,8 @@ importers:
         specifier: workspace:*
         version: link:../config
 
+  packages/hqc: {}
+
   packages/ledger:
     dependencies:
       '@noble/hashes':

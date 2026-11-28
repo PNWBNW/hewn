@@ -1,7 +1,8 @@
 # packages/
 
 Hewn's libraries. Source-only TypeScript, no build step: `pnpm build` is a strict typecheck of
-every package, and the apps consume the `.ts` sources directly. Import by subpath, for example
+every package, and the apps consume the `.ts` sources directly (`hqc`'s WebAssembly module is
+built by its own script and committed, its README says how). Import by subpath, for example
 `import { domainHash } from "@pnw/commitments/hash"`. Every package is `AGPL-3.0-only`.
 
 The internal names stay `@pnw/*` (PNW is the protocol namespace); the product's name lives in one
@@ -24,6 +25,7 @@ rows, and only `apps/business/src/chain` may.
 | 0 | `mailbox` | Sealed party-to-party documents keyed from the shared `parties_key`: envelope, lookup ids, the courier client | |
 | 0 | `commitments` | BLAKE3 domain hashing, Merkle trees, the canonical TLV encoder, Aleo scalar types | chain |
 | 0 | `config` | Environment and the deployed program ids (from `pnw_mvp_v2`'s manifest) | chain |
+| 0 | `hqc` | HQC-5, the HQC team's reference code (v5.1.0, vendored with one reviewed patch) compiled to WebAssembly, and a thin wrapper: key pair from a seed, encapsulation, decapsulation; the committed module is rebuilt byte for byte in CI from a pinned toolchain (its README). Not used by the app yet | |
 | 1 | `vault` | The encrypted store: a random data key wrapped by the unlock secret; "stay logged in" | |
 | 1 | `payroll` | Workers, pay runs, paychecks, each person's pay periods, the paystub's canonical form | |
 | 1 | `sales` | Customers, vendors, estimates, invoices, bills, payments | |
