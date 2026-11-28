@@ -31,6 +31,7 @@ ciphertexts   0x02 | count | (alg | length | bytes) × count
 | `0x01` | P-256, the uncompressed point | 65 bytes | (none: a key agreement) |
 | `0x02` | ML-KEM-1024 | the encapsulation key, 1,568 bytes | the ciphertext, 1,568 bytes |
 | `0x03` | **HQC, reserved** | refused: "reserved and not supported yet" | refused |
+| `0x04` | **ML-DSA-65, reserved**: the owner's signature over the half | refused: "reserved and not supported yet" | refused |
 | other | unknown | refused, naming the id | refused |
 
 Parts come once each, in ascending id order, nothing after the last. A version 2 half carries the
@@ -42,6 +43,13 @@ lattice cryptography alone wouldn't open anything; its standard isn't final. Whe
 as id `0x03` in the same list: a half lists it, the answer carries one more ciphertext, the
 combiner takes one more secret. No migration of its own: a pair made without it keeps its key.
 Ids are never reused.
+
+**The reserved ML-DSA slot.** ML-DSA-65 (FIPS 204) would let a half carry its owner's signature, so
+the other side knows the keys came from them. A signature can't be harvested and forged later the way
+a ciphertext can be read later, so it only has to arrive before quantum computers do; until then the
+half's origin rests on the Aleo transaction that carries it and, where the two parties use it, on the
+out-of-band secret, which already rules out anyone in the middle. When it's needed, it joins as id
+`0x04`.
 
 A version 1 half is the bare P-256 point (65 bytes, first byte `0x04`), so the first byte tells the
 two apart (`versionOf`); a version 1 half where a version 2 one belongs is refused, never guessed.

@@ -199,5 +199,6 @@ describe("the combiner", () => {
     expect(ALG.P256).toBe(1);
     expect(ALG.ML_KEM_1024).toBe(2);
     expect(ALG.HQC_RESERVED).toBe(3);
+    expect(ALG.ML_DSA_65_RESERVED).toBe(4);
   });
 });

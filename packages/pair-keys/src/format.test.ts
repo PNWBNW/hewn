@@ -44,6 +44,10 @@ describe("the version 2 format", () => {
     expect(() => decodeCiphertexts(raw(part(ALG.P256, point)))).toThrow(/unknown algorithm/);
   });
 
+  it("refuses the reserved ML-DSA-65 slot by name", () => {
+    expect(() => decodePublicHalf(raw(part(ALG.P256, point), part(ALG.ML_KEM_1024, ek), part(ALG.ML_DSA_65_RESERVED, new Uint8Array(4))))).toThrow(/ML-DSA-65, which is reserved/);
+  });
+
   it("refuses repeats, disorder, missing parts, other versions, truncation and leftovers", () => {
     expect(() => decodePublicHalf(raw(part(ALG.ML_KEM_1024, ek), part(ALG.P256, point)))).toThrow(/out of order/);
     expect(() => decodePublicHalf(raw(part(ALG.P256, point), part(ALG.P256, point)))).toThrow(/repeats/);

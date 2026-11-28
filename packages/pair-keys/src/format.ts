@@ -32,7 +32,16 @@ export const ALG = {
   ML_KEM_1024: 0x02,
   /** HQC, NIST's code-based backup KEM: reserved until its standard is final. Refused today. */
   HQC_RESERVED: 0x03,
+  /** ML-DSA-65, FIPS 204: a signature over the half by its owner's identity key, reserved until
+   * quantum computers come close (a signature can't be harvested, so it isn't needed yet). Refused today. */
+  ML_DSA_65_RESERVED: 0x04,
 } as const;
+
+/** Ids held for a later suite: refused by name, never treated as unknown. */
+const RESERVED: ReadonlyMap<number, string> = new Map([
+  [ALG.HQC_RESERVED, "HQC"],
+  [ALG.ML_DSA_65_RESERVED, "ML-DSA-65"],
+]);
 
 /** The algorithms a version 2 public half must carry, ascending. */
 export const SUITE: readonly number[] = [ALG.P256, ALG.ML_KEM_1024];
@@ -47,7 +56,8 @@ const MAX_PARTS = 8;
 const name = (alg: number): string => {
   if (alg === ALG.P256) return "P-256";
   if (alg === ALG.ML_KEM_1024) return "ML-KEM-1024";
-  if (alg === ALG.HQC_RESERVED) return "HQC";
+  const reserved = RESERVED.get(alg);
+  if (reserved) return reserved;
   return `0x${alg.toString(16).padStart(2, "0")}`;
 };
 
@@ -80,7 +90,8 @@ function decodeParts(bytes: Uint8Array, what: string, allowed: readonly number[]
     const alg = bytes[at]!;
     const len = (bytes[at + 1]! << 8) | bytes[at + 2]!;
     at += 3;
-    if (alg === ALG.HQC_RESERVED) throw new PairKeyError(`${what} uses HQC, which is reserved and not supported yet`);
+    const reserved = RESERVED.get(alg);
+    if (reserved) throw new PairKeyError(`${what} uses ${reserved}, which is reserved and not supported yet`);
     if (!allowed.includes(alg)) throw new PairKeyError(`${what} uses an unknown algorithm (${name(alg)})`);
     if (alg <= last) throw new PairKeyError(`${what} repeats a part or lists them out of order`);
     if (at + len > bytes.length) throw new PairKeyError(`${what} ends inside its ${name(alg)} part`);
