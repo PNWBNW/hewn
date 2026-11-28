@@ -1,0 +1,141 @@
+{
+  "about": "The HQC team's reference implementation of HQC-5, vendored unmodified but for the patches listed; checked by packages/hqc/scripts/check_vendor.py (README.md).",
+  "upstream": {
+    "repository": "https://gitlab.com/pqc-hqc/hqc",
+    "tag": "v5.1.0",
+    "tag_object": "bd3ed177e883aa04ba2db6b029599d662f88ca6f",
+    "commit": "06567ccbad10580d78dd7863b15d23f41076d57f",
+    "tagged": "2026-10-26T14:12:59Z",
+    "licence": "Public domain (LICENSE)",
+    "implementation": "src/ref (the reference, no SIMD), src/common, lib/fips202; parameter set hqc-5"
+  },
+  "root": "vendor/hqc-5.1.0",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "b13ac4224f66fac9f0bd9f1bbee6e102c1d28e86d3ba27ac2e5c5de7036658e0"
+    },
+    {
+      "path": "lib/fips202/fips202.c",
+      "sha256": "0e5dfd560260666b3e20c0e4df9bff1194dfa380a533fc6b7daf927a44500f3b"
+    },
+    {
+      "path": "lib/fips202/fips202.h",
+      "sha256": "96c70d0ca19e4f8ab2e37093d0f5d5905163c2b609db5b50bc3c5e8fc8aaf46e"
+    },
+    {
+      "path": "src/common/code.c",
+      "sha256": "c207b7708c2e7b894c31b1d31166534af73bc07d855b4d99d3e956862c7626af"
+    },
+    {
+      "path": "src/common/code.h",
+      "sha256": "afbd3a2e0baf952a5a0d08175deb94e6f89236c207132f3ce6ff613064cbe8d3"
+    },
+    {
+      "path": "src/common/crypto_memset.c",
+      "sha256": "906d712f2e4b67f172c7cc5596c23d618c3004eb9173e1f4f94cc8bbf2b89c24"
+    },
+    {
+      "path": "src/common/crypto_memset.h",
+      "sha256": "95094245695db2847fc591523467f7005c0c32f1d663d52737a48a29b39bda6d"
+    },
+    {
+      "path": "src/common/hqc-5/hqc-kem.h",
+      "sha256": "03b60c3e8516010e6571ca4cf0fa7ae8168aaa4b8eb0ff1c6077aeccc10b2939"
+    },
+    {
+      "path": "src/common/hqc-kem.c",
+      "sha256": "61e78f6c9e4a338cb2c5c84946a9d3a96b796da4175ecbebda0aaee42a181dc4"
+    },
+    {
+      "path": "src/common/randombytes.h",
+      "sha256": "5343d0c3f000013e9017545de16c9ff7a27765f2140ad6b1756dcda41aa8a9bf"
+    },
+    {
+      "path": "src/common/reed_muller.h",
+      "sha256": "05a4f24eee801f55507f41e1f9e4550b81c35710227fa8ca8faf7918595cd18b"
+    },
+    {
+      "path": "src/common/symmetric.c",
+      "sha256": "f423a1a6868dfeb45efd0ce801783d29f2e32b22c9af4729d91d0330960beb5c"
+    },
+    {
+      "path": "src/common/symmetric.h",
+      "sha256": "b7f5f616beeb5d964ce6e153a124c263b546b3ed651f9cd6ff3f485463ab723e"
+    },
+    {
+      "path": "src/ref/data_structures.h",
+      "sha256": "6e1deef25f3954ff74ffe25551fa3d353e8a5dfd707e9dc3941a520fd461360b"
+    },
+    {
+      "path": "src/ref/gf.c",
+      "sha256": "6e69e615458a2f623b020f71e8881b0eed6ed8a876bf8b604494b439e98e26b9"
+    },
+    {
+      "path": "src/ref/gf.h",
+      "sha256": "0dbcd4bf7c47ca40f021ca0d589b80948f9e58f94d17bbdb3a7f7e135dc306e5"
+    },
+    {
+      "path": "src/ref/gf2x.c",
+      "sha256": "9d8a1fc01bc5f144bed3e0cd06b3828b4386fc712be4cc2efc8749d64fb36771"
+    },
+    {
+      "path": "src/ref/gf2x.h",
+      "sha256": "a8c4d13088bedb6467dddc271b155b592d1e8c2ae407f05109edc23a49b3a773"
+    },
+    {
+      "path": "src/ref/hqc-5/parameters.h",
+      "sha256": "56543f11db813182627454fe71a35c4d4eb967e71baa22a46178f324a05cb193",
+      "upstream_sha256": "de04f2f4c69e38b1618697da0a01ec9825d4d949c425f5e17064e0395f46b6ca",
+      "patch": {
+        "find": "#define BITMASK(a, size)  ((1UL << (a % size)) - 1)",
+        "replace": "#define BITMASK(a, size)  ((1ULL << (a % size)) - 1)",
+        "reason": "BITMASK shifts 1UL, an unsigned long, left by PARAM_N % 64, which is 37 for HQC-5. An unsigned long is 64 bits on the 64-bit systems the reference is built for but 32 bits on wasm32, where a shift by 37 is undefined and the mask comes out wrong: built unpatched, the module's public keys, ciphertexts and shared secrets all differ from the official KATs. 1ULL is at least 64 bits on every target, so the mask is the intended 2^37 - 1 everywhere, and the same as before on 64-bit systems. (For HQC-1 and HQC-3 the shift is 5 and 11, so they don't meet the bug.)"
+      }
+    },
+    {
+      "path": "src/ref/hqc-5/reed_solomon.h",
+      "sha256": "22509ee85e299301ea0c4ae8ead75ead9d9cf777b23ee072c7b1a56e4a125e33"
+    },
+    {
+      "path": "src/ref/hqc.c",
+      "sha256": "8a2b0e66f2aed66fb011219289b605510a40d3738996c838fd4b239131583ec8"
+    },
+    {
+      "path": "src/ref/hqc.h",
+      "sha256": "480f6fa27eecb7aff0e75b1f24712de14bf55fb438e2cbb01bdda785b8cacf8d"
+    },
+    {
+      "path": "src/ref/parsing.c",
+      "sha256": "1ae00e2b70072b52f4df9c6215e96d5ca1d3f073ee46a6039c0fc3a545f069c2"
+    },
+    {
+      "path": "src/ref/parsing.h",
+      "sha256": "db334468858f68d4a3522de30ae6f0761edbc6dee04dcc7ce25afd647b610a79"
+    },
+    {
+      "path": "src/ref/reed_muller.c",
+      "sha256": "944cd1fcea047b1d0da32a02d63e15969d7546511925862ceec58c417a46bd24"
+    },
+    {
+      "path": "src/ref/reed_solomon.c",
+      "sha256": "3f3acc8c1df4f45ed5267ebc0569ddde982a5731962590192bd6de415fe21aae"
+    },
+    {
+      "path": "src/ref/vector.c",
+      "sha256": "aab045a587466215407a29b01ddbeac6a7665d01dd70376c1094d6e3881a109c"
+    },
+    {
+      "path": "src/ref/vector.h",
+      "sha256": "d0207694e3ec1d3355937001b994158518799a543ee71ebd725923e3761d9092"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "fixtures/PQCkemKAT_32.rsp",
+      "upstream_path": "kats/ref/hqc-5/PQCkemKAT_32.rsp",
+      "sha256": "e5066df4ec3dbe012d60a4a66ce5e0c2f1996d11af8a8eb66333f15b51095edb",
+      "vectors": 100
+    }
+  ]
+}

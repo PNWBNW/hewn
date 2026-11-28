@@ -1,0 +1,69 @@
+{
+  "about": "The pinned toolchain that builds dist/hqc5.wasm (scripts/build_wasm.py; README.md, 'The toolchain'). Each package is downloaded, its size and SHA-256 checked before anything in it is used, and unpacked with dpkg-deb.",
+  "distribution": {
+    "name": "Ubuntu 24.04 LTS (noble), release pocket",
+    "release_index": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+    "release_index_signed": "2024-04-25T15:11:21Z, by the Ubuntu Archive Automatic Signing Key (2018), F6ECB3762474EDA9D21B7022871920D1991BC93C",
+    "release_index_sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+    "note": "Each package's SHA-256 below is the one in that signed index's Packages files (main, universe; binary-amd64), checked on 2026-11-28. The release pocket never changes, so these files stay at these addresses."
+  },
+  "llvm": "18.1.3 (Ubuntu's 1:18.1.3-1)",
+  "mirrors": [
+    "https://archive.ubuntu.com/ubuntu/",
+    "http://azure.archive.ubuntu.com/ubuntu/"
+  ],
+  "packages": [
+    {
+      "name": "clang-18",
+      "version": "1:18.1.3-1",
+      "path": "pool/universe/l/llvm-toolchain-18/clang-18_18.1.3-1_amd64.deb",
+      "size": 80564,
+      "sha256": "3d028a3b4c0b3dc942e043db94e153baedf5c384283181d274a5e915da1b5135",
+      "for": "the clang driver and compiler"
+    },
+    {
+      "name": "libclang-cpp18",
+      "version": "1:18.1.3-1",
+      "path": "pool/main/l/llvm-toolchain-18/libclang-cpp18_18.1.3-1_amd64.deb",
+      "size": 13494854,
+      "sha256": "899e354d4719c31eb7829517a3ed8d6b64173590fb5c7fe7371ede469fbbe05d",
+      "for": "clang's library"
+    },
+    {
+      "name": "libllvm18",
+      "version": "1:18.1.3-1",
+      "path": "pool/main/l/llvm-toolchain-18/libllvm18_18.1.3-1_amd64.deb",
+      "size": 27545628,
+      "sha256": "826621c8e678dd27b4f5c3a9b26d10aae50d5de2d95575695a17c91014f5eaa5",
+      "for": "LLVM: the optimiser and the WebAssembly back end"
+    },
+    {
+      "name": "libclang-common-18-dev",
+      "version": "1:18.1.3-1",
+      "path": "pool/universe/l/llvm-toolchain-18/libclang-common-18-dev_18.1.3-1_amd64.deb",
+      "size": 736304,
+      "sha256": "91df14d6e3829652b837e2b368e35b076124277f2962a3f3daaea296bf86e4b0",
+      "for": "clang's own headers (stdint.h, stddef.h)"
+    },
+    {
+      "name": "lld-18",
+      "version": "1:18.1.3-1",
+      "path": "pool/universe/l/llvm-toolchain-18/lld-18_18.1.3-1_amd64.deb",
+      "size": 1383244,
+      "sha256": "3a57f9d283186f0779020104ae81db8138657d0ea36809cf06d9cc2bcbce387d",
+      "for": "wasm-ld, the linker"
+    },
+    {
+      "name": "wasi-libc",
+      "version": "0.0~git20230113.4362b18-3",
+      "path": "pool/universe/w/wasi-libc/wasi-libc_0.0~git20230113.4362b18-3_all.deb",
+      "size": 980212,
+      "sha256": "27d110012b8f82a92f5c8b5d0e959cd4d7edb23359577c37b92f7ba49eec6bd1",
+      "for": "the C library's headers, and its memcpy and memset"
+    }
+  ],
+  "libc_members": [
+    "memcpy.o",
+    "memset.o"
+  ]
+}

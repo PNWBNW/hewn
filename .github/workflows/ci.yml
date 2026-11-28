@@ -37,6 +37,8 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
           python3 -I scripts/check_lockfile.py --age --base "origin/$BASE_REF"
+      - name: The vendored HQC code is the HQC team's, but for the reviewed patch (packages/hqc; OPS-04)
+        run: python3 -I packages/hqc/scripts/check_vendor.py
       - name: No keys or tokens in the tree (docs/INVARIANTS.md, INV-06)
         run: python3 -I scripts/check_secrets.py
       - name: The secrets scan reads new files and knows the key forms (scripts/check_secrets_test.py)

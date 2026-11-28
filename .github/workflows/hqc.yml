@@ -1,0 +1,65 @@
+name: HQC module
+
+# packages/hqc: HQC-5 from the HQC team's reference code (v5.1.0), compiled to WebAssembly. On every
+# pull request that touches it, and on main:
+#
+# - the vendored files are the HQC team's at the pinned commit, byte for byte, but for the one
+#   reviewed patch (packages/hqc/vendor/manifest.json, checked here against gitlab.com), and the
+#   official known-answer file is theirs;
+# - the module is rebuilt from them with the pinned toolchain (Ubuntu 24.04's own packages of LLVM
+#   18.1.3's clang and wasm-ld, and wasi-libc, each checked by size and SHA-256 before use), and the
+#   job fails unless it is dist/hqc5.wasm byte for byte, with the SHA-256 committed beside it. The
+#   rebuilt module is kept as the run's artifact either way.
+#
+# The 100 known-answer tests run with every package's tests in CI (ci.yml, `pnpm test`).
+# No secret, nothing published.
+
+on:
+  pull_request:
+    paths:
+      - "packages/hqc/**"
+      - ".github/workflows/hqc.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/hqc/**"
+      - ".github/workflows/hqc.yml"
+  workflow_dispatch:
+
+# Least privilege: the job reads the repository and nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  group: hqc-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rebuild:
+    name: Vendored source, and the module rebuilt byte for byte
+    # The toolchain's binaries are Ubuntu 24.04's; they run against its system libraries.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The vendor check's own tests
+        run: python3 -I packages/hqc/scripts/check_vendor_test.py
+      - name: The vendored files are the HQC team's at the pinned commit, but for the reviewed patch
+        run: python3 -I packages/hqc/scripts/check_vendor.py --upstream
+      - name: Rebuilt with the pinned toolchain, the module is the committed one, byte for byte
+        run: python3 -I packages/hqc/scripts/build_wasm.py --out "$RUNNER_TEMP/hqc5.wasm"
+      - name: The rebuilt module's SHA-256
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/hqc5.wasm" ]; then
+            sha256sum "$RUNNER_TEMP/hqc5.wasm" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: hqc5-wasm-rebuilt
+          path: ${{ runner.temp }}/hqc5.wasm
+          if-no-files-found: ignore
+          retention-days: 14
