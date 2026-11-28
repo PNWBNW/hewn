@@ -15,6 +15,7 @@ fails when this index is out of date or a day file sits outside its month's fold
 
 - [A three-layer pair key: P-256, ML-KEM-1024 and an optional shared secret, not wired yet](progress/2026-11/2026-11-28.md#2026-11-28--a-three-layer-pair-key-p-256-ml-kem-1024-and-an-optional-shared-secret-not-wired-yet)
 - [The pair-key format reserves a slot for an ML-DSA-65 signature](progress/2026-11/2026-11-28.md#2026-11-28--the-pair-key-format-reserves-a-slot-for-an-ml-dsa-65-signature)
+- [The answer carries only what it uses, and each pending pair key opens one answer](progress/2026-11/2026-11-28.md#2026-11-28--the-answer-carries-only-what-it-uses-and-each-pending-pair-key-opens-one-answer)
 
 ### [2026-11-25](progress/2026-11/2026-11-25.md)
 
